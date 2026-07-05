@@ -1,0 +1,299 @@
+{
+  "version": 1,
+  "installMode": "vendored",
+  "packPath": "/Volumes/develop/vibe-engineering/agent-pack",
+  "packRemote": "",
+  "packCommit": "73dd68b",
+  "projectEvolution": ".agents/evolution",
+  "updatedAt": "2026-07-05T12:53:39.103606+00:00",
+  "files": {
+    ".agents/EVOLUTION.md": {
+      "type": "file",
+      "source": ".agents/EVOLUTION.md",
+      "sourceSha256": "b5595e68d6f41573de1fecca4f63399085a00f80806de6c2bbe8cbd0e257e2e0",
+      "installedSha256": "b5595e68d6f41573de1fecca4f63399085a00f80806de6c2bbe8cbd0e257e2e0"
+    },
+    ".agents/skills/bug-fixer/SKILL.md": {
+      "type": "file",
+      "source": ".agents/skills/bug-fixer/SKILL.md",
+      "sourceSha256": "e9577243dc87b5d5c9cf9ffa4a0397c24a2040a1584d9fef1a6d93fe27e1720e",
+      "installedSha256": "e9577243dc87b5d5c9cf9ffa4a0397c24a2040a1584d9fef1a6d93fe27e1720e"
+    },
+    ".agents/skills/code-review/SKILL.md": {
+      "type": "file",
+      "source": ".agents/skills/code-review/SKILL.md",
+      "sourceSha256": "39a649171f101e92edc87a197db5e3f1e75ea56d7b497a00df505e8d8fe463ba",
+      "installedSha256": "39a649171f101e92edc87a197db5e3f1e75ea56d7b497a00df505e8d8fe463ba"
+    },
+    ".agents/skills/design-brief-builder/SKILL.md": {
+      "type": "file",
+      "source": ".agents/skills/design-brief-builder/SKILL.md",
+      "sourceSha256": "325ddcd47c89b235b8d320a350a3f1bde109698d5946ba33bd07e5fc03b18ac2",
+      "installedSha256": "325ddcd47c89b235b8d320a350a3f1bde109698d5946ba33bd07e5fc03b18ac2"
+    },
+    ".agents/skills/design-brief-builder/examples/claude-code-desktop.md": {
+      "type": "file",
+      "source": ".agents/skills/design-brief-builder/examples/claude-code-desktop.md",
+      "sourceSha256": "1fb14fc411155fcdcf3a5bf4bc73d76de5d1739df728bfd02859888440776918",
+      "installedSha256": "1fb14fc411155fcdcf3a5bf4bc73d76de5d1739df728bfd02859888440776918"
+    },
+    ".agents/skills/design-brief-builder/references/interview-principles.md": {
+      "type": "file",
+      "source": ".agents/skills/design-brief-builder/references/interview-principles.md",
+      "sourceSha256": "5b4bb113e46b91b899f2a8d57401aae621d0bb299700147aa42a0a110a3f8299",
+      "installedSha256": "5b4bb113e46b91b899f2a8d57401aae621d0bb299700147aa42a0a110a3f8299"
+    },
+    ".agents/skills/design-brief-builder/references/question-bank.md": {
+      "type": "file",
+      "source": ".agents/skills/design-brief-builder/references/question-bank.md",
+      "sourceSha256": "84073f4f30c96d7aab5c169569871aff620e1f7aa14faa0aecb8c83269a6c68e",
+      "installedSha256": "84073f4f30c96d7aab5c169569871aff620e1f7aa14faa0aecb8c83269a6c68e"
+    },
+    ".agents/skills/design-brief-builder/references/workflow-0-1.md": {
+      "type": "file",
+      "source": ".agents/skills/design-brief-builder/references/workflow-0-1.md",
+      "sourceSha256": "57dbe64d76eb7bb2e177587887a9c3e6ea3cd36adc72371ec3468ef68a66a98c",
+      "installedSha256": "57dbe64d76eb7bb2e177587887a9c3e6ea3cd36adc72371ec3468ef68a66a98c"
+    },
+    ".agents/skills/design-brief-builder/references/workflow-iteration.md": {
+      "type": "file",
+      "source": ".agents/skills/design-brief-builder/references/workflow-iteration.md",
+      "sourceSha256": "4e4990ccca43bd75ef2c6fec1867edca84f515e6db83181cfcbba570f8803da2",
+      "installedSha256": "4e4990ccca43bd75ef2c6fec1867edca84f515e6db83181cfcbba570f8803da2"
+    },
+    ".agents/skills/design-brief-builder/templates/design-brief-template.md": {
+      "type": "file",
+      "source": ".agents/skills/design-brief-builder/templates/design-brief-template.md",
+      "sourceSha256": "2251038278310c3842578ccaf1c8d274fb5928d13dc1926408313e1af43b40f1",
+      "installedSha256": "2251038278310c3842578ccaf1c8d274fb5928d13dc1926408313e1af43b40f1"
+    },
+    ".agents/skills/design-maker/SKILL.md": {
+      "type": "file",
+      "source": ".agents/skills/design-maker/SKILL.md",
+      "sourceSha256": "0784e82977e34b63b214e127cd6536b0867189f2b03016f59edd3ce6a3c46b4b",
+      "installedSha256": "0784e82977e34b63b214e127cd6536b0867189f2b03016f59edd3ce6a3c46b4b"
+    },
+    ".agents/skills/dev-builder/SKILL.md": {
+      "type": "file",
+      "source": ".agents/skills/dev-builder/SKILL.md",
+      "sourceSha256": "4f4954ccb6320682f1d66dda4045c0fa6c12d46cee144e7eac76df9e2ed321d6",
+      "installedSha256": "4f4954ccb6320682f1d66dda4045c0fa6c12d46cee144e7eac76df9e2ed321d6"
+    },
+    ".agents/skills/dev-planner/SKILL.md": {
+      "type": "file",
+      "source": ".agents/skills/dev-planner/SKILL.md",
+      "sourceSha256": "8262fbc4d921163cd4fda5ad3e60892e9dc472348f25c7d9ff603baeef683e6f",
+      "installedSha256": "8262fbc4d921163cd4fda5ad3e60892e9dc472348f25c7d9ff603baeef683e6f"
+    },
+    ".agents/skills/dev-planner/templates/dev-plan-template.md": {
+      "type": "file",
+      "source": ".agents/skills/dev-planner/templates/dev-plan-template.md",
+      "sourceSha256": "390ae43d644e70e7489a9b640ad0f5ef328cf98145f596204a03c9bc6c607dfa",
+      "installedSha256": "390ae43d644e70e7489a9b640ad0f5ef328cf98145f596204a03c9bc6c607dfa"
+    },
+    ".agents/skills/evolution-engine/SKILL.md": {
+      "type": "file",
+      "source": ".agents/skills/evolution-engine/SKILL.md",
+      "sourceSha256": "f7a7421ea0abe40c7312ec528b423d7df301422c09d1e27d6edaa3662ee298f5",
+      "installedSha256": "f7a7421ea0abe40c7312ec528b423d7df301422c09d1e27d6edaa3662ee298f5"
+    },
+    ".agents/skills/goal-creator/SKILL.md": {
+      "type": "file",
+      "source": ".agents/skills/goal-creator/SKILL.md",
+      "sourceSha256": "c5a49389b02b4f8e87d6c0aca009f0262cea4b11fa4e72b4c62ad7bc5ca76000",
+      "installedSha256": "c5a49389b02b4f8e87d6c0aca009f0262cea4b11fa4e72b4c62ad7bc5ca76000"
+    },
+    ".agents/skills/product-spec-builder/SKILL.md": {
+      "type": "file",
+      "source": ".agents/skills/product-spec-builder/SKILL.md",
+      "sourceSha256": "c5a8e917c5b13962d8df293306c7b97e01e2493cd00b9c8105e68c14d9db61fb",
+      "installedSha256": "c5a8e917c5b13962d8df293306c7b97e01e2493cd00b9c8105e68c14d9db61fb"
+    },
+    ".agents/skills/product-spec-builder/examples/claude-code-desktop.md": {
+      "type": "file",
+      "source": ".agents/skills/product-spec-builder/examples/claude-code-desktop.md",
+      "sourceSha256": "4173e0c019eaa33dc28a92a6837ce69632ecd8a2131f7a14d9490f2e583d023a",
+      "installedSha256": "4173e0c019eaa33dc28a92a6837ce69632ecd8a2131f7a14d9490f2e583d023a"
+    },
+    ".agents/skills/product-spec-builder/references/interview-principles.md": {
+      "type": "file",
+      "source": ".agents/skills/product-spec-builder/references/interview-principles.md",
+      "sourceSha256": "5b4bb113e46b91b899f2a8d57401aae621d0bb299700147aa42a0a110a3f8299",
+      "installedSha256": "5b4bb113e46b91b899f2a8d57401aae621d0bb299700147aa42a0a110a3f8299"
+    },
+    ".agents/skills/product-spec-builder/references/question-bank.md": {
+      "type": "file",
+      "source": ".agents/skills/product-spec-builder/references/question-bank.md",
+      "sourceSha256": "e0f671e20a861792bb52f32b139e2415c23462eb8d0ec1978d38ecd08e655caf",
+      "installedSha256": "e0f671e20a861792bb52f32b139e2415c23462eb8d0ec1978d38ecd08e655caf"
+    },
+    ".agents/skills/product-spec-builder/references/workflow-0-1.md": {
+      "type": "file",
+      "source": ".agents/skills/product-spec-builder/references/workflow-0-1.md",
+      "sourceSha256": "6c25785f42999f71ce8aaad831c788f2f411561aa4d3d930f25274b1ef642a02",
+      "installedSha256": "6c25785f42999f71ce8aaad831c788f2f411561aa4d3d930f25274b1ef642a02"
+    },
+    ".agents/skills/product-spec-builder/references/workflow-iteration.md": {
+      "type": "file",
+      "source": ".agents/skills/product-spec-builder/references/workflow-iteration.md",
+      "sourceSha256": "7d151ad5c5972d6b6b022de2d4cb2ff2cf36148a47143549f064ac7ac7f9272d",
+      "installedSha256": "7d151ad5c5972d6b6b022de2d4cb2ff2cf36148a47143549f064ac7ac7f9272d"
+    },
+    ".agents/skills/product-spec-builder/templates/changelog-template.md": {
+      "type": "file",
+      "source": ".agents/skills/product-spec-builder/templates/changelog-template.md",
+      "sourceSha256": "4512541da02b0c1fdbff54a05e2ebe6cf576f0dabf5b774a4061feaa7b3e164e",
+      "installedSha256": "4512541da02b0c1fdbff54a05e2ebe6cf576f0dabf5b774a4061feaa7b3e164e"
+    },
+    ".agents/skills/product-spec-builder/templates/product-spec-template.md": {
+      "type": "file",
+      "source": ".agents/skills/product-spec-builder/templates/product-spec-template.md",
+      "sourceSha256": "caf5109173229c8bf7248b514d84f7195bec6958867d1f763def7dacf533ec11",
+      "installedSha256": "caf5109173229c8bf7248b514d84f7195bec6958867d1f763def7dacf533ec11"
+    },
+    ".agents/skills/release-builder/SKILL.md": {
+      "type": "file",
+      "source": ".agents/skills/release-builder/SKILL.md",
+      "sourceSha256": "e8280988ec032ada9565620d96932650aae8df72af58acbf0f6d471a975ee05a",
+      "installedSha256": "e8280988ec032ada9565620d96932650aae8df72af58acbf0f6d471a975ee05a"
+    },
+    ".agents/skills/skill-builder/SKILL.md": {
+      "type": "file",
+      "source": ".agents/skills/skill-builder/SKILL.md",
+      "sourceSha256": "7e250d209e063d93428c977041dddd1b15f91e328bbb28a2c43136fd0b68a029",
+      "installedSha256": "7e250d209e063d93428c977041dddd1b15f91e328bbb28a2c43136fd0b68a029"
+    },
+    ".agents/skills/skill-builder/templates/skill-template.md": {
+      "type": "file",
+      "source": ".agents/skills/skill-builder/templates/skill-template.md",
+      "sourceSha256": "cd9699a390a01f60192ffff0929d9f044e49a7833dc0baa85f20add4ccf66f0a",
+      "installedSha256": "cd9699a390a01f60192ffff0929d9f044e49a7833dc0baa85f20add4ccf66f0a"
+    },
+    ".claude/CLAUDE.md": {
+      "type": "file",
+      "source": ".claude/CLAUDE.md",
+      "sourceSha256": "aaf9bf17bd5913785dcf8028d1b6c9332e73e10007671b59b21bd1a7a2ba4931",
+      "installedSha256": "aaf9bf17bd5913785dcf8028d1b6c9332e73e10007671b59b21bd1a7a2ba4931"
+    },
+    ".claude/agents/code-reviewer.md": {
+      "type": "file",
+      "source": ".claude/agents/code-reviewer.md",
+      "sourceSha256": "e6043bbf87bbf7c03e0dbed9d54d34155d1e8a2158c1b8037bba63af0bc10651",
+      "installedSha256": "e6043bbf87bbf7c03e0dbed9d54d34155d1e8a2158c1b8037bba63af0bc10651"
+    },
+    ".claude/agents/evolution-runner.md": {
+      "type": "file",
+      "source": ".claude/agents/evolution-runner.md",
+      "sourceSha256": "40e79c7ebc4e3bba297eef763691183b84d0552deff33547250d1dee31b63ce4",
+      "installedSha256": "40e79c7ebc4e3bba297eef763691183b84d0552deff33547250d1dee31b63ce4"
+    },
+    ".claude/hooks/auto-push.sh": {
+      "type": "file",
+      "source": ".claude/hooks/auto-push.sh",
+      "sourceSha256": "cd538c6f7480c831b9cf093b4a01dc39e848de178d7c215da56db7ba88edff5f",
+      "installedSha256": "cd538c6f7480c831b9cf093b4a01dc39e848de178d7c215da56db7ba88edff5f"
+    },
+    ".claude/hooks/check-evolution.sh": {
+      "type": "file",
+      "source": ".claude/hooks/check-evolution.sh",
+      "sourceSha256": "3069d3f1596d58567a611b7c5dee10bbbb4c3867bdf3041868f88717cadc6325",
+      "installedSha256": "3069d3f1596d58567a611b7c5dee10bbbb4c3867bdf3041868f88717cadc6325"
+    },
+    ".claude/hooks/detect-feedback-signal.sh": {
+      "type": "file",
+      "source": ".claude/hooks/detect-feedback-signal.sh",
+      "sourceSha256": "30b007aead2a1170cc5ae1cea45521c1321e118ea7dbb0d3b8c539ae83cdf1b9",
+      "installedSha256": "30b007aead2a1170cc5ae1cea45521c1321e118ea7dbb0d3b8c539ae83cdf1b9"
+    },
+    ".claude/hooks/mark-review-needed.sh": {
+      "type": "file",
+      "source": ".claude/hooks/mark-review-needed.sh",
+      "sourceSha256": "c87f8fc08cddd8c3e78aa8159fdaa815b83df38223217cac501c7c7c23a02334",
+      "installedSha256": "c87f8fc08cddd8c3e78aa8159fdaa815b83df38223217cac501c7c7c23a02334"
+    },
+    ".claude/hooks/pre-commit-check.sh": {
+      "type": "file",
+      "source": ".claude/hooks/pre-commit-check.sh",
+      "sourceSha256": "f1b7e9f5fbd70e93e45e2197400bf4d84464e187cc9a88f290857166b0ee9309",
+      "installedSha256": "f1b7e9f5fbd70e93e45e2197400bf4d84464e187cc9a88f290857166b0ee9309"
+    },
+    ".claude/hooks/stop-gate.sh": {
+      "type": "file",
+      "source": ".claude/hooks/stop-gate.sh",
+      "sourceSha256": "cf1eb39a0c24acf4eda379887eafda7f7f9b266d9fc6fdff022a919337b65e10",
+      "installedSha256": "cf1eb39a0c24acf4eda379887eafda7f7f9b266d9fc6fdff022a919337b65e10"
+    },
+    ".claude/settings.json": {
+      "type": "file",
+      "source": ".claude/settings.json",
+      "sourceSha256": "63bbafb4e73a65b9de7733d52612814d3aa928946a7652658f3b3d58ca86d8df",
+      "installedSha256": "63bbafb4e73a65b9de7733d52612814d3aa928946a7652658f3b3d58ca86d8df"
+    },
+    ".codex/agents/code-reviewer.toml": {
+      "type": "file",
+      "source": ".codex/agents/code-reviewer.toml",
+      "sourceSha256": "267abab9c802472a9c2cc1b9ca3d317f23aee3c7bbdd86044a147a1584f693ed",
+      "installedSha256": "267abab9c802472a9c2cc1b9ca3d317f23aee3c7bbdd86044a147a1584f693ed"
+    },
+    ".codex/agents/evolution-runner.toml": {
+      "type": "file",
+      "source": ".codex/agents/evolution-runner.toml",
+      "sourceSha256": "0973b9b26e9d5ad7f59ebd647b095f6dddb9d401125cd2a8b02b1b4c81734182",
+      "installedSha256": "0973b9b26e9d5ad7f59ebd647b095f6dddb9d401125cd2a8b02b1b4c81734182"
+    },
+    ".codex/hooks.json": {
+      "type": "file",
+      "source": ".codex/hooks.json",
+      "sourceSha256": "00229c968753a0a6b43e05bdccb0310b96f5f730ebc4ce267bf19a8f46a344a8",
+      "installedSha256": "00229c968753a0a6b43e05bdccb0310b96f5f730ebc4ce267bf19a8f46a344a8"
+    },
+    ".codex/hooks/auto-push.sh": {
+      "type": "file",
+      "source": ".codex/hooks/auto-push.sh",
+      "sourceSha256": "aae21caa90da1700327b70049bed653f3c21b661311d46bc752289c36743d7ab",
+      "installedSha256": "aae21caa90da1700327b70049bed653f3c21b661311d46bc752289c36743d7ab"
+    },
+    ".codex/hooks/check-evolution.sh": {
+      "type": "file",
+      "source": ".codex/hooks/check-evolution.sh",
+      "sourceSha256": "6b9ab5eac2a69edb68f4480ab1a87eb14002ddfba9b2f7bf5da3d54a697f3c03",
+      "installedSha256": "6b9ab5eac2a69edb68f4480ab1a87eb14002ddfba9b2f7bf5da3d54a697f3c03"
+    },
+    ".codex/hooks/detect-feedback-signal.sh": {
+      "type": "file",
+      "source": ".codex/hooks/detect-feedback-signal.sh",
+      "sourceSha256": "e2a719097c87502ad792d5293c31351d299a25591b9a7fd922a9aeb14a99c741",
+      "installedSha256": "e2a719097c87502ad792d5293c31351d299a25591b9a7fd922a9aeb14a99c741"
+    },
+    ".codex/hooks/mark-review-needed.sh": {
+      "type": "file",
+      "source": ".codex/hooks/mark-review-needed.sh",
+      "sourceSha256": "15cdfc05a5c50565996ebe53d5870a57a767df5d632d6314778d60e22237d2e0",
+      "installedSha256": "15cdfc05a5c50565996ebe53d5870a57a767df5d632d6314778d60e22237d2e0"
+    },
+    ".codex/hooks/pre-tool-shell.sh": {
+      "type": "file",
+      "source": ".codex/hooks/pre-tool-shell.sh",
+      "sourceSha256": "76aaad8f3b84b442f26dd24e63eca05741c5f8fb606c79d7d7976c1293c83ff9",
+      "installedSha256": "76aaad8f3b84b442f26dd24e63eca05741c5f8fb606c79d7d7976c1293c83ff9"
+    },
+    ".codex/hooks/stop-gate.sh": {
+      "type": "file",
+      "source": ".codex/hooks/stop-gate.sh",
+      "sourceSha256": "9c0ddfd296bd7e8114a4755009fb02b51c6a508aede2068e4fafac9ad84c70ca",
+      "installedSha256": "9c0ddfd296bd7e8114a4755009fb02b51c6a508aede2068e4fafac9ad84c70ca"
+    },
+    "AGENT-PACK.md": {
+      "type": "file",
+      "source": "README.md",
+      "sourceSha256": "6f0a61a5ba909a5aaaf932ea7554aa41908a4b9981d34f845ef7598ca78d49e3",
+      "installedSha256": "6f0a61a5ba909a5aaaf932ea7554aa41908a4b9981d34f845ef7598ca78d49e3"
+    },
+    "AGENTS.md": {
+      "type": "file",
+      "source": "AGENTS.md",
+      "sourceSha256": "37fd98fde5e886890fa15495cbd195f4517b44a12b933a3718af94d47c4180bf",
+      "installedSha256": "37fd98fde5e886890fa15495cbd195f4517b44a12b933a3718af94d47c4180bf"
+    }
+  }
+}

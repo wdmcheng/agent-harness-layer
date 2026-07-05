@@ -1,0 +1,54 @@
+{
+  "hooks": {
+    "//": "Codex 版 hooks。事件名对标 Claude Code。command 经 /bin/sh -lc 调 .codex/hooks/ 下的脚本本体。",
+    "//tool-name": "matcher 过滤 tool name（regex）。Codex 的命令工具/编辑工具名按实际版本确认。",
+
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"$(git rev-parse --show-toplevel)/.codex/hooks/detect-feedback-signal.sh\"", "timeout": 5 }
+        ]
+      }
+    ],
+
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"$(git rev-parse --show-toplevel)/.codex/hooks/check-evolution.sh\"", "timeout": 10 }
+        ]
+      }
+    ],
+
+    "PreToolUse": [
+      {
+        "matcher": "shell|local_shell|exec",
+        "hooks": [
+          { "type": "command", "command": "\"$(git rev-parse --show-toplevel)/.codex/hooks/pre-tool-shell.sh\"", "timeout": 30 }
+        ]
+      }
+    ],
+
+    "PostToolUse": [
+      {
+        "matcher": "shell|local_shell|exec",
+        "hooks": [
+          { "type": "command", "command": "\"$(git rev-parse --show-toplevel)/.codex/hooks/auto-push.sh\"", "timeout": 15 }
+        ]
+      },
+      {
+        "matcher": "apply_patch|edit|write",
+        "hooks": [
+          { "type": "command", "command": "\"$(git rev-parse --show-toplevel)/.codex/hooks/mark-review-needed.sh\"", "timeout": 3 }
+        ]
+      }
+    ],
+
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"$(git rev-parse --show-toplevel)/.codex/hooks/stop-gate.sh\"", "timeout": 5 }
+        ]
+      }
+    ]
+  }
+}
