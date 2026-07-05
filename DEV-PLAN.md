@@ -1,0 +1,560 @@
+# Development Plan - Agent Harness Layer
+
+> 本文件记录 Agent Harness Layer 的开发阶段划分、当前进度和剩余工作。
+> 新 session 启动时应首先阅读 `Product-Spec.md`、本文件和最新 git 状态，再继续开发。
+
+---
+
+## 当前状态
+
+- Product Spec: `Product-Spec.md` 已存在，版本为 2026-07-05 的 v1.0。
+- Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
+- 设计稿 / 架构图: 已读取 `artifacts/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Eval Gate、Observability 和未来拆分边界组织开发顺序。
+- OpenSpec: 仓库存在 `openspec/`，当前未发现 active change 文件；本次不引入额外 OpenSpec 约束。
+- 代码状态: 当前仓库主要是规则、Skill、Hook、Spec 和架构图；P0 产品代码尚未开始。
+- 计划模式: 生成模式。不存在旧 `DEV-PLAN.md`，不需要保留已完成 Phase。
+
+## 技术栈决策
+
+以下版本于 2026-07-05 通过官方文档、PyPI、GitHub Release 或项目官网核验。开发时使用 `uv.lock` 锁定实际解析版本；本表给出 P0 目标线和上限策略。
+
+| 层级 | 技术 | 版本 | 说明 |
+|------|------|------|------|
+| 运行语言 | Python | `>=3.12`，CI 首批跑 3.12 和 3.13 | Spec 要求 Python 3.12+；Pydantic AI 2.5.0 PyPI 元数据覆盖 Python 3.10-3.13，因此 P0 先把 3.12/3.13 作为强门禁。 |
+| 包管理 / Workspace | uv | `0.11.26` | GitHub Release 2026-06-30 最新稳定版；负责 workspace、lock、build、publish。 |
+| Build backend | hatchling | `1.30.1` | 现代 Python build backend，配合 `uv build` 产出 wheel/sdist。 |
+| Agent runtime 底座 | pydantic-ai / pydantic-ai-slim | `2.5.0` | 默认底座，但业务 agent 只依赖 `agent_harness` 公共接口；优先使用 slim + extras 降低依赖面。 |
+| 数据校验 | Pydantic | `2.13.4` | 配置、DTO、API schema、CanonicalEvent 和 adapter contract 的统一 schema 基础。 |
+| HTTP API | FastAPI | `0.139.0` | 实现 `/api/v1/...`、OpenAPI、Swagger、Redoc 和 SSE endpoint。 |
+| ASGI Server | Uvicorn | `0.50.0` | service app 本地 API 入口；开发态使用 `uvicorn[standard]`，CI 可用基础安装。 |
+| CLI | Typer | `0.26.8` | 实现 `agent-harness doctor/run/eval/policy/scaffold/approvals`。 |
+| Durable execution | DBOS | `2.26.0` | service profile 默认 adapter；local profile 保留 SQLite-backed checkpoint。 |
+| ORM | SQLAlchemy | `2.0.51` | 采用 2.0 typed declarative、async session、Repository + Unit of Work。 |
+| Migration | Alembic | `1.18.5` | 统一 SQLite/PostgreSQL schema migration。 |
+| PostgreSQL driver | asyncpg | `0.31.0` | service profile async driver；repository contract tests 以 async 路径为准。 |
+| SQLite async bridge | aiosqlite | `0.22.1` | local profile 和 CI 使用 SQLite async adapter。 |
+| Service database | PostgreSQL | `18.4` | 官网 2026-05-14 最新稳定补丁线；Docker Compose 可先固定 `postgres:18.4`。 |
+| Queue / cache | Redis server | `7.2.4` for Docker Compose | Redis 8.8 已是当前 GA，但 Redis 8 许可证为 RSALv2/SSPLv1/AGPLv3 三选一；为 Apache-2.0 项目降低合规风险，P0 service profile 默认容器固定 Redis 7.2.4。 |
+| Redis client | redis-py | `8.0.1` | 最新客户端支持 Redis 7.2 到 8.8；P0 只使用兼容 7.2 的基础能力。 |
+| Observability 底座 | OpenTelemetry Python | `1.43.0` | OTel API/SDK 作为 provider adapter 前的统一协议。 |
+| 推荐观测 provider | Logfire | `4.37.0` | 推荐 adapter；业务代码不直接 import。 |
+| 可选观测 provider | Arize Phoenix | `17.18.0` | 可选 adapter contract，覆盖 trace/dataset/eval/feedback 工作流。 |
+| 可选观测 provider | Langfuse Python SDK | `4.13.0` | v4 SDK；adapter 层处理 v4 API，不污染核心接口。 |
+| MCP client SDK | mcp | `>=1.28.1,<2` | 官方 PyPI 说明 v1 是稳定线、v2 是 alpha；P0 明确 `<2` 防止破坏性升级。 |
+| HTTP client | HTTPX | `0.28.1` | MCP HTTP/SSE、provider adapter 和 smoke tests 使用。 |
+| Lint / Format | Ruff | `0.15.20` | `make quality` 的 lint + format 主工具。 |
+| Typecheck | Pyright | `1.1.411` | 使用 Python wrapper 或 npm pyright；CI 固定版本，避免自动漂移。 |
+| Test runner | pytest | `9.1.1` | unit、contract、integration、smoke、eval tests 的统一 runner。 |
+| Async tests | pytest-asyncio | `1.4.0` | runtime、storage、API、event stream 的 async tests。 |
+| Coverage | coverage.py | `7.15.0` | 产出 CI coverage artifact；和 pytest 分离配置。 |
+| Git hooks | pre-commit | `4.6.0` | 本地 quality hook 和 license/header check 入口。 |
+| Release automation | python-semantic-release | `10.6.0` | 统一 GitHub/GitLab 的 SemVer、tag、CHANGELOG、release artifact dry-run；不选 release-please 作为 P0 主线。 |
+| 部署目标 | Docker Compose | Compose v2 | P0 只做本地 service profile，验证 PostgreSQL + Redis + API + worker 协作；不引入 Kubernetes。 |
+
+## 技术栈验证来源
+
+- Python 版本生命周期: https://devguide.python.org/versions/
+- uv release: https://github.com/astral-sh/uv/releases
+- Pydantic AI install/version: https://pydantic.dev/docs/ai/overview/install/ 和 https://pypi.org/project/pydantic-ai/
+- DBOS Python docs/version: https://docs.dbos.dev/python/integrating-dbos 和 https://pypi.org/project/dbos/
+- FastAPI / Uvicorn / Typer: https://pypi.org/project/fastapi/ , https://pypi.org/project/uvicorn/ , https://pypi.org/project/typer/
+- SQLAlchemy / Alembic: https://pypi.org/project/SQLAlchemy/ , https://pypi.org/project/alembic/
+- PostgreSQL releases: https://www.postgresql.org/
+- Redis release/license/client: https://github.com/redis/redis/releases , https://hub.docker.com/_/redis , https://pypi.org/project/redis/
+- OpenTelemetry / Logfire / Phoenix / Langfuse: https://pypi.org/project/opentelemetry-api/ , https://pypi.org/project/logfire/ , https://pypi.org/project/arize-phoenix/ , https://github.com/langfuse/langfuse-python
+- MCP Python SDK: https://pypi.org/project/mcp/
+- Quality / release tools: https://pypi.org/project/ruff/ , https://pypi.org/project/pyright/ , https://pypi.org/project/pytest/ , https://pypi.org/project/pytest-asyncio/ , https://pypi.org/project/coverage/ , https://pypi.org/project/pre-commit/ , https://pypi.org/project/python-semantic-release/
+
+## 功能依赖图
+
+```text
+Phase 1 Monorepo / quality spine
+  -> Phase 2 Core contracts / config / identity
+    -> Phase 3 Storage / migrations / repositories
+      -> Phase 4 Event / artifact / local telemetry spine
+        -> Phase 5 Runtime / checkpoint / run lifecycle
+          -> Phase 6 Agent registry / model / embedding adapters
+            -> Phase 7 Auth / policy / HITL approval
+              -> Phase 8 Tool system / file / shell / MCP
+                -> Phase 9 Retrieval / RAG adapters
+                  -> Phase 12 Service-app template / examples
+        -> Phase 10 Observability provider adapters
+          -> Phase 11 Eval Gate / trace-to-eval loop
+            -> Phase 12 Service-app template / examples
+              -> Phase 13 Service profile / split API-worker smoke
+                -> Phase 14 Docs / ADR / maintainer guide
+                  -> Phase 15 CI/CD / release automation / compliance
+```
+
+并行规则：Phase 2 之后，文档草稿可以和代码并行，但每个 Phase 的验收必须等代码、测试和文档证据一致后才算通过。
+
+---
+
+## Phase 1: Monorepo 骨架与质量门禁地基
+
+**交付内容**：
+- 搭建 `uv workspace` monorepo，使核心包、模板、示例、文档、脚本各有边界。
+- 创建 `packages/agent-harness` 可打包 Python 包和 `templates/service-app` 可安装模板壳。
+- 配置 `make quality`、`make test`、`make smoke-local` 的最小可运行命令，先让空骨架能被 CI 和本地工具检查。
+- 添加 Apache-2.0 `LICENSE`、`NOTICE`、README 初稿和目录边界说明。
+
+**关键文件**：
+- `pyproject.toml` - workspace、tool config、根级 dependency groups。
+- `uv.lock` - 锁定 P0 初始依赖解析结果。
+- `packages/agent-harness/pyproject.toml` - 核心包 metadata、entry points、build backend。
+- `packages/agent-harness/src/agent_harness/__init__.py` - 核心包公共版本入口。
+- `templates/service-app/pyproject.toml` - 模板应用依赖 `agent-harness` 的 path/wheel 入口。
+- `Makefile` - `quality`、`test`、`smoke-local`、`build`、`eval` 命令入口。
+- `.pre-commit-config.yaml` - ruff、pyright、basic hygiene hook。
+- `README.md` - 项目定位、目录树、边界规则、Quick Start 初稿。
+- `LICENSE` - Apache-2.0 license。
+- `NOTICE` - 第三方声明入口。
+
+**验收标准**：
+- 执行 `uv sync` 能解析 workspace。
+- 执行 `uv build --package agent-harness` 能产出 wheel/sdist。
+- 执行 `make quality` 能跑 ruff、pyright 和 import boundary 最小检查。
+- 执行 `make smoke-local` 能在无真实模型 key、无外部 SaaS provider 下完成空模板健康检查。
+
+---
+
+## Phase 2: 核心契约、配置系统与身份上下文
+
+**交付内容**：
+- 定义 `agent_harness` 公共接口、错误模型、DTO 基础类、租户和身份上下文。
+- 实现 `.env`、profile YAML、agent config YAML 的 typed settings 加载、合并、校验和错误提示。
+- 建立厂商依赖隔离扫描，阻止业务 agent 和 app 入口直接 import Pydantic AI、DBOS、Logfire、Phoenix、Langfuse 等实现。
+
+**关键文件**：
+- `packages/agent-harness/src/agent_harness/config/settings.py` - 根 settings loader。
+- `packages/agent-harness/src/agent_harness/config/schemas.py` - profile、provider、storage、policy、agent config schema。
+- `packages/agent-harness/src/agent_harness/identity/context.py` - `IdentityContext`、tenant/user/session model。
+- `packages/agent-harness/src/agent_harness/contracts/dto.py` - Pydantic DTO 基类和 serialization 约束。
+- `packages/agent-harness/src/agent_harness/contracts/errors.py` - 内部错误和 API error envelope 基础。
+- `packages/agent-harness/src/agent_harness/contracts/boundaries.py` - import boundary 声明和扫描规则。
+- `templates/service-app/configs/profiles/local.yaml` - local profile 默认配置。
+- `templates/service-app/configs/profiles/service.yaml` - service profile 默认配置。
+- `templates/service-app/.env.example` - 开发者可复制配置样例。
+
+**验收标准**：
+- 缺失必填配置时启动失败，并输出字段路径和修复建议。
+- local/service profile 都能解析到 typed config。
+- 业务 agent 示例目录、`templates/service-app/app/*` 和 `examples/*` 的静态扫描不出现禁止的厂商 SDK import。
+- `agent-harness doctor --profile local` 能显示配置加载状态。
+
+---
+
+## Phase 3: 存储、迁移与事务边界
+
+**交付内容**：
+- 实现 SQLAlchemy 2.0 async typed declarative model、Alembic migration 和 Repository + Unit of Work。
+- 创建 tenant、session、run、checkpoint、trace、artifact、eval、policy、audit 的核心 schema 初版。
+- 建立 SQLite local adapter 和 PostgreSQL service adapter 的 repository contract tests。
+
+**关键文件**：
+- `packages/agent-harness/src/agent_harness/storage/models.py` - ORM model 汇总或导出。
+- `packages/agent-harness/src/agent_harness/storage/repositories.py` - repository interface。
+- `packages/agent-harness/src/agent_harness/storage/uow.py` - Unit of Work。
+- `packages/agent-harness/src/agent_harness/storage/adapters/sqlalchemy.py` - SQLAlchemy adapter。
+- `packages/agent-harness/src/agent_harness/storage/migrations/env.py` - Alembic env。
+- `packages/agent-harness/src/agent_harness/storage/migrations/versions/0001_core_schema.py` - P0 初始核心表。
+- `packages/agent-harness/src/agent_harness/cli/doctor.py` - storage、migration、Redis、provider key、eval 目录检查。
+- `templates/service-app/docker-compose.yml` - PostgreSQL 和 Redis service profile 依赖。
+
+**验收标准**：
+- local profile 执行 migration 后能创建 SQLite schema。
+- service profile 执行 migration 后能创建 PostgreSQL schema。
+- repository contract tests 在 SQLite 和 PostgreSQL 上行为一致。
+- app/API/agent/eval 代码不能直接持有 SQLAlchemy session，只能走 repository 或 Unit of Work。
+
+---
+
+## Phase 4: CanonicalEvent、Artifact 与本地观测脊柱
+
+**交付内容**：
+- 定义 `CanonicalEvent` envelope、固定 P0 event types、terminal event 和 `seq` 规则。
+- 实现 local/jsonl event sink、artifact store、payload/payload_ref 策略和 secret redaction 基础。
+- 实现 OTel mapping 的最小 facade，使后续 provider adapter 只做转换，不改变内部事件模型。
+
+**关键文件**：
+- `packages/agent-harness/src/agent_harness/events/types.py` - `CanonicalEvent` 和 event type 枚举。
+- `packages/agent-harness/src/agent_harness/events/bus.py` - `EventBus`、`EventSink` interface。
+- `packages/agent-harness/src/agent_harness/events/sinks/local_jsonl.py` - local/jsonl sink。
+- `packages/agent-harness/src/agent_harness/artifacts/store.py` - artifact/ref/checksum 管理。
+- `packages/agent-harness/src/agent_harness/security/redaction.py` - secret redaction 基础规则。
+- `packages/agent-harness/src/agent_harness/observability/otel.py` - CanonicalEvent 到 OTel span/metric/event 映射。
+- `templates/service-app/app/api/sse.py` - SSE adapter 初版。
+
+**验收标准**：
+- 一个模拟 run 的 event stream 只能出现一个 terminal event。
+- 同一 `run_id` 内事件 `seq` 单调递增，断线后可按 `seq` 继续读取。
+- 大 payload 写入 artifact，事件正文只保留 `payload_ref`。
+- 未配置外部观测 provider 时 local/jsonl 仍产出 trace/eval/audit 证据。
+
+---
+
+## Phase 5: Durable Runtime、Checkpoint 与 Run 生命周期
+
+**交付内容**：
+- 实现 `RunOrchestrator`、run state machine、checkpoint、resume token 和 idempotency key。
+- 接入 local SQLite-backed checkpoint，并为 service profile 建立 DBOS adapter 边界。
+- 打通 CLI/API 的 run 创建、取消、恢复、事件流读取的最小闭环。
+
+**关键文件**：
+- `packages/agent-harness/src/agent_harness/runtime/orchestrator.py` - run 编排入口。
+- `packages/agent-harness/src/agent_harness/runtime/state.py` - run status、terminal status、state transition。
+- `packages/agent-harness/src/agent_harness/runtime/checkpoints.py` - `CheckpointStore` interface。
+- `packages/agent-harness/src/agent_harness/runtime/idempotency.py` - duplicate submission 防护。
+- `packages/agent-harness/src/agent_harness/adapters/runtime/dbos.py` - DBOS adapter 边界。
+- `templates/service-app/app/api/routes/runs.py` - run API routes。
+- `templates/service-app/app/cli/run.py` - `agent-harness run <agent_id>` CLI。
+- `templates/service-app/app/workers/runtime_worker.py` - runtime worker 壳。
+
+**验收标准**：
+- 使用 fake agent 创建 run 后，API 和 CLI 都能得到 terminal event。
+- 同一 idempotency key 重复提交不会产生重复 run。
+- run 触发 checkpoint 后重启进程仍可 resume。
+- service profile 代码只依赖 `DBOSRuntimeAdapter` interface，不把 DBOS API 泄漏给业务 agent。
+
+---
+
+## Phase 6: Agent Registry、模型路由与 Embedding
+
+**交付内容**：
+- 实现多 agent registry、`AgentDescriptor`、agent config schema 校验和受控 delegation 配置读取。
+- 实现 Pydantic AI 默认 adapter、FakeModelProvider、ModelRouter、预算估算、timeout、fallback。
+- 实现 EmbeddingProvider、mock/local embedding、OpenAI-compatible embedding adapter 和 embedding cache。
+
+**关键文件**：
+- `packages/agent-harness/src/agent_harness/registry/descriptor.py` - `AgentDescriptor`。
+- `packages/agent-harness/src/agent_harness/registry/registry.py` - 多 agent 加载、校验、查询。
+- `packages/agent-harness/src/agent_harness/models/router.py` - model routing、fallback、budget check。
+- `packages/agent-harness/src/agent_harness/models/providers.py` - model provider interface。
+- `packages/agent-harness/src/agent_harness/adapters/models/pydantic_ai.py` - Pydantic AI adapter。
+- `packages/agent-harness/src/agent_harness/adapters/models/fake.py` - fake model provider。
+- `packages/agent-harness/src/agent_harness/embeddings/provider.py` - embedding provider interface。
+- `packages/agent-harness/src/agent_harness/embeddings/cache.py` - embedding cache。
+- `templates/service-app/app/api/routes/agents.py` - `/api/v1/agents`。
+- `templates/service-app/agents/examples/basic/config.yaml` - registry smoke agent。
+
+**验收标准**：
+- `agent-harness agents list` 能列出已配置 agent。
+- 重复 `agent_id` 或不合法 config 会被 registry 拒绝。
+- fake model 下不需要真实 API key 就能跑测试和 eval smoke。
+- 业务 agent 不直接 import `pydantic_ai`；替换 fake adapter 后 contract tests 仍通过。
+
+---
+
+## Phase 7: 认证、PolicyEngine 与 HITL 审批
+
+**交付内容**：
+- 实现 API Key / Bearer Token 认证，注入 `IdentityContext`，未启用多租户时使用 default tenant/user。
+- 实现 `PolicyEngine`、YAML provider、DB provider、默认危险动作策略和 audit log。
+- 实现 approval required、approve/deny、checkpoint resume 的 HTTP/CLI 闭环。
+
+**关键文件**：
+- `packages/agent-harness/src/agent_harness/auth/api_key.py` - API key / bearer 认证。
+- `packages/agent-harness/src/agent_harness/policy/engine.py` - policy decision 核心。
+- `packages/agent-harness/src/agent_harness/policy/providers.py` - YAML 和 DB provider interface。
+- `packages/agent-harness/src/agent_harness/policy/defaults.py` - 默认 require_approval 清单。
+- `packages/agent-harness/src/agent_harness/approvals/service.py` - approval create/resolve/resume。
+- `packages/agent-harness/src/agent_harness/audit/service.py` - audit log 写入。
+- `templates/service-app/app/api/dependencies/auth.py` - API 认证依赖。
+- `templates/service-app/app/api/routes/approvals.py` - approval API routes。
+- `templates/service-app/app/cli/approvals.py` - approval CLI。
+- `templates/service-app/configs/policy/default.yaml` - 默认策略配置。
+
+**验收标准**：
+- 无效 Bearer Token 调用 P0 API 返回认证错误且不创建 run。
+- 未配置多租户时 run/session/trace/eval 均带 `tenant_id="default"`。
+- shell、删除文件、workspace 外访问、写 approved dataset、修改 policy 等动作默认产生 `approval.required` 或被拒绝。
+- approve 后 run 从 checkpoint resume，deny 后 run 按策略失败或 fallback，audit log 记录审批人、动作、结果和 trace。
+
+---
+
+## Phase 8: ToolRegistry、FileTool、ShellTool 与 MCP Client
+
+**交付内容**：
+- 实现 `ToolRegistry`，统一本地工具、MCP 工具、schema validation、policy interception、trace/audit。
+- 实现 Workspace FileTool：read/write/list/search/patch/delete，受 workspace 根目录、`.agentignore` 和 policy 控制。
+- 实现 ShellTool 默认 disabled、显式启用、allowlist/denylist、timeout、stdout/stderr 截断、artifact_ref。
+- 实现 MCP client connector：stdio、HTTP/SSE、tool discovery、allowlist、policy 和 trace/audit。
+
+**关键文件**：
+- `packages/agent-harness/src/agent_harness/tools/registry.py` - tool registry。
+- `packages/agent-harness/src/agent_harness/tools/schema.py` - tool input/output schema validation。
+- `packages/agent-harness/src/agent_harness/tools/file_tool.py` - workspace file operations。
+- `packages/agent-harness/src/agent_harness/tools/shell_tool.py` - guarded shell execution。
+- `packages/agent-harness/src/agent_harness/tools/workspace.py` - workspace root、`.agentignore`、path guard。
+- `packages/agent-harness/src/agent_harness/mcp/client.py` - MCP client interface。
+- `packages/agent-harness/src/agent_harness/adapters/mcp/python_sdk.py` - official MCP SDK adapter。
+- `templates/service-app/configs/tools.yaml` - tool allowlist / denylist / MCP server config。
+
+**验收标准**：
+- workspace 外路径默认被拒绝或要求审批。
+- shell tool 默认 disabled；显式启用后仍受 allowlist、timeout、环境变量白名单和 approval 控制。
+- MCP tool 未在 allowlist 时被 policy 拒绝。
+- 大 tool output 被截断并写 artifact_ref，事件和 audit 不塞入完整大文本。
+
+---
+
+## Phase 9: RetrievalProvider 与 RAG 能力
+
+**交付内容**：
+- 实现 `RetrievalProvider` interface、local SQLite FTS5/BM25 adapter 和 PostgreSQL retrieval adapter。
+- 实现 optional PGroonga、optional pgvector adapter 探测、doctor 降级提示和 hybrid retrieval + RRF interface。
+- 提供 RAG assistant 示例所需的 indexing、query、citation 和 retrieval eval 基础。
+
+**关键文件**：
+- `packages/agent-harness/src/agent_harness/retrieval/provider.py` - retrieval provider interface。
+- `packages/agent-harness/src/agent_harness/retrieval/local_bm25.py` - SQLite FTS5/BM25 local adapter。
+- `packages/agent-harness/src/agent_harness/retrieval/postgres.py` - PostgreSQL retrieval adapter。
+- `packages/agent-harness/src/agent_harness/retrieval/pgroonga.py` - optional PGroonga adapter。
+- `packages/agent-harness/src/agent_harness/retrieval/pgvector.py` - optional pgvector adapter。
+- `packages/agent-harness/src/agent_harness/retrieval/hybrid.py` - RRF merge interface。
+- `templates/service-app/agents/examples/rag_assistant/config.yaml` - RAG 示例 config。
+- `templates/service-app/agents/examples/rag_assistant/evals/approved.yaml` - RAG eval 基础数据。
+
+**验收标准**：
+- local profile 不依赖 PostgreSQL 扩展也能返回 BM25 retrieval 结果。
+- service profile 中 PGroonga 或 pgvector 未安装时 `agent-harness doctor` 输出降级提示，系统不崩溃。
+- hybrid retrieval adapter 可合并 BM25/vector 结果并输出可追踪 ranking。
+- RAG 示例回答带 citation 或明确说明未找到出处。
+
+---
+
+## Phase 10: Observability Provider Adapters 与脱敏
+
+**交付内容**：
+- 扩展 `TelemetryFacade`，实现 local/jsonl 永久保留、OTel exporter、Logfire adapter、Phoenix adapter、Langfuse adapter 的 contract 层。
+- 对 runtime、tool、model、retrieval、eval、approval、audit 事件统一加 trace/span/tenant/user/agent/run/session 关联字段。
+- 强化 secret redaction，确保 secret 不进入 trace、eval、audit、local/jsonl、错误栈和外部 provider。
+
+**关键文件**：
+- `packages/agent-harness/src/agent_harness/observability/facade.py` - telemetry facade。
+- `packages/agent-harness/src/agent_harness/observability/context.py` - trace/span context propagation。
+- `packages/agent-harness/src/agent_harness/adapters/observability/logfire.py` - Logfire adapter。
+- `packages/agent-harness/src/agent_harness/adapters/observability/phoenix.py` - Phoenix adapter。
+- `packages/agent-harness/src/agent_harness/adapters/observability/langfuse.py` - Langfuse adapter。
+- `packages/agent-harness/src/agent_harness/observability/redaction.py` - provider 前脱敏规则。
+- `templates/service-app/configs/profiles/local.yaml` - local/jsonl 默认配置。
+- `templates/service-app/configs/profiles/service.yaml` - OTel/provider 配置入口。
+
+**验收标准**：
+- 未配置任何 SaaS provider 时 local/jsonl 仍产出完整本地证据。
+- 配置 Logfire/Phoenix/Langfuse adapter 时，adapter contract tests 通过且业务 agent 无 provider SDK import。
+- 外部 provider 失败不丢本地 trace 和 audit。
+- secret fixture 在 trace、eval、audit、local/jsonl 和 provider payload 中均被脱敏或被阻止写入。
+
+---
+
+## Phase 11: Eval Gate 与 Trace 到 Eval 闭环
+
+**交付内容**：
+- 实现 `EvalCaseFactory`、failed/low-score detector、review queue、draft/approved dataset 分离和人工审核流程。
+- 实现 `EvalRunner`、approved dataset 执行、ScoreSink、本地 JSONL score 和 provider score 写回。
+- 接入 CLI/API：draft、approve、list、run eval、查看 score。
+
+**关键文件**：
+- `packages/agent-harness/src/agent_harness/evals/cases.py` - eval case model、draft/approved 状态。
+- `packages/agent-harness/src/agent_harness/evals/factory.py` - trace 到 draft case。
+- `packages/agent-harness/src/agent_harness/evals/review_queue.py` - human review queue。
+- `packages/agent-harness/src/agent_harness/evals/runner.py` - eval runner。
+- `packages/agent-harness/src/agent_harness/evals/score_sink.py` - score sink interface。
+- `packages/agent-harness/src/agent_harness/adapters/evals/local_jsonl.py` - local eval result sink。
+- `templates/service-app/app/api/routes/evals.py` - eval API routes。
+- `templates/service-app/app/cli/eval.py` - eval CLI。
+- `templates/service-app/eval-cases/drafts/.gitkeep` - draft dataset 目录。
+- `templates/service-app/eval-cases/approved/.gitkeep` - approved dataset 目录。
+
+**验收标准**：
+- failed run trace 执行 `agent-harness eval draft` 后生成 draft case。
+- 人工 approve 后 case 进入 approved dataset 并写 audit log；默认不允许自动写 approved dataset。
+- `make eval` 只跑 approved cases，输出 eval result 和 score sink 记录。
+- score 可写回 local/jsonl，并可通过 Logfire/Phoenix/Langfuse adapter contract 写入 provider。
+
+---
+
+## Phase 12: Service App 模板与四个 P0 示例 Agent
+
+**交付内容**：
+- 完成 `templates/service-app` 的 FastAPI、CLI、worker、configs、tests、docs、docker-compose 和 README。
+- 实现四个薄样例 agent：RAG assistant、ticket triage、repo analyst、dev assistant，分别验证 retrieval、结构化输出、file tool、shell/HITL。
+- 完成 `/api/v1/...` P0 endpoint、OpenAPI schema、Swagger/Redoc 管理面和 CLI 命令集。
+
+**关键文件**：
+- `templates/service-app/app/main.py` - FastAPI app。
+- `templates/service-app/app/api/router.py` - `/api/v1` router。
+- `templates/service-app/app/api/routes/health.py` - health route。
+- `templates/service-app/app/api/routes/agents.py` - agents routes。
+- `templates/service-app/app/api/routes/runs.py` - run routes。
+- `templates/service-app/app/api/routes/policies.py` - policy check route。
+- `templates/service-app/app/cli/main.py` - Typer root CLI。
+- `templates/service-app/app/workers/runtime_worker.py` - worker entry。
+- `templates/service-app/agents/examples/rag_assistant/agent.py` - RAG assistant 示例。
+- `templates/service-app/agents/examples/ticket_triage/agent.py` - ticket triage 示例。
+- `templates/service-app/agents/examples/repo_analyst/agent.py` - repo analyst 示例。
+- `templates/service-app/agents/examples/dev_assistant/agent.py` - dev assistant 示例。
+- `templates/service-app/README.md` - app developer 快速开始和模板边界。
+
+**验收标准**：
+- `agent-harness agents list` 能列出四个 P0 示例。
+- local profile 下 `make dev` 或 `agent-harness run <agent_id>` 至少一种入口可运行示例 agent。
+- OpenAPI schema 包含 Spec 列出的 P0 endpoints。
+- 四个示例 fake model eval 均能确定性通过，且示例不直接 import 厂商 SDK。
+
+---
+
+## Phase 13: Service Profile、API/Worker 分进程与未来拆分边界
+
+**交付内容**：
+- 完成 Docker Compose service profile，PostgreSQL、Redis、API 进程和 runtime worker 使用同一 storage/queue 配置协作。
+- 验证 DBOS service adapter、shared checkpoint、event stream 和 run worker pickup。
+- 在代码和文档中固定未来微服务拆分顺序：先拆 worker，再拆 tool/model gateway，最后拆 observability/event pipeline；storage service 仅在 repository contract 稳定后拆。
+
+**关键文件**：
+- `templates/service-app/docker-compose.yml` - PostgreSQL、Redis、API、worker。
+- `templates/service-app/Makefile` - `smoke-service`、`migrate-service`、`worker`。
+- `templates/service-app/app/workers/runtime_worker.py` - service worker 主循环。
+- `packages/agent-harness/src/agent_harness/runtime/queue.py` - run queue interface。
+- `packages/agent-harness/src/agent_harness/adapters/queue/redis.py` - Redis queue adapter。
+- `packages/agent-harness/src/agent_harness/adapters/runtime/dbos.py` - DBOS workflow/checkpoint integration。
+- `docs/architecture.md` - 当前同进程形态和未来拆分边界。
+- `docs/adr/0001-p0-service-boundaries.md` - P0 不强制微服务但预留接口的决策。
+
+**验收标准**：
+- `make smoke-service` 能启动 PostgreSQL、Redis、API 和 worker。
+- 分别启动 API 进程和 worker 进程后提交 run，run 被 worker 执行并产出 event stream。
+- API、worker、tool/model adapter 交换数据只使用 Pydantic DTO、CanonicalEvent、repository/provider/facade interface。
+- 文档能让维护者指出 API、runtime worker、model/tool gateway、storage、event pipeline 的当前形态和未来拆分路径。
+
+---
+
+## Phase 14: 深度文档、ADR 与维护者指南
+
+**交付内容**：
+- 完成面向 app developer 和 scaffold maintainer 的 README、深度文档和 ADR。
+- 写清 adapter contract、extension guide、security policy、eval-observability loop、release process 和目录禁止跨边界规则。
+- 为每个能力块补充可执行命令、验收证据位置和常见故障排查。
+
+**关键文件**：
+- `README.md` - 根 README 最终版。
+- `docs/architecture.md` - 架构和未来拆分边界。
+- `docs/extension-guide.md` - 扩展 agent、tool、model、retrieval、observability、eval adapter。
+- `docs/adapter-contracts.md` - provider/repository/facade contract。
+- `docs/eval-observability-loop.md` - trace -> eval -> score -> provider 闭环。
+- `docs/security-policy.md` - auth、policy、approval、workspace、secret redaction。
+- `docs/release-process.md` - SemVer、tag、CHANGELOG、private publish、artifact。
+- `docs/adr/0002-vendor-adapter-isolation.md` - 上游隔离决策。
+- `docs/adr/0003-redis-7-2-for-p0-license-risk.md` - Redis 版本和 license 风险决策。
+
+**验收标准**：
+- 新开发者阅读 README 后能运行 local profile、理解目录职责和禁止跨边界规则。
+- 维护者阅读 docs 后能找到 adapter contract、release process、安全策略、ADR 和 eval/observability 闭环。
+- 所有文档命令都能在当前 repo 执行或明确标注需要 service profile。
+- 文档中的技术栈版本和 `pyproject.toml` / `uv.lock` 保持一致。
+
+---
+
+## Phase 15: CI/CD、Release Automation 与合规收口
+
+**交付内容**：
+- 建立 GitHub Actions 和 GitLab CI 等价质量门禁：install、ruff、pyright、unit/contract tests、integration、eval、smoke-local、smoke-service、build、license check、release dry-run。
+- 实现 python-semantic-release dry-run、版本计算、tag 名称、CHANGELOG preview、release notes、wheel/sdist artifact、私有 registry 发布路径。
+- 完成 license check、NOTICE 追踪、CI artifacts 归档和 P0 acceptance matrix 最终证据。
+
+**关键文件**：
+- `.github/workflows/ci.yml` - GitHub CI。
+- `.github/workflows/release.yml` - GitHub release dry-run / publish path。
+- `.gitlab-ci.yml` - GitLab 等价 pipeline。
+- `scripts/license_check.py` - license / NOTICE / vendoring 检查。
+- `scripts/import_boundary_check.py` - import boundary CI 检查。
+- `scripts/release_dry_run.py` - release preview wrapper。
+- `CHANGELOG.md` - generated changelog 输出。
+- `docs/release-process.md` - release 操作文档。
+- `docs/p0-acceptance-matrix.md` - P0 验收矩阵和证据链接。
+
+**验收标准**：
+- GitHub CI 和 GitLab CI 都跑等价命令集并产出 test report、coverage、trace sample、eval result、smoke logs、wheel/sdist、release preview artifact。
+- 有 releasable commits 时 release dry-run 能生成下一版本、tag 名称、CHANGELOG 预览和 wheel/sdist artifact。
+- 无 releasable commits 时 release dry-run 不创建 tag 或 release。
+- `LICENSE` 为 Apache-2.0，`NOTICE` 可追踪第三方声明，license check 能阻止未声明 vendoring 或不兼容 license。
+
+---
+
+## 数据库表
+
+| 表名 | 所属 Phase | 用途 |
+|------|-----------|------|
+| `tenants` | Phase 3 | 默认租户和未来多租户隔离基础。 |
+| `identities` | Phase 7 | API key / bearer token 解析后的身份记录或本地默认身份。 |
+| `sessions` | Phase 3 | 用户会话和 agent session 关联。 |
+| `agent_runs` | Phase 3 | run 生命周期、状态、parent run、idempotency。 |
+| `checkpoints` | Phase 3 | durable runtime checkpoint 和 resume token。 |
+| `canonical_events` | Phase 4 | run event stream、seq、terminal event、visibility。 |
+| `trace_refs` | Phase 4 | local/provider trace 引用。 |
+| `artifacts` | Phase 4 | 大 payload、tool output、eval evidence、checksum。 |
+| `embedding_cache` | Phase 6 | embedding 输入 hash、provider、vector ref、cache metadata。 |
+| `api_keys` | Phase 7 | API Key / Bearer Token 本地认证材料的 hash 和权限范围。 |
+| `policy_rules` | Phase 7 | YAML/DB policy provider 的规则落库。 |
+| `approvals` | Phase 7 | HITL approval required / approve / deny 记录。 |
+| `audit_logs` | Phase 7 | policy decision、approval、tool、eval dataset 写入审计。 |
+| `workspaces` | Phase 8 | per-run 或 per-agent workspace 根路径和 policy 引用。 |
+| `tool_invocations` | Phase 8 | tool name、args_ref、result_ref、status、duration。 |
+| `retrieval_documents` | Phase 9 | RAG 示例和 local/service retrieval 的文档 metadata。 |
+| `retrieval_chunks` | Phase 9 | chunk 文本 ref、BM25/vector metadata、citation ref。 |
+| `eval_cases` | Phase 11 | draft / approved eval case，关联 trace 和 agent。 |
+| `eval_runs` | Phase 11 | 一次 eval 执行的状态和 score summary。 |
+| `eval_scores` | Phase 11 | per-case / per-metric score 和 provider ref。 |
+| `release_records` | Phase 15 | version、tag、CHANGELOG、artifact、commit sha。 |
+
+## Spec 覆盖矩阵
+
+| Product-Spec 条目 | 覆盖 Phase |
+|---|---|
+| REQ-001 Monorepo / uv workspace | Phase 1 |
+| REQ-002 核心包与上游隔离 | Phase 2, Phase 6, Phase 10 |
+| REQ-003 后端服务型模板 | Phase 1, Phase 12 |
+| REQ-004 配置系统 | Phase 2 |
+| REQ-005 存储、迁移与事务边界 | Phase 3 |
+| REQ-006 Durable runtime、checkpoint、resume | Phase 5, Phase 13 |
+| REQ-007 多 agent registry 与 delegation | Phase 6 |
+| REQ-008 API、CLI 与管理面 | Phase 5, Phase 7, Phase 11, Phase 12 |
+| REQ-009 租户、身份与认证 | Phase 2, Phase 7 |
+| REQ-010 PolicyEngine、权限拦截与 HITL | Phase 7 |
+| REQ-011 工具系统、Shell、File、MCP | Phase 8 |
+| REQ-012 模型、预算与 embedding | Phase 6 |
+| REQ-013 Retrieval 与 RAG | Phase 9, Phase 12 |
+| REQ-014 CanonicalEvent 与流式输出 | Phase 4, Phase 5 |
+| REQ-015 Observability 转换层 | Phase 4, Phase 10 |
+| REQ-016 Eval Gate 与 trace/eval 闭环 | Phase 10, Phase 11 |
+| REQ-017 示例 agent | Phase 12 |
+| REQ-018 README 与文档体系 | Phase 1, Phase 14 |
+| REQ-019 TDD、测试与质量门禁 | Phase 1, all phases |
+| REQ-020 CI/CD 与 Release Automation | Phase 15 |
+| REQ-021 开源合规与许可证 | Phase 1, Phase 14, Phase 15 |
+| REQ-022 部署边界与未来微服务拆分基础 | Phase 2, Phase 4, Phase 5, Phase 13, Phase 14 |
+
+## 开发规则
+
+- 包管理器只用 `uv`；不使用 poetry、pipenv、npm 作为 Python 依赖主流程。
+- 每个 Phase 必须先有失败测试或 contract test，再实现代码；不接受先堆代码后补测试作为 Phase 完成方式。
+- 每完成一个 Phase 执行四步走：Code Review -> 测试完整性 -> 编译验证 -> 功能测试。
+- 四步走全部通过后才能 commit；commit message 用 `feat`、`fix`、`refactor`、`chore` 前缀。
+- `packages/agent-harness` 不依赖 `templates/*` 或 `examples/*`；模板只能通过 path dependency 或 wheel 使用核心包。
+- 业务 agent、模板 app、eval runner 不直接 import Pydantic AI、DBOS、Logfire、Phoenix、Langfuse 或直接操作 SQLAlchemy session。
+- 所有跨边界数据必须使用 Pydantic DTO、CanonicalEvent、repository interface、provider interface 或 facade。
+- local/jsonl 永远可用；外部 provider 失败不得导致本地证据丢失。
+- 危险动作默认走 policy 和 approval；不得为了测试方便绕过 PolicyEngine。
+- `eval-cases/approved` 只能由审核流程写入；自动 detector 只能写 draft。
+- 所有核心数据、trace、eval、audit、artifact 必须带 `tenant_id`，run 相关数据必须带 `agent_id`、`run_id` 或 `trace_id`。
+
+## 已知风险与限制
+
+- Pydantic AI 2.5.0 刚发布，adapter contract 必须早做；业务代码不能直接耦合其 API。
+- DBOS 2.26.0 是关键 service runtime 依赖，P0 通过 `DBOSRuntimeAdapter` 隔离，不把 DBOS 作为内部领域模型。
+- Redis 8.8 是当前 GA，但许可证变化会影响 Apache-2.0 项目合规判断；P0 Docker Compose 固定 Redis 7.2.4，后续升级必须走 ADR。
+- PGroonga 和 pgvector 是 optional adapter，不能成为 local profile 或 CI 的硬依赖。
+- P0 不是完整微服务系统；只实现可拆边界和 API/worker 分进程 service profile，不引入 Kubernetes、服务发现、多 AZ。
+- Phoenix、Langfuse、Logfire 的深度 dataset/score 能力差异较大；P0 先做 adapter contract 和最小 score/trace 写回，复杂 provider-native workflow 放 P1。
+
