@@ -1,0 +1,16 @@
+{
+  "profile": "local",
+  "storage": {
+    "kind": "filesystem",
+    "root": ".agent-harness/local"
+  },
+  "observability": {
+    "kind": "local-jsonl",
+    "path": ".agent-harness/traces.jsonl"
+  },
+  "model": {
+    "provider": "fake",
+    "requires_api_key": false
+  }
+}
+

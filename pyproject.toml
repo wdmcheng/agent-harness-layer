@@ -1,0 +1,64 @@
+[project]
+name = "agent-harness-layer"
+version = "0.1.0"
+description = "Workspace root for the Agent Harness Layer scaffold and core package."
+requires-python = ">=3.12"
+dependencies = [
+    "agent-harness==0.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "coverage==7.15.0",
+    "pre-commit==4.6.0",
+    "pyright==1.1.411",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.15.20",
+]
+
+[tool.uv.workspace]
+members = [
+    "packages/agent-harness",
+    "templates/service-app",
+]
+
+[tool.uv.sources]
+agent-harness = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = [
+    "packages/agent-harness/src",
+    "scripts",
+    "tests",
+    "templates/service-app",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.pyright]
+include = [
+    "packages/agent-harness/src",
+    "scripts",
+    "tests",
+    "templates/service-app",
+]
+exclude = [
+    "**/__pycache__",
+    ".venv",
+    "dist",
+]
+extraPaths = [
+    "packages/agent-harness/src",
+    "templates/service-app",
+]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = "none"

@@ -1,0 +1,18 @@
+[project]
+name = "agent-harness"
+version = "0.1.0"
+description = "Core package boundary for enterprise backend agent applications."
+requires-python = ">=3.12"
+authors = [
+    { name = "Agent Harness Layer Maintainers" },
+]
+license = "Apache-2.0"
+dependencies = []
+
+[build-system]
+requires = ["hatchling==1.30.1"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_harness"]
+
