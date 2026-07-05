@@ -48,7 +48,7 @@ dev = [
 [[package]]
 name = "agent-harness-service-app"
 version = "0.1.0"
-source = { virtual = "templates/service-app" }
+source = { editable = "templates/service-app" }
 dependencies = [
     { name = "agent-harness" },
 ]

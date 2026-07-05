@@ -79,6 +79,20 @@ def test_service_app_depends_on_workspace_core_package() -> None:
     assert sources["agent-harness"] == {"workspace": True}
 
 
+def test_service_app_declares_installable_package_boundary() -> None:
+    pyproject = load_pyproject(ROOT / "templates" / "service-app" / "pyproject.toml")
+    build_system = as_mapping(pyproject["build-system"])
+    tool = as_mapping(pyproject["tool"])
+    hatch_config = as_mapping(tool["hatch"])
+    build_config = as_mapping(hatch_config["build"])
+    targets = as_mapping(build_config["targets"])
+    wheel = as_mapping(targets["wheel"])
+
+    assert build_system["build-backend"] == "hatchling.build"
+    assert build_system["requires"] == ["hatchling==1.30.1"]
+    assert wheel["packages"] == ["app", "agents"]
+
+
 def test_local_profile_is_parseable_without_provider_keys() -> None:
     profile_path = ROOT / "templates" / "service-app" / "configs" / "profiles" / "local.yaml"
     profile_data: object = json.loads(profile_path.read_text(encoding="utf-8"))
