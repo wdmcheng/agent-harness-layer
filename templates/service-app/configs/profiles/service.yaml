@@ -1,0 +1,41 @@
+profile: service
+storage:
+  kind: postgresql
+  dsn: postgresql://agent_harness:agent_harness@localhost:5432/agent_harness
+queue:
+  kind: redis
+  dsn: redis://localhost:6379/0
+observability:
+  kind: local-jsonl
+  path: .agent-harness/service-traces.jsonl
+policy:
+  provider: yaml
+  require_approval_actions:
+    - shell.execute
+    - file.delete
+    - external.network
+    - model.over_budget
+model:
+  provider: fake
+  requires_api_key: false
+  default_model: fake-service
+  timeout_seconds: 60
+budget:
+  max_tokens_per_run: 16384
+identity:
+  default:
+    tenant_id: default
+    user_id: local-user
+    session_id: service-session
+    roles:
+      - admin
+    permissions:
+      - "*"
+    auth_method: api-key
+service:
+  api_process:
+    enabled: true
+    host: 127.0.0.1
+    port: 8000
+  worker_process:
+    enabled: true

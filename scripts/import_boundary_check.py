@@ -12,13 +12,12 @@ from typing import cast
 ROOT = Path(__file__).resolve().parents[1]
 CORE_PACKAGE = ROOT / "packages" / "agent-harness"
 TEMPLATE_PACKAGE = ROOT / "templates" / "service-app"
-BANNED_VENDOR_IMPORTS = {
-    "dbos",
-    "langfuse",
-    "logfire",
-    "phoenix",
-    "pydantic_ai",
-}
+sys.path.insert(0, str(CORE_PACKAGE / "src"))
+
+from agent_harness.contracts.boundaries import (  # noqa: E402
+    BANNED_VENDOR_IMPORTS,
+    is_vendor_import_allowed,
+)
 
 
 def _load_pyproject(path: Path) -> dict[str, object]:
@@ -94,7 +93,7 @@ def _top_level_imports(path: Path) -> set[str]:
 
 
 def _is_future_adapter_path(path: Path) -> bool:
-    return "adapters" in path.relative_to(ROOT).parts
+    return is_vendor_import_allowed(path.relative_to(ROOT))
 
 
 def check_core_dependencies() -> list[str]:

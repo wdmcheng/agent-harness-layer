@@ -10,33 +10,32 @@
 - Product Spec: `Product-Spec.md` 已存在，版本为 2026-07-05 的 v1.0。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `artifacts/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging` 已归档到 `openspec/changes/archive/2026-07-06-bootstrap-workspace-packaging`，当前无 active changes。
-- 代码状态: Phase 1 已完成并提交；实现提交为 `c08191b`，安装修复提交为 `4ec5c40`，OpenSpec 归档提交为 `87cf84b`。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging` 已归档到 `openspec/changes/archive/2026-07-06-bootstrap-workspace-packaging`；Phase 2 的 `core-config-identity-contracts` 已完成 apply，当前仍为 active change，未自动 archive。
+- 代码状态: Phase 1 已完成并提交；Phase 2 核心契约、配置系统、身份上下文和 doctor seam 已完成实现、验证和 code-review。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1 已完成；Phase 2-15 仍待实现。 |
-| 当前 Phase | Phase 2 待启动 | 下一步是“核心契约、配置系统与身份上下文”。 |
-| 已完成 Phase | Phase 1 | 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；`bootstrap-workspace-packaging` tasks 为 21/21 complete，change 已归档。 |
-| 当前 OpenSpec change | 无 active changes | Phase 1 主规格已同步到 `openspec/specs/`；下一步应为 Phase 2 创建新的窄 change。 |
-| 当前验证基线 | 最近验证通过 | `openspec validate --all --strict`、`make quality`、`make test`、`make smoke-local`、`make build`、`make license-check`、`uv run pre-commit run --all-files` 已在本轮复审中重新验证；最终以 code-reviewer 复审报告为准。 |
-| 当前阻塞项 | 无代码阻塞 | Phase 2 尚未启动；需要先创建或选定 Phase 2 的窄 OpenSpec change。 |
-| 当前建议下一步 | 启动 Phase 2 proposal | 用 dev-planner / OpenSpec 流程先写 Phase 2 的 proposal、design、specs 和 tasks。 |
+| 总体状态 | 进行中 | Phase 1-2 已完成；Phase 3-15 仍待实现。 |
+| 当前 Phase | Phase 2 完成 | `core-config-identity-contracts` tasks 为 9/9 complete；code-reviewer Stage 1/2 均 PASS。 |
+| 已完成 Phase | Phase 1, Phase 2 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 由本次本地提交记录。 |
+| 当前 OpenSpec change | `core-config-identity-contracts` active | proposal/specs/design/tasks 已通过 strict validate；按规则不自动 archive，后续如需归档需显式执行。 |
+| 当前验证基线 | 全量通过 | `openspec validate core-config-identity-contracts --type change --strict`、`openspec validate --all --strict`、`make quality`、`make test`、`make smoke-local`、`make build`、`make license-check`、`uv run pre-commit run --all-files`、`agent-harness doctor --profile local` 已通过。 |
+| 当前阻塞项 | 无 | Phase 2 已完成，剩余是本地提交和后续是否 archive 的用户决策。 |
+| 当前建议下一步 | 启动 Phase 3 proposal | Phase 3 应按 OpenSpec 流程创建新的窄 change：存储、迁移与事务边界。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 启动 Phase 2：定义 `agent_harness` 公共契约、typed config、身份上下文、错误模型、trust marker / context ref 和 vendor import 边界声明。
-- 为 Phase 2 创建或选定窄 OpenSpec change，先写 proposal/specs/design/tasks，再进入 dev-builder 实现。
-- Phase 1 archive 已完成；为 Phase 2 创建新的窄 OpenSpec change 后再进入实现。
+- 为 Phase 3 创建或选定新的窄 OpenSpec change，先写 proposal/specs/design/tasks，再进入实现。
+- Phase 2 不自动 archive；如后续选择归档，先运行 OpenSpec archive 并重新验证主规格。
+- 继续保持 Phase 3+ 未实现内容不混入已完成的 Phase 2 change。
 
 ### 后续 Phase
 
-- Phase 2: 核心契约、配置系统与身份上下文。
 - Phase 3: 存储、迁移与事务边界。
 - Phase 4: CanonicalEvent、Artifact 与本地观测脊柱。
 - Phase 5: Durable Runtime、Checkpoint 与 Run 生命周期。
@@ -188,6 +187,15 @@ Phase 1 Monorepo / quality spine
 - trust marker、source/ref 和 context ref DTO 有 contract tests，并能序列化进事件 payload。
 - 业务 agent 示例目录、`templates/service-app/app/*` 和 `examples/*` 的静态扫描不出现禁止的厂商 SDK import。
 - `agent-harness doctor --profile local` 能显示配置加载状态。
+
+**实现证据**：
+- `openspec/changes/core-config-identity-contracts/` 定义了 Phase 2 的 proposal、四个 delta specs、design 和 tasks。
+- `agent_harness.contracts` 暴露 DTO、error envelope、trust/source/context refs、guardrail / policy decision 和 import boundary declarations。
+- `agent_harness.identity` 暴露 `IdentityContext` 和 `PermissionContext`，local 默认 tenant/user/session 已通过 contract tests。
+- `agent_harness.config` 暴露 typed profile / agent settings schemas 和 loader，支持 profile YAML、agent YAML、`.env` / environment overrides 和 structured diagnostics。
+- `agent-harness doctor --profile local` 可报告 profile、storage、queue、observability、policy、identity 和 model 状态。
+- `templates/service-app/configs/profiles/local.yaml` 和 `service.yaml` 已能通过 typed loader 校验；service profile 只声明 API/worker、storage/queue 和 provider-neutral 边界，不启动外部服务。
+- 验证命令已通过：`openspec validate core-config-identity-contracts --type change --strict`、`openspec validate --all --strict`、`make quality`、`make test`（18 passed）、`make smoke-local`、`make build`、`make license-check`、`uv run pre-commit run --all-files`、`uv run agent-harness doctor --profile local --profiles-dir templates/service-app/configs/profiles`。
 
 ---
 
@@ -616,10 +624,10 @@ Phase 1 Monorepo / quality spine
 
 | 风险 | 影响范围 | 处理 Phase | 当前状态 | 处理方式 / 验收信号 |
 |------|----------|------------|----------|----------------------|
-| Pydantic AI 2.5.0 刚发布，上游 API 和包边界可能变化。 | 核心 runtime、registry、model adapter 和业务 agent import 边界。 | Phase 2、Phase 6、Phase 10 | 未处理 | Phase 2 先定义 `agent_harness` 公共契约和 vendor import 边界；业务代码不得直接耦合 Pydantic AI API。 |
+| Pydantic AI 2.5.0 刚发布，上游 API 和包边界可能变化。 | 核心 runtime、registry、model adapter 和业务 agent import 边界。 | Phase 2、Phase 6、Phase 10 | 部分缓解 | Phase 2 已定义 `agent_harness` 公共契约和 vendor import 边界；后续 Phase 6/10 再实现具体 adapter。 |
 | DBOS 2.26.0 是关键 service runtime 依赖，过早耦合会污染领域模型。 | Durable runtime、checkpoint、worker lifecycle。 | Phase 5、Phase 13 | 未处理 | 通过 `DBOSRuntimeAdapter` 隔离；验收时证明内部 run/checkpoint model 不依赖 DBOS 类型。 |
 | Redis 8.8 许可证变化影响 Apache-2.0 合规判断。 | Docker Compose service profile、queue/cache adapter、发布合规。 | Phase 13、Phase 15 | 已缓解 | P0 Docker Compose 固定 Redis 7.2.4；后续升级必须走 ADR 和 license review。 |
 | PGroonga 和 pgvector 是 optional adapter，可能拖累 local profile 或 CI。 | Retrieval、embedding cache、service profile smoke。 | Phase 9、Phase 13 | 未处理 | local profile 不硬依赖 PGroonga/pgvector；service profile 单独验 PostgreSQL 扩展和 adapter 行为。 |
-| P0 只做可拆边界，不做完整微服务；如果 API/worker/storage/tool 边界不清，后续会重构。 | API、runtime worker、model/tool gateway、storage、event/observability。 | Phase 2、Phase 4、Phase 5、Phase 13、Phase 14 | 未处理 | 每个边界通过接口、DTO、event envelope 或 repository/facade 表达；Phase 13 做 API/worker 分进程 smoke。 |
+| P0 只做可拆边界，不做完整微服务；如果 API/worker/storage/tool 边界不清，后续会重构。 | API、runtime worker、model/tool gateway、storage、event/observability。 | Phase 2、Phase 4、Phase 5、Phase 13、Phase 14 | 部分缓解 | Phase 2 已通过 typed service profile、DTO/context/identity contracts 和 README 部署边界说明建立接口基础；Phase 13 做 API/worker 分进程 smoke。 |
 | Phoenix、Langfuse、Logfire 的 dataset/score/workflow 能力差异大。 | Observability adapter、Eval Gate、score sink。 | Phase 10、Phase 11 | 未处理 | P0 先做 provider-neutral contract 和 local/jsonl fallback；复杂 provider-native workflow 放 P1。 |
-| Prompt injection / tool output injection 如果后补，会污染所有 agent 和 eval 证据。 | Access input、MCP、tools、retrieval、context assembly、audit。 | Phase 2、Phase 4、Phase 6、Phase 8、Phase 9 | 未处理 | 先定义 trust marker/source_ref/context ref，再在 guardrail、ContextAssembler、tool/MCP/retrieval adapters 中强制传播并写入 trace/audit。 |
+| Prompt injection / tool output injection 如果后补，会污染所有 agent 和 eval 证据。 | Access input、MCP、tools、retrieval、context assembly、audit。 | Phase 2、Phase 4、Phase 6、Phase 8、Phase 9 | 部分缓解 | Phase 2 已定义 trust marker/source_ref/context ref 和 guardrail decision DTO；后续在 guardrail、ContextAssembler、tool/MCP/retrieval adapters 中强制传播并写入 trace/audit。 |

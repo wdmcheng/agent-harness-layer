@@ -1,16 +1,37 @@
-{
-  "profile": "local",
-  "storage": {
-    "kind": "filesystem",
-    "root": ".agent-harness/local"
-  },
-  "observability": {
-    "kind": "local-jsonl",
-    "path": ".agent-harness/traces.jsonl"
-  },
-  "model": {
-    "provider": "fake",
-    "requires_api_key": false
-  }
-}
-
+profile: local
+storage:
+  kind: filesystem
+  root: .agent-harness/local
+queue:
+  kind: in-memory
+observability:
+  kind: local-jsonl
+  path: .agent-harness/traces.jsonl
+policy:
+  provider: yaml
+  require_approval_actions:
+    - shell.execute
+    - file.delete
+    - external.network
+model:
+  provider: fake
+  requires_api_key: false
+  default_model: fake-local
+  timeout_seconds: 30
+budget:
+  max_tokens_per_run: 8192
+identity:
+  default:
+    tenant_id: default
+    user_id: local-user
+    session_id: local-session
+    roles:
+      - admin
+    permissions:
+      - "*"
+    auth_method: local
+service:
+  api_process:
+    enabled: false
+  worker_process:
+    enabled: false

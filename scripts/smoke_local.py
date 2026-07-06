@@ -1,13 +1,13 @@
-"""Phase 1 local smoke check for the workspace and service-app shell."""
+"""Local smoke check for the workspace and service-app shell."""
 
 from __future__ import annotations
 
 import importlib
-import json
+import subprocess
 import sys
-from collections.abc import Mapping
 from pathlib import Path
-from typing import cast
+
+from agent_harness.config import load_settings
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVICE_APP = ROOT / "templates" / "service-app"
@@ -51,27 +51,40 @@ def check_template_layout() -> int:
 
 
 def check_local_profile() -> int:
-    profile_path = SERVICE_APP / "configs" / "profiles" / "local.yaml"
-    try:
-        profile_data: object = json.loads(profile_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        return _fail(f"local profile is not JSON-compatible YAML: {exc}")
-    if not isinstance(profile_data, dict):
-        return _fail("local profile must be a mapping.")
-    profile = cast(Mapping[str, object], profile_data)
-    if profile.get("profile") != "local":
+    settings = load_settings(profile="local", profiles_dir=SERVICE_APP / "configs" / "profiles")
+    if settings.profile != "local":
         return _fail("local profile must declare profile=local.")
-    model_data = profile.get("model")
-    if not isinstance(model_data, dict):
-        return _fail("local profile must declare model settings.")
-    model = cast(Mapping[str, object], model_data)
-    if model.get("requires_api_key") is not False:
-        return _fail("local profile must not require real provider keys in Phase 1.")
+    if settings.model.requires_api_key:
+        return _fail("local profile must not require real provider keys.")
+    return 0
+
+
+def check_doctor() -> int:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_harness.cli",
+            "doctor",
+            "--profile",
+            "local",
+            "--profiles-dir",
+            str(SERVICE_APP / "configs" / "profiles"),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return _fail(f"doctor failed: {result.stderr.strip()}")
+    if "profile: local" not in result.stdout:
+        return _fail("doctor output did not report local profile.")
     return 0
 
 
 def main() -> int:
-    checks = [check_import, check_template_layout, check_local_profile]
+    checks = [check_import, check_template_layout, check_local_profile, check_doctor]
     for check in checks:
         result = check()
         if result != 0:

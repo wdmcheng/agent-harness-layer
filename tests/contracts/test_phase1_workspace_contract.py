@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import importlib
-import json
 import tomllib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
+
+from agent_harness.config import load_settings
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -94,12 +95,9 @@ def test_service_app_declares_installable_package_boundary() -> None:
 
 
 def test_local_profile_is_parseable_without_provider_keys() -> None:
-    profile_path = ROOT / "templates" / "service-app" / "configs" / "profiles" / "local.yaml"
-    profile_data: object = json.loads(profile_path.read_text(encoding="utf-8"))
-    assert isinstance(profile_data, dict)
-    profile = cast(Mapping[str, object], profile_data)
-    model = as_mapping(profile["model"])
+    profiles_dir = ROOT / "templates" / "service-app" / "configs" / "profiles"
+    settings = load_settings(profile="local", profiles_dir=profiles_dir)
 
-    assert profile["profile"] == "local"
-    assert model["provider"] == "fake"
-    assert model["requires_api_key"] is False
+    assert settings.profile == "local"
+    assert settings.model.provider == "fake"
+    assert settings.model.requires_api_key is False
