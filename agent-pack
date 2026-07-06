@@ -5,33 +5,19 @@ set -euo pipefail
 project_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 lock="$project_dir/.agents/agent-pack.lock.json"
 
-read_lock_pack() {
-  python3 - "$lock" <<'PY'
-import json, os, sys
-lock_path = sys.argv[1]
-if not os.path.exists(lock_path):
-    raise SystemExit("")
-with open(lock_path, "r", encoding="utf-8") as f:
-    print(json.load(f).get("packPath", ""))
-PY
+read_pack_dir() {
+  local code='import json, os, sys; p=sys.argv[1]; print(json.load(open(p, encoding="utf-8")).get("packPath","") if os.path.exists(p) else "")'
+  if command -v python3 >/dev/null 2>&1; then python3 -c "$code" "$lock"; return; fi
+  if command -v python >/dev/null 2>&1; then python -c "$code" "$lock"; return; fi
+  if command -v py >/dev/null 2>&1; then py -3 -c "$code" "$lock"; return; fi
 }
 
 if [ "${1:-}" = "migrate" ] && [ "${2:-}" = "--pack" ] && [ -n "${3:-}" ]; then
   pack_dir="$3"
 else
-  pack_dir="$(read_lock_pack)"
+  pack_dir="$(read_pack_dir)"
 fi
-
-if [ -z "$pack_dir" ]; then
-  printf '错误：缺少 .agents/agent-pack.lock.json，无法定位 Agent Pack。\n' >&2
-  exit 1
-fi
-
-if [ ! -x "$pack_dir/agent-pack" ]; then
-  printf '错误：找不到可执行的 Agent Pack 脚本：%s\n' "$pack_dir/agent-pack" >&2
-  printf '如果能力包已迁移，请执行：./agent-pack migrate --pack /new/agent-pack-dir\n' >&2
-  exit 1
-fi
+if [ -z "$pack_dir" ]; then echo '错误：缺少 .agents/agent-pack.lock.json，无法定位 Agent Pack。' >&2; exit 1; fi
 
 cd "$project_dir"
 exec "$pack_dir/agent-pack" "$@"

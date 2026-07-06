@@ -35,11 +35,31 @@ project/
 
 ## 脚本分工
 
-能力包里的 `agent-pack` 是主脚本。它从脚本所在目录识别 Agent Pack，从当前执行目录识别项目。
+能力包里的 `agent-pack`、`agent-pack.ps1`、`agent-pack.cmd` 都是薄入口。它们从脚本所在目录识别 Agent Pack，从当前执行目录识别项目，然后转发到 `.agents/cli/agent_pack_cli.py`。
 
-项目根目录里的 `agent-pack` 是安装时生成的 launcher。它读取 `.agents/agent-pack.lock.json`，再转发到真实能力包脚本；这样日常可以在项目里直接执行 `./agent-pack status`、`./agent-pack update`、`./agent-pack diff`。
+项目根目录里的 `agent-pack`、`agent-pack.ps1`、`agent-pack.cmd` 是安装时生成的 launcher。它们读取 `.agents/agent-pack.lock.json`，再转发到真实能力包脚本；这样日常可以在项目里直接执行 `./agent-pack status`、PowerShell 下 `./agent-pack.ps1 status`，或 cmd 下 `agent-pack.cmd status`。
 
 `install.sh` 是远程 bootstrap。用于 `curl ... | bash` 场景：先 clone 或 pull 能力包，再转交给 `agent-pack`。
+
+## 平台支持
+
+当前支持分三档，不要混着吹：
+
+| 平台 | 状态 | 说明 |
+| --- | --- | --- |
+| macOS | 支持 | 主要开发和验证环境。CLI 核心走 Python；Bash 入口和 hooks 已验证。 |
+| Linux | 支持 | 需要 Git、Python 3；Bash 入口可用，端口清理依赖 `lsof`，缺失时只跳过清理，不阻塞其他 hook。 |
+| Windows WSL | 支持 | 按 Linux 路径使用，建议 repo 放在 WSL 文件系统内。 |
+| Windows Git Bash/MSYS | 兼容 | Bash 入口转发到同一个 Python CLI；路径转换仍受 Git Bash/MSYS 规则影响。 |
+| Windows PowerShell/cmd 原生 | 支持入口，需 Windows 实机验证 | `agent-pack.ps1`、`agent-pack.cmd`、hook `.ps1`/`.cmd` 包装都转发到同一个 Python core；install/update 会把 hook 配置渲染为 Windows 可执行命令。本仓库在 macOS 上做静态和集成验证，Windows 原生运行需在 Windows 10/11 上复验。 |
+
+跨平台原则：
+
+- CLI 业务逻辑只写在 `.agents/cli/agent_pack_*.py`，Bash、PowerShell、cmd 入口只定位 pack 并转发。
+- hook 的业务逻辑只写在 `.agents/hooks/agent_pack_hook*.py`，Bash、PowerShell、cmd 只做薄包装，并把 hook name 与 agent 来源传给 runner。
+- 新增 hook 行为必须同时能被 `.sh`、`.ps1`、`.cmd` 路径调用，不在 shell 包装里复制业务判断。
+- macOS/Linux/WSL 按 POSIX hook 配置走 `.sh`；Windows 原生安装和更新会生成调用 PowerShell `.ps1` wrapper 的 `.codex/hooks.json` 和 `.claude/settings.json`。`.cmd` wrapper 同步安装，供 cmd 入口和需要时的手动配置使用。
+- Windows 10/11 可能通过 Developer Mode、符号链接权限或管理员权限允许 symlink，所以安装逻辑先尝试 symlink。失败时输出明确警告，再对目录用 junction fallback、对文件用 hardlink/copy fallback。
 
 ## 首次安装
 
@@ -61,21 +81,23 @@ project/
 - 询问是否还要同时安装到其他项目路径。
 - 如果选择多个项目，询问项目组名称，以及每个项目的 id、角色和说明。
 - 如果项目没有 `.gitignore`，按 Agent Pack 模板生成；如果已有 `.gitignore`，只补充 Agent Pack 本地状态忽略项。
-- 检测 hook 依赖的 `jq`；缺失时只提示，不阻塞安装。
+- 检测 Python 3；`agent-pack` 安装、lock/hash 和 hook runner 都依赖它。
 - 将规则、Skills、hooks、Sub-Agent 配置复制到每个项目。
+- 将共享 hook runner 复制到 `.agents/hooks/`；平台专属 hook 脚本只做薄包装。
+- 在 Windows 原生环境下，安装/更新会把 `.codex/hooks.json` 和 `.claude/settings.json` 渲染为调用 `.ps1` wrapper 的命令，并把生成后的 hash 记录进 lock，避免 `status` 误报。
 - 将能力包 README 复制为项目根目录的 `AGENT-PACK.md`，避免和项目自己的 `README.md` 冲突，也方便直接查看。
-- 在项目根目录生成 `agent-pack` launcher，便于日常执行命令；如果项目已有同名文件且不是 launcher，脚本会跳过，不覆盖。
+- 在项目根目录生成 `agent-pack`、`agent-pack.ps1`、`agent-pack.cmd` launcher，便于日常执行命令；如果项目已有同名 `agent-pack` 且不是 launcher，脚本会跳过，不覆盖。
 - 创建 `.agents/agent-pack.lock.json`，记录能力包来源、commit 和文件 hash。
 - 多项目安装时创建 `.agents/RELATED-PROJECTS.md`，并创建本机路径表 `.agents/related-projects.local.json`。
 - 创建 `.agents/evolution/signals.jsonl` 和 `.agents/evolution/proposals.md`，并通过 `.gitignore` 忽略队列内容。
-- 创建 `.codex/evolution`、`.claude/evolution` 到 `.agents/evolution` 的 symlink。
-- 创建 `.codex/EVOLUTION.md`、`.claude/EVOLUTION.md` 到 `.agents/EVOLUTION.md` 的 symlink。
-- 创建 `.claude/skills/*` 到 `.agents/skills/*` 的 symlink。
+- 创建 `.codex/evolution`、`.claude/evolution` 到 `.agents/evolution` 的链接；Windows 原生 symlink 不可用时目录使用 junction fallback。
+- 创建 `.codex/EVOLUTION.md`、`.claude/EVOLUTION.md` 到 `.agents/EVOLUTION.md` 的链接；Windows 原生 symlink 不可用时文件使用 hardlink/copy fallback。
+- 创建 `.claude/skills/*` 到 `.agents/skills/*` 的链接；Windows 原生 symlink 不可用时目录使用 junction fallback。
 - 复制能力包里的 `.claude/CLAUDE.md` 到项目。
 - 对源文件带可执行位或 shebang 的脚本执行 `chmod u+x`，确保当前用户能运行 hooks 和 Skill 附带脚本。
 - 如果显式传入 `--with-openspec` 且目标项目已存在 `openspec/`，复制 `.agents/templates/openspec/schema-agent-pack-product-change/` 到 `openspec/schemas/agent-pack-product-change/`，并在 `openspec/config.yaml` 未设置或仍是 `spec-driven` 时把默认 schema 切到 `agent-pack-product-change`；如果已有其他自定义 schema，只提示不覆盖。如果没有 `openspec/`，只打印引导，不初始化 OpenSpec、不 vendoring OpenSpec。
 
-如果项目里已有普通文件且不是 lock 管理的安装副本，脚本会跳过，不会强行覆盖。旧的 `.codex/evolution` 或 `.claude/evolution` 普通目录会迁移到 `.agents/evolution`，再替换成 symlink。
+如果项目里已有普通文件且不是 lock 管理的安装副本，脚本会跳过，不会强行覆盖。旧的 `.codex/evolution` 或 `.claude/evolution` 普通目录会迁移到 `.agents/evolution`，再替换成 symlink/junction。
 
 安装确认默认是 yes，直接回车会继续安装。
 
@@ -449,6 +471,8 @@ session 启动时发现 `.agents/evolution/signals.jsonl` 有信号，或用户�
 
 - 项目代码结构由项目技术栈决定，Agent Pack 不规定。
 - `.agents/skills/` 是 Skill 正文唯一维护位置。
+- `.agents/cli/` 是 Agent Pack CLI 业务逻辑唯一维护位置，根目录各 shell 入口只转发。
+- `.agents/hooks/` 是 hook 业务逻辑唯一维护位置，Python runner 为主，shell 包装只转发 hook name 和 agent 来源。
 - `.claude/skills/` 只是 symlink 暴露层。
 - `.agents/evolution/` 是自进化队列源目录。
 - `.codex/evolution` 和 `.claude/evolution` 只做入口 symlink。

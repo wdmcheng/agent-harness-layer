@@ -8,6 +8,7 @@ artifacts:
     template: proposal.md
     instruction: |
       Create a concise proposal document for one product change that establishes WHY this change is needed.
+      语言规则：生成正文使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径和 schema 关键字保留英文。
 
       This proposal MUST reference the upstream Agent Pack sources instead of replacing them:
       - Product-Spec.md for product goals, users, scope, and acceptance intent.
@@ -41,6 +42,7 @@ artifacts:
     template: spec.md
     instruction: |
       Create specification files that define WHAT the system should do.
+      语言规则：生成正文使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径和 schema 关键字保留英文。
 
       Specs define WHAT the system SHALL do for this change only. They do not
       restate Product-Spec.md or DEV-PLAN.md, and they do not contain implementation steps.
@@ -99,6 +101,7 @@ artifacts:
     template: design.md
     instruction: |
       Create the design document that explains HOW to implement the change.
+      语言规则：生成正文使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径和 schema 关键字保留英文。
 
       Include detailed design content when any apply:
       - Cross-cutting change (multiple services/modules) or new architectural pattern
@@ -136,6 +139,7 @@ artifacts:
     template: tasks.md
     instruction: |
       Create the task list that breaks down the implementation work for the Agent Pack dev-builder.
+      语言规则：生成正文使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径和 schema 关键字保留英文。
 
       Group tasks by dependency order or concrete workstream. A task group is
       a feature, module, interface, data migration, public behavior seam, or
@@ -178,6 +182,8 @@ apply:
   requires: [tasks]
   tracks: tasks.md
   instruction: |
+    语言规则：生成正文和 checklist 更新使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径和 schema 关键字保留英文。
+
     Before applying, read the upstream Agent Pack sources that scope this change
     when present (Product-Spec.md, DEV-PLAN.md, relevant design source,
     CONTEXT.md/ADRs) plus the OpenSpec change artifacts. Treat Product-Spec.md

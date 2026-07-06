@@ -37,7 +37,7 @@
           {
             "type": "command",
             "if": "Bash(pnpm dev*)",
-            "command": "for port in 3000 3001 4173 5173 8080; do kill -9 $(lsof -ti:$port) 2>/dev/null; done; sleep 1; exit 0",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-commit-check.sh",
             "timeout": 10
           }
         ]

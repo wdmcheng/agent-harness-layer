@@ -1,35 +1,34 @@
 ## ADDED Requirements
 
-### Requirement: Workspace resolves core and template packages
-The repository SHALL define a `uv workspace` that includes the core package and service-app template as workspace members.
+### Requirement: Workspace 能解析核心包和 template 包
+仓库 SHALL 定义一个 `uv workspace`，把核心包和 service-app template 作为 workspace members。
 
-#### Scenario: Workspace sync resolves members
-- **WHEN** a developer runs `uv sync` at the repository root
-- **THEN** uv resolves the workspace without dependency errors for `packages/agent-harness` and `templates/service-app`
+#### Scenario: Workspace sync 能解析 members
+- **WHEN** 开发者在仓库根目录运行 `uv sync`
+- **THEN** uv 能解析 workspace，且 `packages/agent-harness` 和 `templates/service-app` 没有依赖错误
 
-#### Scenario: Workspace structure exposes expected top-level boundaries
-- **WHEN** a developer inspects the repository root
-- **THEN** the repository exposes `packages/`, `templates/`, `examples/`, `docs/`, and `scripts/` as separate top-level areas
+#### Scenario: Workspace 结构暴露预期顶层边界
+- **WHEN** 开发者检查仓库根目录
+- **THEN** 仓库把 `packages/`、`templates/`、`examples/`、`docs/` 和 `scripts/` 暴露为独立顶层区域
 
-### Requirement: Core package builds independently
-The `agent-harness` core package SHALL be buildable as wheel and sdist without importing template or example code.
+### Requirement: 核心包可独立构建
+`agent-harness` 核心包 SHALL 可构建为 wheel 和 sdist，且不 import template 或 example code。
 
-#### Scenario: Core package build succeeds
-- **WHEN** a developer runs `uv build --package agent-harness`
-- **THEN** the build produces wheel and sdist artifacts for the core package
+#### Scenario: 核心包构建成功
+- **WHEN** 开发者运行 `uv build --package agent-harness`
+- **THEN** 构建为核心包产出 wheel 和 sdist artifacts
 
-#### Scenario: Core package import succeeds
-- **WHEN** a developer imports `agent_harness` from an installed build artifact or workspace environment
-- **THEN** the import succeeds and exposes a package version value
+#### Scenario: 核心包 import 成功
+- **WHEN** 开发者从已安装构建产物或 workspace 环境中 import `agent_harness`
+- **THEN** import 成功，并暴露包版本值
 
-### Requirement: Package dependency direction is enforced
-The core package MUST NOT depend on `templates/*` or `examples/*`, and the service-app template SHALL depend on `agent-harness` through a workspace/path dependency or a built wheel.
+### Requirement: 包依赖方向被强制执行
+核心包 MUST NOT 依赖 `templates/*` 或 `examples/*`，并且 service-app template SHALL 通过 workspace/path dependency 或已构建 wheel 依赖 `agent-harness`。
 
-#### Scenario: Core package has no reverse dependency
-- **WHEN** dependency metadata and import boundary checks are run
-- **THEN** `packages/agent-harness` does not reference `templates/*` or `examples/*`
+#### Scenario: 核心包没有反向依赖
+- **WHEN** 运行依赖元数据和 import boundary checks
+- **THEN** `packages/agent-harness` 不引用 `templates/*` 或 `examples/*`
 
-#### Scenario: Template depends on the core package through the package boundary
-- **WHEN** the service-app template is installed in the workspace
-- **THEN** it resolves `agent-harness` through the declared package dependency instead of importing source by relative path
-
+#### Scenario: Template 通过包边界依赖核心包
+- **WHEN** service-app template 安装到 workspace 中
+- **THEN** 它通过声明的 package dependency 解析 `agent-harness`，而不是通过相对路径 import 源码

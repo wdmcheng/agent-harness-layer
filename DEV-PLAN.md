@@ -10,9 +10,53 @@
 - Product Spec: `Product-Spec.md` 已存在，版本为 2026-07-05 的 v1.0。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `artifacts/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Eval Gate、Observability 和未来拆分边界组织开发顺序。
-- OpenSpec: 仓库存在 `openspec/`，当前未发现 active change 文件；本次不引入额外 OpenSpec 约束。
-- 代码状态: 当前仓库主要是规则、Skill、Hook、Spec 和架构图；P0 产品代码尚未开始。
-- 计划模式: 生成模式。不存在旧 `DEV-PLAN.md`，不需要保留已完成 Phase。
+- OpenSpec: 仓库存在 `openspec/`；`openspec/changes/bootstrap-workspace-packaging` 对应 Phase 1，已通过 `openspec validate bootstrap-workspace-packaging`，尚未 archive。
+- 代码状态: Phase 1 已完成并提交，当前最新提交为 `4ec5c409 fix: make service app template installable`。
+- 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
+
+## 当前进度
+
+| 项目 | 状态 | 证据 / 下一步 |
+|------|------|---------------|
+| 总体状态 | 进行中 | Phase 1 已完成；Phase 2-15 仍待实现。 |
+| 当前 Phase | Phase 2 待启动 | 下一步是“核心契约、配置系统与身份上下文”。 |
+| 已完成 Phase | Phase 1 | 本地最新提交 `4ec5c40`；`bootstrap-workspace-packaging` tasks 为 21/21 complete，change 尚未 archive。 |
+| 当前 OpenSpec change | `bootstrap-workspace-packaging` 已实现未归档 | `openspec validate bootstrap-workspace-packaging` 通过；是否 archive 需要用户显式决定。 |
+| 当前验证基线 | 最近验证通过 | `openspec validate bootstrap-workspace-packaging`、`make quality`、`make test`、`make smoke-local`、`make license-check`、`uv run pre-commit run --all-files` 已在本轮复审中重新验证；最终以 code-reviewer 复审报告为准。 |
+| 当前阻塞项 | 无代码阻塞 | Phase 2 尚未启动；需要先创建或选定 Phase 2 的窄 OpenSpec change。 |
+| 当前建议下一步 | 启动 Phase 2 proposal | 用 dev-planner / OpenSpec 流程先写 Phase 2 的 proposal、design、specs 和 tasks。 |
+
+## 剩余工作
+
+### 立即下一步
+
+- 启动 Phase 2：定义 `agent_harness` 公共契约、typed config、身份上下文、错误模型和 vendor import 边界声明。
+- 为 Phase 2 创建或选定窄 OpenSpec change，先写 proposal/specs/design/tasks，再进入 dev-builder 实现。
+- 保持 Phase 1 的 `bootstrap-workspace-packaging` change 未自动 archive；只有用户明确要求归档时才执行 archive。
+
+### 后续 Phase
+
+- Phase 2: 核心契约、配置系统与身份上下文。
+- Phase 3: 存储、迁移与事务边界。
+- Phase 4: CanonicalEvent、Artifact 与本地观测脊柱。
+- Phase 5: Durable Runtime、Checkpoint 与 Run 生命周期。
+- Phase 6: Agent Registry、模型路由与 Embedding。
+- Phase 7: 认证、PolicyEngine 与 HITL 审批。
+- Phase 8: ToolRegistry、FileTool、ShellTool 与 MCP Client。
+- Phase 9: RetrievalProvider 与 RAG 能力。
+- Phase 10: Observability Provider Adapters 与脱敏。
+- Phase 11: Eval Gate 与 Trace 到 Eval 闭环。
+- Phase 12: Service App 模板与四个 P0 示例 Agent。
+- Phase 13: Service Profile、API/Worker 分进程与未来拆分边界。
+- Phase 14: 深度文档、ADR 与维护者指南。
+- Phase 15: CI/CD、Release Automation 与合规收口。
+
+### 尚未完成的关键验收
+
+- service profile 的 PostgreSQL/Redis smoke 尚未实现。
+- runtime、storage、policy、tools、retrieval、observability、eval 和 release automation 尚未实现。
+- GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
+- 深度文档、ADR、未来微服务拆分边界文档尚未完成。
 
 ## 技术栈决策
 
@@ -551,10 +595,11 @@ Phase 1 Monorepo / quality spine
 
 ## 已知风险与限制
 
-- Pydantic AI 2.5.0 刚发布，adapter contract 必须早做；业务代码不能直接耦合其 API。
-- DBOS 2.26.0 是关键 service runtime 依赖，P0 通过 `DBOSRuntimeAdapter` 隔离，不把 DBOS 作为内部领域模型。
-- Redis 8.8 是当前 GA，但许可证变化会影响 Apache-2.0 项目合规判断；P0 Docker Compose 固定 Redis 7.2.4，后续升级必须走 ADR。
-- PGroonga 和 pgvector 是 optional adapter，不能成为 local profile 或 CI 的硬依赖。
-- P0 不是完整微服务系统；只实现可拆边界和 API/worker 分进程 service profile，不引入 Kubernetes、服务发现、多 AZ。
-- Phoenix、Langfuse、Logfire 的深度 dataset/score 能力差异较大；P0 先做 adapter contract 和最小 score/trace 写回，复杂 provider-native workflow 放 P1。
-
+| 风险 | 影响范围 | 处理 Phase | 当前状态 | 处理方式 / 验收信号 |
+|------|----------|------------|----------|----------------------|
+| Pydantic AI 2.5.0 刚发布，上游 API 和包边界可能变化。 | 核心 runtime、registry、model adapter 和业务 agent import 边界。 | Phase 2、Phase 6、Phase 10 | 未处理 | Phase 2 先定义 `agent_harness` 公共契约和 vendor import 边界；业务代码不得直接耦合 Pydantic AI API。 |
+| DBOS 2.26.0 是关键 service runtime 依赖，过早耦合会污染领域模型。 | Durable runtime、checkpoint、worker lifecycle。 | Phase 5、Phase 13 | 未处理 | 通过 `DBOSRuntimeAdapter` 隔离；验收时证明内部 run/checkpoint model 不依赖 DBOS 类型。 |
+| Redis 8.8 许可证变化影响 Apache-2.0 合规判断。 | Docker Compose service profile、queue/cache adapter、发布合规。 | Phase 13、Phase 15 | 已缓解 | P0 Docker Compose 固定 Redis 7.2.4；后续升级必须走 ADR 和 license review。 |
+| PGroonga 和 pgvector 是 optional adapter，可能拖累 local profile 或 CI。 | Retrieval、embedding cache、service profile smoke。 | Phase 9、Phase 13 | 未处理 | local profile 不硬依赖 PGroonga/pgvector；service profile 单独验 PostgreSQL 扩展和 adapter 行为。 |
+| P0 只做可拆边界，不做完整微服务；如果 API/worker/storage/tool 边界不清，后续会重构。 | API、runtime worker、model/tool gateway、storage、event/observability。 | Phase 2、Phase 4、Phase 5、Phase 13、Phase 14 | 未处理 | 每个边界通过接口、DTO、event envelope 或 repository/facade 表达；Phase 13 做 API/worker 分进程 smoke。 |
+| Phoenix、Langfuse、Logfire 的 dataset/score/workflow 能力差异大。 | Observability adapter、Eval Gate、score sink。 | Phase 10、Phase 11 | 未处理 | P0 先做 provider-neutral contract 和 local/jsonl fallback；复杂 provider-native workflow 放 P1。 |

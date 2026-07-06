@@ -1,25 +1,10 @@
-#!/bin/bash
-# Hook: SessionStart
-# 提示：有待确认的进化建议，或有待消化的信号。session 启动主 Agent 扫信号、同步消化、逐条问用户
-# 只提示一行，绝不阻塞用户
+#!/usr/bin/env bash
+set -euo pipefail
 
-EVO="$(git rev-parse --show-toplevel)/.codex/evolution"
-PROPOSALS="$EVO/proposals.md"
-SIGNALS="$EVO/signals.jsonl"
-
-MSG=""
-
-# 只数 ## 待审阅 区的建议，不误数 ## 已消化日志 等其他区的 - 行
-if [ -f "$PROPOSALS" ]; then
-  N=$(awk '/^## 待审阅/{f=1;next} /^## /{f=0} f&&/^- /{c++} END{print c+0}' "$PROPOSALS" 2>/dev/null)
-  if [ "${N:-0}" -gt 0 ] 2>/dev/null; then
-    MSG="📋 有 ${N} 条进化建议待确认，session 启动我会逐条摆给你问同不同意。"
-  fi
+hook_name="$(basename "$0" .sh)"
+project_dir="${AGENT_PACK_PROJECT_DIR:-${CLAUDE_PROJECT_DIR:-${CODEX_PROJECT_DIR:-}}}"
+if [ -z "$project_dir" ]; then
+  project_dir="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
 
-if [ -f "$SIGNALS" ] && [ -s "$SIGNALS" ]; then
-  MSG="${MSG} 🔄 有新进化信号，session 启动我会扫一遍、消化成建议并逐条问你。"
-fi
-
-[ -n "$MSG" ] && echo "$MSG"
-exit 0
+exec "$project_dir/.agents/hooks/run-hook.sh" "$hook_name" "codex"

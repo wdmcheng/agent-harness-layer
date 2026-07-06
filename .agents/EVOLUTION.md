@@ -6,9 +6,9 @@
         你表达不满或纠正，detect-feedback-signal hook 即时抓一行进 [进化目录]/signals.jsonl。措辞隐晦 hook 没抓到的，主 Agent 识别后自己补记一条。这一步瞬时、无感。
     二、消化加询问
         hook 只负责采集和提示，不负责后台消化和落地。
-        每次 session 启动，主 Agent 第一件事：signals.jsonl 有货就派 evolution-runner 扫它、加扫 git 历史，逐条消化成改动建议写进 proposals.md，消费掉的 signal 从 signals.jsonl 移走。消化轻量、尽快还给用户。runner 返回后主 Agent 当场把建议逐条摆给你，问同不同意，不等你手动调用 evolution-engine 技能。
+        每次 session 启动，主 Agent 第一件事：signals.jsonl 有货就派 evolution-runner 扫它、加扫 git 历史，逐条消化成改动建议写进 proposals.md，消费掉的 signal 从 signals.jsonl 移走。消化轻量、尽快还给用户。runner 返回后主 Agent 当场把建议逐条摆给你，问同不同意，不等你手动调用 evolution-engine 技能。只要 signals.jsonl 或 proposals.md 有待处理项，主 Agent 不得直接修改建议落点文件，不得自行删除或改写 signal，不得把待升格事项当普通修复处理。
     三、按你的回应落地
-        同意：主 Agent 立刻把规则改进对应文档。共享编排改 [共享规则文件]；平台专属适配只改对应 [主控文件]；技能行为进对应 SKILL.md；确定性门禁进对应 hook。
+        同意：主 Agent 立刻把规则改进对应文档。共享编排改 [共享规则文件]；平台专属适配只改对应 [主控文件]；技能行为进对应 SKILL.md；确定性门禁进对应 hook。若本批建议涉及升格，先给可审核升格预览，等你明确确认后才进入 agent-pack promote。
         只有你明确同意“升格到能力包”时，主 Agent 才进入 agent-pack promote --patch 或 agent-pack promote --replace 升格流程。升格必须先给出理由、影响文件和最小 patch 摘要；脚本只负责应用已确认 patch，不负责判断是否值得升格。
         全盘否定：这条 signal 和 proposal 一起删，什么都不改。
         一半一半：按你认可的那部分改，其余删。

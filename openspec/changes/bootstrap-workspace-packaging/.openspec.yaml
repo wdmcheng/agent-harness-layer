@@ -1,3 +1,3 @@
 schema: agent-pack-product-change
 created: 2026-07-05
-goal: Make Phase 1 implementation apply-ready from Product-Spec.md and DEV-PLAN.md.
+goal: 让 Phase 1 实现可直接从 Product-Spec.md 和 DEV-PLAN.md 进入落地。

@@ -3,15 +3,51 @@
   "installMode": "vendored",
   "packPath": "/Volumes/develop/vibe-engineering/agent-pack",
   "packRemote": "",
-  "packCommit": "73dd68b",
+  "packCommit": "bcac435",
   "projectEvolution": ".agents/evolution",
-  "updatedAt": "2026-07-05T12:53:39.103606+00:00",
+  "updatedAt": "2026-07-06T03:16:41.224918+00:00",
   "files": {
     ".agents/EVOLUTION.md": {
       "type": "file",
       "source": ".agents/EVOLUTION.md",
-      "sourceSha256": "b5595e68d6f41573de1fecca4f63399085a00f80806de6c2bbe8cbd0e257e2e0",
-      "installedSha256": "b5595e68d6f41573de1fecca4f63399085a00f80806de6c2bbe8cbd0e257e2e0"
+      "sourceSha256": "ba3974abb7dca7b1d4152c757692c5a8e80d6509807696347cef39e03c3dff3f",
+      "installedSha256": "ba3974abb7dca7b1d4152c757692c5a8e80d6509807696347cef39e03c3dff3f"
+    },
+    ".agents/hooks/agent_pack_hook.py": {
+      "type": "file",
+      "source": ".agents/hooks/agent_pack_hook.py",
+      "sourceSha256": "a14dc1329bee2d5d84e1a3977a81969f3f15c27a434b50278bf67e4eaf85dbea",
+      "installedSha256": "a14dc1329bee2d5d84e1a3977a81969f3f15c27a434b50278bf67e4eaf85dbea"
+    },
+    ".agents/hooks/agent_pack_hook_review.py": {
+      "type": "file",
+      "source": ".agents/hooks/agent_pack_hook_review.py",
+      "sourceSha256": "d044878eecb78a594ca5bbf67f7b6c1cc50970ddfb3c87fadb6ae177f28038ab",
+      "installedSha256": "d044878eecb78a594ca5bbf67f7b6c1cc50970ddfb3c87fadb6ae177f28038ab"
+    },
+    ".agents/hooks/agent_pack_hook_runtime.py": {
+      "type": "file",
+      "source": ".agents/hooks/agent_pack_hook_runtime.py",
+      "sourceSha256": "df162a1a68314c4aa3c57e3fa5d378b278d784d5f4f25acef48d9967b9ca502d",
+      "installedSha256": "df162a1a68314c4aa3c57e3fa5d378b278d784d5f4f25acef48d9967b9ca502d"
+    },
+    ".agents/hooks/run-hook.cmd": {
+      "type": "file",
+      "source": ".agents/hooks/run-hook.cmd",
+      "sourceSha256": "ff836476d98c563a1bb3b49b8d006dc37cfb55a4f37ba8d948cd021d1f7cefa2",
+      "installedSha256": "ff836476d98c563a1bb3b49b8d006dc37cfb55a4f37ba8d948cd021d1f7cefa2"
+    },
+    ".agents/hooks/run-hook.ps1": {
+      "type": "file",
+      "source": ".agents/hooks/run-hook.ps1",
+      "sourceSha256": "a69dda874f78f01a0d2224d4d814c0b15ff9caca8ef2b56e7172a506a1afa798",
+      "installedSha256": "a69dda874f78f01a0d2224d4d814c0b15ff9caca8ef2b56e7172a506a1afa798"
+    },
+    ".agents/hooks/run-hook.sh": {
+      "type": "file",
+      "source": ".agents/hooks/run-hook.sh",
+      "sourceSha256": "7f5fabf9936500aa06bdfbbd61c8f5d71da57cfc44a5e1502215b8692f70804a",
+      "installedSha256": "7f5fabf9936500aa06bdfbbd61c8f5d71da57cfc44a5e1502215b8692f70804a"
     },
     ".agents/skills/bug-fixer/SKILL.md": {
       "type": "file",
@@ -22,8 +58,8 @@
     ".agents/skills/code-review/SKILL.md": {
       "type": "file",
       "source": ".agents/skills/code-review/SKILL.md",
-      "sourceSha256": "39a649171f101e92edc87a197db5e3f1e75ea56d7b497a00df505e8d8fe463ba",
-      "installedSha256": "39a649171f101e92edc87a197db5e3f1e75ea56d7b497a00df505e8d8fe463ba"
+      "sourceSha256": "b3d400eee6e81ef416e335e55b450b89757337129e2b3150b479c648f0706ec0",
+      "installedSha256": "b3d400eee6e81ef416e335e55b450b89757337129e2b3150b479c648f0706ec0"
     },
     ".agents/skills/design-brief-builder/SKILL.md": {
       "type": "file",
@@ -76,8 +112,8 @@
     ".agents/skills/dev-builder/SKILL.md": {
       "type": "file",
       "source": ".agents/skills/dev-builder/SKILL.md",
-      "sourceSha256": "4f4954ccb6320682f1d66dda4045c0fa6c12d46cee144e7eac76df9e2ed321d6",
-      "installedSha256": "4f4954ccb6320682f1d66dda4045c0fa6c12d46cee144e7eac76df9e2ed321d6"
+      "sourceSha256": "e7bb6e0a994fbb07a277d06eec2217e450b28f6e71954bfe4481593cda77ad90",
+      "installedSha256": "e7bb6e0a994fbb07a277d06eec2217e450b28f6e71954bfe4481593cda77ad90"
     },
     ".agents/skills/dev-planner/SKILL.md": {
       "type": "file",
@@ -88,8 +124,8 @@
     ".agents/skills/dev-planner/templates/dev-plan-template.md": {
       "type": "file",
       "source": ".agents/skills/dev-planner/templates/dev-plan-template.md",
-      "sourceSha256": "390ae43d644e70e7489a9b640ad0f5ef328cf98145f596204a03c9bc6c607dfa",
-      "installedSha256": "390ae43d644e70e7489a9b640ad0f5ef328cf98145f596204a03c9bc6c607dfa"
+      "sourceSha256": "bcc0b38c579a2ffd936a7c5c251d7c6872957fd9627cfbe8bf90618efc5747d2",
+      "installedSha256": "bcc0b38c579a2ffd936a7c5c251d7c6872957fd9627cfbe8bf90618efc5747d2"
     },
     ".agents/skills/evolution-engine/SKILL.md": {
       "type": "file",
@@ -187,47 +223,119 @@
       "sourceSha256": "40e79c7ebc4e3bba297eef763691183b84d0552deff33547250d1dee31b63ce4",
       "installedSha256": "40e79c7ebc4e3bba297eef763691183b84d0552deff33547250d1dee31b63ce4"
     },
+    ".claude/hooks/auto-push.cmd": {
+      "type": "file",
+      "source": ".claude/hooks/auto-push.cmd",
+      "sourceSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7",
+      "installedSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7"
+    },
+    ".claude/hooks/auto-push.ps1": {
+      "type": "file",
+      "source": ".claude/hooks/auto-push.ps1",
+      "sourceSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37",
+      "installedSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37"
+    },
     ".claude/hooks/auto-push.sh": {
       "type": "file",
       "source": ".claude/hooks/auto-push.sh",
-      "sourceSha256": "cd538c6f7480c831b9cf093b4a01dc39e848de178d7c215da56db7ba88edff5f",
-      "installedSha256": "cd538c6f7480c831b9cf093b4a01dc39e848de178d7c215da56db7ba88edff5f"
+      "sourceSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50",
+      "installedSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50"
+    },
+    ".claude/hooks/check-evolution.cmd": {
+      "type": "file",
+      "source": ".claude/hooks/check-evolution.cmd",
+      "sourceSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7",
+      "installedSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7"
+    },
+    ".claude/hooks/check-evolution.ps1": {
+      "type": "file",
+      "source": ".claude/hooks/check-evolution.ps1",
+      "sourceSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37",
+      "installedSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37"
     },
     ".claude/hooks/check-evolution.sh": {
       "type": "file",
       "source": ".claude/hooks/check-evolution.sh",
-      "sourceSha256": "3069d3f1596d58567a611b7c5dee10bbbb4c3867bdf3041868f88717cadc6325",
-      "installedSha256": "3069d3f1596d58567a611b7c5dee10bbbb4c3867bdf3041868f88717cadc6325"
+      "sourceSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50",
+      "installedSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50"
+    },
+    ".claude/hooks/detect-feedback-signal.cmd": {
+      "type": "file",
+      "source": ".claude/hooks/detect-feedback-signal.cmd",
+      "sourceSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7",
+      "installedSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7"
+    },
+    ".claude/hooks/detect-feedback-signal.ps1": {
+      "type": "file",
+      "source": ".claude/hooks/detect-feedback-signal.ps1",
+      "sourceSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37",
+      "installedSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37"
     },
     ".claude/hooks/detect-feedback-signal.sh": {
       "type": "file",
       "source": ".claude/hooks/detect-feedback-signal.sh",
-      "sourceSha256": "30b007aead2a1170cc5ae1cea45521c1321e118ea7dbb0d3b8c539ae83cdf1b9",
-      "installedSha256": "30b007aead2a1170cc5ae1cea45521c1321e118ea7dbb0d3b8c539ae83cdf1b9"
+      "sourceSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50",
+      "installedSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50"
+    },
+    ".claude/hooks/mark-review-needed.cmd": {
+      "type": "file",
+      "source": ".claude/hooks/mark-review-needed.cmd",
+      "sourceSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7",
+      "installedSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7"
+    },
+    ".claude/hooks/mark-review-needed.ps1": {
+      "type": "file",
+      "source": ".claude/hooks/mark-review-needed.ps1",
+      "sourceSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37",
+      "installedSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37"
     },
     ".claude/hooks/mark-review-needed.sh": {
       "type": "file",
       "source": ".claude/hooks/mark-review-needed.sh",
-      "sourceSha256": "c87f8fc08cddd8c3e78aa8159fdaa815b83df38223217cac501c7c7c23a02334",
-      "installedSha256": "c87f8fc08cddd8c3e78aa8159fdaa815b83df38223217cac501c7c7c23a02334"
+      "sourceSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50",
+      "installedSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50"
+    },
+    ".claude/hooks/pre-commit-check.cmd": {
+      "type": "file",
+      "source": ".claude/hooks/pre-commit-check.cmd",
+      "sourceSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7",
+      "installedSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7"
+    },
+    ".claude/hooks/pre-commit-check.ps1": {
+      "type": "file",
+      "source": ".claude/hooks/pre-commit-check.ps1",
+      "sourceSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37",
+      "installedSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37"
     },
     ".claude/hooks/pre-commit-check.sh": {
       "type": "file",
       "source": ".claude/hooks/pre-commit-check.sh",
-      "sourceSha256": "f1b7e9f5fbd70e93e45e2197400bf4d84464e187cc9a88f290857166b0ee9309",
-      "installedSha256": "f1b7e9f5fbd70e93e45e2197400bf4d84464e187cc9a88f290857166b0ee9309"
+      "sourceSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50",
+      "installedSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50"
+    },
+    ".claude/hooks/stop-gate.cmd": {
+      "type": "file",
+      "source": ".claude/hooks/stop-gate.cmd",
+      "sourceSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7",
+      "installedSha256": "80841a94f17b303119b9ac13fd81989747f02b5f8de0f8ec1fe314e005a9fbc7"
+    },
+    ".claude/hooks/stop-gate.ps1": {
+      "type": "file",
+      "source": ".claude/hooks/stop-gate.ps1",
+      "sourceSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37",
+      "installedSha256": "2b7117021306bc48058011f286a87c22410f7eb46362c4b96493b4962ae0bd37"
     },
     ".claude/hooks/stop-gate.sh": {
       "type": "file",
       "source": ".claude/hooks/stop-gate.sh",
-      "sourceSha256": "cf1eb39a0c24acf4eda379887eafda7f7f9b266d9fc6fdff022a919337b65e10",
-      "installedSha256": "cf1eb39a0c24acf4eda379887eafda7f7f9b266d9fc6fdff022a919337b65e10"
+      "sourceSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50",
+      "installedSha256": "210286c4cd4f0ae5717bc21d8f498a85bf806e7bc7dc6f88c7a1a06ab1c80a50"
     },
     ".claude/settings.json": {
       "type": "file",
       "source": ".claude/settings.json",
-      "sourceSha256": "63bbafb4e73a65b9de7733d52612814d3aa928946a7652658f3b3d58ca86d8df",
-      "installedSha256": "63bbafb4e73a65b9de7733d52612814d3aa928946a7652658f3b3d58ca86d8df"
+      "sourceSha256": "365b9b4d991808310b33953a1471f9a88ed1dc933317693d15c5805a72c70ac4",
+      "installedSha256": "365b9b4d991808310b33953a1471f9a88ed1dc933317693d15c5805a72c70ac4"
     },
     ".codex/agents/code-reviewer.toml": {
       "type": "file",
@@ -244,56 +352,128 @@
     ".codex/hooks.json": {
       "type": "file",
       "source": ".codex/hooks.json",
-      "sourceSha256": "00229c968753a0a6b43e05bdccb0310b96f5f730ebc4ce267bf19a8f46a344a8",
-      "installedSha256": "00229c968753a0a6b43e05bdccb0310b96f5f730ebc4ce267bf19a8f46a344a8"
+      "sourceSha256": "6a7979233f8c13a96889df660a08ee69801f5e2310f35ffe092cf3a182f609a9",
+      "installedSha256": "6a7979233f8c13a96889df660a08ee69801f5e2310f35ffe092cf3a182f609a9"
+    },
+    ".codex/hooks/auto-push.cmd": {
+      "type": "file",
+      "source": ".codex/hooks/auto-push.cmd",
+      "sourceSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524",
+      "installedSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524"
+    },
+    ".codex/hooks/auto-push.ps1": {
+      "type": "file",
+      "source": ".codex/hooks/auto-push.ps1",
+      "sourceSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195",
+      "installedSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195"
     },
     ".codex/hooks/auto-push.sh": {
       "type": "file",
       "source": ".codex/hooks/auto-push.sh",
-      "sourceSha256": "aae21caa90da1700327b70049bed653f3c21b661311d46bc752289c36743d7ab",
-      "installedSha256": "aae21caa90da1700327b70049bed653f3c21b661311d46bc752289c36743d7ab"
+      "sourceSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2",
+      "installedSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2"
+    },
+    ".codex/hooks/check-evolution.cmd": {
+      "type": "file",
+      "source": ".codex/hooks/check-evolution.cmd",
+      "sourceSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524",
+      "installedSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524"
+    },
+    ".codex/hooks/check-evolution.ps1": {
+      "type": "file",
+      "source": ".codex/hooks/check-evolution.ps1",
+      "sourceSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195",
+      "installedSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195"
     },
     ".codex/hooks/check-evolution.sh": {
       "type": "file",
       "source": ".codex/hooks/check-evolution.sh",
-      "sourceSha256": "6b9ab5eac2a69edb68f4480ab1a87eb14002ddfba9b2f7bf5da3d54a697f3c03",
-      "installedSha256": "6b9ab5eac2a69edb68f4480ab1a87eb14002ddfba9b2f7bf5da3d54a697f3c03"
+      "sourceSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2",
+      "installedSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2"
+    },
+    ".codex/hooks/detect-feedback-signal.cmd": {
+      "type": "file",
+      "source": ".codex/hooks/detect-feedback-signal.cmd",
+      "sourceSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524",
+      "installedSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524"
+    },
+    ".codex/hooks/detect-feedback-signal.ps1": {
+      "type": "file",
+      "source": ".codex/hooks/detect-feedback-signal.ps1",
+      "sourceSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195",
+      "installedSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195"
     },
     ".codex/hooks/detect-feedback-signal.sh": {
       "type": "file",
       "source": ".codex/hooks/detect-feedback-signal.sh",
-      "sourceSha256": "e2a719097c87502ad792d5293c31351d299a25591b9a7fd922a9aeb14a99c741",
-      "installedSha256": "e2a719097c87502ad792d5293c31351d299a25591b9a7fd922a9aeb14a99c741"
+      "sourceSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2",
+      "installedSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2"
+    },
+    ".codex/hooks/mark-review-needed.cmd": {
+      "type": "file",
+      "source": ".codex/hooks/mark-review-needed.cmd",
+      "sourceSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524",
+      "installedSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524"
+    },
+    ".codex/hooks/mark-review-needed.ps1": {
+      "type": "file",
+      "source": ".codex/hooks/mark-review-needed.ps1",
+      "sourceSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195",
+      "installedSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195"
     },
     ".codex/hooks/mark-review-needed.sh": {
       "type": "file",
       "source": ".codex/hooks/mark-review-needed.sh",
-      "sourceSha256": "15cdfc05a5c50565996ebe53d5870a57a767df5d632d6314778d60e22237d2e0",
-      "installedSha256": "15cdfc05a5c50565996ebe53d5870a57a767df5d632d6314778d60e22237d2e0"
+      "sourceSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2",
+      "installedSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2"
+    },
+    ".codex/hooks/pre-tool-shell.cmd": {
+      "type": "file",
+      "source": ".codex/hooks/pre-tool-shell.cmd",
+      "sourceSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524",
+      "installedSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524"
+    },
+    ".codex/hooks/pre-tool-shell.ps1": {
+      "type": "file",
+      "source": ".codex/hooks/pre-tool-shell.ps1",
+      "sourceSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195",
+      "installedSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195"
     },
     ".codex/hooks/pre-tool-shell.sh": {
       "type": "file",
       "source": ".codex/hooks/pre-tool-shell.sh",
-      "sourceSha256": "76aaad8f3b84b442f26dd24e63eca05741c5f8fb606c79d7d7976c1293c83ff9",
-      "installedSha256": "76aaad8f3b84b442f26dd24e63eca05741c5f8fb606c79d7d7976c1293c83ff9"
+      "sourceSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2",
+      "installedSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2"
+    },
+    ".codex/hooks/stop-gate.cmd": {
+      "type": "file",
+      "source": ".codex/hooks/stop-gate.cmd",
+      "sourceSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524",
+      "installedSha256": "da8c2dfc56942ac9152bcdee527c9d98749b63306f471c4b94a47e9e1f1a5524"
+    },
+    ".codex/hooks/stop-gate.ps1": {
+      "type": "file",
+      "source": ".codex/hooks/stop-gate.ps1",
+      "sourceSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195",
+      "installedSha256": "2b38d37437f5b28392984d30e1c7a8c64b08fc7763104dc270cdb5bb1feb9195"
     },
     ".codex/hooks/stop-gate.sh": {
       "type": "file",
       "source": ".codex/hooks/stop-gate.sh",
-      "sourceSha256": "9c0ddfd296bd7e8114a4755009fb02b51c6a508aede2068e4fafac9ad84c70ca",
-      "installedSha256": "9c0ddfd296bd7e8114a4755009fb02b51c6a508aede2068e4fafac9ad84c70ca"
+      "sourceSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2",
+      "installedSha256": "02d7d6f8648193975378a4d62fa9b1b46aee0cffb353f9e662c642f200df56c2"
     },
     "AGENT-PACK.md": {
       "type": "file",
       "source": "README.md",
-      "sourceSha256": "6f0a61a5ba909a5aaaf932ea7554aa41908a4b9981d34f845ef7598ca78d49e3",
-      "installedSha256": "6f0a61a5ba909a5aaaf932ea7554aa41908a4b9981d34f845ef7598ca78d49e3"
+      "sourceSha256": "fbe25ab19195bbdc683a3b24703d65ae924946898246425d8617eca46b866435",
+      "installedSha256": "fbe25ab19195bbdc683a3b24703d65ae924946898246425d8617eca46b866435"
     },
     "AGENTS.md": {
       "type": "file",
       "source": "AGENTS.md",
-      "sourceSha256": "37fd98fde5e886890fa15495cbd195f4517b44a12b933a3718af94d47c4180bf",
-      "installedSha256": "37fd98fde5e886890fa15495cbd195f4517b44a12b933a3718af94d47c4180bf"
+      "sourceSha256": "f97f0ec246307b46f5e180550da660c4d63851113593497db27478a84f85daed",
+      "installedSha256": "f97f0ec246307b46f5e180550da660c4d63851113593497db27478a84f85daed"
     }
   }
 }

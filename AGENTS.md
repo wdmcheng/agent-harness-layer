@@ -47,7 +47,9 @@
     - [进化目录]：当前 agent 访问进化队列的路径。源目录是 .agents/evolution；Codex 的 .codex/evolution 和 Claude Code 的 .claude/evolution 都 symlink 到 ../.agents/evolution，因此两端共享队列。
     - [关联项目文件]：.agents/RELATED-PROJECTS.md，可随项目提交；存在时表示当前项目与其他项目有协作关系。
     - [关联路径表]：.agents/related-projects.local.json，本机绝对路径表，不提交；只在需要访问关联项目路径时读取。
+    - [CLI目录]：.agents/cli/，agent-pack 命令业务逻辑入口。
     - [技能源目录]：.agents/skills/，唯一维护 SKILL 正文、references、templates。
+    - [共享Hook目录]：.agents/hooks/，hook 业务逻辑入口。
     - [Claude技能目录]：.claude/skills/，每个子目录是指向 ../../.agents/skills/[skill-name] 的 symlink，不维护正文。
     - [显式技能调用]：Codex 是 $skill-name；Claude Code 是 /skill-name。
     写 Skill 时只引用这些变量，不在 Skill 正文里反复展开 Codex 和 Claude Code 的具体路径。
@@ -56,7 +58,7 @@
 [能力包升格]
     项目内的 AGENTS.md、.agents/skills、.codex、.claude 都随项目提交；日常进化先改项目本地文件。
     只有当主 Agent 或 evolution-engine 判断某条规则、Skill、hook、Sub-Agent 对多个项目通用，并且用户明确同意升格时，才进入 agent-pack promote --patch 或 agent-pack promote --replace 升格流程。
-    升格像信号进化一样处理：先给出升格原因、影响文件和最小改动摘要，用户确认后只把确认的片段做成相对能力包根目录的 patch，用 agent-pack promote --patch 应用到能力包。
+    升格像信号进化一样处理：先给出可审核预览，包括升格原因、影响文件、最小改动摘要及 diff 预览、抽象化处理说明和拟执行的 agent-pack promote 命令；用户确认后只把确认的片段做成相对能力包根目录的 patch，用 agent-pack promote --patch 应用到能力包。不得用一句升格结论代替审核材料。
     agent-pack 脚本只负责 diff、hash、patch apply、复制、提交和推送，不自动判断、不自动升格；agent-pack promote --replace 只用于新文件或用户明确批准整文件替换。
 
 [外部工作流兼容层]
@@ -66,6 +68,7 @@
     - 项目存在 openspec/ 时，视为可选变更契约层；不存在时完全按原流程走，不提示用户补装。
     - Product-Spec.md 仍是产品级真相源，DEV-PLAN.md 仍是阶段级实施计划，OpenSpec change 只描述一次增量变更的行为契约和归档材料。
     - 用户明确提到 OpenSpec、openspec/changes/<change>，或当前任务是增量功能/行为变更且已有对应 change 时，相关 Skill 读取该 change 的 proposal.md、specs/**/*.md、design.md、tasks.md 和元数据。
+    - OpenSpec change 的 proposal.md、design.md、tasks.md、README.md 和 specs 说明默认使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径、schema 关键字保留英文。
     - OpenSpec specs/delta 只约束本次行为变更；若它与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突，先停下指出冲突并让用户决定，不擅自让任何一方覆盖另一方。
     - 不自动 archive、不自动 validate 后推进发布；archive、schema 切换和 OpenSpec 初始化都需要用户明确同意或显式命令。
 
@@ -86,6 +89,8 @@
     │   ├── EVOLUTION.md                                # 共享进化引擎说明
     │   ├── RELATED-PROJECTS.md                         # 可选：可提交的多项目关联说明
     │   ├── related-projects.local.json                  # 可选：本机绝对路径表，不提交
+    │   ├── cli/                                        # [CLI目录]，agent-pack Python core
+    │   ├── hooks/                                      # [共享Hook目录]，hook Python runner + shell 薄包装
     │   ├── templates/                                  # 可选模板，如 OpenSpec schema 模板
     │   └── skills/                                     # [技能源目录]，唯一维护 SKILL 正文、references、templates
     ├── .claude/
@@ -108,9 +113,10 @@
     - 始终使用中文交流
     - 联网优先：涉及外部库、API、框架版本时先联网搜索或查官方文档确认再动手
     - 自进化：用户纠正即抓成信号入队到 [进化目录]/signals.jsonl，hook 靠关键词只抓措辞明显的，主 Agent 识别到 hook 没抓到的修正自己补记一条
-    - 自进化消化由主 Agent 同步收口。session 启动主 Agent 第一件事：signals 有货就派 evolution-runner 消化成建议、消化轻量尽快还给用户，当场逐条问用户，同意即改对应文档、全盘否定即删 signal 和 proposal。主 Agent 照常处理用户的修正本身
+    - 自进化消化由主 Agent 同步收口。session 启动主 Agent 第一件事：signals 有货就派 evolution-runner 消化成建议、消化轻量尽快还给用户，当场逐条问用户，同意即改对应文档、全盘否定即删 signal 和 proposal。只要 signals.jsonl 或 proposals.md 有待处理项，主 Agent 不得绕过 evolution-runner 直接修改建议落点文件，不得自行删除或改写 signal，不得把待升格事项降级成普通修复；必须等用户对本批建议明确拍板后再落地或进入升格预览。主 Agent 照常处理用户的修正本身
     - 设计优先级从高到低：设计稿、Design-Brief.md、Product-Spec.md。有设计稿时 UI 一切以设计稿为准。无设计稿也无 Brief 时，继承项目既有页面和组件的先例，不自由发挥
     - 迭代即同步：任何变更先更对应源文档再动代码，文档是单一真相源。上游文档变了，主 Agent 主动查下游文档和代码受不受影响、要不要一起更，只提醒不自动改，不只改一个留其余脱节
+    - 模板和既有文档优先局部补丁，保留原有合理结构、命名和措辞；除非用户明确要求重写或原结构阻碍目标，不做等价改写增加审阅成本
     - 进化沉淀通用规则，落到对应文档：共享编排进 [共享规则文件]、平台专属适配进对应 [主控文件]、技能行为进对应 SKILL.md、确定性门禁进对应 hook；项目专属的偏好和上下文归用户记忆，不混进通用规则
     - 关联项目：存在 [关联项目文件] 时，只有任务涉及跨端、接口、联调、数据契约或发布链路才先读取；需要访问本机路径时再读 [关联路径表] 并验证路径存在，路径失效就问用户，不猜；不要因为存在关联项目就自动修改其他项目
 
@@ -151,7 +157,7 @@
     除这两个固定角色外，主 Agent 可按 [规划与执行] 临时派发执行型子 Agent 处理可隔离的并行工作。
     执行型子 Agent 只编码和自检，不再派子 Agent、不 commit。review 闭环和 commit 始终由主 Agent 控制。
     隔离原则：每个子 Agent 用 fresh 实例，不复用、不继承 session 历史。主 Agent 显式提供完整上下文：Spec 条目、交付清单、涉及文件、项目结构。这是隔离保证，防止一个子 Agent 的错误假设污染另一个。
-    code-review 永远派 code-reviewer 执行。evolution-runner 在 session 启动时消化信号，返回的建议由主 Agent 当场逐条问用户，同意即改对应文档、全盘否定即删 signal 和 proposal。无论平台是否支持后台 subagent，code-reviewer 和 evolution-runner 都不能自行落地、commit 或替用户做决定。
+    code-review 永远派 code-reviewer 执行。evolution-runner 在 session 启动时消化信号，返回的建议由主 Agent 当场逐条问用户；用户同意后主 Agent 才能改对应文档或给升格预览，用户全盘否定后才删除对应 signal/proposal。无论平台是否支持后台 subagent，code-reviewer 和 evolution-runner 都不能自行落地、commit 或替用户做决定，主 Agent 也不能用本地修复名义跳过这一步。
 
 [项目状态检测与路由]
     初始化时检测项目进度，路由到对应环节：

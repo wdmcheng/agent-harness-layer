@@ -44,6 +44,7 @@ description: 当用户说要审查代码、检查质量、验证功能是否完�
 [审查策略]
     逐项对照：读 Spec 条目 → 搜代码对应实现 → 验证行为 → 记证据。
     变更契约对照：如果有 OpenSpec change，读取 change 下所有 proposal/specs/design/tasks 原文；只把它作为本次增量行为契约，和 Product-Spec.md、DEV-PLAN.md 一起审，不把它当第二套产品规范。
+    状态输出判读：审查同步类工具输出时先区分阻塞态和提示态。Agent Pack 的 `pack-updated` 只表示上游能力包源文件比 lock 记录更新，不等于本项目安装副本不 clean；除非本次任务明确要求同步能力包，或它与本次 promote、lock hash、安装副本一致性直接冲突，不得仅凭 `pack-updated` 判 code-review 未通过、提交阻塞或 Phase 未完成。
     领域语言对照：有 CONTEXT-MAP.md 就按映射读取相关 CONTEXT.md；否则有根目录 CONTEXT.md 就读。读取相关 ADR，检查命名和设计是否违背既有领域语言或已记录决策。缺失时静默降级。
     两轴隔离：Spec 轴引用需求、计划、设计稿和 OpenSpec 原文；Standards 轴引用项目规范、现有代码先例、代码质量规则和安全基线。一个发现同时影响两轴时分别记录，不合并成一个模糊结论。
     设计数值对比：提取设计稿数值 → 读代码 Tailwind class 或 style → 逐项比布局、颜色、间距、字号、圆角。

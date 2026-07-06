@@ -1,38 +1,37 @@
 ## ADDED Requirements
 
-### Requirement: Service-app template exposes the reserved backend layout
-The service-app template SHALL reserve the backend application, agent, configuration, eval, test, documentation, and environment file layout required by the Product Spec.
+### Requirement: Service-app template 暴露预留后端布局
+service-app template SHALL 预留 Product Spec 要求的后端应用、agent、配置、eval、测试、文档和环境文件布局。
 
-#### Scenario: Template directory structure exists
-- **WHEN** a developer inspects `templates/service-app`
-- **THEN** the template contains `app/`, `agents/`, `configs/profiles/`, `eval-cases/drafts/`, `eval-cases/approved/`, `tests/`, `docs/`, `.env.example`, `Makefile`, `README.md`, and `pyproject.toml`
+#### Scenario: Template 目录结构存在
+- **WHEN** 开发者检查 `templates/service-app`
+- **THEN** template 包含 `app/`、`agents/`、`configs/profiles/`、`eval-cases/drafts/`、`eval-cases/approved/`、`tests/`、`docs/`、`.env.example`、`Makefile`、`README.md` 和 `pyproject.toml`
 
-### Requirement: App entry code is separated from agent logic
-The template SHALL keep application entrypoints separate from future business agent implementation directories.
+### Requirement: App entry code 与 agent logic 分离
+template SHALL 保持应用入口与未来业务 agent 实现目录分离。
 
-#### Scenario: App entry directories are reserved
-- **WHEN** a developer inspects `templates/service-app/app`
-- **THEN** it contains reserved `api/`, `cli/`, and `workers/` entrypoint areas
+#### Scenario: App entry 目录已预留
+- **WHEN** 开发者检查 `templates/service-app/app`
+- **THEN** 它包含预留的 `api/`、`cli/` 和 `workers/` 入口区域
 
-#### Scenario: Agent directories are reserved
-- **WHEN** a developer inspects `templates/service-app/agents`
-- **THEN** agent implementation is reserved under agent-specific directories instead of being placed inside `app/*`
+#### Scenario: Agent 目录已预留
+- **WHEN** 开发者检查 `templates/service-app/agents`
+- **THEN** agent 实现预留在 agent 专属目录下，而不是放进 `app/*`
 
-### Requirement: Local profile shell runs without external provider credentials
-The service-app shell SHALL provide a local development profile and smoke entrypoint that can run without real model keys or external observability providers.
+### Requirement: Local profile shell 无需外部 provider 凭据即可运行
+service-app shell SHALL 提供本地开发 profile 和 smoke entrypoint，可在没有真实模型 key 或外部 observability providers 的情况下运行。
 
-#### Scenario: Local profile is present
-- **WHEN** a developer inspects `templates/service-app/configs/profiles`
-- **THEN** `local.yaml` exists and declares local defaults suitable for later fake provider and local-jsonl integration
+#### Scenario: Local profile 存在
+- **WHEN** 开发者检查 `templates/service-app/configs/profiles`
+- **THEN** `local.yaml` 存在，并声明适合后续 fake provider 和 local-jsonl integration 的本地默认值
 
-#### Scenario: Local smoke entrypoint exists
-- **WHEN** a developer runs the template local smoke command
-- **THEN** the command completes using only workspace-local configuration and does not require real model keys or SaaS provider credentials
+#### Scenario: Local smoke entrypoint 存在
+- **WHEN** 开发者运行 template 本地 smoke 命令
+- **THEN** 命令只使用 workspace 本地配置即可完成，且不需要真实模型 key 或 SaaS provider 凭据
 
-### Requirement: Template documentation identifies developer and maintainer entrypoints
-The service-app template SHALL document how an agent application developer starts from the template and how a scaffold maintainer keeps the template aligned with the core package boundary.
+### Requirement: Template 文档标明 developer 和 maintainer entrypoints
+service-app template SHALL 记录 agent 应用开发者如何从 template 启动，以及脚手架维护者如何让 template 与核心包边界保持一致。
 
-#### Scenario: Template README describes both audiences
-- **WHEN** a developer reads `templates/service-app/README.md`
-- **THEN** the README identifies app developer setup steps and scaffold maintainer boundary responsibilities
-
+#### Scenario: Template README 描述两个受众
+- **WHEN** 开发者阅读 `templates/service-app/README.md`
+- **THEN** README 标明 app 开发者设置步骤和脚手架维护者边界职责

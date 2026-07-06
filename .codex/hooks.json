@@ -1,6 +1,6 @@
 {
   "hooks": {
-    "//": "Codex 版 hooks。事件名对标 Claude Code。command 经 /bin/sh -lc 调 .codex/hooks/ 下的脚本本体。",
+    "//": "Codex 版 hooks。事件名对标 Claude Code。.codex/hooks/ 只做薄包装，业务逻辑在 .agents/hooks/agent_pack_hook*.py。",
     "//tool-name": "matcher 过滤 tool name（regex）。Codex 的命令工具/编辑工具名按实际版本确认。",
 
     "UserPromptSubmit": [
