@@ -29,9 +29,12 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 架构图表达：
 
 - 纵向 5 层运行中轴：Access、Runtime、Engine、Tools、Infra。
+- 主链路回边：Runtime 通过 Graph 节点驱动 Agent，Engine 与 Tools 形成 Agent Loop，Engine 通过 SSE/WS 向 Access 流式回传，HITL 审批回到 Runtime/Access 后 resume。
+- Access / Tools / Retrieval 的信任边界：外部输入、MCP tool output、检索内容都必须先标记来源和可信级别，再进入上下文组装或执行路径。
+- Engine 层上下文组装收口：历史裁剪、检索注入、工具结果截断、预算控制和异步记忆压缩不能散落在业务 agent 里。
 - 左翼 Eval Gate：分层 eval、release gate、trace 低分样本回流。
 - 右翼 Observability：OTel trace/metrics/audit，适配 Logfire / Phoenix / Langfuse。
-- 底部工程闭环：线上低分 trace -> eval case -> eval run -> score -> observability provider。
+- 底部工程闭环：线上低分 trace -> eval case -> eval run -> score -> observability provider；Prompt / 策略版本必须可回溯对比。
 
 ### 1.3 用户问题
 
@@ -629,12 +632,15 @@ auth_method: str
 - `PermissionContext`：tenant/user/roles/permissions/session/agent。
 - `PolicyDecision`：`allow` / `deny` / `require_approval`。
 - `PolicyEngine` 输入 actor、resource、action、context，输出 decision。
+- `InputGuardrail` 在用户/API/CLI 输入进入 run 前执行轻量过滤、注入风险检测和 trust marker 标注。
 - 默认策略 provider 支持 YAML 和数据库 provider。
 - CLI/HTTP 审批入口支持 approve/deny。
 
 **拦截点：**
+- 用户/API/CLI 输入进入 agent run 前
 - agent run 启动前
 - tool 调用前
+- tool/MCP/retrieval output 回填上下文前
 - 文件读写前
 - shell/命令执行前
 - MCP connector 调用前
@@ -657,11 +663,13 @@ auth_method: str
 - MUST 审批记录写 audit log。
 - MUST 审批状态和 checkpoint/resume 关联。
 - MUST 默认开发策略允许 default 租户常规操作，但危险动作仍可配置审批。
+- MUST guardrail 检查结果写入 trace/audit；阻断时不得创建不可恢复的半截 run。
 
 **验收标准：**
 - [ ] AC-021: Given shell tool 默认策略, when agent 请求执行 shell, then 返回 `approval.required`。
 - [ ] AC-022: Given 审批通过, when resume run, then 原 tool call 继续执行且 audit log 记录审批人和结果。
 - [ ] AC-023: Given 策略为 deny, when 执行动作, then 动作不执行且 audit log 记录拒绝。
+- [ ] AC-024: Given 输入包含明显 prompt injection 或越权指令, when 创建 run, then guardrail 记录检查结果并按策略 allow / deny / require_approval。
 
 ### REQ-011: 工具系统、Shell、File 和 MCP
 
@@ -700,28 +708,32 @@ auth_method: str
 - MCP tool allowlist
 - 调用前 policy
 - 调用结果写 trace/audit
+- MCP 返回内容标记为 untrusted，进入 Context Assembly 前执行截断、来源标注和注入检测
 
 **规则：**
 - MUST 工具入参出参 schema 校验。
 - MUST 大 tool output 走 artifact/ref，不直接塞进事件正文。
 - MUST delete、批量写、workspace 外访问默认 require_approval。
 - MUST 支持 `.agentignore`。
+- MUST tool/MCP output 不得直接拼进 prompt；必须通过 Context Assembly 带 source、artifact_ref、trust_level 和 token budget。
 
 **验收标准：**
-- [ ] AC-024: Given workspace 外路径, when FileTool read, then 默认拒绝或要求审批。
-- [ ] AC-025: Given MCP tool 未在 allowlist, when agent 调用, then policy 拒绝。
-- [ ] AC-026: Given shell 输出超过上限, when tool 完成, then stdout/stderr 被截断且 artifact_ref 可用。
+- [ ] AC-025: Given workspace 外路径, when FileTool read, then 默认拒绝或要求审批。
+- [ ] AC-026: Given MCP tool 未在 allowlist, when agent 调用, then policy 拒绝。
+- [ ] AC-027: Given shell 输出超过上限, when tool 完成, then stdout/stderr 被截断且 artifact_ref 可用。
+- [ ] AC-028: Given MCP tool output 包含指令型文本, when 写入上下文, then 系统保留来源和 untrusted 标记，并经过注入检测或截断。
 
-### REQ-012: 模型、预算与 embedding
+### REQ-012: 模型、预算、上下文组装与 embedding
 
 **优先级：** P0  
 **关联任务：** TASK-003, TASK-004  
 
 **用途：**  
-统一模型路由、fallback、成本、超时和 embedding 调用。
+统一模型路由、fallback、成本、超时、上下文组装和 embedding 调用。
 
 **行为：**
 - `ModelRouter` 支持默认模型、任务级模型、fallback、timeout、成本预算。
+- `ContextAssembler` 统一收口 system/user/history/retrieval/tool output/artifact refs，执行历史裁剪、检索注入、结果截断和 trust marker 传播。
 - `EmbeddingProvider` 支持 OpenAI-compatible embedding API。
 - P0 提供 local/mock embedding，用于测试和 CI。
 - P0 提供 embedding cache。
@@ -730,12 +742,15 @@ auth_method: str
 - MUST 业务 agent 不直接写 provider 细节。
 - MUST 模型/embedding 调用记录 token、cost、latency trace。
 - MUST 单次模型调用预计超过预算阈值时触发 policy。
+- MUST 所有注入模型上下文的外部内容保留 `source_ref`、`trust_level` 和截断信息。
+- MUST ContextAssembler 在超预算时按可解释顺序降级：裁剪历史、压缩记忆、截断 tool/retrieval output、切换 fallback model 或触发 policy。
 - SHOULD 支持 cheap/flagship/local model routing。
 
 **验收标准：**
-- [ ] AC-027: Given fake model provider, when 运行 tests/eval, then 不需要真实 API key。
-- [ ] AC-028: Given 预算阈值, when 模型调用预计超阈值, then 产生 policy decision。
-- [ ] AC-029: Given 重复 embedding 输入, when 第二次调用, then 命中 cache 或记录 cache miss 原因。
+- [ ] AC-029: Given fake model provider, when 运行 tests/eval, then 不需要真实 API key。
+- [ ] AC-030: Given 预算阈值, when 模型调用预计超阈值, then 产生 policy decision 或可追踪 fallback。
+- [ ] AC-031: Given 重复 embedding 输入, when 第二次调用, then 命中 cache 或记录 cache miss 原因。
+- [ ] AC-032: Given 历史、检索和 tool output 同时进入上下文, when 组装 prompt, then 输出 context assembly trace，包含来源、可信级别、token 预算和截断记录。
 
 ### REQ-013: Retrieval 与 RAG
 
@@ -758,12 +773,14 @@ auth_method: str
 - MUST PGroonga 未安装时可降级，不让系统起不来。
 - MUST `agent-harness doctor` 检测 PGroonga/pgvector extension 状态。
 - MUST RAG assistant 示例验证引用、检索 eval、trace。
+- MUST 检索 chunk 一律作为 untrusted input 处理；注入上下文前必须带 citation/source_ref/trust_level，并经过 Context Assembly 的截断和注入检测。
 - SHOULD OpenSearch/Elasticsearch/Vespa 放 P1/P2。
 
 **验收标准：**
-- [ ] AC-030: Given local profile, when RAG 示例检索, then 不依赖 PostgreSQL 扩展也能返回结果。
-- [ ] AC-031: Given service profile 且 PGroonga 未安装, when doctor, then 输出降级提示而不是启动崩溃。
-- [ ] AC-032: Given hybrid retrieval adapter, when 提供 BM25/vector 结果, then 可执行 RRF 合并。
+- [ ] AC-033: Given local profile, when RAG 示例检索, then 不依赖 PostgreSQL 扩展也能返回结果。
+- [ ] AC-034: Given service profile 且 PGroonga 未安装, when doctor, then 输出降级提示而不是启动崩溃。
+- [ ] AC-035: Given hybrid retrieval adapter, when 提供 BM25/vector 结果, then 可执行 RRF 合并。
+- [ ] AC-036: Given 检索结果包含 prompt injection 文本, when 注入上下文, then 作为 untrusted citation 内容处理，不得覆盖 system / policy / developer 指令。
 
 ### REQ-014: CanonicalEvent 与流式输出
 
@@ -814,6 +831,8 @@ model.output.completed
 model.structured.delta
 model.structured.completed
 model.usage.updated
+input.guardrail.checked
+input.guardrail.blocked
 reasoning.delta
 tool.call.args_delta
 tool.call.started
@@ -821,6 +840,8 @@ tool.call.completed
 tool.call.failed
 retrieval.query.started
 retrieval.query.completed
+context.assembly.started
+context.assembly.completed
 policy.decision
 approval.required
 approval.resolved
@@ -844,9 +865,10 @@ eval.score.recorded
 - MUST SSE 是输出协议，不是内部事件模型。
 
 **验收标准：**
-- [ ] AC-033: Given 一个 run, when event stream 完成, then terminal event 只有一个。
-- [ ] AC-034: Given SSE 客户端断开后按 seq 恢复, when 重新连接, then 可继续获取未读事件。
-- [ ] AC-035: Given 普通用户 visibility, when reasoning event 产生, then 默认不发送给用户流。
+- [ ] AC-037: Given 一个 run, when event stream 完成, then terminal event 只有一个。
+- [ ] AC-038: Given SSE 客户端断开后按 seq 恢复, when 重新连接, then 可继续获取未读事件。
+- [ ] AC-039: Given 普通用户 visibility, when reasoning event 产生, then 默认不发送给用户流。
+- [ ] AC-040: Given guardrail/context assembly 事件产生, when 写入 local/jsonl, then 包含 source/trust/truncation 摘要但不泄露 secret 或完整大 payload。
 
 ### REQ-015: Observability 转换层
 
@@ -871,8 +893,8 @@ OTel 是底座协议，不是业务边界；Logfire/Phoenix/Langfuse 必须走�
 - SHOULD 外部 provider 失败时本地证据不丢。
 
 **验收标准：**
-- [ ] AC-036: Given 未配置任何 SaaS provider, when 运行 agent, then local/jsonl 仍产出 trace。
-- [ ] AC-037: Given 配置 Logfire adapter, when 运行 agent, then provider adapter contract test 通过且业务代码无 Logfire import。
+- [ ] AC-041: Given 未配置任何 SaaS provider, when 运行 agent, then local/jsonl 仍产出 trace。
+- [ ] AC-042: Given 配置 Logfire adapter, when 运行 agent, then provider adapter contract test 通过且业务代码无 Logfire import。
 
 ### REQ-016: Eval Gate 与 trace/eval 闭环
 
@@ -912,9 +934,9 @@ Runtime Trace
 - SHOULD P1 接入 Logfire Hosted Datasets、Phoenix dataset/eval workflow、Langfuse annotation/dataset/score。
 
 **验收标准：**
-- [ ] AC-038: Given failed run trace, when 执行 `agent-harness eval draft`, then 生成 draft case。
-- [ ] AC-039: Given draft case, when 人工 approve, then case 进入 approved dataset 并写 audit log。
-- [ ] AC-040: Given approved dataset, when `make eval`, then 产出 eval result 和 score sink 记录。
+- [ ] AC-043: Given failed run trace, when 执行 `agent-harness eval draft`, then 生成 draft case。
+- [ ] AC-044: Given draft case, when 人工 approve, then case 进入 approved dataset 并写 audit log。
+- [ ] AC-045: Given approved dataset, when `make eval`, then 产出 eval result 和 score sink 记录。
 
 ### REQ-017: 示例 agent
 
@@ -936,8 +958,8 @@ Runtime Trace
 - MUST 示例覆盖不同能力块，避免四个样例都只是 prompt demo。
 
 **验收标准：**
-- [ ] AC-041: Given P0 示例 agent, when `agent-harness agents list`, then 四个示例均可见。
-- [ ] AC-042: Given 每个示例, when 执行对应 eval, then fake model 下可跑通确定性测试。
+- [ ] AC-046: Given P0 示例 agent, when `agent-harness agents list`, then 四个示例均可见。
+- [ ] AC-047: Given 每个示例, when 执行对应 eval, then fake model 下可跑通确定性测试。
 
 ### REQ-018: README 与文档体系
 
@@ -976,8 +998,8 @@ README 是入口，深度文档解释架构和维护边界。
 - 多 agent delegation 必须走 registry 和 policy。
 
 **验收标准：**
-- [ ] AC-043: Given README, when 新开发者阅读 Project Structure, then 能知道每个目录职责和禁止跨边界规则。
-- [ ] AC-044: Given scaffold maintainer, when 阅读 docs, then 能找到 adapter contract、release process、安全策略和 ADR。
+- [ ] AC-048: Given README, when 新开发者阅读 Project Structure, then 能知道每个目录职责和禁止跨边界规则。
+- [ ] AC-049: Given scaffold maintainer, when 阅读 docs, then 能找到 adapter contract、release process、安全策略和 ADR。
 
 ### REQ-019: TDD、测试与质量门禁
 
@@ -1032,9 +1054,9 @@ make quality
 ```
 
 **验收标准：**
-- [ ] AC-045: Given 新能力块任务, when 开发开始, then 先存在失败测试或 contract test。
-- [ ] AC-046: Given `make quality`, when CI 执行, then ruff、pyright、unit/contract tests 均通过。
-- [ ] AC-047: Given `make eval`, when 未配置真实模型 key, then fake model eval 可通过。
+- [ ] AC-050: Given 新能力块任务, when 开发开始, then 先存在失败测试或 contract test。
+- [ ] AC-051: Given `make quality`, when CI 执行, then ruff、pyright、unit/contract tests 均通过。
+- [ ] AC-052: Given `make eval`, when 未配置真实模型 key, then fake model eval 可通过。
 
 ### REQ-020: CI/CD 与 Release Automation
 
@@ -1089,10 +1111,10 @@ make quality
 - MUST 破坏性变更写 ADR。
 
 **验收标准：**
-- [ ] AC-048: Given GitHub CI, when push/PR, then `make quality`、`make eval`、`make smoke-local`、`make smoke-service` 执行。
-- [ ] AC-049: Given GitLab CI, when pipeline, then 与 GitHub 等价命令通过。
-- [ ] AC-050: Given releasable commits, when release workflow dry-run, then 生成下一版本、CHANGELOG 预览、tag 名称和 wheel/sdist artifact。
-- [ ] AC-051: Given no releasable commits, when release workflow dry-run, then 不创建 tag 或 release。
+- [ ] AC-053: Given GitHub CI, when push/PR, then `make quality`、`make eval`、`make smoke-local`、`make smoke-service` 执行。
+- [ ] AC-054: Given GitLab CI, when pipeline, then 与 GitHub 等价命令通过。
+- [ ] AC-055: Given releasable commits, when release workflow dry-run, then 生成下一版本、CHANGELOG 预览、tag 名称和 wheel/sdist artifact。
+- [ ] AC-056: Given no releasable commits, when release workflow dry-run, then 不创建 tag 或 release。
 
 ### REQ-021: 开源合规与许可证
 
@@ -1115,8 +1137,8 @@ make quality
 - MUST 文档引用架构、外部库、官方能力时保留链接。
 
 **验收标准：**
-- [ ] AC-052: Given 仓库根目录, when 检查 license 文件, then `LICENSE` 存在且为 Apache-2.0。
-- [ ] AC-053: Given 引入第三方片段, when review, then NOTICE/来源/license/修改说明可追踪。
+- [ ] AC-057: Given 仓库根目录, when 检查 license 文件, then `LICENSE` 存在且为 Apache-2.0。
+- [ ] AC-058: Given 引入第三方片段, when review, then NOTICE/来源/license/修改说明可追踪。
 
 ### REQ-022: 部署边界与未来微服务拆分基础
 
@@ -1143,10 +1165,10 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - MUST 禁止为了图上好看提前引入分布式复杂度；边界优先，分布式实现后置。
 
 **验收标准：**
-- [ ] AC-054: Given README / architecture docs, when 新维护者阅读部署边界章节, then 能指出 API、runtime worker、model/tool gateway、storage、event pipeline 的当前形态和未来拆分路径。
-- [ ] AC-055: Given service profile, when 分别启动 API 进程和 worker 进程并提交 run, then run 可被 worker 执行并通过共享 storage/queue 产出事件。
-- [ ] AC-056: Given 业务 agent 代码, when 静态扫描 import, then 不直接 import 具体 model/tool/storage/observability vendor SDK 或直接操作 ORM session。
-- [ ] AC-057: Given CanonicalEvent / DTO contract tests, when API、worker、tool/model adapter 交换数据, then 关联字段和 schema 校验保持一致。
+- [ ] AC-059: Given README / architecture docs, when 新维护者阅读部署边界章节, then 能指出 API、runtime worker、model/tool gateway、storage、event pipeline 的当前形态和未来拆分路径。
+- [ ] AC-060: Given service profile, when 分别启动 API 进程和 worker 进程并提交 run, then run 可被 worker 执行并通过共享 storage/queue 产出事件。
+- [ ] AC-061: Given 业务 agent 代码, when 静态扫描 import, then 不直接 import 具体 model/tool/storage/observability vendor SDK 或直接操作 ORM session。
+- [ ] AC-062: Given CanonicalEvent / DTO contract tests, when API、worker、tool/model adapter 交换数据, then 关联字段和 schema 校验保持一致。
 
 ### AI 能力规格
 
@@ -1181,6 +1203,8 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | Approval | HITL 审批记录 | approval_id, run_id, action, decision, approver_id, status |
 | PolicyRule | 权限策略 | rule_id, tenant_id, resource, action, effect, conditions |
 | AuditLog | 审计记录 | audit_id, tenant_id, run_id, actor, action, decision, trace_id |
+| GuardrailCheck | 输入 / 输出护栏检查摘要 | check_id, run_id, source_ref, trust_level, decision, artifact_ref |
+| ContextAssembly | 上下文组装记录 | assembly_id, run_id, input_refs, token_budget, truncation_summary, output_ref |
 | ToolInvocation | 工具调用记录 | invocation_id, run_id, tool_name, args_ref, result_ref, status |
 | TraceRef | 观测 trace 引用 | trace_id, run_id, provider, local_ref, external_url |
 | CanonicalEvent | 规范化事件 | event_id, run_id, seq, type, visibility, payload_ref |
@@ -1213,6 +1237,8 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - `AgentRun` terminal status MUST 只能是 completed、failed、cancelled 之一。
 - `eval-cases/approved` MUST 只能由审核流程写入。
 - Secret MUST 在进入 trace/eval/audit/artifact 前脱敏。
+- 外部输入、MCP output、tool output、retrieval chunk MUST 在进入模型上下文前带 `source_ref` 和 `trust_level`。
+- ContextAssembly MUST 记录截断、压缩、检索注入和 fallback 决策摘要，完整大内容只能通过 Artifact 引用。
 - `PolicyDecision` 和 approval 结果 MUST 写 audit log。
 - ReleaseRecord MUST 可关联 git tag、commit sha、CHANGELOG 和 artifacts。
 
@@ -1333,12 +1359,17 @@ P0 完成条件：
 | RetrievalProvider | RAG 检索 | 读索引/文档 | BM25/PGroonga/pgvector adapter |
 | EmbeddingProvider | embedding 生成和 cache | 模型调用 | OpenAI-compatible/mock/local |
 | ModelRouter | 模型选择、fallback、预算 | 模型调用 | provider adapter |
+| InputGuardrail | 输入过滤、注入检测、trust marker | 读输入，写 guardrail trace/audit | policy + redaction + context assembly |
+| ContextAssembler | 历史裁剪、检索注入、tool output 截断 | 读上下文和 artifact，引导模型输入 | source/trust/token budget contract |
 | TelemetryFacade | trace/metric/event 输出 | 写观测 | local/jsonl/OTel/provider adapter |
 | EvalRunner | eval 执行和 score | 读 approved dataset，写 score | local/provider adapter |
 
 ### 11.3 上下文与记忆
 
 - 单任务上下文上限与超限处理：P0 支持 context compaction 事件和 memory/retrieval 接口；具体复杂 memory 策略可 P1 深化。
+- 上下文组装：P0 由 ContextAssembler 统一处理 system/user/history/retrieval/tool output/artifact refs，业务 agent 不直接拼 prompt。
+- 信任边界：外部输入、MCP output、tool output、retrieval chunk 默认不可信；进入上下文前必须保留来源、可信级别和截断记录。
+- 预算降级：上下文超预算时先裁剪历史和检索/tool output，再压缩记忆或切换 fallback model；无法安全降级时触发 policy。
 - 跨会话记忆：P0 不做自动长期个人记忆；只保留 session/history/checkpoint/eval/artifact 的结构化存储。
 - 长任务：P0 通过 durable execution、checkpoint、resume、artifact_ref 避免上下文和事件 payload 膨胀。
 

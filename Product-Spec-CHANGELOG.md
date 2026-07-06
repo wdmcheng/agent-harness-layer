@@ -1,5 +1,14 @@
 # 变更记录
 
+## [v1.1] - 2026-07-06
+### 调整
+- 同步最新架构图语义：补充 Agent Loop、HITL 回边、SSE/WS 流式回传、信任边界和 Prompt / 策略版本回溯要求。
+- 明确 P0 InputGuardrail 契约：用户/API/CLI 输入进入 run 前执行轻量过滤、注入风险检测、trust marker 标注，并把检查结果写入 trace/audit。
+- 明确 MCP tool output、tool output、retrieval chunk 默认作为 untrusted input 处理；进入模型上下文前必须保留 source_ref、trust_level、artifact_ref 和截断信息。
+- 将 REQ-012 扩展为“模型、预算、上下文组装与 embedding”，新增 ContextAssembler 对 history、retrieval、tool output、artifact refs、token budget 和 fallback decision 的收口责任。
+- 扩展 CanonicalEvent P0 事件类型，加入 input.guardrail.* 与 context.assembly.* 事件，并要求 local/jsonl 只记录摘要、来源、可信级别和截断元数据。
+- 新增 GuardrailCheck 与 ContextAssembly 数据模型条目，补充上下文组装和信任边界的数据规则。
+
 ## [v1.0] - 2026-07-05
 ### 新增
 - 新增 Agent Harness Layer 初始 Product Spec。

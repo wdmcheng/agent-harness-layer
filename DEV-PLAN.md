@@ -9,7 +9,7 @@
 
 - Product Spec: `Product-Spec.md` 已存在，版本为 2026-07-05 的 v1.0。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
-- 设计稿 / 架构图: 已读取 `artifacts/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Eval Gate、Observability 和未来拆分边界组织开发顺序。
+- 设计稿 / 架构图: 已读取 `artifacts/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging` 已归档到 `openspec/changes/archive/2026-07-06-bootstrap-workspace-packaging`，当前无 active changes。
 - 代码状态: Phase 1 已完成并提交；实现提交为 `c08191b`，安装修复提交为 `4ec5c40`，OpenSpec 归档提交为 `87cf84b`。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
@@ -30,7 +30,7 @@
 
 ### 立即下一步
 
-- 启动 Phase 2：定义 `agent_harness` 公共契约、typed config、身份上下文、错误模型和 vendor import 边界声明。
+- 启动 Phase 2：定义 `agent_harness` 公共契约、typed config、身份上下文、错误模型、trust marker / context ref 和 vendor import 边界声明。
 - 为 Phase 2 创建或选定窄 OpenSpec change，先写 proposal/specs/design/tasks，再进入 dev-builder 实现。
 - Phase 1 archive 已完成；为 Phase 2 创建新的窄 OpenSpec change 后再进入实现。
 
@@ -167,6 +167,7 @@ Phase 1 Monorepo / quality spine
 **交付内容**：
 - 定义 `agent_harness` 公共接口、错误模型、DTO 基础类、租户和身份上下文。
 - 实现 `.env`、profile YAML、agent config YAML 的 typed settings 加载、合并、校验和错误提示。
+- 定义 trust marker、source/ref、context input/output DTO 和 guardrail decision 基础契约，供后续输入护栏、ContextAssembler、MCP/retrieval output 复用。
 - 建立厂商依赖隔离扫描，阻止业务 agent 和 app 入口直接 import Pydantic AI、DBOS、Logfire、Phoenix、Langfuse 等实现。
 
 **关键文件**：
@@ -175,6 +176,7 @@ Phase 1 Monorepo / quality spine
 - `packages/agent-harness/src/agent_harness/identity/context.py` - `IdentityContext`、tenant/user/session model。
 - `packages/agent-harness/src/agent_harness/contracts/dto.py` - Pydantic DTO 基类和 serialization 约束。
 - `packages/agent-harness/src/agent_harness/contracts/errors.py` - 内部错误和 API error envelope 基础。
+- `packages/agent-harness/src/agent_harness/contracts/trust.py` - `TrustLevel`、`SourceRef`、`ContextRef` 和 guardrail decision 基础类型。
 - `packages/agent-harness/src/agent_harness/contracts/boundaries.py` - import boundary 声明和扫描规则。
 - `templates/service-app/configs/profiles/local.yaml` - local profile 默认配置。
 - `templates/service-app/configs/profiles/service.yaml` - service profile 默认配置。
@@ -183,6 +185,7 @@ Phase 1 Monorepo / quality spine
 **验收标准**：
 - 缺失必填配置时启动失败，并输出字段路径和修复建议。
 - local/service profile 都能解析到 typed config。
+- trust marker、source/ref 和 context ref DTO 有 contract tests，并能序列化进事件 payload。
 - 业务 agent 示例目录、`templates/service-app/app/*` 和 `examples/*` 的静态扫描不出现禁止的厂商 SDK import。
 - `agent-harness doctor --profile local` 能显示配置加载状态。
 
@@ -217,6 +220,7 @@ Phase 1 Monorepo / quality spine
 
 **交付内容**：
 - 定义 `CanonicalEvent` envelope、固定 P0 event types、terminal event 和 `seq` 规则。
+- 纳入 `input.guardrail.*` 与 `context.assembly.*` 事件类型，记录来源、可信级别、截断和阻断摘要。
 - 实现 local/jsonl event sink、artifact store、payload/payload_ref 策略和 secret redaction 基础。
 - 实现 OTel mapping 的最小 facade，使后续 provider adapter 只做转换，不改变内部事件模型。
 
@@ -226,6 +230,7 @@ Phase 1 Monorepo / quality spine
 - `packages/agent-harness/src/agent_harness/events/sinks/local_jsonl.py` - local/jsonl sink。
 - `packages/agent-harness/src/agent_harness/artifacts/store.py` - artifact/ref/checksum 管理。
 - `packages/agent-harness/src/agent_harness/security/redaction.py` - secret redaction 基础规则。
+- `packages/agent-harness/src/agent_harness/security/guardrails.py` - input/output guardrail event payload 与阻断摘要。
 - `packages/agent-harness/src/agent_harness/observability/otel.py` - CanonicalEvent 到 OTel span/metric/event 映射。
 - `templates/service-app/app/api/sse.py` - SSE adapter 初版。
 
@@ -233,6 +238,7 @@ Phase 1 Monorepo / quality spine
 - 一个模拟 run 的 event stream 只能出现一个 terminal event。
 - 同一 `run_id` 内事件 `seq` 单调递增，断线后可按 `seq` 继续读取。
 - 大 payload 写入 artifact，事件正文只保留 `payload_ref`。
+- guardrail/context assembly 事件只写摘要、source_ref、trust_level 和 truncation metadata，不写完整大 payload 或 secret。
 - 未配置外部观测 provider 时 local/jsonl 仍产出 trace/eval/audit 证据。
 
 ---
@@ -267,6 +273,7 @@ Phase 1 Monorepo / quality spine
 **交付内容**：
 - 实现多 agent registry、`AgentDescriptor`、agent config schema 校验和受控 delegation 配置读取。
 - 实现 Pydantic AI 默认 adapter、FakeModelProvider、ModelRouter、预算估算、timeout、fallback。
+- 实现 ContextAssembler：收口 history、retrieval、tool output、artifact refs、trust marker、token budget 和上下文降级链。
 - 实现 EmbeddingProvider、mock/local embedding、OpenAI-compatible embedding adapter 和 embedding cache。
 
 **关键文件**：
@@ -274,6 +281,8 @@ Phase 1 Monorepo / quality spine
 - `packages/agent-harness/src/agent_harness/registry/registry.py` - 多 agent 加载、校验、查询。
 - `packages/agent-harness/src/agent_harness/models/router.py` - model routing、fallback、budget check。
 - `packages/agent-harness/src/agent_harness/models/providers.py` - model provider interface。
+- `packages/agent-harness/src/agent_harness/context/assembler.py` - ContextAssembler、history trimming、retrieval/tool output injection。
+- `packages/agent-harness/src/agent_harness/context/budget.py` - token budget、context truncation、fallback decision summary。
 - `packages/agent-harness/src/agent_harness/adapters/models/pydantic_ai.py` - Pydantic AI adapter。
 - `packages/agent-harness/src/agent_harness/adapters/models/fake.py` - fake model provider。
 - `packages/agent-harness/src/agent_harness/embeddings/provider.py` - embedding provider interface。
@@ -285,6 +294,7 @@ Phase 1 Monorepo / quality spine
 - `agent-harness agents list` 能列出已配置 agent。
 - 重复 `agent_id` 或不合法 config 会被 registry 拒绝。
 - fake model 下不需要真实 API key 就能跑测试和 eval smoke。
+- ContextAssembler 生成 context assembly trace，能解释 source、trust_level、token budget、truncation 和 fallback decision。
 - 业务 agent 不直接 import `pydantic_ai`；替换 fake adapter 后 contract tests 仍通过。
 
 ---
@@ -322,11 +332,12 @@ Phase 1 Monorepo / quality spine
 - 实现 `ToolRegistry`，统一本地工具、MCP 工具、schema validation、policy interception、trace/audit。
 - 实现 Workspace FileTool：read/write/list/search/patch/delete，受 workspace 根目录、`.agentignore` 和 policy 控制。
 - 实现 ShellTool 默认 disabled、显式启用、allowlist/denylist、timeout、stdout/stderr 截断、artifact_ref。
-- 实现 MCP client connector：stdio、HTTP/SSE、tool discovery、allowlist、policy 和 trace/audit。
+- 实现 MCP client connector：stdio、HTTP/SSE、tool discovery、allowlist、policy、untrusted output 标注和 trace/audit。
 
 **关键文件**：
 - `packages/agent-harness/src/agent_harness/tools/registry.py` - tool registry。
 - `packages/agent-harness/src/agent_harness/tools/schema.py` - tool input/output schema validation。
+- `packages/agent-harness/src/agent_harness/tools/output_guard.py` - tool/MCP output source_ref、trust_level、截断和注入检测。
 - `packages/agent-harness/src/agent_harness/tools/file_tool.py` - workspace file operations。
 - `packages/agent-harness/src/agent_harness/tools/shell_tool.py` - guarded shell execution。
 - `packages/agent-harness/src/agent_harness/tools/workspace.py` - workspace root、`.agentignore`、path guard。
@@ -339,6 +350,7 @@ Phase 1 Monorepo / quality spine
 - shell tool 默认 disabled；显式启用后仍受 allowlist、timeout、环境变量白名单和 approval 控制。
 - MCP tool 未在 allowlist 时被 policy 拒绝。
 - 大 tool output 被截断并写 artifact_ref，事件和 audit 不塞入完整大文本。
+- MCP/tool output 进入 ContextAssembler 前必须带 source_ref、trust_level 和 truncation metadata；指令型文本不得覆盖 system/policy/developer 指令。
 
 ---
 
@@ -347,7 +359,7 @@ Phase 1 Monorepo / quality spine
 **交付内容**：
 - 实现 `RetrievalProvider` interface、local SQLite FTS5/BM25 adapter 和 PostgreSQL retrieval adapter。
 - 实现 optional PGroonga、optional pgvector adapter 探测、doctor 降级提示和 hybrid retrieval + RRF interface。
-- 提供 RAG assistant 示例所需的 indexing、query、citation 和 retrieval eval 基础。
+- 提供 RAG assistant 示例所需的 indexing、query、citation、untrusted chunk 标注和 retrieval eval 基础。
 
 **关键文件**：
 - `packages/agent-harness/src/agent_harness/retrieval/provider.py` - retrieval provider interface。
@@ -356,6 +368,7 @@ Phase 1 Monorepo / quality spine
 - `packages/agent-harness/src/agent_harness/retrieval/pgroonga.py` - optional PGroonga adapter。
 - `packages/agent-harness/src/agent_harness/retrieval/pgvector.py` - optional pgvector adapter。
 - `packages/agent-harness/src/agent_harness/retrieval/hybrid.py` - RRF merge interface。
+- `packages/agent-harness/src/agent_harness/retrieval/context.py` - retrieval chunk source_ref、citation、trust_level 和 context injection DTO。
 - `templates/service-app/agents/examples/rag_assistant/config.yaml` - RAG 示例 config。
 - `templates/service-app/agents/examples/rag_assistant/evals/approved.yaml` - RAG eval 基础数据。
 
@@ -364,6 +377,7 @@ Phase 1 Monorepo / quality spine
 - service profile 中 PGroonga 或 pgvector 未安装时 `agent-harness doctor` 输出降级提示，系统不崩溃。
 - hybrid retrieval adapter 可合并 BM25/vector 结果并输出可追踪 ranking。
 - RAG 示例回答带 citation 或明确说明未找到出处。
+- 检索 chunk 注入上下文前保留 citation/source_ref/trust_level；prompt injection 文本只能作为引用内容，不能覆盖系统策略。
 
 ---
 
@@ -454,7 +468,7 @@ Phase 1 Monorepo / quality spine
 **交付内容**：
 - 完成 Docker Compose service profile，PostgreSQL、Redis、API 进程和 runtime worker 使用同一 storage/queue 配置协作。
 - 验证 DBOS service adapter、shared checkpoint、event stream 和 run worker pickup。
-- 在代码和文档中固定未来微服务拆分顺序：先拆 worker，再拆 tool/model gateway，最后拆 observability/event pipeline；storage service 仅在 repository contract 稳定后拆。
+- 在代码和文档中固定未来微服务拆分顺序：先拆 worker，再拆 tool/model gateway，最后拆 observability/event pipeline；storage service 仅在 repository contract 稳定后拆；guardrail/context assembly 边界必须随 API/worker/model/tool gateway 保持 DTO/CanonicalEvent 兼容。
 
 **关键文件**：
 - `templates/service-app/docker-compose.yml` - PostgreSQL、Redis、API、worker。
@@ -470,6 +484,7 @@ Phase 1 Monorepo / quality spine
 - `make smoke-service` 能启动 PostgreSQL、Redis、API 和 worker。
 - 分别启动 API 进程和 worker 进程后提交 run，run 被 worker 执行并产出 event stream。
 - API、worker、tool/model adapter 交换数据只使用 Pydantic DTO、CanonicalEvent、repository/provider/facade interface。
+- API/worker/model/tool gateway 拆分后仍保留 source_ref、trust_level、context assembly trace 和 guardrail/audit 关联字段。
 - 文档能让维护者指出 API、runtime worker、model/tool gateway、storage、event pipeline 的当前形态和未来拆分路径。
 
 ---
@@ -478,7 +493,7 @@ Phase 1 Monorepo / quality spine
 
 **交付内容**：
 - 完成面向 app developer 和 scaffold maintainer 的 README、深度文档和 ADR。
-- 写清 adapter contract、extension guide、security policy、eval-observability loop、release process 和目录禁止跨边界规则。
+- 写清 adapter contract、extension guide、security policy、guardrail / context assembly / trust boundary、eval-observability loop、release process 和目录禁止跨边界规则。
 - 为每个能力块补充可执行命令、验收证据位置和常见故障排查。
 
 **关键文件**：
@@ -486,6 +501,7 @@ Phase 1 Monorepo / quality spine
 - `docs/architecture.md` - 架构和未来拆分边界。
 - `docs/extension-guide.md` - 扩展 agent、tool、model、retrieval、observability、eval adapter。
 - `docs/adapter-contracts.md` - provider/repository/facade contract。
+- `docs/context-and-trust-boundary.md` - Agent Loop、HITL 回边、SSE/WS 回传、ContextAssembler 和 untrusted input 处理。
 - `docs/eval-observability-loop.md` - trace -> eval -> score -> provider 闭环。
 - `docs/security-policy.md` - auth、policy、approval、workspace、secret redaction。
 - `docs/release-process.md` - SemVer、tag、CHANGELOG、private publish、artifact。
@@ -494,7 +510,7 @@ Phase 1 Monorepo / quality spine
 
 **验收标准**：
 - 新开发者阅读 README 后能运行 local profile、理解目录职责和禁止跨边界规则。
-- 维护者阅读 docs 后能找到 adapter contract、release process、安全策略、ADR 和 eval/observability 闭环。
+- 维护者阅读 docs 后能找到 adapter contract、release process、安全策略、context/trust boundary、ADR 和 eval/observability 闭环。
 - 所有文档命令都能在当前 repo 执行或明确标注需要 service profile。
 - 文档中的技术栈版本和 `pyproject.toml` / `uv.lock` 保持一致。
 
@@ -543,6 +559,8 @@ Phase 1 Monorepo / quality spine
 | `policy_rules` | Phase 7 | YAML/DB policy provider 的规则落库。 |
 | `approvals` | Phase 7 | HITL approval required / approve / deny 记录。 |
 | `audit_logs` | Phase 7 | policy decision、approval、tool、eval dataset 写入审计。 |
+| `guardrail_checks` | Phase 4 | input/tool/retrieval guardrail 检查摘要、decision、source_ref 和 artifact_ref。 |
+| `context_assemblies` | Phase 6 | context input refs、token budget、trust summary、truncation summary 和 output_ref。 |
 | `workspaces` | Phase 8 | per-run 或 per-agent workspace 根路径和 policy 引用。 |
 | `tool_invocations` | Phase 8 | tool name、args_ref、result_ref、status、duration。 |
 | `retrieval_documents` | Phase 9 | RAG 示例和 local/service retrieval 的文档 metadata。 |
@@ -565,10 +583,10 @@ Phase 1 Monorepo / quality spine
 | REQ-007 多 agent registry 与 delegation | Phase 6 |
 | REQ-008 API、CLI 与管理面 | Phase 5, Phase 7, Phase 11, Phase 12 |
 | REQ-009 租户、身份与认证 | Phase 2, Phase 7 |
-| REQ-010 PolicyEngine、权限拦截与 HITL | Phase 7 |
+| REQ-010 PolicyEngine、权限拦截、InputGuardrail 与 HITL | Phase 2, Phase 4, Phase 7 |
 | REQ-011 工具系统、Shell、File、MCP | Phase 8 |
-| REQ-012 模型、预算与 embedding | Phase 6 |
-| REQ-013 Retrieval 与 RAG | Phase 9, Phase 12 |
+| REQ-012 模型、预算、上下文组装与 embedding | Phase 2, Phase 4, Phase 6 |
+| REQ-013 Retrieval 与 RAG | Phase 6, Phase 9, Phase 12 |
 | REQ-014 CanonicalEvent 与流式输出 | Phase 4, Phase 5 |
 | REQ-015 Observability 转换层 | Phase 4, Phase 10 |
 | REQ-016 Eval Gate 与 trace/eval 闭环 | Phase 10, Phase 11 |
@@ -590,6 +608,7 @@ Phase 1 Monorepo / quality spine
 - 所有跨边界数据必须使用 Pydantic DTO、CanonicalEvent、repository interface、provider interface 或 facade。
 - local/jsonl 永远可用；外部 provider 失败不得导致本地证据丢失。
 - 危险动作默认走 policy 和 approval；不得为了测试方便绕过 PolicyEngine。
+- 外部输入、MCP output、tool output、retrieval chunk 默认按 untrusted 处理；进入模型上下文必须经过 ContextAssembler 并保留 source_ref、trust_level 和 truncation metadata。
 - `eval-cases/approved` 只能由审核流程写入；自动 detector 只能写 draft。
 - 所有核心数据、trace、eval、audit、artifact 必须带 `tenant_id`，run 相关数据必须带 `agent_id`、`run_id` 或 `trace_id`。
 
@@ -603,3 +622,4 @@ Phase 1 Monorepo / quality spine
 | PGroonga 和 pgvector 是 optional adapter，可能拖累 local profile 或 CI。 | Retrieval、embedding cache、service profile smoke。 | Phase 9、Phase 13 | 未处理 | local profile 不硬依赖 PGroonga/pgvector；service profile 单独验 PostgreSQL 扩展和 adapter 行为。 |
 | P0 只做可拆边界，不做完整微服务；如果 API/worker/storage/tool 边界不清，后续会重构。 | API、runtime worker、model/tool gateway、storage、event/observability。 | Phase 2、Phase 4、Phase 5、Phase 13、Phase 14 | 未处理 | 每个边界通过接口、DTO、event envelope 或 repository/facade 表达；Phase 13 做 API/worker 分进程 smoke。 |
 | Phoenix、Langfuse、Logfire 的 dataset/score/workflow 能力差异大。 | Observability adapter、Eval Gate、score sink。 | Phase 10、Phase 11 | 未处理 | P0 先做 provider-neutral contract 和 local/jsonl fallback；复杂 provider-native workflow 放 P1。 |
+| Prompt injection / tool output injection 如果后补，会污染所有 agent 和 eval 证据。 | Access input、MCP、tools、retrieval、context assembly、audit。 | Phase 2、Phase 4、Phase 6、Phase 8、Phase 9 | 未处理 | 先定义 trust marker/source_ref/context ref，再在 guardrail、ContextAssembler、tool/MCP/retrieval adapters 中强制传播并写入 trace/audit。 |
