@@ -1,4 +1,4 @@
-"""Structured error contracts."""
+"""结构化错误契约。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from agent_harness.contracts.dto import HarnessDTO
 
 
 class ErrorDetail(HarnessDTO):
-    """Stable error detail for CLI/API diagnostics."""
+    """CLI/API 可展示的稳定错误详情。"""
 
     code: str
     message: str
@@ -17,13 +17,13 @@ class ErrorDetail(HarnessDTO):
 
 
 class ApiErrorEnvelope(HarnessDTO):
-    """Stable API error envelope."""
+    """API 层统一错误封套。"""
 
     error: ErrorDetail
 
 
 class HarnessError(Exception):
-    """Base exception carrying one or more public error details."""
+    """携带一个或多个公共错误详情的基础异常。"""
 
     def __init__(self, errors: Sequence[ErrorDetail]) -> None:
         self.error_details = list(errors)

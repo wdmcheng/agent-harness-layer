@@ -1,1 +1,1 @@
-"""Agent implementation package boundary for the service-app template."""
+"""service-app 模板的 agent 实现包边界。"""

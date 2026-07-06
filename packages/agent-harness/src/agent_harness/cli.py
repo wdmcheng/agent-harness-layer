@@ -1,4 +1,4 @@
-"""Agent Harness command line interface."""
+"""Agent Harness 的命令行入口。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ app = typer.Typer(no_args_is_help=True)
 
 @app.callback()
 def cli_root() -> None:
-    """Agent Harness developer commands."""
+    """开发者和维护者共用的本地命令集合。"""
 
 
 @app.command()
@@ -22,7 +22,7 @@ def doctor(
     profile: Annotated[str, typer.Option("--profile")] = "local",
     profiles_dir: Annotated[Path | None, typer.Option("--profiles-dir")] = None,
 ) -> None:
-    """Validate a profile and print local diagnostics."""
+    """校验 profile 配置并输出本地诊断，不打开外部连接。"""
 
     try:
         settings = load_settings(profile=profile, profiles_dir=profiles_dir)
@@ -33,6 +33,7 @@ def doctor(
             typer.echo(f"{error.code}:{field} {error.message}{hint}", err=True)
         raise typer.Exit(1) from exc
 
+    # doctor 只报告配置边界；数据库、队列、模型和观测连接留给后续 service smoke。
     key_status = "api key required" if settings.model.requires_api_key else "api key not required"
     typer.echo(f"profile: {settings.profile}")
     typer.echo(f"storage: {settings.storage.kind}")

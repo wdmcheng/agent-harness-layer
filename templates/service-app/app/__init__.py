@@ -1,1 +1,1 @@
-"""Application entrypoint package for the service-app template."""
+"""service-app 模板的应用入口包。"""

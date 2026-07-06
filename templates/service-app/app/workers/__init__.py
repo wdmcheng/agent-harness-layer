@@ -1,1 +1,1 @@
-"""Reserved worker entrypoint package."""
+"""预留的 worker 入口包。"""

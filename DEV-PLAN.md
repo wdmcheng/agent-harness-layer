@@ -20,7 +20,7 @@
 |------|------|---------------|
 | 总体状态 | 进行中 | Phase 1-2 已完成；Phase 3-15 仍待实现。 |
 | 当前 Phase | Phase 2 完成 | `core-config-identity-contracts` tasks 为 9/9 complete；code-reviewer Stage 1/2 均 PASS。 |
-| 已完成 Phase | Phase 1, Phase 2 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 由本次本地提交记录。 |
+| 已完成 Phase | Phase 1, Phase 2 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。 |
 | 当前 OpenSpec change | `core-config-identity-contracts` active | proposal/specs/design/tasks 已通过 strict validate；按规则不自动 archive，后续如需归档需显式执行。 |
 | 当前验证基线 | 全量通过 | `openspec validate core-config-identity-contracts --type change --strict`、`openspec validate --all --strict`、`make quality`、`make test`、`make smoke-local`、`make build`、`make license-check`、`uv run pre-commit run --all-files`、`agent-harness doctor --profile local` 已通过。 |
 | 当前阻塞项 | 无 | Phase 2 已完成，剩余是本地提交和后续是否 archive 的用户决策。 |

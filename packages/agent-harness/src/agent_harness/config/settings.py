@@ -1,4 +1,4 @@
-"""Settings loading from profile YAML, agent YAML, dotenv, and environment."""
+"""从 profile YAML、agent YAML、dotenv 和环境变量加载配置。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ ENV_PREFIX = "AGENT_HARNESS_"
 
 
 class SettingsLoadError(HarnessError):
-    """Configuration load failure with public diagnostics."""
+    """配置加载失败，携带可展示给 CLI/API 的诊断。"""
 
     def __init__(self, errors: Sequence[ErrorDetail]) -> None:
         self.errors = list(errors)
@@ -37,21 +37,29 @@ def load_settings(
     env_file: Path | None = None,
     overrides: Mapping[str, Any] | None = None,
 ) -> HarnessSettings:
-    """Load typed settings with deterministic merge order."""
+    """按公开优先级契约加载配置。
+
+    合并顺序是 profile YAML -> agent YAML -> `.env` 文件 -> 进程环境变量
+    -> 显式 overrides。后面的来源覆盖前面的标量值，mapping 递归合并，
+    list 作为完整值替换。
+    """
 
     resolved_profile_path = _resolve_profile_path(profile, profiles_dir, profile_path)
     data = _read_yaml_mapping(resolved_profile_path, field_prefix="")
     if "profile" not in data:
         data["profile"] = profile
 
+    # agent YAML 只归一化进 agent 子树，避免 agent 级配置覆盖 profile 的部署边界。
     if agent_config_path is not None:
         agent_data = _read_yaml_mapping(agent_config_path, field_prefix="agent")
         data = _deep_merge(data, _normalize_agent_data(agent_data))
 
+    # `.env` 是模板使用者的本机覆盖层，优先级高于 profile 默认值。
     resolved_env_file = _resolve_env_file(resolved_profile_path, env_file)
     env_values = _load_env_values(resolved_env_file)
     data = _deep_merge(data, _env_values_to_nested(env_values))
 
+    # 进程环境变量覆盖 `.env`，用于 CI、容器和调用方临时注入。
     process_env = {
         key: value
         for key, value in os.environ.items()
@@ -59,6 +67,7 @@ def load_settings(
     }
     data = _deep_merge(data, _env_values_to_nested(process_env))
 
+    # explicit overrides 只给测试和受控调用使用，优先级最高。
     if overrides:
         data = _deep_merge(data, dict(overrides))
 
@@ -108,6 +117,7 @@ def _read_yaml_mapping(path: Path, *, field_prefix: str) -> dict[str, Any]:
             ]
         )
     try:
+        # 配置来自本地文件也仍是输入边界；只允许 safe YAML 数据结构进 Pydantic。
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except YAMLError as exc:
         raise SettingsLoadError(
@@ -152,11 +162,14 @@ def _load_env_values(path: Path | None) -> dict[str, str]:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
+        # 这里不是 shell parser：只支持 key=value 和一层引号，避免 `.env` 产生隐式执行语义。
         values[key.strip()] = value.strip().strip('"').strip("'")
     return values
 
 
 def _env_values_to_nested(values: Mapping[str, str]) -> dict[str, Any]:
+    """把 AGENT_HARNESS_* 键转换成嵌套 settings 字段。"""
+
     nested: dict[str, Any] = {}
     for raw_key, raw_value in values.items():
         if not raw_key.startswith(ENV_PREFIX):
@@ -186,6 +199,8 @@ def _assign_nested(target: dict[str, Any], parts: list[str], value: Any) -> None
 
 
 def _parse_env_value(value: str) -> Any:
+    """只把明确的 bool/int 字面量转换类型，其余保留字符串。"""
+
     lowered = value.lower()
     if lowered == "true":
         return True
@@ -198,6 +213,8 @@ def _parse_env_value(value: str) -> Any:
 
 
 def _deep_merge(base: Mapping[str, Any], overlay: Mapping[str, Any]) -> dict[str, Any]:
+    """递归合并 mapping，冲突时 overlay 获胜。"""
+
     result: dict[str, Any] = dict(base)
     for key, value in overlay.items():
         existing = result.get(key)

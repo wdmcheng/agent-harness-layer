@@ -1,1 +1,1 @@
-"""Reserved package for future example agents."""
+"""预留给未来 example agents 的包。"""

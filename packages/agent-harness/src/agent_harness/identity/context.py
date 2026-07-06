@@ -1,4 +1,4 @@
-"""Tenant, user, session, and permission context contracts."""
+"""租户、用户、会话和权限上下文契约。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from agent_harness.contracts.dto import HarnessDTO
 
 
 class IdentityContext(HarnessDTO):
-    """Identity values propagated into runs, traces, evals, and policy checks."""
+    """会传播到 run、trace、eval 和 policy check 的身份值。"""
 
     tenant_id: str = "default"
     user_id: str = "local-user"
@@ -21,11 +21,13 @@ class IdentityContext(HarnessDTO):
 
     @classmethod
     def local_default(cls, session_id: str = "local-session") -> Self:
+        """返回显式单用户 local identity；这不是认证后端的结果。"""
+
         return cls(session_id=session_id)
 
 
 class PermissionContext(HarnessDTO):
-    """Policy input derived from identity without binding to auth backends."""
+    """从 identity 派生的 policy 输入，不绑定具体认证实现。"""
 
     tenant_id: str
     user_id: str
@@ -46,6 +48,8 @@ class PermissionContext(HarnessDTO):
         action: str,
         agent_id: str | None = None,
     ) -> Self:
+        """从身份上下文复制 actor 字段，并补入本次资源和动作。"""
+
         return cls(
             tenant_id=identity.tenant_id,
             user_id=identity.user_id,

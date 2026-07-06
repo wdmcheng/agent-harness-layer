@@ -1,4 +1,4 @@
-"""Trust, context, and decision boundary contracts."""
+"""信任级别、上下文引用和决策值的边界契约。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def _context_refs() -> list[ContextRef]:
 
 
 class TrustLevel(StrEnum):
-    """Trust level for content entering model context."""
+    """内容进入模型上下文前必须携带的可信级别。"""
 
     TRUSTED = "trusted"
     INTERNAL = "internal"
@@ -24,7 +24,7 @@ class TrustLevel(StrEnum):
 
 
 class GuardrailDecisionStatus(StrEnum):
-    """Shared decision vocabulary for policy and guardrail checks."""
+    """policy 和 guardrail 共用的显式决策词汇。"""
 
     ALLOW = "allow"
     DENY = "deny"
@@ -32,7 +32,7 @@ class GuardrailDecisionStatus(StrEnum):
 
 
 class SourceRef(HarnessDTO):
-    """Reference to the source that produced a context item."""
+    """指向内容来源的引用，不承载原始大内容。"""
 
     kind: str
     uri: str
@@ -41,7 +41,7 @@ class SourceRef(HarnessDTO):
 
 
 class ContextRef(HarnessDTO):
-    """Reference metadata retained with content crossing model boundaries."""
+    """内容跨越上下文边界时必须保留的来源、信任和截断元数据。"""
 
     context_id: str
     source_ref: SourceRef
@@ -52,7 +52,7 @@ class ContextRef(HarnessDTO):
 
 
 class ContextInput(HarnessDTO):
-    """Content prepared for context assembly."""
+    """进入 ContextAssembler 前的内容和来源/信任元数据。"""
 
     content: str
     refs: list[ContextRef] = Field(default_factory=_context_refs)
@@ -61,7 +61,7 @@ class ContextInput(HarnessDTO):
 
 
 class ContextOutput(HarnessDTO):
-    """Content emitted by context assembly or a provider boundary."""
+    """ContextAssembler 或 provider normalization 后输出的内容。"""
 
     content: str
     refs: list[ContextRef] = Field(default_factory=_context_refs)
@@ -71,7 +71,7 @@ class ContextOutput(HarnessDTO):
 
 
 class GuardrailDecision(HarnessDTO):
-    """Serializable decision returned by guardrails or policy checks."""
+    """guardrail 与 policy 共享的可序列化决策。"""
 
     status: GuardrailDecisionStatus
     reason: str

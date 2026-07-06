@@ -1,6 +1,6 @@
 # Agent Harness Service App Template
 
-This template is the future backend service application shell for Agent Harness Layer. Phase 1 reserves the directory layout and local smoke entrypoint only; it does not implement runtime orchestration, API routes, workers, tools, eval, or storage.
+This template is the future backend service application shell for Agent Harness Layer. It currently reserves the directory layout, typed profile examples, and local smoke entrypoint only; it does not implement runtime orchestration, API routes, workers, tools, eval, or storage.
 
 ## For Agent App Developers
 
@@ -12,7 +12,7 @@ Current local shell:
 make smoke-local
 ```
 
-The `local` profile lives at `configs/profiles/local.yaml` and does not require real model keys or external observability providers in Phase 1.
+The `local` profile lives at `configs/profiles/local.yaml` and does not require real model keys or external observability providers before provider adapters exist.
 
 ## For Scaffold Maintainers
 
@@ -45,4 +45,3 @@ templates/service-app/
 ├── README.md
 └── pyproject.toml
 ```
-

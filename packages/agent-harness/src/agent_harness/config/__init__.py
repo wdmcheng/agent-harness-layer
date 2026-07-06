@@ -1,4 +1,4 @@
-"""Typed configuration public API."""
+"""类型化配置的公共 API。"""
 
 from agent_harness.config.schemas import (
     AgentConfig,

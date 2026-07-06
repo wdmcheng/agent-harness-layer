@@ -47,7 +47,7 @@ project/
 
 ## For Agent App Developers
 
-Start from `templates/service-app`. Its current Phase 1 shell reserves:
+Start from `templates/service-app`. Its current shell reserves:
 
 - `app/api` for future API entrypoints
 - `app/cli` for future CLI entrypoints
@@ -110,11 +110,11 @@ Run:
 make license-check
 ```
 
-Phase 1 does not vendor third-party source. Do not copy third-party code into the repository without recording source, license, and modification details.
+The current codebase does not vendor third-party source. Do not copy third-party code into the repository without recording source, license, and modification details.
 
 ## Release Process
 
-Release automation is not implemented in Phase 1. The core package can be built locally with:
+Release automation is not implemented yet. The core package can be built locally with:
 
 ```bash
 make build

@@ -1,1 +1,1 @@
-"""Reserved API entrypoint package."""
+"""预留的 API 入口包。"""

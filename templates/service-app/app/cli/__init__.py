@@ -1,1 +1,1 @@
-"""Reserved CLI entrypoint package."""
+"""预留的 CLI 入口包。"""

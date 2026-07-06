@@ -1,4 +1,9 @@
-"""Local smoke check for the workspace and service-app shell."""
+"""验证 workspace 和 service-app shell 的本地 smoke。
+
+本脚本只走 local profile 和公开 CLI seam，证明当前 shell 不需要真实模型 key、
+外部 observability provider、数据库或队列服务。任何需要连接外部服务的检查都应留给
+后续 service smoke，避免本地 smoke 写入用户环境或依赖机器状态。
+"""
 
 from __future__ import annotations
 
@@ -36,6 +41,8 @@ def _fail(message: str) -> int:
 
 
 def check_import() -> int:
+    """通过安装后的 package seam 验证核心包可 import 并暴露版本。"""
+
     module = importlib.import_module("agent_harness")
     version = getattr(module, "__version__", "")
     if not isinstance(version, str) or not version:
@@ -44,6 +51,8 @@ def check_import() -> int:
 
 
 def check_template_layout() -> int:
+    """锁住 template shell 的目录入口，不声称这些预留目录已实现业务能力。"""
+
     missing = [path for path in REQUIRED_TEMPLATE_PATHS if not (SERVICE_APP / path).exists()]
     if missing:
         return _fail(f"missing template paths: {', '.join(missing)}")
@@ -51,6 +60,8 @@ def check_template_layout() -> int:
 
 
 def check_local_profile() -> int:
+    """确认 local profile 保持离线可跑，不能偷偷要求真实 provider key。"""
+
     settings = load_settings(profile="local", profiles_dir=SERVICE_APP / "configs" / "profiles")
     if settings.profile != "local":
         return _fail("local profile must declare profile=local.")
@@ -60,6 +71,8 @@ def check_local_profile() -> int:
 
 
 def check_doctor() -> int:
+    # 通过模块入口运行 doctor，避免 console script 安装状态掩盖 CLI seam 问题。
+    # doctor 设计为只读诊断；本 smoke 不允许它初始化数据库、队列或外部 provider。
     result = subprocess.run(
         [
             sys.executable,

@@ -1,4 +1,9 @@
-"""Check Phase 1 package and vendor import boundaries."""
+"""检查 workspace 包依赖方向和 vendor import 边界。
+
+这个脚本是 `make quality` 的静态门禁：它只证明当前 Python 源码表面没有
+反向依赖或未批准的 vendor SDK import，不替代运行时 sandbox、packaging
+resolver 或后续 adapter contract tests。
+"""
 
 from __future__ import annotations
 
@@ -12,6 +17,7 @@ from typing import cast
 ROOT = Path(__file__).resolve().parents[1]
 CORE_PACKAGE = ROOT / "packages" / "agent-harness"
 TEMPLATE_PACKAGE = ROOT / "templates" / "service-app"
+# 质量门禁从公共 contract 读取声明，避免脚本和测试各维护一份 vendor allowlist。
 sys.path.insert(0, str(CORE_PACKAGE / "src"))
 
 from agent_harness.contracts.boundaries import (  # noqa: E402
@@ -32,6 +38,12 @@ def _as_mapping(value: object) -> Mapping[str, object] | None:
 
 
 def _dependency_names(pyproject: Mapping[str, object]) -> set[str]:
+    """提取直接依赖名，足够覆盖本仓库声明式 package boundary。
+
+    这里不实现完整 PEP 508 解析器；目标只是发现 core package 对 template、
+    examples 或 workspace package 的反向依赖。
+    """
+
     project = _as_mapping(pyproject.get("project"))
     if project is None:
         return set()
@@ -49,6 +61,8 @@ def _dependency_names(pyproject: Mapping[str, object]) -> set[str]:
 
 
 def _workspace_source_names(pyproject: Mapping[str, object]) -> set[str]:
+    """读取 uv workspace source 声明，锁住 template 通过包边界依赖 core。"""
+
     tool = _as_mapping(pyproject.get("tool"))
     if tool is None:
         return set()
@@ -67,6 +81,12 @@ def _workspace_source_names(pyproject: Mapping[str, object]) -> set[str]:
 
 
 def _python_files() -> list[Path]:
+    """返回会被 import boundary 扫描的源码表面。
+
+    adapters 目录仍会被扫描；是否允许 vendor import 交给
+    `agent_harness.contracts.boundaries` 的路径职责判断。
+    """
+
     roots = [
         ROOT / "packages",
         ROOT / "templates",
@@ -82,6 +102,11 @@ def _python_files() -> list[Path]:
 
 
 def _top_level_imports(path: Path) -> set[str]:
+    """用 AST 提取静态顶层 import 名。
+
+    这是质量门禁，不是安全审计器；动态 import 和字符串执行另由后续安全门禁处理。
+    """
+
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     imports: set[str] = set()
     for node in ast.walk(tree):
@@ -93,10 +118,14 @@ def _top_level_imports(path: Path) -> set[str]:
 
 
 def _is_future_adapter_path(path: Path) -> bool:
+    """判断路径是否位于未来 adapter/integration seam。"""
+
     return is_vendor_import_allowed(path.relative_to(ROOT))
 
 
 def check_core_dependencies() -> list[str]:
+    """防止核心包在 metadata 层反向依赖 template 或 examples。"""
+
     issues: list[str] = []
     core_pyproject = _load_pyproject(CORE_PACKAGE / "pyproject.toml")
     core_deps = _dependency_names(core_pyproject)
@@ -108,6 +137,8 @@ def check_core_dependencies() -> list[str]:
 
 
 def check_template_dependency() -> list[str]:
+    """确认 template 通过声明式 package dependency 使用 core package。"""
+
     issues: list[str] = []
     template_pyproject = _load_pyproject(TEMPLATE_PACKAGE / "pyproject.toml")
     template_deps = _dependency_names(template_pyproject)
@@ -120,6 +151,12 @@ def check_template_dependency() -> list[str]:
 
 
 def check_python_imports() -> list[str]:
+    """检查源码 import 方向和 provider SDK 隔离。
+
+    banned vendor list 的来源是公共 boundary contract；脚本只负责把它应用到
+    packages、templates、examples、scripts 和 tests 的当前源码表面。
+    """
+
     issues: list[str] = []
     for path in _python_files():
         imports = _top_level_imports(path)
