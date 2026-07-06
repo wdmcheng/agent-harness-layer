@@ -51,7 +51,7 @@ project/
 | Linux | 支持 | 需要 Git、Python 3；Bash 入口和 `install.sh` 可用，端口清理依赖 `lsof`，缺失时只跳过清理，不阻塞其他 hook。 |
 | Windows WSL | 支持 | 按 Linux 路径使用，建议 repo 放在 WSL 文件系统内。 |
 | Windows Git Bash/MSYS | 兼容 | Bash 入口和 `install.sh` 转发到同一个 Python CLI；路径转换仍受 Git Bash/MSYS 规则影响。 |
-| Windows PowerShell/cmd 原生 | 支持入口，需 Windows 实机验证 | `install.ps1`、`install.cmd`、`agent-pack.ps1`、`agent-pack.cmd`、hook `.ps1`/`.cmd` 包装都转发到同一个 Python core；install/update 会把 hook 配置渲染为 Windows 可执行命令。本仓库在 macOS 上做静态和集成验证，Windows 原生运行需在 Windows 10/11 上复验。 |
+| Windows PowerShell/cmd 原生 | 支持，已做 Windows 原生烟测 | `install.ps1`、`install.cmd`、`agent-pack.ps1`、`agent-pack.cmd`、hook `.ps1`/`.cmd` 包装都转发到同一个 Python core；install/update 会把 hook 配置渲染为 Windows 可执行命令。本仓库已在 Windows PowerShell 5.1/cmd 下验证带空格路径安装、status、hook 配置和 symlink fallback；发布前仍需复跑测试。 |
 
 跨平台原则：
 
@@ -109,7 +109,7 @@ project/
 
 ### 公开仓库
 
-公开仓库可以直接从 `raw.githubusercontent.com` 下载 bootstrap 脚本。
+公开仓库可以直接从 `raw.githubusercontent.com` 下载 bootstrap 脚本。`wdmcheng/agent-pack` 当前是私有仓库；安装本仓库不要复制本节命令，直接使用下一节「私有仓库」。
 
 macOS / Linux / WSL / Git Bash：
 
@@ -152,7 +152,12 @@ curl.exe -fsSL https://raw.githubusercontent.com/wdmcheng/agent-pack/master/inst
 
 ### 私有仓库
 
-私有仓库不能依赖匿名 `raw.githubusercontent.com`。推荐用已登录且有仓库权限的 GitHub CLI 下载脚本，再用 SSH 地址 clone/pull 能力包。
+私有仓库不能依赖匿名 `raw.githubusercontent.com`。推荐用已登录且有仓库权限的 GitHub CLI 下载脚本，再用 SSH 地址 clone/pull 能力包。如果下面的 `gh api` 返回 404，先检查当前 `gh` 登录账号是否能看到仓库：
+
+```bash
+gh auth status
+gh repo view wdmcheng/agent-pack --json nameWithOwner,visibility,defaultBranchRef
+```
 
 macOS / Linux / WSL / Git Bash：
 

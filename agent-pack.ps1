@@ -5,25 +5,19 @@ $lock = Join-Path $projectDir ".agents/agent-pack.lock.json"
 
 function Read-PackDir {
   param([string] $LockPath)
-  $code = 'import json, os, sys; p=sys.argv[1]; print(json.load(open(p, encoding="utf-8")).get("packPath","") if os.path.exists(p) else "")'
-  $candidates = @(
-    @{ Exe = "python"; Args = @() },
-    @{ Exe = "py"; Args = @("-3") },
-    @{ Exe = "python3"; Args = @() }
-  )
-  foreach ($candidate in $candidates) {
-    $exe = Get-Command $candidate.Exe -ErrorAction SilentlyContinue
-    if ($exe) {
-      $out = & $candidate.Exe @($candidate.Args) -c $code $LockPath
-      if ($LASTEXITCODE -eq 0 -and $out) { return $out }
-    }
+  if (-not (Test-Path -LiteralPath $LockPath)) { return "" }
+  try {
+    $data = Get-Content -Raw -LiteralPath $LockPath | ConvertFrom-Json
+    if ($data.packPath) { return [string] $data.packPath }
+  } catch {
+    return ""
   }
   return ""
 }
 
 if ($args.Count -ge 3 -and $args[0] -eq "migrate" -and $args[1] -eq "--pack") { $packDir = $args[2] }
 else { $packDir = Read-PackDir $lock }
-if (-not $packDir) { Write-Error "错误：缺少 .agents/agent-pack.lock.json，无法定位 Agent Pack。"; exit 1 }
+if (-not $packDir) { Write-Error "Error: missing .agents/agent-pack.lock.json; cannot locate Agent Pack."; exit 1 }
 Set-Location $projectDir
 & (Join-Path $packDir "agent-pack.ps1") @args
 exit $LASTEXITCODE

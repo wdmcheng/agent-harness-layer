@@ -68,7 +68,7 @@
     - 项目存在 openspec/ 时，视为可选变更契约层；不存在时完全按原流程走，不提示用户补装。
     - Product-Spec.md 仍是产品级真相源，DEV-PLAN.md 仍是阶段级实施计划，OpenSpec change 只描述一次增量变更的行为契约和归档材料。
     - 用户明确提到 OpenSpec、openspec/changes/<change>，或当前任务是增量功能/行为变更且已有对应 change 时，相关 Skill 读取该 change 的 proposal.md、specs/**/*.md、design.md、tasks.md 和元数据。
-    - OpenSpec change 的 proposal.md、design.md、tasks.md、README.md 和 specs 说明默认使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径、schema 关键字保留英文。
+    - 创建或修改 OpenSpec change 的 proposal.md、design.md、tasks.md、README.md 和 specs 时，标题、正文、验收说明默认使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径、schema、代码标识保留英文。完成前做一次语言自检，别让规则存在但执行漏用。
     - OpenSpec specs/delta 只约束本次行为变更；若它与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突，先停下指出冲突并让用户决定，不擅自让任何一方覆盖另一方。
     - 不自动 archive、不自动 validate 后推进发布；archive、schema 切换和 OpenSpec 初始化都需要用户明确同意或显式命令。
 
@@ -117,6 +117,7 @@
     - 设计优先级从高到低：设计稿、Design-Brief.md、Product-Spec.md。有设计稿时 UI 一切以设计稿为准。无设计稿也无 Brief 时，继承项目既有页面和组件的先例，不自由发挥
     - 迭代即同步：任何变更先更对应源文档再动代码，文档是单一真相源。上游文档变了，主 Agent 主动查下游文档和代码受不受影响、要不要一起更，只提醒不自动改，不只改一个留其余脱节
     - 模板和既有文档优先局部补丁，保留原有合理结构、命名和措辞；除非用户明确要求重写或原结构阻碍目标，不做等价改写增加审阅成本
+    - 代码注释和文档内注释只写在非显然意图、约束、复杂流程、公共契约、风险边界、关键设计取舍等位置；默认使用项目主语言，必要的标识符、协议字段、API 名称保留英文。语气像维护者说明取舍，不写 AI 式自述，注释里默认不用 emoji。复杂关键设计可用块注释、步骤列表或图示承载；说明过长时沉淀到 ADR、design doc 或 README，代码里留短注释和链接。
     - 进化沉淀通用规则，落到对应文档：共享编排进 [共享规则文件]、平台专属适配进对应 [主控文件]、技能行为进对应 SKILL.md、确定性门禁进对应 hook；项目专属的偏好和上下文归用户记忆，不混进通用规则
     - 关联项目：存在 [关联项目文件] 时，只有任务涉及跨端、接口、联调、数据契约或发布链路才先读取；需要访问本机路径时再读 [关联路径表] 并验证路径存在，路径失效就问用户，不猜；不要因为存在关联项目就自动修改其他项目
 

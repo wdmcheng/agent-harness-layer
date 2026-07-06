@@ -17,7 +17,7 @@ if [ "${1:-}" = "migrate" ] && [ "${2:-}" = "--pack" ] && [ -n "${3:-}" ]; then
 else
   pack_dir="$(read_pack_dir)"
 fi
-if [ -z "$pack_dir" ]; then echo '错误：缺少 .agents/agent-pack.lock.json，无法定位 Agent Pack。' >&2; exit 1; fi
+if [ -z "$pack_dir" ]; then echo 'Error: missing .agents/agent-pack.lock.json; cannot locate Agent Pack.' >&2; exit 1; fi
 
 cd "$project_dir"
 exec "$pack_dir/agent-pack" "$@"

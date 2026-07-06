@@ -17,7 +17,7 @@ if not defined PROJECT_DIR set "PROJECT_DIR=%CD%"
 
 set "RUNNER=%PROJECT_DIR%\.agents\hooks\agent_pack_hook.py"
 if not exist "%RUNNER%" (
-  echo 错误：找不到 Agent Pack hook runner：%RUNNER% 1>&2
+  echo Error: Agent Pack hook runner not found: %RUNNER% 1>&2
   exit /b 1
 )
 
@@ -30,5 +30,5 @@ if not errorlevel 9009 exit /b %errorlevel%
 python3 "%RUNNER%" "%HOOK_NAME%" "%AGENT_NAME%"
 if not errorlevel 9009 exit /b %errorlevel%
 
-echo 错误：需要 Python 3 来运行 Agent Pack hooks。 1>&2
+echo Error: Python 3 is required to run Agent Pack hooks. 1>&2
 exit /b 1

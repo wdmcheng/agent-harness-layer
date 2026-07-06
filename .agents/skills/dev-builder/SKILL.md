@@ -41,7 +41,8 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
 
 [开发规则清单]
     [代码规范]
-        - 单文件不超过 300 行，超了按职责拆分
+        - 文件规模按有效代码行审查，空行、纯注释行、docstring/块注释说明行不计硬门槛；JS/TS/Python/Ruby/Go/Rust 默认 300 行触发拆分审查，500 行以上默认必须拆；Java/C#/Kotlin/Swift 默认 500 行触发拆分审查，1000 行以上默认必须拆
+        - 生成文件、协议/表格集中定义、schema/migration、测试矩阵、解析器/状态机等高内聚文件可例外，但必须写明不拆理由；必要注释不能为了过线删除，无信息注释要删或压缩
         - TypeScript strict，不用 any，用 unknown + 类型守卫
         - 命名：组件 PascalCase，函数变量 camelCase，文件 kebab-case，常量 UPPER_SNAKE_CASE
         - 每个文件单一职责，副作用隔离到 hooks 或 API 层

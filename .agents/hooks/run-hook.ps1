@@ -22,7 +22,7 @@ if (-not $projectDir) { $projectDir = (Get-Location).Path }
 
 $runner = Join-Path $projectDir ".agents/hooks/agent_pack_hook.py"
 if (-not (Test-Path -LiteralPath $runner)) {
-  Write-Error "找不到 Agent Pack hook runner: $runner"
+  Write-Error "Error: Agent Pack hook runner not found: $runner"
   exit 1
 }
 
@@ -36,9 +36,10 @@ foreach ($candidate in $candidates) {
   $exe = Get-Command $candidate.Exe -ErrorAction SilentlyContinue
   if ($exe) {
     & $candidate.Exe @($candidate.Args) $runner $HookName $AgentName
-    exit $LASTEXITCODE
+    $code = $LASTEXITCODE
+    if ($code -ne 9009) { exit $code }
   }
 }
 
-Write-Error "需要 Python 3 来运行 Agent Pack hooks。"
+Write-Error "Error: Python 3 is required to run Agent Pack hooks."
 exit 1
