@@ -10,6 +10,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "coverage==7.15.0",
+    "fastapi==0.139.0",
     "pre-commit==4.6.0",
     "pyright==1.1.411",
     "pytest==9.1.1",
@@ -41,6 +42,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
+pythonpath = [".", "templates/service-app"]
 testpaths = ["tests"]
 
 [tool.pyright]

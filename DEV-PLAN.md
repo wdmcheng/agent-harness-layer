@@ -10,35 +10,31 @@
 - Product Spec: `Product-Spec.md` 已存在，版本为 2026-07-05 的 v1.0。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `artifacts/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging` 已归档到 `openspec/changes/archive/2026-07-06-bootstrap-workspace-packaging`；Phase 2 的 `core-config-identity-contracts` 已归档到 `openspec/changes/archive/2026-07-06-core-config-identity-contracts`，并同步为主规格 `openspec/specs/{core-contracts,identity-context,typed-config,vendor-boundary-doctor}/spec.md`。
-- 代码状态: Phase 1 已完成并提交；Phase 2 核心契约、配置系统、身份上下文和 doctor seam 已完成实现、验证和 code-review。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs` 均已归档，并同步为主规格。
+- 代码状态: Phase 1-2 已完成并提交；Phase 3-5 的 storage/migration/UoW、CanonicalEvent/artifact/local telemetry、runtime/checkpoint/run lifecycle 已完成实现、验证、code-review 和 OpenSpec 归档，等待本轮本地提交。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1-2 已完成；Phase 3-15 仍待实现。 |
-| 当前 Phase | Phase 2 完成 | `core-config-identity-contracts` tasks 为 9/9 complete；code-reviewer Stage 1/2 均 PASS。 |
-| 已完成 Phase | Phase 1, Phase 2 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。 |
-| 当前 OpenSpec change | 无 active change | `core-config-identity-contracts` 已通过原生 `openspec archive` 归档，并同步 4 个主规格。 |
-| 当前验证基线 | 全量通过 | 归档前 `openspec validate core-config-identity-contracts --type change --strict` 通过；归档后 `openspec validate --all --strict` 通过。Phase 2 实现阶段的 `make quality`、`make test`、`make smoke-local`、`make build`、`make license-check`、`uv run pre-commit run --all-files`、`agent-harness doctor --profile local` 已通过。 |
-| 当前阻塞项 | 无 | Phase 2 已完成并归档，剩余是本地提交和 Phase 3 proposal。 |
-| 当前建议下一步 | 启动 Phase 3 proposal | Phase 3 应按 OpenSpec 流程创建新的窄 change：存储、迁移与事务边界。 |
+| 总体状态 | 进行中 | Phase 1-5 已实现并通过本地验证；Phase 6-15 仍待实现。 |
+| 当前 Phase | Phase 5 完成，准备本地提交 | `storage-migration-uow`、`canonical-events-artifacts`、`runtime-checkpoint-runs` 已归档到 `openspec/changes/archive/2026-07-06-*`，主规格已同步。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-5 尚待本轮提交。 |
+| 当前 OpenSpec change | 无 active change | `openspec list` 输出 `No active changes found.`；归档后 `openspec validate --all --strict` 为 10 passed。 |
+| 当前验证基线 | 全量通过 | 本轮已通过 `uv sync`、`make quality`、`make test`（39 passed, 1 skipped）、`make smoke-local`、`make smoke-service`（含 `worker_run`）、PostgreSQL repository contract、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
+| 当前阻塞项 | 无 | 剩余是本轮本地提交。 |
+| 当前建议下一步 | 启动 Phase 6 proposal | 本轮提交后，从 Phase 6 Agent Registry、模型路由与 Embedding 开始新的窄 OpenSpec change。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 为 Phase 3 创建或选定新的窄 OpenSpec change，先写 proposal/specs/design/tasks，再进入实现。
-- Phase 2 已归档；提交本次归档与主规格同步后，启动 Phase 3 proposal。
-- 继续保持 Phase 3+ 未实现内容不混入已完成的 Phase 2 change。
+- 完成本轮本地提交。
+- 下一轮为 Phase 6 创建新的窄 OpenSpec change：Agent Registry、模型路由与 Embedding。
 
 ### 后续 Phase
 
-- Phase 3: 存储、迁移与事务边界。
-- Phase 4: CanonicalEvent、Artifact 与本地观测脊柱。
-- Phase 5: Durable Runtime、Checkpoint 与 Run 生命周期。
 - Phase 6: Agent Registry、模型路由与 Embedding。
 - Phase 7: 认证、PolicyEngine 与 HITL 审批。
 - Phase 8: ToolRegistry、FileTool、ShellTool 与 MCP Client。
@@ -52,8 +48,7 @@
 
 ### 尚未完成的关键验收
 
-- service profile 的 PostgreSQL/Redis smoke 尚未实现。
-- runtime、storage、policy、tools、retrieval、observability、eval 和 release automation 尚未实现。
+- policy、tools、retrieval、provider observability adapter、eval gate 和 release automation 尚未实现。
 - GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
 - 深度文档、ADR、未来微服务拆分边界文档尚未完成。
 
@@ -222,6 +217,10 @@ Phase 1 Monorepo / quality spine
 - repository contract tests 在 SQLite 和 PostgreSQL 上行为一致。
 - app/API/agent/eval 代码不能直接持有 SQLAlchemy session，只能走 repository 或 Unit of Work。
 
+**实现状态**：
+- 已实现 `agent_harness.storage` SQLAlchemy async adapter、Alembic `0001_core_schema`、Repository/UoW、local SQLite 和 service PostgreSQL migration。
+- 已通过 `tests/contracts/test_phase3_storage_contracts.py`；service profile 通过 `make smoke-service`，PostgreSQL 镜像 `postgres:18`，Redis 本机 smoke 复用 `redis:8`，migration revision 为 `0001_core_schema`。
+
 ---
 
 ## Phase 4: CanonicalEvent、Artifact 与本地观测脊柱
@@ -249,6 +248,10 @@ Phase 1 Monorepo / quality spine
 - guardrail/context assembly 事件只写摘要、source_ref、trust_level 和 truncation metadata，不写完整大 payload 或 secret。
 - 未配置外部观测 provider 时 local/jsonl 仍产出 trace/eval/audit 证据。
 
+**实现状态**：
+- 已实现 `CanonicalEvent`、`EventBus`、local jsonl sink、filesystem artifact store、secret redaction、guardrail payload helper、OTel mapping facade 和 SSE formatter。
+- 已通过 `tests/contracts/test_phase4_events_artifacts_contracts.py`，覆盖完整 P0 event catalog、terminal uniqueness、seq resume、payload_ref、redaction、OTel mapping、reasoning 默认隐藏和 SSE JSON。
+
 ---
 
 ## Phase 5: Durable Runtime、Checkpoint 与 Run 生命周期
@@ -273,6 +276,10 @@ Phase 1 Monorepo / quality spine
 - 同一 idempotency key 重复提交不会产生重复 run。
 - run 触发 checkpoint 后重启进程仍可 resume。
 - service profile 代码只依赖 `DBOSRuntimeAdapter` interface，不把 DBOS API 泄漏给业务 agent。
+
+**实现状态**：
+- 已实现 `RunOrchestrator`、run state、idempotency、checkpoint/resume、`agent-harness run` CLI、template FastAPI app factory、run create/detail/events/cancel/resume routes、runtime worker shell 和 `DBOSRuntimeAdapter` boundary。
+- 已通过 `tests/contracts/test_phase5_runtime_contracts.py`，覆盖 runtime public DTO/Protocol seam、fake run terminal event、非法 terminal transition、idempotency、checkpoint 后重建 orchestrator resume、resume token/run_id 归属校验、CLI run、API request/error envelope、FastAPI OpenAPI route registration、event stream seam 和 worker run seam。
 
 ---
 
@@ -567,7 +574,7 @@ Phase 1 Monorepo / quality spine
 | `policy_rules` | Phase 7 | YAML/DB policy provider 的规则落库。 |
 | `approvals` | Phase 7 | HITL approval required / approve / deny 记录。 |
 | `audit_logs` | Phase 7 | policy decision、approval、tool、eval dataset 写入审计。 |
-| `guardrail_checks` | Phase 4 | input/tool/retrieval guardrail 检查摘要、decision、source_ref 和 artifact_ref。 |
+| `guardrail_checks` | Phase 7 | input/tool/retrieval guardrail 检查摘要、decision、source_ref 和 artifact_ref；Phase 4 先以 CanonicalEvent/local evidence 表达。 |
 | `context_assemblies` | Phase 6 | context input refs、token budget、trust summary、truncation summary 和 output_ref。 |
 | `workspaces` | Phase 8 | per-run 或 per-agent workspace 根路径和 policy 引用。 |
 | `tool_invocations` | Phase 8 | tool name、args_ref、result_ref、status、duration。 |

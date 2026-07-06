@@ -12,6 +12,7 @@ class ErrorDetail(HarnessDTO):
 
     code: str
     message: str
+    request_id: str | None = None
     field_path: str | None = None
     hint: str | None = None
 

@@ -471,9 +471,9 @@ templates/service-app/
 - artifacts
 
 **验收标准：**
-- [ ] AC-010: Given local profile, when 执行 migration, then SQLite schema 创建成功。
-- [ ] AC-011: Given service profile, when 执行 migration, then PostgreSQL schema 创建成功。
-- [ ] AC-012: Given repository contract tests, when 对 SQLite 和 PostgreSQL adapter 运行, then 行为一致。
+- [x] AC-010: Given local profile, when 执行 migration, then SQLite schema 创建成功。
+- [x] AC-011: Given service profile, when 执行 migration, then PostgreSQL schema 创建成功。
+- [x] AC-012: Given repository contract tests, when 对 SQLite 和 PostgreSQL adapter 运行, then 行为一致。
 
 ### REQ-006: Durable runtime、checkpoint 和 resume
 
@@ -498,7 +498,9 @@ templates/service-app/
 
 **验收标准：**
 - [ ] AC-013: Given run 触发 approval, when 进程重启后 approve, then run 可从 checkpoint resume。
-- [ ] AC-014: Given 同一 idempotency key 重复提交, when 创建 run, then 不产生重复 run。
+- [x] AC-014: Given 同一 idempotency key 重复提交, when 创建 run, then 不产生重复 run。
+
+> Phase 5 已完成 checkpoint/resume seam 和 idempotency；`AC-013` 的 approval wait/approve 场景仍依赖 Phase 7 HITL approval 实现，不能仅凭 checkpoint resume 标记完成。
 
 ### REQ-007: 多 agent registry 与受控 delegation
 
@@ -865,10 +867,10 @@ eval.score.recorded
 - MUST SSE 是输出协议，不是内部事件模型。
 
 **验收标准：**
-- [ ] AC-037: Given 一个 run, when event stream 完成, then terminal event 只有一个。
+- [x] AC-037: Given 一个 run, when event stream 完成, then terminal event 只有一个。
 - [ ] AC-038: Given SSE 客户端断开后按 seq 恢复, when 重新连接, then 可继续获取未读事件。
-- [ ] AC-039: Given 普通用户 visibility, when reasoning event 产生, then 默认不发送给用户流。
-- [ ] AC-040: Given guardrail/context assembly 事件产生, when 写入 local/jsonl, then 包含 source/trust/truncation 摘要但不泄露 secret 或完整大 payload。
+- [x] AC-039: Given 普通用户 visibility, when reasoning event 产生, then 默认不发送给用户流。
+- [x] AC-040: Given guardrail/context assembly 事件产生, when 写入 local/jsonl, then 包含 source/trust/truncation 摘要但不泄露 secret 或完整大 payload。
 
 ### REQ-015: Observability 转换层
 
@@ -1297,10 +1299,10 @@ P0 完成条件：
 - [ ] `packages/agent-harness` 可独立 build wheel/sdist。
 - [ ] `templates/service-app` 使用 wheel 安装 `agent-harness` 后仍可运行测试和 smoke。
 - [ ] local profile 可在无真实模型 key、无 SaaS provider 情况下跑通。
-- [ ] service profile 可通过 Docker Compose 跑 PostgreSQL/Redis smoke。
+- [x] service profile 可通过 Docker Compose 跑 PostgreSQL/Redis smoke。
 - [ ] Trace -> EvalCaseDraft -> Human Review -> Approved Dataset -> EvalRun -> ScoreSink 闭环跑通。
 - [ ] Policy/HITL 对默认危险动作生效。
-- [ ] CanonicalEvent terminal event 唯一性和 seq resume 测试通过。
+- [x] CanonicalEvent terminal event 唯一性和 seq resume 测试通过。
 - [ ] README 和深度文档已覆盖目录边界、扩展方式、安全策略、release process。
 - [ ] README / architecture docs 已覆盖未来微服务拆分边界；service profile 可验证 API 与 worker 分进程协作。
 - [ ] GitHub Actions 和 GitLab CI 都能跑等价质量门禁。

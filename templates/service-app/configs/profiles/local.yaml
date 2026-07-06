@@ -1,7 +1,8 @@
 profile: local
 storage:
-  kind: filesystem
+  kind: sqlite
   root: .agent-harness/local
+  dsn: sqlite+aiosqlite:///.agent-harness/local/agent_harness.db
 queue:
   kind: in-memory
 observability:

@@ -1,0 +1,35 @@
+name: agent-harness-layer
+
+services:
+  postgres:
+    image: ${AGENT_HARNESS_POSTGRES_IMAGE:-postgres:18}
+    container_name: agent-harness-postgres
+    profiles: ["service"]
+    environment:
+      POSTGRES_DB: agent_harness
+      POSTGRES_USER: agent_harness
+      POSTGRES_PASSWORD: agent_harness
+    ports:
+      - "${AGENT_HARNESS_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - agent_harness_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_harness -d agent_harness"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  redis:
+    image: ${AGENT_HARNESS_REDIS_IMAGE:-redis:7.2.4}
+    container_name: agent-harness-redis
+    profiles: ["service"]
+    ports:
+      - "${AGENT_HARNESS_REDIS_PORT:-56379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+volumes:
+  agent_harness_postgres_data:

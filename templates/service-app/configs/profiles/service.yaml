@@ -1,10 +1,10 @@
 profile: service
 storage:
   kind: postgresql
-  dsn: postgresql://agent_harness:agent_harness@localhost:5432/agent_harness
+  dsn: postgresql+asyncpg://agent_harness:agent_harness@localhost:55432/agent_harness
 queue:
   kind: redis
-  dsn: redis://localhost:6379/0
+  dsn: redis://localhost:56379/0
 observability:
   kind: local-jsonl
   path: .agent-harness/service-traces.jsonl

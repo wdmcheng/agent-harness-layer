@@ -23,7 +23,7 @@ def test_local_and_service_profiles_load_typed_settings() -> None:
     service = load_settings(profile="service", profiles_dir=PROFILES)
 
     assert local.profile == "local"
-    assert local.storage.kind == "filesystem"
+    assert local.storage.kind == "sqlite"
     assert local.queue.kind == "in-memory"
     assert local.observability.kind == "local-jsonl"
     assert local.model.requires_api_key is False

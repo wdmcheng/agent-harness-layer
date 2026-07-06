@@ -8,8 +8,13 @@ authors = [
 ]
 license = "Apache-2.0"
 dependencies = [
+    "aiosqlite==0.22.1",
+    "alembic==1.18.5",
+    "asyncpg==0.31.0",
+    "greenlet==3.3.0",
     "pydantic==2.13.4",
     "PyYAML==6.0.3",
+    "SQLAlchemy==2.0.51",
     "typer==0.26.8",
 ]
 

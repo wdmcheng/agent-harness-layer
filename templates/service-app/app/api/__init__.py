@@ -1,1 +1,1 @@
-"""预留的 API 入口包。"""
+"""service-app API package."""

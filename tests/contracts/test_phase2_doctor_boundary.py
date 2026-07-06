@@ -52,8 +52,11 @@ def test_doctor_cli_reports_local_profile_without_provider_keys() -> None:
 
     assert result.returncode == 0, result.stderr
     assert "profile: local" in result.stdout
-    assert "storage: filesystem" in result.stdout
+    assert "storage: sqlite" in result.stdout
     assert "queue: in-memory" in result.stdout
+    assert "observability sink: local-jsonl writable" in result.stdout
+    assert "eval directory:" in result.stdout
+    assert "(ok)" in result.stdout
     assert "model: fake (api key not required)" in result.stdout
 
 

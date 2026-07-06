@@ -25,6 +25,13 @@ from agent_harness.contracts.boundaries import (  # noqa: E402
     is_vendor_import_allowed,
 )
 
+SQLALCHEMY_SESSION_NAMES = {
+    "AsyncSession",
+    "Session",
+    "async_sessionmaker",
+    "sessionmaker",
+}
+
 
 def _load_pyproject(path: Path) -> dict[str, object]:
     with path.open("rb") as file:
@@ -117,6 +124,22 @@ def _top_level_imports(path: Path) -> set[str]:
     return imports
 
 
+def _sqlalchemy_session_imports(path: Path) -> set[str]:
+    """提取 SQLAlchemy session 相关 import 名，用于业务入口边界扫描。"""
+
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module in {
+            "sqlalchemy.orm",
+            "sqlalchemy.ext.asyncio",
+        }:
+            names.update(
+                alias.name for alias in node.names if alias.name in SQLALCHEMY_SESSION_NAMES
+            )
+    return names
+
+
 def _is_future_adapter_path(path: Path) -> bool:
     """判断路径是否位于未来 adapter/integration seam。"""
 
@@ -170,11 +193,38 @@ def check_python_imports() -> list[str]:
     return issues
 
 
+def check_sqlalchemy_session_boundaries() -> list[str]:
+    """禁止业务入口直接持有 SQLAlchemy session。
+
+    storage adapter / migration 可以使用 ORM session；template app、示例 agent 和
+    examples 必须走 repository / UnitOfWork seam。
+    """
+
+    issues: list[str] = []
+    business_roots = [
+        TEMPLATE_PACKAGE / "app",
+        TEMPLATE_PACKAGE / "agents",
+        ROOT / "examples",
+    ]
+    for root in business_roots:
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.py")):
+            leaked = sorted(_sqlalchemy_session_imports(path))
+            if leaked:
+                issues.append(
+                    f"{path.relative_to(ROOT)} imports SQLAlchemy session outside storage seam: "
+                    f"{', '.join(leaked)}"
+                )
+    return issues
+
+
 def main() -> int:
     issues = [
         *check_core_dependencies(),
         *check_template_dependency(),
         *check_python_imports(),
+        *check_sqlalchemy_session_boundaries(),
     ]
     if issues:
         for issue in issues:

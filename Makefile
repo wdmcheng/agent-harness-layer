@@ -1,7 +1,7 @@
 SHELL := /bin/sh
 UV ?= uv
 
-.PHONY: sync quality test smoke-local build license-check format
+.PHONY: sync quality test smoke-local smoke-service build license-check format
 
 sync:
 	$(UV) sync
@@ -18,6 +18,9 @@ test:
 smoke-local:
 	$(UV) run python scripts/smoke_local.py
 
+smoke-service:
+	$(UV) run python scripts/smoke_service.py
+
 build:
 	$(UV) build --package agent-harness --clear
 
@@ -27,4 +30,3 @@ license-check:
 format:
 	$(UV) run ruff format .
 	$(UV) run ruff check --fix .
-
