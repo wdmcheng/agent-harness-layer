@@ -10,7 +10,7 @@
 - Product Spec: `Product-Spec.md` 已存在，版本为 2026-07-05 的 v1.0。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `artifacts/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging` 已归档到 `openspec/changes/archive/2026-07-06-bootstrap-workspace-packaging`；Phase 2 的 `core-config-identity-contracts` 已完成 apply，当前仍为 active change，未自动 archive。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging` 已归档到 `openspec/changes/archive/2026-07-06-bootstrap-workspace-packaging`；Phase 2 的 `core-config-identity-contracts` 已归档到 `openspec/changes/archive/2026-07-06-core-config-identity-contracts`，并同步为主规格 `openspec/specs/{core-contracts,identity-context,typed-config,vendor-boundary-doctor}/spec.md`。
 - 代码状态: Phase 1 已完成并提交；Phase 2 核心契约、配置系统、身份上下文和 doctor seam 已完成实现、验证和 code-review。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
@@ -21,9 +21,9 @@
 | 总体状态 | 进行中 | Phase 1-2 已完成；Phase 3-15 仍待实现。 |
 | 当前 Phase | Phase 2 完成 | `core-config-identity-contracts` tasks 为 9/9 complete；code-reviewer Stage 1/2 均 PASS。 |
 | 已完成 Phase | Phase 1, Phase 2 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。 |
-| 当前 OpenSpec change | `core-config-identity-contracts` active | proposal/specs/design/tasks 已通过 strict validate；按规则不自动 archive，后续如需归档需显式执行。 |
-| 当前验证基线 | 全量通过 | `openspec validate core-config-identity-contracts --type change --strict`、`openspec validate --all --strict`、`make quality`、`make test`、`make smoke-local`、`make build`、`make license-check`、`uv run pre-commit run --all-files`、`agent-harness doctor --profile local` 已通过。 |
-| 当前阻塞项 | 无 | Phase 2 已完成，剩余是本地提交和后续是否 archive 的用户决策。 |
+| 当前 OpenSpec change | 无 active change | `core-config-identity-contracts` 已通过原生 `openspec archive` 归档，并同步 4 个主规格。 |
+| 当前验证基线 | 全量通过 | 归档前 `openspec validate core-config-identity-contracts --type change --strict` 通过；归档后 `openspec validate --all --strict` 通过。Phase 2 实现阶段的 `make quality`、`make test`、`make smoke-local`、`make build`、`make license-check`、`uv run pre-commit run --all-files`、`agent-harness doctor --profile local` 已通过。 |
+| 当前阻塞项 | 无 | Phase 2 已完成并归档，剩余是本地提交和 Phase 3 proposal。 |
 | 当前建议下一步 | 启动 Phase 3 proposal | Phase 3 应按 OpenSpec 流程创建新的窄 change：存储、迁移与事务边界。 |
 
 ## 剩余工作
@@ -31,7 +31,7 @@
 ### 立即下一步
 
 - 为 Phase 3 创建或选定新的窄 OpenSpec change，先写 proposal/specs/design/tasks，再进入实现。
-- Phase 2 不自动 archive；如后续选择归档，先运行 OpenSpec archive 并重新验证主规格。
+- Phase 2 已归档；提交本次归档与主规格同步后，启动 Phase 3 proposal。
 - 继续保持 Phase 3+ 未实现内容不混入已完成的 Phase 2 change。
 
 ### 后续 Phase
@@ -189,13 +189,13 @@ Phase 1 Monorepo / quality spine
 - `agent-harness doctor --profile local` 能显示配置加载状态。
 
 **实现证据**：
-- `openspec/changes/core-config-identity-contracts/` 定义了 Phase 2 的 proposal、四个 delta specs、design 和 tasks。
+- `openspec/changes/archive/2026-07-06-core-config-identity-contracts/` 保存了 Phase 2 的 proposal、四个 delta specs、design 和 tasks；`openspec/specs/` 已同步生成对应主规格。
 - `agent_harness.contracts` 暴露 DTO、error envelope、trust/source/context refs、guardrail / policy decision 和 import boundary declarations。
 - `agent_harness.identity` 暴露 `IdentityContext` 和 `PermissionContext`，local 默认 tenant/user/session 已通过 contract tests。
 - `agent_harness.config` 暴露 typed profile / agent settings schemas 和 loader，支持 profile YAML、agent YAML、`.env` / environment overrides 和 structured diagnostics。
 - `agent-harness doctor --profile local` 可报告 profile、storage、queue、observability、policy、identity 和 model 状态。
 - `templates/service-app/configs/profiles/local.yaml` 和 `service.yaml` 已能通过 typed loader 校验；service profile 只声明 API/worker、storage/queue 和 provider-neutral 边界，不启动外部服务。
-- 验证命令已通过：`openspec validate core-config-identity-contracts --type change --strict`、`openspec validate --all --strict`、`make quality`、`make test`（18 passed）、`make smoke-local`、`make build`、`make license-check`、`uv run pre-commit run --all-files`、`uv run agent-harness doctor --profile local --profiles-dir templates/service-app/configs/profiles`。
+- 验证命令已通过：归档前 `openspec validate core-config-identity-contracts --type change --strict`，归档后 `openspec validate --all --strict`，以及实现阶段的 `make quality`、`make test`（18 passed）、`make smoke-local`、`make build`、`make license-check`、`uv run pre-commit run --all-files`、`uv run agent-harness doctor --profile local --profiles-dir templates/service-app/configs/profiles`。
 
 ---
 
