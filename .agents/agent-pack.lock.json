@@ -3,9 +3,9 @@
   "installMode": "vendored",
   "packPath": "/Volumes/develop/vibe-engineering/agent-pack",
   "packRemote": "git@github.com:wdmcheng/agent-pack.git",
-  "packCommit": "81b07ce",
+  "packCommit": "71f547d",
   "projectEvolution": ".agents/evolution",
-  "updatedAt": "2026-07-06T15:32:27.737752+00:00",
+  "updatedAt": "2026-07-06T17:40:09.703423+00:00",
   "files": {
     ".agents/EVOLUTION.md": {
       "type": "file",
@@ -58,8 +58,8 @@
     ".agents/skills/code-review/SKILL.md": {
       "type": "file",
       "source": ".agents/skills/code-review/SKILL.md",
-      "sourceSha256": "2c5a30bd1eb52364650bd6d80a1b71af2a3372368fde2a4379c09f741066b8a8",
-      "installedSha256": "2c5a30bd1eb52364650bd6d80a1b71af2a3372368fde2a4379c09f741066b8a8"
+      "sourceSha256": "118e186a4eb7abe09cd196ddba4c287f7ea0b0ea0a09aa7138e36ad1f18feb36",
+      "installedSha256": "118e186a4eb7abe09cd196ddba4c287f7ea0b0ea0a09aa7138e36ad1f18feb36"
     },
     ".agents/skills/design-brief-builder/SKILL.md": {
       "type": "file",
@@ -112,8 +112,8 @@
     ".agents/skills/dev-builder/SKILL.md": {
       "type": "file",
       "source": ".agents/skills/dev-builder/SKILL.md",
-      "sourceSha256": "09865bae74f8df9c633e33a056a17700b1d4a02215273c411a8727746abdf264",
-      "installedSha256": "09865bae74f8df9c633e33a056a17700b1d4a02215273c411a8727746abdf264"
+      "sourceSha256": "967e50e26069c926b18bb0fa3baa731c15f816edb1290ac925e0ef4ba59c8e23",
+      "installedSha256": "967e50e26069c926b18bb0fa3baa731c15f816edb1290ac925e0ef4ba59c8e23"
     },
     ".agents/skills/dev-planner/SKILL.md": {
       "type": "file",
@@ -472,8 +472,8 @@
     "AGENTS.md": {
       "type": "file",
       "source": "AGENTS.md",
-      "sourceSha256": "a7f6462559e4389f811f069c54addef4c63211e7acfa451d8cc149b07f6cd940",
-      "installedSha256": "a7f6462559e4389f811f069c54addef4c63211e7acfa451d8cc149b07f6cd940"
+      "sourceSha256": "d2c3c4cd32017799622f6572384d0eb19efb3842c79bb4ed260488bacc56f6a8",
+      "installedSha256": "d2c3c4cd32017799622f6572384d0eb19efb3842c79bb4ed260488bacc56f6a8"
     }
   }
 }

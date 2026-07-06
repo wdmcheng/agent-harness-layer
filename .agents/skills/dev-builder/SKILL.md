@@ -43,6 +43,7 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
     [代码规范]
         - 文件规模按有效代码行审查，空行、纯注释行、docstring/块注释说明行不计硬门槛；JS/TS/Python/Ruby/Go/Rust 默认 300 行触发拆分审查，500 行以上默认必须拆；Java/C#/Kotlin/Swift 默认 500 行触发拆分审查，1000 行以上默认必须拆
         - 生成文件、协议/表格集中定义、schema/migration、测试矩阵、解析器/状态机等高内聚文件可例外，但必须写明不拆理由；必要注释不能为了过线删除，无信息注释要删或压缩
+        - 注释按 [共享规则文件] 的通用注释纪律执行：服务于维护意图、复杂控制流、数据形状、约束、边界、风险、设计取舍、兼容/迁移逻辑、测试夹具意图和项目规范要求；避免机械复述和 AI 式自述，但不能为了少写注释、压行数或过审而省掉维护者需要的说明
         - TypeScript strict，不用 any，用 unknown + 类型守卫
         - 命名：组件 PascalCase，函数变量 camelCase，文件 kebab-case，常量 UPPER_SNAKE_CASE
         - 每个文件单一职责，副作用隔离到 hooks 或 API 层
@@ -80,6 +81,7 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
 
 [外部契约输入]
     OpenSpec change：如果用户指定 change、分支名或任务上下文能对应到 openspec/changes/<change>/，编码前读取该 change 下存在的 proposal.md、specs/**/*.md、design.md、tasks.md、README.md 和 .openspec.yaml。proposal/specs 说明本次行为契约，design 说明实现取舍，tasks 可作为 Task 拆分参考；它们不替代 Product-Spec.md 和 DEV-PLAN.md。发现 OpenSpec 与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突时，先列出冲突和影响，等用户拍板后再改。
+    OpenSpec artifact 语言与复审门禁：本轮创建或修改 proposal.md、specs/**/*.md、design.md、tasks.md、README.md 时，标题、正文和验收说明默认使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径、schema、协议关键字保留英文。写完后先做语言自检，再运行可用的 OpenSpec 格式校验，并派 fresh-context 审查者复审到 PASS；`openspec validate` 只证明格式或契约可解析，不能替代复审，PASS 前不得进入实现。
     OpenSpec 增量切片：仓库存在 openspec/ 且用户目标是开发完整 DEV-PLAN Phase 时，进入实现前先为本轮最小行为增量创建或选定一个窄 OpenSpec change。这个 change 必须有 proposal/specs/design/tasks，范围只覆盖一个可审查、可验证、可提交的行为切片；不要把整段 Phase 塞进一个巨型 change。契约草案完成后交 fresh-context 审查者审查，按审查意见迭代到通过，再开始编码。
     OpenSpec 验证：涉及 OpenSpec change 时自动跑开发期验证门禁。change 草案完成后运行 `openspec validate <change> --type change --strict`；实现完成且 tasks 全勾后再次运行同一严格校验。CLI 不可用时说明未运行原因，并用文件结构和 delta spec 格式做静态检查，不得宣称已验证。不要自动 archive；`openspec archive <change>` 是 OpenSpec 原生的验证、同步主规格、归档收口命令，只在整体任务或 Phase 收口后提示用户可选执行；在支持 OPSX/OpenSpec 命令的 Agent 会话中，同时提示可用 `/opsx:archive <change>`。archive 不作为每个 change 的交互门槛。
     领域语言：存在 CONTEXT-MAP.md 时，先按映射读取与本次任务相关的 CONTEXT.md；否则有根目录 CONTEXT.md 就读。存在 docs/adr/ 或上下文目录 docs/adr/ 时，只读与本次改动相关的 ADR。缺失时静默降级，不要求用户补。
