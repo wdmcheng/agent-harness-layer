@@ -10,8 +10,8 @@
 - Product Spec: `Product-Spec.md` 已存在，版本为 2026-07-05 的 v1.0。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `artifacts/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Eval Gate、Observability 和未来拆分边界组织开发顺序。
-- OpenSpec: 仓库存在 `openspec/`；`openspec/changes/bootstrap-workspace-packaging` 对应 Phase 1，已通过 `openspec validate bootstrap-workspace-packaging`，尚未 archive。
-- 代码状态: Phase 1 已完成并提交，当前最新提交为 `4ec5c409 fix: make service app template installable`。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging` 已归档到 `openspec/changes/archive/2026-07-06-bootstrap-workspace-packaging`，当前无 active changes。
+- 代码状态: Phase 1 已完成并提交；实现提交为 `c08191b`，安装修复提交为 `4ec5c40`，OpenSpec 归档提交为 `87cf84b`。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
@@ -20,9 +20,9 @@
 |------|------|---------------|
 | 总体状态 | 进行中 | Phase 1 已完成；Phase 2-15 仍待实现。 |
 | 当前 Phase | Phase 2 待启动 | 下一步是“核心契约、配置系统与身份上下文”。 |
-| 已完成 Phase | Phase 1 | 本地最新提交 `4ec5c40`；`bootstrap-workspace-packaging` tasks 为 21/21 complete，change 尚未 archive。 |
-| 当前 OpenSpec change | `bootstrap-workspace-packaging` 已实现未归档 | `openspec validate bootstrap-workspace-packaging` 通过；是否 archive 需要用户显式决定。 |
-| 当前验证基线 | 最近验证通过 | `openspec validate bootstrap-workspace-packaging`、`make quality`、`make test`、`make smoke-local`、`make license-check`、`uv run pre-commit run --all-files` 已在本轮复审中重新验证；最终以 code-reviewer 复审报告为准。 |
+| 已完成 Phase | Phase 1 | 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；`bootstrap-workspace-packaging` tasks 为 21/21 complete，change 已归档。 |
+| 当前 OpenSpec change | 无 active changes | Phase 1 主规格已同步到 `openspec/specs/`；下一步应为 Phase 2 创建新的窄 change。 |
+| 当前验证基线 | 最近验证通过 | `openspec validate --all --strict`、`make quality`、`make test`、`make smoke-local`、`make build`、`make license-check`、`uv run pre-commit run --all-files` 已在本轮复审中重新验证；最终以 code-reviewer 复审报告为准。 |
 | 当前阻塞项 | 无代码阻塞 | Phase 2 尚未启动；需要先创建或选定 Phase 2 的窄 OpenSpec change。 |
 | 当前建议下一步 | 启动 Phase 2 proposal | 用 dev-planner / OpenSpec 流程先写 Phase 2 的 proposal、design、specs 和 tasks。 |
 
@@ -32,7 +32,7 @@
 
 - 启动 Phase 2：定义 `agent_harness` 公共契约、typed config、身份上下文、错误模型和 vendor import 边界声明。
 - 为 Phase 2 创建或选定窄 OpenSpec change，先写 proposal/specs/design/tasks，再进入 dev-builder 实现。
-- 保持 Phase 1 的 `bootstrap-workspace-packaging` change 未自动 archive；只有用户明确要求归档时才执行 archive。
+- Phase 1 archive 已完成；为 Phase 2 创建新的窄 OpenSpec change 后再进入实现。
 
 ### 后续 Phase
 

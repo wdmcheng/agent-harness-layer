@@ -39,7 +39,7 @@ project/
 
 项目根目录里的 `agent-pack`、`agent-pack.ps1`、`agent-pack.cmd` 是安装时生成的 launcher。它们读取 `.agents/agent-pack.lock.json`，再转发到真实能力包脚本；这样日常可以在项目里直接执行 `./agent-pack status`、PowerShell 下 `./agent-pack.ps1 status`，或 cmd 下 `agent-pack.cmd status`。
 
-`install.sh` 是远程 bootstrap。用于 `curl ... | bash` 场景：先 clone 或 pull 能力包，再转交给 `agent-pack`。
+`install.sh`、`install.ps1`、`install.cmd` 是远程 bootstrap。它们先 clone 或 pull 能力包，再转交给对应平台的 `agent-pack` 入口。
 
 ## 平台支持
 
@@ -47,15 +47,15 @@ project/
 
 | 平台 | 状态 | 说明 |
 | --- | --- | --- |
-| macOS | 支持 | 主要开发和验证环境。CLI 核心走 Python；Bash 入口和 hooks 已验证。 |
-| Linux | 支持 | 需要 Git、Python 3；Bash 入口可用，端口清理依赖 `lsof`，缺失时只跳过清理，不阻塞其他 hook。 |
+| macOS | 支持 | 主要开发和验证环境。CLI 核心走 Python；Bash 入口、`install.sh` 和 hooks 已验证。 |
+| Linux | 支持 | 需要 Git、Python 3；Bash 入口和 `install.sh` 可用，端口清理依赖 `lsof`，缺失时只跳过清理，不阻塞其他 hook。 |
 | Windows WSL | 支持 | 按 Linux 路径使用，建议 repo 放在 WSL 文件系统内。 |
-| Windows Git Bash/MSYS | 兼容 | Bash 入口转发到同一个 Python CLI；路径转换仍受 Git Bash/MSYS 规则影响。 |
-| Windows PowerShell/cmd 原生 | 支持入口，需 Windows 实机验证 | `agent-pack.ps1`、`agent-pack.cmd`、hook `.ps1`/`.cmd` 包装都转发到同一个 Python core；install/update 会把 hook 配置渲染为 Windows 可执行命令。本仓库在 macOS 上做静态和集成验证，Windows 原生运行需在 Windows 10/11 上复验。 |
+| Windows Git Bash/MSYS | 兼容 | Bash 入口和 `install.sh` 转发到同一个 Python CLI；路径转换仍受 Git Bash/MSYS 规则影响。 |
+| Windows PowerShell/cmd 原生 | 支持入口，需 Windows 实机验证 | `install.ps1`、`install.cmd`、`agent-pack.ps1`、`agent-pack.cmd`、hook `.ps1`/`.cmd` 包装都转发到同一个 Python core；install/update 会把 hook 配置渲染为 Windows 可执行命令。本仓库在 macOS 上做静态和集成验证，Windows 原生运行需在 Windows 10/11 上复验。 |
 
 跨平台原则：
 
-- CLI 业务逻辑只写在 `.agents/cli/agent_pack_*.py`，Bash、PowerShell、cmd 入口只定位 pack 并转发。
+- CLI 业务逻辑只写在 `.agents/cli/agent_pack_*.py`，Bash、PowerShell、cmd 入口和 bootstrap 只定位 pack 并转发。
 - hook 的业务逻辑只写在 `.agents/hooks/agent_pack_hook*.py`，Bash、PowerShell、cmd 只做薄包装，并把 hook name 与 agent 来源传给 runner。
 - 新增 hook 行为必须同时能被 `.sh`、`.ps1`、`.cmd` 路径调用，不在 shell 包装里复制业务判断。
 - macOS/Linux/WSL 按 POSIX hook 配置走 `.sh`；Windows 原生安装和更新会生成调用 PowerShell `.ps1` wrapper 的 `.codex/hooks.json` 和 `.claude/settings.json`。`.cmd` wrapper 同步安装，供 cmd 入口和需要时的手动配置使用。
@@ -103,25 +103,101 @@ project/
 
 ## 远程安装
 
-适合第一次在机器上拿到能力包：
+适合第一次在机器上拿到能力包。公开仓库和私有仓库的脚本下载方式不一样，仓库 clone/pull 地址也可以按读写需求选择 HTTPS 或 SSH。
+
+远程安装仍然会把 Agent Pack 安装到当前工作目录，所以先 `cd` 到目标项目根目录再执行。`curl/gh | bash` 会尽量从当前终端继续读取交互输入；没有 TTY 的环境下，安装会按默认值继续：不追加其他项目，并确认安装当前目录。
+
+### 公开仓库
+
+公开仓库可以直接从 `raw.githubusercontent.com` 下载 bootstrap 脚本。
+
+macOS / Linux / WSL / Git Bash：
 
 ```bash
-curl -fsSL <install.sh-url> | bash -s -- --repo <git-url> install
+curl -fsSL https://raw.githubusercontent.com/wdmcheng/agent-pack/master/install.sh | \
+  bash -s -- --repo https://github.com/wdmcheng/agent-pack.git install
 ```
 
 指定本地能力包目录：
 
 ```bash
-curl -fsSL <install.sh-url> | bash -s -- --repo <git-url> --dir ~/.agent-packs/vibe install
+curl -fsSL https://raw.githubusercontent.com/wdmcheng/agent-pack/master/install.sh | \
+  bash -s -- --repo https://github.com/wdmcheng/agent-pack.git --dir ~/.agent-packs/vibe install
 ```
 
 也可以用环境变量指定默认远端：
 
 ```bash
-AGENT_PACK_REMOTE=<git-url> curl -fsSL <install.sh-url> | bash
+export AGENT_PACK_REMOTE=https://github.com/wdmcheng/agent-pack.git
+curl -fsSL https://raw.githubusercontent.com/wdmcheng/agent-pack/master/install.sh | bash
 ```
 
-`install.sh` 只负责 clone 或 pull 能力包。后续所有项目内操作都用 `agent-pack`。
+Windows PowerShell 原生：
+
+```powershell
+$installer = Join-Path $env:TEMP "agent-pack-install.ps1"
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/wdmcheng/agent-pack/master/install.ps1" `
+  -OutFile $installer
+powershell -ExecutionPolicy Bypass -File $installer --repo https://github.com/wdmcheng/agent-pack.git install
+```
+
+Windows cmd 原生：
+
+```bat
+curl.exe -fsSL https://raw.githubusercontent.com/wdmcheng/agent-pack/master/install.ps1 -o "%TEMP%\install.ps1"
+curl.exe -fsSL https://raw.githubusercontent.com/wdmcheng/agent-pack/master/install.cmd -o "%TEMP%\agent-pack-install.cmd"
+"%TEMP%\agent-pack-install.cmd" --repo https://github.com/wdmcheng/agent-pack.git install
+```
+
+### 私有仓库
+
+私有仓库不能依赖匿名 `raw.githubusercontent.com`。推荐用已登录且有仓库权限的 GitHub CLI 下载脚本，再用 SSH 地址 clone/pull 能力包。
+
+macOS / Linux / WSL / Git Bash：
+
+```bash
+gh api -H "Accept: application/vnd.github.raw" \
+  /repos/wdmcheng/agent-pack/contents/install.sh | \
+  bash -s -- --repo git@github.com:wdmcheng/agent-pack.git install
+```
+
+指定本地能力包目录：
+
+```bash
+gh api -H "Accept: application/vnd.github.raw" \
+  /repos/wdmcheng/agent-pack/contents/install.sh | \
+  bash -s -- --repo git@github.com:wdmcheng/agent-pack.git --dir ~/.agent-packs/vibe install
+```
+
+也可以用环境变量指定默认远端：
+
+```bash
+export AGENT_PACK_REMOTE=git@github.com:wdmcheng/agent-pack.git
+gh api -H "Accept: application/vnd.github.raw" \
+  /repos/wdmcheng/agent-pack/contents/install.sh | bash
+```
+
+Windows PowerShell 原生：
+
+```powershell
+$installer = Join-Path $env:TEMP "agent-pack-install.ps1"
+gh api -H "Accept: application/vnd.github.raw" /repos/wdmcheng/agent-pack/contents/install.ps1 |
+  Set-Content -Encoding UTF8 $installer
+powershell -ExecutionPolicy Bypass -File $installer --repo git@github.com:wdmcheng/agent-pack.git install
+```
+
+Windows cmd 原生：
+
+```bat
+gh api -H "Accept: application/vnd.github.raw" /repos/wdmcheng/agent-pack/contents/install.ps1 > "%TEMP%\install.ps1"
+gh api -H "Accept: application/vnd.github.raw" /repos/wdmcheng/agent-pack/contents/install.cmd > "%TEMP%\agent-pack-install.cmd"
+"%TEMP%\agent-pack-install.cmd" --repo git@github.com:wdmcheng/agent-pack.git install
+```
+
+如果本机 SSH 走公司代理、跳板机或 `~/.ssh/config`，先确认 `git clone git@github.com:wdmcheng/agent-pack.git` 能成功；bootstrap 不会替你改 SSH 配置。
+
+三个 bootstrap 入口只负责 clone 或 pull 能力包。后续所有项目内操作都用对应平台的 `agent-pack`、`agent-pack.ps1` 或 `agent-pack.cmd`。
 
 ## 日常命令
 
@@ -158,7 +234,7 @@ OpenSpec 在 Agent Pack 里是可选的变更契约层，不是第二套产品�
 ```bash
 openspec new change add-billing --schema agent-pack-product-change
 openspec status --change add-billing --json
-openspec validate add-billing
+openspec validate add-billing --type change --strict
 ```
 
 `agent-pack install --with-openspec` 会在安全场景下把目标项目默认 schema 设为：
@@ -168,6 +244,8 @@ schema: agent-pack-product-change
 ```
 
 当 `openspec/config.yaml` 不存在、没有 `schema:`，或当前是 `schema: spec-driven` 时会自动设置；如果已经是其他自定义 schema，安装脚本不会覆盖，只会提示手动切换命令。之后 `openspec new change <name>` 会自动使用该 schema。它延续 OpenSpec 默认 `spec-driven` 的 proposal/specs/design/tasks artifact 图和 `tasks.md` apply tracking，只在项目级 schema 里做轻量适配，不改变 OpenSpec 内置默认 schema。它生成和约束的是 `proposal.md`、`specs/**/*.md`、`design.md`、`tasks.md` 这些 change artifacts：proposal 集中连接 Product-Spec / DEV-PLAN 等上游来源，spec 只写行为 delta，design 只写实现取舍和测试 seam，tasks 只把真实实现/验证工作写成 checkbox。Agent Pack 的读上下文、TDD、review gate、dev-builder 纪律放在 apply 阶段执行，不作为 tasks group。
+
+Agent Pack 的 OpenSpec 生命周期门禁是开发期自动验证、最终可选归档：change 草案完成后 strict validate；实现完成且 tasks 全勾后再次 strict validate。主规格同步优先交给 OpenSpec 原生命令 `openspec archive <change>`，它负责验证、合并 delta specs 并归档；在 Agent 会话中也可用 `/opsx:archive <change>`。archive 是整体收口后的可选动作，不作为每个窄 change 的等待用户决策点。若用户执行 archive，archive 后应再检查 active changes 并全量 strict validate。
 
 什么时候用：
 
@@ -330,7 +408,7 @@ b/.agents/skills/dev-builder/SKILL.md
 ./agent-pack pack-push
 ```
 
-`pack-commit` 只提交能力包相关文件，包括 `README.md`、`AGENTS.md`、`.agents/`、`.codex/`、`.claude/`、`agent-pack`、`install.sh`。
+`pack-commit` 只提交能力包相关文件，包括 `README.md`、`AGENTS.md`、`.agents/`、`.codex/`、`.claude/`、`agent-pack`、`agent-pack.ps1`、`agent-pack.cmd`、`install.sh`、`install.ps1`、`install.cmd`。
 
 不要在没有审阅 diff 的情况下提交能力包。
 

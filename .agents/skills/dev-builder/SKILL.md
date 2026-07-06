@@ -80,7 +80,7 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
 [外部契约输入]
     OpenSpec change：如果用户指定 change、分支名或任务上下文能对应到 openspec/changes/<change>/，编码前读取该 change 下存在的 proposal.md、specs/**/*.md、design.md、tasks.md、README.md 和 .openspec.yaml。proposal/specs 说明本次行为契约，design 说明实现取舍，tasks 可作为 Task 拆分参考；它们不替代 Product-Spec.md 和 DEV-PLAN.md。发现 OpenSpec 与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突时，先列出冲突和影响，等用户拍板后再改。
     OpenSpec 增量切片：仓库存在 openspec/ 且用户目标是开发完整 DEV-PLAN Phase 时，进入实现前先为本轮最小行为增量创建或选定一个窄 OpenSpec change。这个 change 必须有 proposal/specs/design/tasks，范围只覆盖一个可审查、可验证、可提交的行为切片；不要把整段 Phase 塞进一个巨型 change。契约草案完成后交 fresh-context 审查者审查，按审查意见迭代到通过，再开始编码。
-    OpenSpec 验证：完成涉及 OpenSpec change 的 Task 或 Phase 时，优先运行 openspec validate <change> 或 openspec validate --changes；CLI 不可用时说明未运行原因，并用文件结构和 delta spec 格式做静态检查。不要自动 archive，除非用户明确同意。
+    OpenSpec 验证：涉及 OpenSpec change 时自动跑开发期验证门禁。change 草案完成后运行 `openspec validate <change> --type change --strict`；实现完成且 tasks 全勾后再次运行同一严格校验。CLI 不可用时说明未运行原因，并用文件结构和 delta spec 格式做静态检查，不得宣称已验证。不要自动 archive；`openspec archive <change>` 是 OpenSpec 原生的验证、同步主规格、归档收口命令，只在整体任务或 Phase 收口后提示用户可选执行；在支持 OPSX/OpenSpec 命令的 Agent 会话中，同时提示可用 `/opsx:archive <change>`。archive 不作为每个 change 的交互门槛。
     领域语言：存在 CONTEXT-MAP.md 时，先按映射读取与本次任务相关的 CONTEXT.md；否则有根目录 CONTEXT.md 就读。存在 docs/adr/ 或上下文目录 docs/adr/ 时，只读与本次改动相关的 ADR。缺失时静默降级，不要求用户补。
     使用边界：CONTEXT.md 只约束命名和领域边界，ADR 只约束既有决策；需求、范围、验收仍以 Product-Spec.md、DEV-PLAN.md、Design-Brief.md、设计稿和 OpenSpec change 为准。
 
@@ -94,12 +94,12 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
         派发 code-reviewer 两阶段审查
         Stage 1 失败补实现，重新派 code-reviewer
         Stage 2 失败：质量和重构问题自己按修改纪律修，确属缺陷或安全漏洞才调 bug-fixer，重新派 code-reviewer
-        两阶段都过 → echo clean > .agents/.needs-review → 完成当前 change 的验证和提交 → 按用户决定是否 archive → 回到 DEV-PLAN Phase 验收清单核对剩余缺口 → 下一个 Task 或下一个窄 change
+        两阶段都过 → echo clean > .agents/.needs-review → 完成当前 change 的严格验证和提交 → 回到 DEV-PLAN Phase 验收清单核对剩余缺口 → 下一个 Task 或下一个窄 change
         .agents/.needs-review 只是 stop hook 的本地门禁状态文件；写入 clean 或被 stop hook 删除不算产品代码、规则正文、契约文档、测试或配置改动，不因此重派 code-reviewer。
     用户强调某环节是追加要求，不替换基础流程，review 闭环照常走。
 
 [Phase 完成度判断]
-    单个 OpenSpec change 完成不等于 Phase 完成。每个 change 完成、审查、验证、提交并按用户决定是否 archive 后，必须回到 DEV-PLAN 该 Phase 的交付清单逐项核对；仍有缺口就继续下一个窄 change，直到 Phase 清单全部满足。
+    单个 OpenSpec change 完成不等于 Phase 完成。每个 change 完成、审查、严格验证和提交后，必须回到 DEV-PLAN 该 Phase 的交付清单逐项核对；仍有缺口就继续下一个窄 change，直到 Phase 清单全部满足。不要在每个 change 后停下来询问是否 archive。整体任务或 Phase 收口时，可以提示用户按需运行 `openspec archive <change>`，或在 Agent 会话中使用 `/opsx:archive <change>`；若用户选择 archive，提醒 archive 后运行 `openspec list --json` 确认 active changes 状态，并运行 `openspec validate --all --strict` 确认主规格有效。
     每个 OpenSpec change 收口、Phase 验收通过、出现阻塞或返工时，必须同步 DEV-PLAN 的当前进度、剩余工作、风险/阻塞和下一步；这些状态区缺失时只补最小必要区块，不改写无关内容。
     所有 Task 完成后过四步走，全通过才算 Phase 完成：
         一、Code Review：对照 DEV-PLAN 交付清单逐项确认，检查有无超范围改动

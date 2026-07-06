@@ -2,10 +2,10 @@
   "version": 1,
   "installMode": "vendored",
   "packPath": "/Volumes/develop/vibe-engineering/agent-pack",
-  "packRemote": "",
-  "packCommit": "bcac435",
+  "packRemote": "git@github.com:wdmcheng/agent-pack.git",
+  "packCommit": "65a48d6",
   "projectEvolution": ".agents/evolution",
-  "updatedAt": "2026-07-06T03:16:41.224918+00:00",
+  "updatedAt": "2026-07-06T05:07:11.419126+00:00",
   "files": {
     ".agents/EVOLUTION.md": {
       "type": "file",
@@ -112,8 +112,8 @@
     ".agents/skills/dev-builder/SKILL.md": {
       "type": "file",
       "source": ".agents/skills/dev-builder/SKILL.md",
-      "sourceSha256": "e7bb6e0a994fbb07a277d06eec2217e450b28f6e71954bfe4481593cda77ad90",
-      "installedSha256": "e7bb6e0a994fbb07a277d06eec2217e450b28f6e71954bfe4481593cda77ad90"
+      "sourceSha256": "c9d9c5e6af825f90af6aeee94ad99b63469b0baaed47d02f23d71bd7d6b1e147",
+      "installedSha256": "c9d9c5e6af825f90af6aeee94ad99b63469b0baaed47d02f23d71bd7d6b1e147"
     },
     ".agents/skills/dev-planner/SKILL.md": {
       "type": "file",
@@ -466,8 +466,8 @@
     "AGENT-PACK.md": {
       "type": "file",
       "source": "README.md",
-      "sourceSha256": "fbe25ab19195bbdc683a3b24703d65ae924946898246425d8617eca46b866435",
-      "installedSha256": "fbe25ab19195bbdc683a3b24703d65ae924946898246425d8617eca46b866435"
+      "sourceSha256": "1846f2b309d8fb8da8e887a4cd294d58814e83cc8c38119a980ec410791b5d2d",
+      "installedSha256": "1846f2b309d8fb8da8e887a4cd294d58814e83cc8c38119a980ec410791b5d2d"
     },
     "AGENTS.md": {
       "type": "file",
