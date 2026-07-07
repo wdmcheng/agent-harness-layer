@@ -1,7 +1,7 @@
 """DBOS runtime adapter boundary.
 
-The Phase 5 core runtime deliberately does not import DBOS. A future service
-adapter can implement this interface in this approved adapter path.
+The core runtime deliberately does not import DBOS. A future service adapter
+can implement this interface in this approved adapter path.
 """
 
 from __future__ import annotations

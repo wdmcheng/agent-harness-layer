@@ -93,9 +93,7 @@ def is_relative_to(path: Path, root: Path) -> bool:
 
 
 def is_config_file(name: str) -> bool:
-    return name in CONFIG_NAMES or any(
-        name.startswith(pattern) for pattern in CONFIG_PATTERNS
-    )
+    return name in CONFIG_NAMES or any(name.startswith(pattern) for pattern in CONFIG_PATTERNS)
 
 
 def is_code_file(path: Path, root: Path) -> bool:
@@ -139,9 +137,7 @@ def iter_patch_paths(text: str):
 
 
 def iter_payload_paths(data: dict):
-    tool_input = (
-        data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
-    )
+    tool_input = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
     for key in ("file_path", "path", "filename"):
         value = tool_input.get(key)
         if isinstance(value, str):
@@ -203,9 +199,7 @@ def patch_has_phase_label_in_code(text: str, root: Path) -> bool:
 
 
 def payload_has_phase_label_in_code(data: dict, root: Path) -> bool:
-    tool_input = (
-        data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
-    )
+    tool_input = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
     for key in ("patch", "input", "command", "content"):
         value = tool_input.get(key)
         if isinstance(value, str) and patch_has_phase_label_in_code(value, root):
@@ -234,9 +228,7 @@ def mark_review_needed(root: Path, data: dict, agent: str = "") -> int:
         else "needs_review\n"
     )
     if agent == "claude":
-        tool_input = (
-            data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
-        )
+        tool_input = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
         file_path = tool_input.get("file_path")
         if isinstance(file_path, str) and is_claude_code_file(file_path, root):
             state_file.parent.mkdir(parents=True, exist_ok=True)

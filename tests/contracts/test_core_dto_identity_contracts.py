@@ -1,4 +1,4 @@
-"""Phase 2 core DTO、error、trust 和 identity contracts 的公开 seam 测试。
+"""Core DTO、error、trust 和 identity contracts 的公开 seam 测试。
 
 这些断言锁住后续 runtime、events、policy、guardrail 和 API 层会复用的 payload 形状；
 测试只依赖 `agent_harness` 公共导出，避免把私有实现误当成契约。

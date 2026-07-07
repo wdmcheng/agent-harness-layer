@@ -1,4 +1,4 @@
-"""Phase 2 vendor boundary 和 doctor CLI seam 的契约测试。
+"""Vendor boundary 和 doctor CLI seam 的契约测试。
 
 vendor allowlist 的事实来源在 `agent_harness.contracts.boundaries`；这些测试只确认
 公开声明会被质量门禁和 CLI smoke 共同使用，不在测试里复制第二份规则。

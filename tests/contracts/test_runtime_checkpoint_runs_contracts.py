@@ -1,4 +1,4 @@
-"""Phase 5 runtime、checkpoint 和 run lifecycle 的公开契约测试。
+"""Runtime、checkpoint 和 run lifecycle 的公开契约测试。
 
 这些测试穿过 runtime module、CLI 和 template API helper 三个入口，证明 fake
 agent 在无真实模型 key 时也能创建 run、写 checkpoint、resume、产出 terminal
@@ -236,7 +236,7 @@ async def test_template_fastapi_app_registers_run_routes_and_reads_events(tmp_pa
 
 @pytest.mark.asyncio
 async def test_runtime_worker_shell_uses_runtime_components(tmp_path: Path) -> None:
-    # worker 当前阶段不消费真实 Redis queue，但必须共用 API/CLI 的 runtime seam。
+    # worker 当前实现不消费真实 Redis queue，但必须共用 API/CLI 的 runtime seam。
     # `run_once` 用临时 profile/DB/events 证明 worker shell 可以创建 fake run。
     db_path = tmp_path / "worker.db"
     events_path = tmp_path / "worker-events.jsonl"

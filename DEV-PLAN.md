@@ -219,7 +219,7 @@ Phase 1 Monorepo / quality spine
 
 **实现状态**：
 - 已实现 `agent_harness.storage` SQLAlchemy async adapter、Alembic `0001_core_schema`、Repository/UoW、local SQLite 和 service PostgreSQL migration。
-- 已通过 `tests/contracts/test_phase3_storage_contracts.py`；service profile 通过 `make smoke-service`，PostgreSQL 镜像 `postgres:18`，Redis 本机 smoke 复用 `redis:8`，migration revision 为 `0001_core_schema`。
+- 已通过 `tests/contracts/test_storage_migration_uow_contracts.py`；service profile 通过 `make smoke-service`，PostgreSQL 镜像 `postgres:18`，Redis 本机 smoke 复用 `redis:8`，migration revision 为 `0001_core_schema`。
 
 ---
 
@@ -250,7 +250,7 @@ Phase 1 Monorepo / quality spine
 
 **实现状态**：
 - 已实现 `CanonicalEvent`、`EventBus`、local jsonl sink、filesystem artifact store、secret redaction、guardrail payload helper、OTel mapping facade 和 SSE formatter。
-- 已通过 `tests/contracts/test_phase4_events_artifacts_contracts.py`，覆盖完整 P0 event catalog、terminal uniqueness、seq resume、payload_ref、redaction、OTel mapping、reasoning 默认隐藏和 SSE JSON。
+- 已通过 `tests/contracts/test_canonical_events_artifacts_contracts.py`，覆盖完整 P0 event catalog、terminal uniqueness、seq resume、payload_ref、redaction、OTel mapping、reasoning 默认隐藏和 SSE JSON。
 
 ---
 
@@ -279,7 +279,7 @@ Phase 1 Monorepo / quality spine
 
 **实现状态**：
 - 已实现 `RunOrchestrator`、run state、idempotency、checkpoint/resume、`agent-harness run` CLI、template FastAPI app factory、run create/detail/events/cancel/resume routes、runtime worker shell 和 `DBOSRuntimeAdapter` boundary。
-- 已通过 `tests/contracts/test_phase5_runtime_contracts.py`，覆盖 runtime public DTO/Protocol seam、fake run terminal event、非法 terminal transition、idempotency、checkpoint 后重建 orchestrator resume、resume token/run_id 归属校验、CLI run、API request/error envelope、FastAPI OpenAPI route registration、event stream seam 和 worker run seam。
+- 已通过 `tests/contracts/test_runtime_checkpoint_runs_contracts.py`，覆盖 runtime public DTO/Protocol seam、fake run terminal event、非法 terminal transition、idempotency、checkpoint 后重建 orchestrator resume、resume token/run_id 归属校验、CLI run、API request/error envelope、FastAPI OpenAPI route registration、event stream seam 和 worker run seam。
 
 ---
 

@@ -4,5 +4,4 @@ Copyright 2026 Agent Harness Layer contributors
 This product includes software developed by the Agent Harness Layer contributors.
 
 Third-party notices and source attributions required by dependency licenses or copied materials
-must be recorded here before release. Phase 1 does not vendor third-party source code.
-
+must be recorded here before release. The current scaffold does not vendor third-party source code.

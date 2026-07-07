@@ -1,6 +1,6 @@
 """Run service profile smoke against Docker Compose PostgreSQL and Redis.
 
-这个脚本是 Phase 3/5 的 service profile 证据入口，不是单纯的“能起容器”：
+这个脚本是 storage/runtime service profile 的证据入口，不是单纯的“能起容器”：
 它必须证明 PostgreSQL migration revision、Redis reachability，以及 repository
 adapter 真能穿过 PostgreSQL 写入 run。SQLite smoke 不能替代这个脚本的证据。
 
@@ -203,9 +203,9 @@ def main() -> int:
     run_id = "(migrate-only)"
     worker_run_id = "(migrate-only)"
     if not args.migrate_only:
-        # repository probe 是 Phase 3 PostgreSQL adapter 的最小行为证明。
+        # repository probe 是 PostgreSQL storage adapter 的最小行为证明。
         run_id = asyncio.run(repository_probe(settings.storage.dsn))
-        # worker probe 证明 Phase 5 worker shell 不是孤立占位，而是共用 runtime seam。
+        # worker probe 证明 runtime worker shell 不是孤立占位，而是共用 runtime seam。
         worker_run_id = run_worker_probe(settings.storage.dsn)
 
     print(f"smoke-service: postgres image={postgres_image} container=agent-harness-postgres")

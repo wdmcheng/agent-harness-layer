@@ -4,7 +4,7 @@ This template is the future backend service application shell for Agent Harness 
 
 ## For Agent App Developers
 
-Use this template as the starting point for an agent service once later phases add runtime behavior.
+Use this template as the starting point for an agent service once later changes add runtime behavior.
 
 Current local shell:
 

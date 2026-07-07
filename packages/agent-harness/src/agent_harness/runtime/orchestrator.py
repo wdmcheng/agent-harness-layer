@@ -1,4 +1,4 @@
-"""Provider-neutral fake runtime orchestrator for Phase 5."""
+"""Provider-neutral fake runtime orchestrator."""
 
 from __future__ import annotations
 
@@ -93,8 +93,8 @@ class RunOrchestrator:
             event_type=CanonicalEventType.RUN_STARTED,
             payload={"agent_id": agent_id},
         )
-        # 当前 Phase 的可运行路径仍基于 fake provider。传入 checkpoint_state
-        # 只证明 pause/resume 持久化，不把 DBOS 或 HITL approval 行为提前拉进 Phase 5。
+        # 当前可运行路径仍基于 fake provider。传入 checkpoint_state 只证明
+        # pause/resume 持久化，不把 DBOS 或 HITL approval 行为提前拉进 runtime contract。
         if checkpoint_state is not None:
             resume_token = await self._checkpoint(run.id, agent_id, checkpoint_state)
             return RunResult(run_id=run.id, status=RunStatus.WAITING, resume_token=resume_token)

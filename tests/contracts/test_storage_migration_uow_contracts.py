@@ -1,4 +1,4 @@
-"""Phase 3 storage、migration 和 UoW 的公开契约测试。
+"""Storage、migration 和 UoW 的公开契约测试。
 
 这些测试是后续 runtime/event/service profile 的地基，不是单纯检查私有函数：
 每个用例都穿过调用方实际会使用的 public seam，例如 migration API、
@@ -54,7 +54,7 @@ def assert_core_schema(db_path: Path) -> None:
 
 
 def test_local_sqlite_migration_creates_core_schema(tmp_path: Path) -> None:
-    # local migration 是 Phase 3 的最低门槛：没有外部服务也必须能初始化核心表。
+    # local migration 是 storage contract 的最低门槛：没有外部服务也必须能初始化核心表。
     # 它只证明 SQLite schema，不被拿来替代 PostgreSQL service migration 证据。
     db_path = tmp_path / "agent_harness.db"
 

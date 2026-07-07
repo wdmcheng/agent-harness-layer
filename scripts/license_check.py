@@ -2,7 +2,7 @@
 
 本门禁只维护 Apache-2.0 项目的最低合规线：根许可证、NOTICE 入口和显式
 vendored-source 目录命名。它不生成 SBOM，也不扫描依赖树；依赖许可证审计属于
-后续 release/compliance 阶段。
+后续 release/compliance 收口。
 """
 
 from __future__ import annotations

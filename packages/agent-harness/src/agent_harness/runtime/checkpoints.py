@@ -22,7 +22,7 @@ class IdempotencyKey(HarnessDTO):
 
 
 class ApprovalWaitState(HarnessDTO):
-    """Phase 7 HITL approval 可以持久化的等待状态形状。"""
+    """HITL approval 可以持久化的等待状态形状。"""
 
     approval_id: str
     reason: str | None = None
@@ -32,7 +32,7 @@ class ApprovalWaitState(HarnessDTO):
 class CheckpointStore(Protocol):
     """Runtime checkpoint 存取协议。
 
-    当前 Phase 的实现走 Repository/UoW；公开 Protocol 先固定业务边界，避免
+    当前 runtime 实现走 Repository/UoW；公开 Protocol 先固定业务边界，避免
     后续 DBOS/Temporal adapter 把 vendor handle 泄漏给 runtime caller。
     """
 

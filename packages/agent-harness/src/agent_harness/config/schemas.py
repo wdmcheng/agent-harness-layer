@@ -9,7 +9,7 @@ from agent_harness.identity import IdentityContext
 
 
 class StorageSettings(HarnessDTO):
-    """存储边界配置；Phase 2 只校验形状，不打开连接。"""
+    """存储边界配置；local/service profile 加载只校验形状，不打开连接。"""
 
     kind: str
     root: str | None = None
@@ -60,7 +60,7 @@ class IdentitySettings(HarnessDTO):
 
 
 class ProcessSettings(HarnessDTO):
-    """service profile 的进程声明，不代表当前阶段会启动进程。"""
+    """service profile 的进程声明，不代表加载配置时会启动进程。"""
 
     enabled: bool = False
     host: str = "127.0.0.1"

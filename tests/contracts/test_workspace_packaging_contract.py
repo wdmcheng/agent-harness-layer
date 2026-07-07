@@ -1,7 +1,7 @@
-"""Phase 1 workspace、packaging 和 template shell 的公开契约测试。
+"""Workspace packaging 和 template shell 的公开契约测试。
 
 这些测试锁 public seam：开发者实际会碰到的 workspace metadata、包 import、
-template wheel boundary 和 local profile。它们不证明预留目录里的后续 Phase 能力已实现。
+template wheel boundary 和 local profile。它们不证明预留目录里的后续能力已实现。
 """
 
 from __future__ import annotations

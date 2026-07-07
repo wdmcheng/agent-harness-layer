@@ -2,7 +2,7 @@
 
 Agent Harness Layer is a Python scaffold and core package for enterprise backend agent applications. It provides the repository shape, package boundary, verification commands, and future extension points needed to build agent services with backend engineering discipline.
 
-Phase 1 proves the workspace, package boundary, template shell, quality commands, and compliance entrypoints. Phase 2 adds the first public contracts: typed configuration, identity context, DTO/error/trust payloads, import-boundary declarations, and a side-effect-free doctor command. Runtime orchestration, storage migrations, real policy providers, tools, retrieval, observability adapters, eval gates, CI release automation, and service-profile Docker behavior remain later changes.
+The current scaffold proves the workspace, package boundary, template shell, quality commands, compliance entrypoints, typed configuration, identity context, DTO/error/trust payloads, import-boundary declarations, storage/runtime seams, and a side-effect-free doctor command. Real policy providers, tools, retrieval, observability adapters, eval gates, CI release automation, and full service-profile deployment behavior remain later changes.
 
 ## Quick Start
 
@@ -67,7 +67,7 @@ Maintain the package boundary first:
 - `app/*` must not contain business agent logic.
 - Vendor SDKs such as Pydantic AI, DBOS, Logfire, Phoenix, and Langfuse must stay behind future adapters or controlled integration modules.
 - Template app code should import settings, identity, trust, and DTO types from `agent_harness.*` instead of reading YAML or provider SDKs directly.
-- `eval-cases/approved` will be written only by an approval flow in later phases.
+- `eval-cases/approved` will be written only by a future approval flow.
 - Future run records must carry tenant, agent, run, and trace correlation fields once those subsystems exist.
 
 Run `make quality` before committing. It checks formatting, linting, type checking, and import boundaries.
@@ -81,7 +81,7 @@ P0 keeps the service-app profile deployable as a backend template without preten
 Future split paths are:
 
 - Access/API gateway: owns HTTP/CLI entrypoints, auth injection, request/response schemas, and input guardrails.
-- Runtime worker: owns run lifecycle, checkpoint/resume, and HITL continuation once those phases exist.
+- Runtime worker: owns run lifecycle, checkpoint/resume, and HITL continuation once policy support exists.
 - Model gateway and tool gateway: own provider/tool SDK imports behind adapter boundaries.
 - Storage service: owns repositories, migrations, and transaction boundaries.
 - Event/observability pipeline: owns CanonicalEvent, trace, audit, eval, and provider adapters.

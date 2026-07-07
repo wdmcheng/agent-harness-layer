@@ -1,4 +1,4 @@
-"""Phase 2 typed config loader 的公开契约测试。
+"""Typed config loader 的公开契约测试。
 
 这些用例故意穿过 `load_settings` seam，而不是测试私有 helper：调用方只关心
 profile/agent/env 合并后的 typed settings，以及错误是否能变成可操作诊断。
@@ -18,7 +18,7 @@ PROFILES = SERVICE_APP / "configs" / "profiles"
 
 
 def test_local_and_service_profiles_load_typed_settings() -> None:
-    # service profile 在 Phase 2 只校验部署边界形状，不启动 PostgreSQL、Redis 或 provider。
+    # service profile 当前只校验部署边界形状，不启动 PostgreSQL、Redis 或 provider。
     local = load_settings(profile="local", profiles_dir=PROFILES)
     service = load_settings(profile="service", profiles_dir=PROFILES)
 

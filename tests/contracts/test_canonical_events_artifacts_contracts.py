@@ -1,8 +1,8 @@
-"""Phase 4 CanonicalEvent、artifact 和 local evidence 的公开契约测试。
+"""CanonicalEvent、artifact 和 local evidence 的公开契约测试。
 
 这些测试锁的是 runtime/API/eval 后续都会消费的事件脊柱：事件 envelope、
 per-run seq、terminal 唯一性、payload_ref、redaction、OTel 映射和 SSE 格式。
-它们不证明真实观测 provider、模型调用或多进程 worker；那些属于后续 Phase。
+它们不证明真实观测 provider、模型调用或多进程 worker；那些属于后续能力。
 """
 
 from __future__ import annotations
@@ -218,7 +218,7 @@ async def test_artifact_payload_is_redacted_before_disk_write(tmp_path: Path) ->
 @pytest.mark.asyncio
 async def test_otel_mapping_and_sse_format_are_provider_neutral(tmp_path: Path) -> None:
     # OTel facade 和 SSE adapter 都消费 CanonicalEvent JSON，不允许暴露 provider SDK、
-    # ORM model 或内部 Python 对象。真实 exporter 和 FastAPI route 在后续阶段接入。
+    # ORM model 或内部 Python 对象。真实 exporter 和 FastAPI route 在后续能力中接入。
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
     event = await EventBus(sink=sink).publish(
         tenant_id="default",

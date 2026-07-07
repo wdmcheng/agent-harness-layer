@@ -27,7 +27,7 @@ async def run_once(
         events_path=events_path,
     )
     try:
-        # worker 当前阶段不拉真实队列，只用同一 runtime seam 证明未来 pickup
+        # worker 现在不拉真实队列，只用同一 runtime seam 证明未来 pickup
         # 可以复用 API/CLI 的 storage、event 和 idempotency 边界。
         result = await components.orchestrator.start_run(
             agent_id="fake-agent",

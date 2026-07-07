@@ -77,7 +77,7 @@ def public_events(events: list[CanonicalEvent], *, include_internal: bool) -> li
     if include_internal:
         return events
     # Product-Spec 明确 `reasoning.delta` 默认不对普通用户暴露。其他 internal
-    # evidence 仍可由后续 auth/role 策略细分；本阶段先锁最危险的思维流泄漏边界。
+    # evidence 仍可由后续 auth/role 策略细分；这里先锁最危险的思维流泄漏边界。
     return [event for event in events if event.event_type != CanonicalEventType.REASONING_DELTA]
 
 
