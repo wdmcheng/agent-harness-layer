@@ -9,6 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+
 CORRECTION_PHRASES = (
     "不是这样",
     "不是这个意思",
@@ -65,11 +66,19 @@ CORRECTION_PHRASES = (
 
 
 def run(
-    cmd: list[str], cwd: Path | None = None, timeout: int | None = None
+    cmd: list[str],
+    cwd: Path | None = None,
+    timeout: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     try:
-        return subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, timeout=timeout)
-    except FileNotFoundError as exc:
+        return subprocess.run(
+            cmd,
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+        )
+    except OSError as exc:
         return subprocess.CompletedProcess(cmd, 127, "", str(exc))
 
 
@@ -125,10 +134,18 @@ def npx_command() -> str:
 
 
 def should_skip_feedback_prompt(prompt: str) -> bool:
-    is_agent_prompt = re.search(r"你是[^\n]*(code-reviewer|evolution-runner)", prompt) is not None
+    is_agent_prompt = (
+        re.search(r"你是[^\n]*(code-reviewer|evolution-runner)", prompt) is not None
+    )
     has_review_words = any(
         word in prompt
-        for word in ("必须先阅读", "重点审查", "输出要求", "不要修改", "不做任何文件编辑")
+        for word in (
+            "必须先阅读",
+            "重点审查",
+            "输出要求",
+            "不要修改",
+            "不做任何文件编辑",
+        )
     )
     return is_agent_prompt and has_review_words
 
@@ -150,7 +167,11 @@ def detect_feedback_signal(root: Path, data: dict, agent: str = "") -> int:
         queue.parent.mkdir(parents=True, exist_ok=True)
         with queue.open("a", encoding="utf-8") as handle:
             handle.write(
-                json.dumps({"type": "correction", "prompt": prompt}, ensure_ascii=False) + "\n"
+                json.dumps(
+                    {"type": "correction", "prompt": prompt},
+                    ensure_ascii=False,
+                )
+                + "\n"
             )
     return 0
 
@@ -172,7 +193,10 @@ def check_evolution(root: Path, agent: str = "") -> int:
             if pending and line.startswith("- "):
                 count += 1
         if count > 0:
-            msg = f"📋 有 {count} 条进化建议待确认，session 启动我会逐条摆给你问同不同意。"
+            msg = (
+                f"📋 有 {count} 条进化建议待确认，"
+                "session 启动我会逐条摆给你问同不同意。"
+            )
     if signals.exists() and signals.stat().st_size > 0:
         msg = f"{msg} 🔄 有新进化信号，session 启动我会扫一遍、消化成建议并逐条问你。"
     if msg:
@@ -190,7 +214,8 @@ def auto_push(root: Path, data: dict, agent: str = "") -> int:
     name = branch.stdout.strip() if branch.returncode == 0 else ""
     if name in ("main", "master"):
         print(
-            f"⚠️ 当前在 {name} 分支，已跳过自动 push。保护分支需手动 push 或走 PR。", file=sys.stderr
+            f"⚠️ 当前在 {name} 分支，已跳过自动 push。保护分支需手动 push 或走 PR。",
+            file=sys.stderr,
         )
         return 0
     if not name:
@@ -208,9 +233,11 @@ def kill_ports(ports: tuple[int, ...]) -> None:
             return
         for port in ports:
             ps = (
-                f"$ids=(Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | "
+                f"$ids=(Get-NetTCPConnection -LocalPort {port} "
+                "-ErrorAction SilentlyContinue | "
                 "Select-Object -ExpandProperty OwningProcess -Unique); "
-                "foreach($id in $ids){ Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }"
+                "foreach($id in $ids){ "
+                "Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }"
             )
             subprocess.run(
                 ["powershell", "-NoProfile", "-Command", ps],
@@ -256,7 +283,10 @@ def pre_tool_shell(root: Path, data: dict, agent: str = "") -> int:
         return 0
     checked = run([npx_command(), "tsc", "--noEmit"], cwd=tsconfig.parent)
     if checked.returncode != 0:
-        print("编译检查未通过，commit 被阻止。请修复以下错误：", file=sys.stderr)
+        print(
+            "编译检查未通过，commit 被阻止。请修复以下错误：",
+            file=sys.stderr,
+        )
         print((checked.stdout + checked.stderr).strip(), file=sys.stderr)
         return 2
     return 0
