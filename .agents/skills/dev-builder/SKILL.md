@@ -43,7 +43,7 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
     [代码规范]
         - 文件规模按有效代码行审查，空行、纯注释行、docstring/块注释说明行不计硬门槛；JS/TS/Python/Ruby/Go/Rust 默认 300 行触发拆分审查，500 行以上默认必须拆；Java/C#/Kotlin/Swift 默认 500 行触发拆分审查，1000 行以上默认必须拆
         - 生成文件、协议/表格集中定义、schema/migration、测试矩阵、解析器/状态机等高内聚文件可例外，但必须写明不拆理由；必要注释不能为了过线删除，无信息注释要删或压缩
-        - 注释按 [共享规则文件] 的通用注释纪律执行：服务于维护意图、复杂控制流、数据形状、约束、边界、风险、设计取舍、兼容/迁移逻辑、测试夹具意图和项目规范要求；避免机械复述和 AI 式自述，但不能为了少写注释、压行数或过审而省掉维护者需要的说明
+        - 注释、docstring、测试说明和脚本说明按 [共享规则文件] 的通用注释纪律执行：默认使用项目主语言，不得无故把既有符合项目主语言的注释改成另一种语言；必要的标识符、协议字段、API 名称、CLI 参数、schema 字段、错误码和行业固定术语可保留英文。注释服务于维护意图、复杂控制流、数据形状、约束、边界、风险、设计取舍、兼容/迁移逻辑、测试夹具意图和项目规范要求；API、worker、迁移、并发、安全边界、测试夹具、公开 seam 等非显然函数和复杂代码块，必须说明维护意图、边界或验证目的；避免机械复述和 AI 式自述，但不能为了少写注释、压行数或过审而省掉维护者需要的说明
         - TypeScript strict，不用 any，用 unknown + 类型守卫
         - 命名：组件 PascalCase，函数变量 camelCase，文件 kebab-case，常量 UPPER_SNAKE_CASE
         - 每个文件单一职责，副作用隔离到 hooks 或 API 层
@@ -81,8 +81,8 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
 
 [外部契约输入]
     OpenSpec change：如果用户指定 change、分支名或任务上下文能对应到 openspec/changes/<change>/，编码前读取该 change 下存在的 proposal.md、specs/**/*.md、design.md、tasks.md、README.md 和 .openspec.yaml。proposal/specs 说明本次行为契约，design 说明实现取舍，tasks 可作为 Task 拆分参考；它们不替代 Product-Spec.md 和 DEV-PLAN.md。发现 OpenSpec 与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突时，先列出冲突和影响，等用户拍板后再改。
-    OpenSpec artifact 语言与复审门禁：本轮创建或修改 proposal.md、specs/**/*.md、design.md、tasks.md、README.md 时，标题、正文和验收说明默认使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径、schema、协议关键字保留英文。写完后先做语言自检，再运行可用的 OpenSpec 格式校验，并派 fresh-context 审查者复审到 PASS；`openspec validate` 只证明格式或契约可解析，不能替代复审，PASS 前不得进入实现。
-    OpenSpec 增量切片：仓库存在 openspec/ 且用户目标是开发完整 DEV-PLAN Phase 时，进入实现前先为本轮最小行为增量创建或选定一个窄 OpenSpec change。这个 change 必须有 proposal/specs/design/tasks，范围只覆盖一个可审查、可验证、可提交的行为切片；不要把整段 Phase 塞进一个巨型 change。契约草案完成后交 fresh-context 审查者审查，按审查意见迭代到通过，再开始编码。
+    OpenSpec artifact 语言与复审门禁：本轮创建或修改 proposal.md、specs/**/*.md、design.md、tasks.md、README.md 时，标题、正文和验收说明默认使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径、schema、协议关键字保留英文。写完后先做语言自检，再运行 `openspec validate <change> --type change --strict` 做格式和契约可解析自检，并派 code-reviewer 按 OpenSpec artifact review 范围审查 proposal/specs/design/tasks 到 PASS；`openspec validate` 不能替代 code-reviewer，PASS 前不得进入实现。
+    OpenSpec 增量切片：仓库存在 openspec/ 且用户目标是开发完整 DEV-PLAN Phase 时，进入实现前先为本轮最小行为增量创建或选定一个窄 OpenSpec change。这个 change 必须有 proposal/specs/design/tasks，范围只覆盖一个可审查、可验证、可提交的行为切片；不要把整段 Phase 塞进一个巨型 change。契约草案完成后派 code-reviewer 审查，按审查意见迭代到通过，再开始编码。
     OpenSpec 验证：涉及 OpenSpec change 时自动跑开发期验证门禁。change 草案完成后运行 `openspec validate <change> --type change --strict`；实现完成且 tasks 全勾后再次运行同一严格校验。CLI 不可用时说明未运行原因，并用文件结构和 delta spec 格式做静态检查，不得宣称已验证。不要自动 archive；`openspec archive <change>` 是 OpenSpec 原生的验证、同步主规格、归档收口命令，只在整体任务或 Phase 收口后提示用户可选执行；在支持 OPSX/OpenSpec 命令的 Agent 会话中，同时提示可用 `/opsx:archive <change>`。archive 不作为每个 change 的交互门槛。
     领域语言：存在 CONTEXT-MAP.md 时，先按映射读取与本次任务相关的 CONTEXT.md；否则有根目录 CONTEXT.md 就读。存在 docs/adr/ 或上下文目录 docs/adr/ 时，只读与本次改动相关的 ADR。缺失时静默降级，不要求用户补。
     使用边界：CONTEXT.md 只约束命名和领域边界，ADR 只约束既有决策；需求、范围、验收仍以 Product-Spec.md、DEV-PLAN.md、Design-Brief.md、设计稿和 OpenSpec change 为准。
@@ -113,7 +113,7 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
     通过后向用户汇报附证据，用户确认后 Phase 完成。修验证中发现的问题用 fix: 提交。
 
 [自驱整个 Phase]
-    要把整个 Phase 交给 /goal 自驱，用 goal-creator 技能生成指令，完成条件就是四步走验收，比如交付清单逐项贴出、tsc 零错误输出已贴、code-reviewer 两阶段 PASS 已贴。
+    要把整个 Phase 交给 /goal 自驱，用 goal-creator 技能生成指令。生成 /goal 时先识别任务类型，不内联整套规则；只写入最小硬约束：执行前必须读取并在最终输出中列出本任务适用的规则来源、适用/不适用判断和自证证据。开发类 goal 至少引用 [共享规则文件]、dev-builder 和 code-review；涉及 OpenSpec change 时还要引用对应 proposal/specs/design/tasks，并要求输出 `openspec validate` 结果和 code-reviewer verdict。非开发类 goal 只引用对应任务类型的规则和 Skill，不把开发约束硬塞进去。完成条件仍以四步走验收为准，比如交付清单逐项贴出、编译输出已贴、code-reviewer 两阶段 PASS 已贴。
 
 [初始化模式]
     无代码时搭骨架：
