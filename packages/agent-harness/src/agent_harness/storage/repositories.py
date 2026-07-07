@@ -1,4 +1,4 @@
-"""Repository DTOs and SQLAlchemy-backed repository implementations."""
+"""Repository DTO 与 SQLAlchemy repository 实现。"""
 
 from __future__ import annotations
 

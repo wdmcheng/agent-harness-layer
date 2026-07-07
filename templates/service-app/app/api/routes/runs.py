@@ -1,4 +1,4 @@
-"""Run API route seam backed by RunOrchestrator."""
+"""由 RunOrchestrator 支撑的 run API 适配层。"""
 
 from __future__ import annotations
 
@@ -52,13 +52,13 @@ class RunEventsResponse(HarnessDTO):
 
 
 def get_run_orchestrator() -> RunOrchestrator:
-    """由 application factory 注入的 service template dependency seam。"""
+    """由应用工厂注入的 RunOrchestrator 依赖。"""
 
     raise RuntimeError("RunOrchestrator dependency is not configured")
 
 
 def get_event_sink() -> EventSink:
-    """由 application factory 注入的 event stream 读取 seam。"""
+    """由应用工厂注入的 event stream 读取依赖。"""
 
     raise RuntimeError("EventSink dependency is not configured")
 
@@ -126,7 +126,7 @@ async def create_agent_run(
     request: AgentRunCreateRequest,
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
 ) -> RunCreateResponse:
-    """Product-Spec P0 的 agent-scoped run 创建入口。"""
+    """创建 agent-scoped run，agent_id 来自稳定 URL 边界。"""
 
     return await create_run_with_orchestrator(
         RunCreateRequest(
@@ -145,7 +145,7 @@ async def get_run(
     run_id: str,
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
 ) -> RunCreateResponse:
-    """读取 run detail，不暴露 ORM model。"""
+    """读取 run detail，不把 ORM model 暴露给 API 调用方。"""
 
     return await get_run_with_orchestrator(
         run_id,
@@ -178,7 +178,7 @@ async def cancel_run(
     run_id: str,
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
 ) -> RunCreateResponse:
-    """取消非 terminal run。"""
+    """取消尚未 terminal 的 run。"""
 
     result = await orchestrator.cancel_run(run_id)
     return RunCreateResponse(
@@ -207,6 +207,6 @@ async def resume_run(
     )
 
 
-# 兼容 contract tests 和后续 template examples：它们可以直接调用同一段适配逻辑，
+# 兼容 contract tests 和 template examples：它们可以直接调用同一段适配逻辑，
 # 不必为了证明 route 逻辑而启动完整 FastAPI app。
 create_run_for_test = create_run_with_orchestrator

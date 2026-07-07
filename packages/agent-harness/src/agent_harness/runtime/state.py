@@ -1,4 +1,4 @@
-"""Run lifecycle states."""
+"""Run 生命周期状态。"""
 
 from __future__ import annotations
 

@@ -46,6 +46,8 @@ pythonpath = [".", "templates/service-app"]
 testpaths = ["tests"]
 
 [tool.pyright]
+venvPath = "."
+venv = ".venv"
 include = [
     "packages/agent-harness/src",
     "scripts",

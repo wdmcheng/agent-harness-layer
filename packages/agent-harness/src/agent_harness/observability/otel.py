@@ -1,4 +1,4 @@
-"""Provider-neutral CanonicalEvent to OTel mapping facade."""
+"""CanonicalEvent 到 OTel 字段的稳定映射。"""
 
 from __future__ import annotations
 

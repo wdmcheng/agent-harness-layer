@@ -1,1 +1,1 @@
-"""Event sink implementations."""
+"""Event sink 实现入口。"""

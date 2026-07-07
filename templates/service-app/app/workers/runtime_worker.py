@@ -1,4 +1,4 @@
-"""Runtime worker shell for the service profile."""
+"""service profile 的 runtime worker 外壳。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ async def run_once(
     events_path: Path | None = None,
     idempotency_key: str | None = None,
 ) -> str:
-    """执行一次 fake run，证明 worker shell 共用 RunOrchestrator seam。"""
+    """执行一次内置 fake run，证明 worker shell 共用 RunOrchestrator seam。"""
 
     components = build_runtime_components(
         profile=profile,
@@ -27,8 +27,8 @@ async def run_once(
         events_path=events_path,
     )
     try:
-        # worker 现在不拉真实队列，只用同一 runtime seam 证明未来 pickup
-        # 可以复用 API/CLI 的 storage、event 和 idempotency 边界。
+        # 这里暂不拉真实队列；worker 先穿过同一 runtime seam，证明后续取任务
+        # 逻辑可以复用 API/CLI 的 storage、event 和 idempotency 边界。
         result = await components.orchestrator.start_run(
             agent_id="fake-agent",
             input={"source": "worker"},

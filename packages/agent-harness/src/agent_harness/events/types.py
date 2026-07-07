@@ -1,4 +1,4 @@
-"""Canonical event envelope and event type definitions."""
+"""CanonicalEvent envelope 与事件类型定义。"""
 
 from __future__ import annotations
 

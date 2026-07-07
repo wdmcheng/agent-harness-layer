@@ -1,4 +1,4 @@
-"""Runtime checkpoint/resume public seams."""
+"""Runtime checkpoint/resume 的公开契约。"""
 
 from __future__ import annotations
 

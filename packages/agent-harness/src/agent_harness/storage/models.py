@@ -1,4 +1,4 @@
-"""SQLAlchemy typed models for the P0 storage spine."""
+"""核心持久化骨架的 SQLAlchemy typed models。"""
 
 from __future__ import annotations
 

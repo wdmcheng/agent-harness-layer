@@ -1,4 +1,4 @@
-"""SQLAlchemy async storage adapter and Unit of Work."""
+"""SQLAlchemy async storage adapter 与 Unit of Work。"""
 
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ class SQLAlchemyUnitOfWork:
 
 
 class SQLAlchemyStorage:
-    """Repository/UoW factory backed by a SQLAlchemy async engine."""
+    """基于 SQLAlchemy async engine 的 Repository/UoW factory。"""
 
     def __init__(self, dsn: str) -> None:
         self.dsn = normalize_async_dsn(dsn)

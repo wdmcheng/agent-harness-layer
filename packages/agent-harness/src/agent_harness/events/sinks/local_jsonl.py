@@ -1,4 +1,4 @@
-"""Local JSON Lines event sink used as the offline evidence fallback."""
+"""local/offline profile 的 append-only JSONL 事件存储。"""
 
 from __future__ import annotations
 

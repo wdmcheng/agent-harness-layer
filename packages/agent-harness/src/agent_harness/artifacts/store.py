@@ -1,4 +1,4 @@
-"""Filesystem artifact store for local profile evidence."""
+"""local profile 使用的文件系统 artifact store。"""
 
 from __future__ import annotations
 

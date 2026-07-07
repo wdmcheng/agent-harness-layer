@@ -2,4 +2,6 @@
 
 __version__ = "0.1.0"
 
-__all__ = ["__version__"]
+_METADATA_EXPORTS = ["__version__"]
+
+__all__ = [*_METADATA_EXPORTS]  # pyright: ignore[reportUnsupportedDunderAll]

@@ -78,7 +78,7 @@ def run(
     events_path: Annotated[Path | None, typer.Option("--events-path")] = None,
     idempotency_key: Annotated[str | None, typer.Option("--idempotency-key")] = None,
 ) -> None:
-    """运行 fake agent，验证 runtime、storage 和 event seam。"""
+    """运行内置 fake agent，验证 runtime、storage 和 event seam。"""
 
     try:
         settings = load_settings(profile=profile, profiles_dir=profiles_dir)

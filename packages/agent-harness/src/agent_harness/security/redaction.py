@@ -1,4 +1,4 @@
-"""Small deterministic redaction rules for local evidence payloads."""
+"""本地 evidence payload 的确定性脱敏规则。"""
 
 from __future__ import annotations
 

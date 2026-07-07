@@ -1,4 +1,4 @@
-"""Alembic async migration environment."""
+"""Alembic async migration 环境。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Programmatic Alembic migration helpers."""
+"""程序化 Alembic migration 运行入口。"""
 
 from __future__ import annotations
 

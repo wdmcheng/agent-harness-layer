@@ -1,4 +1,4 @@
-"""Guardrail/context event payload helpers."""
+"""Guardrail 与 context event payload 的稳定 DTO。"""
 
 from __future__ import annotations
 

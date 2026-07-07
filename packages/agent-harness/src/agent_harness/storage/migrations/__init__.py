@@ -1,1 +1,1 @@
-"""Alembic migration package for agent_harness storage."""
+"""agent_harness storage 的 Alembic migration 包。"""

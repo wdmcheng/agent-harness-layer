@@ -1,4 +1,4 @@
-"""Create P0 core schema."""
+"""创建核心持久化 schema。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Provider-neutral fake runtime orchestrator."""
+"""最小可运行 runtime orchestrator，负责 run、checkpoint 和事件边界。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from agent_harness.storage.repositories import CheckpointCreate, RunCreate, Sess
 
 
 class InvalidRunTransition(RuntimeError):
-    """Raised when a terminal or otherwise invalid run transition is requested."""
+    """请求 terminal run 或非法状态转换时抛出。"""
 
 
 class RunResult(HarnessDTO):
@@ -26,7 +26,7 @@ class RunResult(HarnessDTO):
 
 
 class RunOrchestrator:
-    """Coordinates run records, checkpoints and CanonicalEvent output."""
+    """协调持久化 run 记录、checkpoint 和 CanonicalEvent 输出。"""
 
     def __init__(
         self,
@@ -93,7 +93,7 @@ class RunOrchestrator:
             event_type=CanonicalEventType.RUN_STARTED,
             payload={"agent_id": agent_id},
         )
-        # 当前可运行路径仍基于 fake provider。传入 checkpoint_state 只证明
+        # 当前可运行路径仍只走 fake provider。传入 checkpoint_state 只证明
         # pause/resume 持久化，不把 DBOS 或 HITL approval 行为提前拉进 runtime contract。
         if checkpoint_state is not None:
             resume_token = await self._checkpoint(run.id, agent_id, checkpoint_state)

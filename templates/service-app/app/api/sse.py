@@ -1,4 +1,4 @@
-"""SSE formatting adapter for CanonicalEvent payloads."""
+"""把 CanonicalEvent payload 格式化成 SSE 帧。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""EventBus assigns per-run sequence and enforces terminal event rules."""
+"""为 run 事件分配序号，并守住 terminal event 只写一次的规则。"""
 
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ from agent_harness.security.redaction import redact_secrets
 
 
 class TerminalEventError(RuntimeError):
-    """Raised when a run already has a terminal event."""
+    """run 已经有 terminal event 时抛出。"""
 
 
 class EventBus:
-    """Provider-neutral event publisher used by runtime, API and eval seams."""
+    """runtime、API 和 eval seam 共用的不绑定 provider 的事件发布器。"""
 
     def __init__(
         self,

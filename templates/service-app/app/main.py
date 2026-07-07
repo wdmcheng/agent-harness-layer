@@ -1,4 +1,4 @@
-"""FastAPI application factory for the service-app template."""
+"""service-app template 的 FastAPI 应用工厂。"""
 
 from __future__ import annotations
 
@@ -42,8 +42,8 @@ def create_app(
 ) -> FastAPI:
     """创建已注册 run routes 的 FastAPI app。
 
-    测试可以传入 orchestrator/event_sink 直接验证 route registration；真实 service
-    启动则从 profile 构造 RuntimeComponents，并在 shutdown 时释放 storage engine。
+    测试可以传入 orchestrator/event_sink 直接验证 route 适配层；真实 service
+    启动则从 profile 构造 RuntimeComponents，并由 lifespan 统一释放 storage engine。
     """
 
     components: RuntimeComponents | None = None
@@ -112,8 +112,8 @@ def create_app(
     app.add_exception_handler(InvalidRunTransition, invalid_transition_handler)
     app.add_exception_handler(Exception, internal_error_handler)
 
-    # dependency override 让 runtime seam 显式可测；route module 不负责 profile
-    # loading、migration 或 engine lifecycle。
+    # dependency override 让 route module 保持薄适配层；profile loading、migration
+    # 和 engine lifecycle 都留在 application factory。
     app.dependency_overrides[get_run_orchestrator] = lambda: orchestrator
     app.dependency_overrides[get_event_sink] = lambda: event_sink
     return app

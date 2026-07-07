@@ -1,1 +1,1 @@
-"""Provider-neutral observability mapping seams."""
+"""观测映射公开 seam。"""

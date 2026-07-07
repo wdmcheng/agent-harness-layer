@@ -1,1 +1,1 @@
-"""service-app API package."""
+"""service-app API 包。"""

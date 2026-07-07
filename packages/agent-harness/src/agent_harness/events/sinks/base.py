@@ -1,4 +1,4 @@
-"""Provider-neutral CanonicalEvent 持久化协议。"""
+"""不绑定 provider 的 CanonicalEvent 持久化协议。"""
 
 from __future__ import annotations
 

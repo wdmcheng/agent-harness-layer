@@ -1,4 +1,4 @@
-"""Storage and service dependency diagnostics for the doctor command."""
+"""doctor 命令使用的 storage 与 service 依赖诊断。"""
 
 from __future__ import annotations
 

@@ -1,5 +1,8 @@
-"""Artifact storage public seams."""
+"""Artifact 存储公开 seam。"""
 
-from agent_harness.artifacts.store import ArtifactRef, FileArtifactStore
+from agent_harness.artifacts.store import ArtifactRef as ArtifactRef
+from agent_harness.artifacts.store import FileArtifactStore as FileArtifactStore
 
-__all__ = ["ArtifactRef", "FileArtifactStore"]
+_ARTIFACT_EXPORTS = ["ArtifactRef", "FileArtifactStore"]
+
+__all__ = [*_ARTIFACT_EXPORTS]  # pyright: ignore[reportUnsupportedDunderAll]

@@ -1,7 +1,7 @@
-"""DBOS runtime adapter boundary.
+"""DBOS runtime adapter 边界。
 
-The core runtime deliberately does not import DBOS. A future service adapter
-can implement this interface in this approved adapter path.
+core runtime 不直接 import DBOS；后续 service profile 要接耐久执行时，只能在这个
+批准的 adapter 路径实现接口。
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ class DBOSRuntimeAdapter(Protocol):
     name: str
 
     async def enqueue_run(self, run_id: str) -> None:
-        """Enqueue or start durable run processing in a service profile."""
+        """把 run 交给 service profile 的耐久执行后端。"""
 
 
 class NoopDBOSRuntimeAdapter:
