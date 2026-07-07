@@ -53,6 +53,8 @@ description: API-Contract.md 输出模板。用于有前端 UI + 后端 API 的�
 | 前端状态 | Yes | 该接口如何驱动 loading / empty / error / disabled / success |
 | 安全规则 | Yes | secret、权限、日志脱敏、CSRF、可见性过滤、数据保护等 |
 
+写作边界：API-Contract.md 是长期接口契约，不把 `P0/P1`、`Phase N` 等开发阶段或优先级标签铺成正文叙事；如必须引用，只作为 DEV-PLAN 条目、文件名、API path、schema 字段、注释等稳定标识出现。
+
 流式 endpoint 还必须补充：
 
 | 字段 | 必填 | 说明 |
@@ -375,7 +377,7 @@ data: {"run_id":"run_...","result":{}}
 - 每个错误 code 至少有一个 schema example。
 - 运行时接口文档中不得出现 secret 明文字段。
 - `API-Contract.md` 中定义的 schema 名称应尽量对应后端模型名，方便查找。
-- 新增或修改 endpoint 的功能点 / Phase 验收必须对照 `/openapi.json` 或等价运行时接口文档检查该 endpoint、schema、错误码、响应头和前端状态是否漂移。
+- 新增或修改 endpoint 的功能点或对应 DEV-PLAN 验收必须对照 `/openapi.json` 或等价运行时接口文档检查该 endpoint、schema、错误码、响应头和前端状态是否漂移。
 - 发布前全量检查只做复扫和证据汇总，不作为第一次发现契约问题的入口。
 
 ---

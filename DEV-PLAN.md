@@ -10,6 +10,7 @@
 - Product Spec: `Product-Spec.md` 已存在，版本为 2026-07-05 的 v1.0。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `artifacts/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
+- API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
 - OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs` 均已归档，并同步为主规格。
 - 代码状态: Phase 1-2 已完成并提交；Phase 3-5 的 storage/migration/UoW、CanonicalEvent/artifact/local telemetry、runtime/checkpoint/run lifecycle 已完成实现、验证、code-review 和 OpenSpec 归档，等待本轮本地提交。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
@@ -32,6 +33,7 @@
 
 - 完成本轮本地提交。
 - 下一轮为 Phase 6 创建新的窄 OpenSpec change：Agent Registry、模型路由与 Embedding。
+- Phase 6 proposal 开工前，先把 `API-Contract.md` 中 `AGT-001` 扩展为完整 endpoint 条目，并新增 `/api/v1/agents` 的局部 OpenAPI 漂移检查。
 
 ### 后续 Phase
 
@@ -311,6 +313,7 @@ Phase 1 Monorepo / quality spine
 - fake model 下不需要真实 API key 就能跑测试和 eval smoke。
 - ContextAssembler 生成 context assembly trace，能解释 source、trust_level、token budget、truncation 和 fallback decision。
 - 业务 agent 不直接 import `pydantic_ai`；替换 fake adapter 后 contract tests 仍通过。
+- `API-Contract.md` 的 `AGT-001` 已扩展为完整 endpoint 条目，OpenAPI drift test 覆盖 `/api/v1/agents` 的 route、schema、错误 envelope 和 registry validation error。
 
 ---
 
@@ -338,6 +341,7 @@ Phase 1 Monorepo / quality spine
 - 未配置多租户时 run/session/trace/eval 均带 `tenant_id="default"`。
 - shell、删除文件、workspace 外访问、写 approved dataset、修改 policy 等动作默认产生 `approval.required` 或被拒绝。
 - approve 后 run 从 checkpoint resume，deny 后 run 按策略失败或 fallback，audit log 记录审批人、动作、结果和 trace。
+- `API-Contract.md` 中 auth、policy、approval 相关 endpoint 已扩展为完整条目，局部 OpenAPI drift test 覆盖 401/403、`ApiErrorEnvelope`、approval 状态冲突和 request_id。
 
 ---
 
@@ -445,6 +449,7 @@ Phase 1 Monorepo / quality spine
 - 人工 approve 后 case 进入 approved dataset 并写 audit log；默认不允许自动写 approved dataset。
 - `make eval` 只跑 approved cases，输出 eval result 和 score sink 记录。
 - score 可写回 local/jsonl，并可通过 Logfire/Phoenix/Langfuse adapter contract 写入 provider。
+- `API-Contract.md` 中 eval draft、approved dataset 和 eval run endpoint 已扩展为完整条目，局部 OpenAPI drift test 覆盖人工确认、secret 脱敏错误和 score sink 降级语义。
 
 ---
 
@@ -474,6 +479,7 @@ Phase 1 Monorepo / quality spine
 - `agent-harness agents list` 能列出四个 P0 示例。
 - local profile 下 `make dev` 或 `agent-harness run <agent_id>` 至少一种入口可运行示例 agent。
 - OpenAPI schema 包含 Spec 列出的 P0 endpoints。
+- OpenAPI schema 与 `API-Contract.md` 中所有 P0 endpoint、schema、错误 envelope 和 request_id 规则完成全量漂移复扫。
 - 四个示例 fake model eval 均能确定性通过，且示例不直接 import 厂商 SDK。
 
 ---
@@ -616,6 +622,7 @@ Phase 1 Monorepo / quality spine
 
 - 包管理器只用 `uv`；不使用 poetry、pipenv、npm 作为 Python 依赖主流程。
 - 每个 Phase 必须先有失败测试或 contract test，再实现代码；不接受先堆代码后补测试作为 Phase 完成方式。
+- 新增或修改 HTTP endpoint 必须先更新 `API-Contract.md`，再新增局部 OpenAPI drift contract test，最后实现 route；发布前全量复扫只做证据汇总，不作为第一次发现契约问题的入口。
 - 每完成一个 Phase 执行四步走：Code Review -> 测试完整性 -> 编译验证 -> 功能测试。
 - 四步走全部通过后才能 commit；commit message 用 `feat`、`fix`、`refactor`、`chore` 前缀。
 - `packages/agent-harness` 不依赖 `templates/*` 或 `examples/*`；模板只能通过 path dependency 或 wheel 使用核心包。

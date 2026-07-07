@@ -3,9 +3,9 @@
   "installMode": "vendored",
   "packPath": "/Volumes/develop/vibe-engineering/agent-pack",
   "packRemote": "git@github.com:wdmcheng/agent-pack.git",
-  "packCommit": "c51e2fd",
+  "packCommit": "10ab607",
   "projectEvolution": ".agents/evolution",
-  "updatedAt": "2026-07-07T15:05:47.566912+00:00",
+  "updatedAt": "2026-07-07T16:02:09.416259+00:00",
   "files": {
     ".agents/EVOLUTION.md": {
       "type": "file",
@@ -58,8 +58,8 @@
     ".agents/skills/code-review/SKILL.md": {
       "type": "file",
       "source": ".agents/skills/code-review/SKILL.md",
-      "sourceSha256": "33eb23b6c9115e4875c168e9db98ae8d01f2975c261b920a039f3932ba0a642c",
-      "installedSha256": "33eb23b6c9115e4875c168e9db98ae8d01f2975c261b920a039f3932ba0a642c"
+      "sourceSha256": "272cfd915be079f43c43ccfd738bb29ede762c795cb85831890c47bf4f843b09",
+      "installedSha256": "272cfd915be079f43c43ccfd738bb29ede762c795cb85831890c47bf4f843b09"
     },
     ".agents/skills/design-brief-builder/SKILL.md": {
       "type": "file",
@@ -124,8 +124,8 @@
     ".agents/skills/dev-planner/templates/api-contract-template.md": {
       "type": "file",
       "source": ".agents/skills/dev-planner/templates/api-contract-template.md",
-      "sourceSha256": "85d3898a56ef0b8a2df83dfb09905f25b0975c9127abecb7954b746d31ff976d",
-      "installedSha256": "85d3898a56ef0b8a2df83dfb09905f25b0975c9127abecb7954b746d31ff976d"
+      "sourceSha256": "863fdbad3126205085c0a2d2a1d9f010f94dae693f9213fb94dba5a26b253eb1",
+      "installedSha256": "863fdbad3126205085c0a2d2a1d9f010f94dae693f9213fb94dba5a26b253eb1"
     },
     ".agents/skills/dev-planner/templates/dev-plan-template.md": {
       "type": "file",
