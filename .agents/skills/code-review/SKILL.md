@@ -8,7 +8,7 @@ description: 当用户说要审查代码、检查质量、验证功能是否完�
 
 [依赖检测]
     必需：Product-Spec.md、项目代码。
-    可选增强：DEV-PLAN.md、Design-Brief.md、openspec/changes/<change>/、CONTEXT.md、CONTEXT-MAP.md、docs/adr/、设计工具 MCP、Playwright、git。
+    可选增强：DEV-PLAN.md、API-Contract.md、Design-Brief.md、openspec/changes/<change>/、CONTEXT.md、CONTEXT-MAP.md、docs/adr/、设计工具 MCP、Playwright、git。
 
 [文件结构]
     code-review/
@@ -29,6 +29,7 @@ description: 当用户说要审查代码、检查质量、验证功能是否完�
 
     Stage 1，Spec 轴，做对了没有：
     - 功能完整性：Spec 每条功能逐项对照代码，输出完整实现、部分实现、未实现
+    - API 契约一致性：有 API-Contract.md 时，对照 endpoint、schema、错误码、响应头、前端状态和运行时 OpenAPI 或等价接口文档检查是否漂移；新增或修改 endpoint 没有局部漂移检查证据，按验收缺口报告
     - 变更契约：有 OpenSpec change 时，对照 proposal.md、specs/**/*.md、design.md、tasks.md 检查本次行为是否完整、是否有 scope creep；审查 OpenSpec artifact 时把 `openspec validate` 只当格式和契约可解析证据，不当作 review 结论
     - 计划一致性：有 DEV-PLAN.md 时，对照当前 Phase 交付清单检查是否漏项或越界
     - 引导真实性：UI 占位符 / 提示 / 引导文案必须对应已实现的行为，揪出指向不存在功能的死引导（如 placeholder 写"输入 X 调用"但 X 无任何处理），算未实现
@@ -43,7 +44,8 @@ description: 当用户说要审查代码、检查质量、验证功能是否完�
 
 [审查策略]
     逐项对照：读 Spec 条目 → 搜代码对应实现 → 验证行为 → 记证据。
-    变更契约对照：如果有 OpenSpec change，读取 change 下所有 proposal/specs/design/tasks 原文；只把它作为本次增量行为契约，和 Product-Spec.md、DEV-PLAN.md 一起审，不把它当第二套产品规范。
+    API 契约对照：如果有 API-Contract.md，读取其通用约定、相关 endpoint、页面到接口映射和契约验收清单；能生成运行时接口文档时抽查相关路径、schema、错误码、响应头和前端状态，不能生成时说明缺少命令或环境，不得假装已验证。
+    变更契约对照：如果有 OpenSpec change，读取 change 下所有 proposal/specs/design/tasks 原文；只把它作为本次增量行为契约，和 Product-Spec.md、DEV-PLAN.md、API-Contract.md 一起审，不把它当第二套产品规范。
     状态输出判读：审查同步类工具输出时先区分阻塞态和提示态。Agent Pack 的 `pack-updated` 只表示上游能力包源文件比 lock 记录更新，不等于本项目安装副本不 clean；除非本次任务明确要求同步能力包，或它与本次 promote、lock hash、安装副本一致性直接冲突，不得仅凭 `pack-updated` 判 code-review 未通过、提交阻塞或 Phase 未完成。
     领域语言对照：有 CONTEXT-MAP.md 就按映射读取相关 CONTEXT.md；否则有根目录 CONTEXT.md 就读。读取相关 ADR，检查命名和设计是否违背既有领域语言或已记录决策。缺失时静默降级。
     两轴隔离：Spec 轴引用需求、计划、设计稿和 OpenSpec 原文；Standards 轴引用项目规范、现有代码先例、代码质量规则和安全基线。一个发现同时影响两轴时分别记录，不合并成一个模糊结论。
@@ -53,7 +55,7 @@ description: 当用户说要审查代码、检查质量、验证功能是否完�
 
 [输出报告]
     报告必须包含：Stage 1 verdict、Stage 2 verdict、Spec 轴、Standards 轴、编译结果。Stage 1 失败时明确"Stage 2 未执行"。
-    Spec 轴分组列出：完整实现、部分实现、未实现、Spec 漂移、OpenSpec 契约偏差、UI/设计偏差，每项附文件行号和需求来源。
+    Spec 轴分组列出：完整实现、部分实现、未实现、Spec 漂移、API 契约偏差、OpenSpec 契约偏差、UI/设计偏差，每项附文件行号和需求来源。
     Standards 轴分组列出：代码质量、测试真实性、安全问题、架构/ADR 冲突、编译结果，每项附文件行号和标准来源。
     Priority：HIGH 核心功能缺失或安全问题；MEDIUM 辅助功能、UI 细节、代码质量；LOW 增强建议。
     报告到此为止。修复由主 Agent 路由：Stage 1 失败回 dev-builder 补实现，Stage 2 的质量和重构回 dev-builder、缺陷和安全才回 bug-fixer，修完重派从 Stage 1 起。

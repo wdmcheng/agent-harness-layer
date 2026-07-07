@@ -20,6 +20,7 @@ description: DEV-PLAN.md 输出模板。分析 Product Spec 后，按此模板�
 
 > 本文件记录项目的开发阶段划分、当前进度和剩余工作。
 > 新 session 启动时应首先阅读此文件，了解项目状态后再继续开发。
+> 有前端 UI + 后端 API 的项目，还必须先阅读 `API-Contract.md`，再实现任何 endpoint 或页面数据对接。
 
 ---
 
@@ -52,6 +53,26 @@ description: DEV-PLAN.md 输出模板。分析 Product Spec 后，按此模板�
 | 风险 | 影响范围 | 处理 Phase | 当前状态 | 处理方式 / 验收信号 |
 |------|----------|------------|----------|----------------------|
 | [具体风险] | [模块 / 用户流程 / 发布] | Phase N | [未处理 / 已缓解 / 已关闭] | [如何处理，如何证明关闭] |
+
+---
+
+## Phase 0: API 契约锁定（如适用）
+
+**交付内容**：
+- [按 `templates/api-contract-template.md` 生成 `API-Contract.md`，覆盖所有 P0 页面和核心用户操作]
+- [明确每个 endpoint 的方法、路径、认证、请求头、Path 参数、URL 参数、请求体、响应头、响应体、响应码、错误码、幂等性、副作用、前端状态和安全规则]
+- [明确异步任务、文件上传、流式事件和 API 契约验证时机：功能点验收局部检查，发布前全量复扫]
+
+**关键文件**：
+- `API-Contract.md` — [字段级前后端接口契约]
+- `Product-Spec.md` — [资源级 API 摘要和功能范围]
+- `Design-Brief.md` — [页面、状态和交互来源]
+
+**验收标准**：
+- [每个 P0 页面都有首屏接口和交互接口映射]
+- [流式、异步、上传、错误、鉴权和可见性规则已定义]
+- [DEV-PLAN 后续 Phase 的接口任务都能追溯到 `API-Contract.md`]
+- [涉及 endpoint 的后续 Phase 都把局部 OpenAPI 或等价运行时接口文档漂移检查写入验收标准]
 
 ---
 
@@ -104,6 +125,8 @@ description: DEV-PLAN.md 输出模板。分析 Product Spec 后，按此模板�
 ## 开发规则
 
 - 每完成一个 Phase 执行四步走：Code Review → 测试完整性 → 编译验证 → 功能测试
+- 新增或修改 endpoint 前，先更新 `API-Contract.md`；同一功能点 / Phase 验收时用 `/openapi.json` 或等价运行时接口文档做局部漂移检查，没通过不得提交
+- 收尾 Phase 只做 API 契约全量复扫和证据汇总，不把局部接口问题留到最后第一次发现
 - 四步走全部通过后才能 commit
 - Commit message 用 feat、fix、refactor、chore 前缀
 - 包管理器：[pnpm/npm/yarn]

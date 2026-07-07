@@ -11,7 +11,7 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
 [依赖检测]
     Skill 启动第一步执行。
     必需：Product-Spec.md、DEV-PLAN.md、DEV-PLAN 技术栈表里列的系统工具和运行时。缺了提示先补。
-    可选，缺了标降级模式继续：Design-Brief.md、设计工具 MCP、gh CLI、playwright、openspec/changes/<change>/、CONTEXT.md、CONTEXT-MAP.md、docs/adr/。
+    可选，缺了标降级模式继续：API-Contract.md、Design-Brief.md、设计工具 MCP、gh CLI、playwright、openspec/changes/<change>/、CONTEXT.md、CONTEXT-MAP.md、docs/adr/。
     必需依赖缺失你自己判断装法直接装；要用户权限或认证才提示用户。
     进已有项目或脚手架先读它自带的 agent 约定文件，比如 AGENTS.md、CLAUDE.md，按项目规矩来，不用自己的默认覆盖。
 
@@ -80,6 +80,7 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
     无设计工具时以 Design-Brief 为参照；无 Brief 时继承项目既有页面先例，不自由发挥。
 
 [外部契约输入]
+    API-Contract.md：有前端 UI + 后端 API 的项目，编码 endpoint、页面数据对接、异步任务、文件上传或流式接口前必须读取。新增或修改 endpoint 前先更新 API-Contract.md；同一功能点 / Phase 验收时用 `/openapi.json` 或等价运行时接口文档做局部漂移检查，并把命令和结果写进完成证据。若 API-Contract.md 与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突，先列出冲突和影响，等用户拍板后再改。
     OpenSpec change：如果用户指定 change、分支名或任务上下文能对应到 openspec/changes/<change>/，编码前读取该 change 下存在的 proposal.md、specs/**/*.md、design.md、tasks.md、README.md 和 .openspec.yaml。proposal/specs 说明本次行为契约，design 说明实现取舍，tasks 可作为 Task 拆分参考；它们不替代 Product-Spec.md 和 DEV-PLAN.md。发现 OpenSpec 与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突时，先列出冲突和影响，等用户拍板后再改。
     OpenSpec artifact 语言与复审门禁：本轮创建或修改 proposal.md、specs/**/*.md、design.md、tasks.md、README.md 时，标题、正文和验收说明默认使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径、schema、协议关键字保留英文。写完后先做语言自检，再运行 `openspec validate <change> --type change --strict` 做格式和契约可解析自检，并派 code-reviewer 按 OpenSpec artifact review 范围审查 proposal/specs/design/tasks 到 PASS；`openspec validate` 不能替代 code-reviewer，PASS 前不得进入实现。
     OpenSpec 增量切片：仓库存在 openspec/ 且用户目标是开发完整 DEV-PLAN Phase 时，进入实现前先为本轮最小行为增量创建或选定一个窄 OpenSpec change。这个 change 必须有 proposal/specs/design/tasks，范围只覆盖一个可审查、可验证、可提交的行为切片；不要把整段 Phase 塞进一个巨型 change。契约草案完成后派 code-reviewer 审查，按审查意见迭代到通过，再开始编码。
@@ -90,14 +91,14 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
 [Phase 执行流程]
     Plan：进入 Phase 先读 DEV-PLAN 该 Phase 章节和 Spec 相关章节的原文，写出 Task 拆分。每个页面、组件、功能一个 Task。若本仓库有 openspec/ 且当前目标是完整 Phase，先把 Phase 拆成一个或多个窄 OpenSpec change；每轮只实现当前 change 覆盖的行为切片。
     每个 Task 走 review→fix 循环：
-        编码前读 DEV-PLAN 交付清单、Spec 功能描述、Design-Brief 视觉方向，以及相关 OpenSpec change、CONTEXT.md、ADR 的原文，不凭记忆
+        编码前读 DEV-PLAN 交付清单、Spec 功能描述、Design-Brief 视觉方向；涉及 endpoint、页面数据对接、异步任务、上传或流式接口时读取 API-Contract.md；涉及 OpenSpec change、CONTEXT.md、ADR 时读取相关原文，不凭记忆
         涉及 OpenSpec change 时，按该 change 的 tasks 和 delta spec 先写或更新公开 seam 测试，再实现；测试接缝必须来自用户行为、API、CLI、模块接口或持久化边界
         写测试前列出本 Task 的公开 seam 和验证路径，新增测试必须绑定其中一个 seam
         编码后自检：代码实际值对照设计数值，行为对照 Spec
         派发 code-reviewer 两阶段审查
         Stage 1 失败补实现，重新派 code-reviewer
         Stage 2 失败：质量和重构问题自己按修改纪律修，确属缺陷或安全漏洞才调 bug-fixer，重新派 code-reviewer
-        两阶段都过 → echo clean > .agents/.needs-review → 完成当前 change 的严格验证和提交 → 回到 DEV-PLAN Phase 验收清单核对剩余缺口 → 下一个 Task 或下一个窄 change
+        两阶段都过 → echo clean > .agents/.needs-review → 如涉及 endpoint，完成局部接口契约漂移检查 → 完成当前 change 的严格验证和提交 → 回到 DEV-PLAN Phase 验收清单核对剩余缺口 → 下一个 Task 或下一个窄 change
         .agents/.needs-review 只是 stop hook 的本地门禁状态文件；写入 clean 或被 stop hook 删除不算产品代码、规则正文、契约文档、测试或配置改动，不因此重派 code-reviewer。
     用户强调某环节是追加要求，不替换基础流程，review 闭环照常走。
 
@@ -106,7 +107,7 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
     每个 OpenSpec change 收口、Phase 验收通过、出现阻塞或返工时，必须同步 DEV-PLAN 的当前进度、剩余工作、风险/阻塞和下一步；这些状态区缺失时只补最小必要区块，不改写无关内容。
     所有 Task 完成后过四步走，全通过才算 Phase 完成：
         一、Code Review：对照 DEV-PLAN 交付清单逐项确认，检查有无超范围改动
-        二、测试完整性：计划的功能都实现无半成品，且测试真覆盖到交互层和故障路径，不止纯函数和顺畅路径。每条「绿」要能证明行为真的对——核对用例前提与生产一致（量纲、单位、输入合法性、断言方向），用假前提或不可达输入把缺陷盖成预期的等于没测。功能声明的错误态、空态、边界要有用例真的走到，不只在实现里留分支
+        二、测试完整性：计划的功能都实现无半成品，且测试真覆盖到交互层和故障路径，不止纯函数和顺畅路径。每条「绿」要能证明行为真的对——核对用例前提与生产一致（量纲、单位、输入合法性、断言方向），用假前提或不可达输入把缺陷盖成预期的等于没测。功能声明的错误态、空态、边界要有用例真的走到，不只在实现里留分支；涉及 endpoint 的 Phase 还要证明 API-Contract.md 与运行时接口文档未漂移
         三、编译验证：tsc --noEmit 零错误
         四、功能测试：启动 dev server 无错，新功能可用，现有功能未破坏；有 Playwright 测核心流程，无则 curl 查 API 返回再提醒用户看 UI
     每步附当场跑的证据。中间发生实质性代码、规则、契约、测试或配置改动，四步重新来；仅 .agents/.needs-review 的 clean 写入或删除不算实质改动。
