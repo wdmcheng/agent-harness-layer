@@ -1,4 +1,4 @@
-## 来源链接
+## Source Links
 
 - Product-Spec.md：`SCOPE-001` 到 `SCOPE-003`，对应 uv workspace、包边界和 service-app template；`SCOPE-022`、`SCOPE-023` 和 `SCOPE-026`，对应 README、质量门禁和 Apache-2.0 合规。
 - Product-Spec.md：`REQ-001` Monorepo / uv workspace 结构；`REQ-002` 核心包和上游隔离；`REQ-003` 后端 service-app template；`REQ-018` README 入口；`REQ-019` TDD 和质量门禁；`REQ-021` 许可证与合规。
@@ -6,11 +6,11 @@
 - Design-Brief.md 或设计稿：当前没有 Design-Brief。本次变更没有产品 UI 表面。
 - CONTEXT.md / ADR：无。
 
-## 为什么
+## Why
 
 在仓库具备稳定的 workspace 形态、包边界和最低验证主干之前，产品不能安全启动 runtime、storage、policy 或 eval 工作。本变更创建 Phase 1 基线，让后续 OpenSpec changes 能直接面向稳定路径和命令，而不是反复讨论项目结构。
 
-## 变更内容
+## What Changes
 
 - 新增 `uv workspace` 根目录结构，区分 `packages/agent-harness`、`templates/service-app`、`examples`、`docs` 和 `scripts`。
 - 新增可安装的 `agent-harness` 包骨架，可构建 wheel/sdist，并暴露带版本的公共包入口。
@@ -18,7 +18,7 @@
 - 新增最低开发命令，覆盖依赖同步、质量检查、测试、本地 smoke、包构建和许可证检查。
 - 新增 README、LICENSE、NOTICE 和 pre-commit 入口，记录脚手架目的、目录边界和合规基线。
 
-## 非目标
+## Non-Goals
 
 - 不实现 runtime orchestration、DBOS integration、storage repositories、migrations、event streaming、policy、HITL、tools、retrieval、observability adapters、eval runner 或 CI release automation。
 - 不实现四个 example agents；除 service-app shell 所需的空 package marker 和目录结构外，不添加行为。
@@ -37,7 +37,7 @@
 
 - 无。当前还没有既有 OpenSpec baseline specs。
 
-## 影响
+## Impact
 
 - 受影响代码和文件：根目录 `pyproject.toml`、`uv.lock`、`Makefile`、`.pre-commit-config.yaml`、`README.md`、`LICENSE`、`NOTICE`、`packages/agent-harness/**`、`templates/service-app/**`、`examples/**`、`docs/**` 和 `scripts/**`。
 - 受影响 APIs：不引入 runtime HTTP API；只建立包入口和开发者命令。
