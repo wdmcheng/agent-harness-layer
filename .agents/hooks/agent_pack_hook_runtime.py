@@ -9,7 +9,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 CORRECTION_PHRASES = (
     "不是这样",
     "不是这个意思",
@@ -134,9 +133,7 @@ def npx_command() -> str:
 
 
 def should_skip_feedback_prompt(prompt: str) -> bool:
-    is_agent_prompt = (
-        re.search(r"你是[^\n]*(code-reviewer|evolution-runner)", prompt) is not None
-    )
+    is_agent_prompt = re.search(r"你是[^\n]*(code-reviewer|evolution-runner)", prompt) is not None
     has_review_words = any(
         word in prompt
         for word in (
@@ -193,10 +190,7 @@ def check_evolution(root: Path, agent: str = "") -> int:
             if pending and line.startswith("- "):
                 count += 1
         if count > 0:
-            msg = (
-                f"📋 有 {count} 条进化建议待确认，"
-                "session 启动我会逐条摆给你问同不同意。"
-            )
+            msg = f"📋 有 {count} 条进化建议待确认，session 启动我会逐条摆给你问同不同意。"
     if signals.exists() and signals.stat().st_size > 0:
         msg = f"{msg} 🔄 有新进化信号，session 启动我会扫一遍、消化成建议并逐条问你。"
     if msg:

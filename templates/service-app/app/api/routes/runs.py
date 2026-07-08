@@ -11,6 +11,7 @@ from pydantic import Field
 from agent_harness.contracts import ApiErrorEnvelope
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.events import CanonicalEvent, CanonicalEventType, EventSink
+from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator, RunStatus
 
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -61,6 +62,12 @@ def get_event_sink() -> EventSink:
     """由应用工厂注入的 event stream 读取依赖。"""
 
     raise RuntimeError("EventSink dependency is not configured")
+
+
+def get_agent_registry() -> AgentRegistry:
+    """由应用工厂注入的 AgentRegistry 依赖。"""
+
+    raise RuntimeError("AgentRegistry dependency is not configured")
 
 
 def request_id_from(request: Request | None) -> str:
@@ -125,9 +132,11 @@ async def create_agent_run(
     agent_id: str,
     request: AgentRunCreateRequest,
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
+    registry: Annotated[AgentRegistry, Depends(get_agent_registry)],
 ) -> RunCreateResponse:
     """创建 agent-scoped run，agent_id 来自稳定 URL 边界。"""
 
+    registry.get(agent_id)
     return await create_run_with_orchestrator(
         RunCreateRequest(
             agent_id=agent_id,

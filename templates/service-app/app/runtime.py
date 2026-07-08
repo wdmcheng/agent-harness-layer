@@ -8,6 +8,7 @@ from pathlib import Path
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.config import load_settings
 from agent_harness.events import EventBus, EventSink, LocalJsonlEventSink
+from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator
 from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
 
@@ -19,6 +20,7 @@ class RuntimeComponents:
     storage: SQLAlchemyStorage
     event_sink: EventSink
     orchestrator: RunOrchestrator
+    registry: AgentRegistry
 
     async def close(self) -> None:
         await self.storage.dispose()
@@ -46,6 +48,11 @@ def build_runtime_components(
         settings.observability.path or ".agent-harness/traces.jsonl"
     )
     artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
+    service_root = (
+        profiles_dir.parent.parent
+        if profiles_dir is not None
+        else Path.cwd() / "templates" / "service-app"
+    )
     event_sink = LocalJsonlEventSink(resolved_events_path)
     event_bus = EventBus(
         sink=event_sink,
@@ -59,4 +66,5 @@ def build_runtime_components(
             event_bus=event_bus,
             identity=settings.identity.default,
         ),
+        registry=AgentRegistry.load_from_directory(service_root / "agents"),
     )

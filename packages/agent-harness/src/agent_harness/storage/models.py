@@ -106,6 +106,47 @@ class CheckpointModel(Base):
     )
 
 
+class ContextAssemblyModel(TimestampMixin, Base):
+    __tablename__ = "context_assemblies"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
+    run_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("agent_runs.id"),
+        nullable=True,
+    )
+    input_refs_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    token_budget: Mapped[int] = mapped_column(Integer, nullable=False)
+    trust_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    truncation_summary_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+    )
+    output_ref: Mapped[str] = mapped_column(String(512), nullable=False)
+
+
+class EmbeddingCacheModel(TimestampMixin, Base):
+    __tablename__ = "embedding_cache"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "model",
+            "input_hash",
+            name="uq_embedding_cache_provider_model_hash",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    model: Mapped[str] = mapped_column(String(255), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    vector_ref: Mapped[str] = mapped_column(String(512), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
 class CanonicalEventModel(Base):
     __tablename__ = "canonical_events"
     __table_args__ = (UniqueConstraint("run_id", "seq", name="uq_canonical_events_run_seq"),)

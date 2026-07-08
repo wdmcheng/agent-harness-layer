@@ -48,9 +48,11 @@ def assert_core_schema(db_path: Path) -> None:
             "eval_runs",
             "policy_rules",
             "audit_logs",
+            "context_assemblies",
+            "embedding_cache",
         } <= tables
         revision = connection.execute("select version_num from alembic_version").fetchone()
-        assert revision == ("0001_core_schema",)
+        assert revision == ("0002_context_embedding_cache",)
 
 
 def test_local_sqlite_migration_creates_core_schema(tmp_path: Path) -> None:
@@ -215,7 +217,7 @@ def test_doctor_cli_reports_local_storage_migration_and_eval_status(tmp_path: Pa
 
     assert result.returncode == 0, result.stderr
     assert "storage: sqlite" in result.stdout
-    assert "migration: 0001_core_schema" in result.stdout
+    assert "migration: 0002_context_embedding_cache" in result.stdout
     assert "redis: not required" in result.stdout
     assert "eval directory:" in result.stdout
 

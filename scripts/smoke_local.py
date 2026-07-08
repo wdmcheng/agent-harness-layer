@@ -96,8 +96,39 @@ def check_doctor() -> int:
     return 0
 
 
+def check_agents_list() -> int:
+    """确认 local registry smoke agent 可离线枚举。"""
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_harness.cli",
+            "agents",
+            "list",
+            "--agents-dir",
+            str(SERVICE_APP / "agents"),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return _fail(f"agents list failed: {result.stderr.strip()}")
+    if "examples.basic" not in result.stdout:
+        return _fail("agents list did not report examples.basic.")
+    return 0
+
+
 def main() -> int:
-    checks = [check_import, check_template_layout, check_local_profile, check_doctor]
+    checks = [
+        check_import,
+        check_template_layout,
+        check_local_profile,
+        check_doctor,
+        check_agents_list,
+    ]
     for check in checks:
         result = check()
         if result != 0:

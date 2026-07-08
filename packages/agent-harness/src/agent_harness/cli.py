@@ -10,6 +10,7 @@ import typer
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.config import SettingsLoadError, load_settings
 from agent_harness.events import EventBus, LocalJsonlEventSink
+from agent_harness.registry import AgentRegistry, RegistryLoadError
 from agent_harness.runtime import RunOrchestrator
 from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
 from agent_harness.storage.diagnostics import (
@@ -20,6 +21,8 @@ from agent_harness.storage.diagnostics import (
 )
 
 app = typer.Typer(no_args_is_help=True)
+agents_app = typer.Typer(no_args_is_help=True)
+app.add_typer(agents_app, name="agents")
 
 
 @app.callback()
@@ -76,6 +79,9 @@ def run(
     profiles_dir: Annotated[Path | None, typer.Option("--profiles-dir")] = None,
     storage_dsn: Annotated[str | None, typer.Option("--storage-dsn")] = None,
     events_path: Annotated[Path | None, typer.Option("--events-path")] = None,
+    agents_dir: Annotated[Path, typer.Option("--agents-dir")] = Path(
+        "templates/service-app/agents"
+    ),
     idempotency_key: Annotated[str | None, typer.Option("--idempotency-key")] = None,
 ) -> None:
     """运行内置 fake agent，验证 runtime、storage 和 event seam。"""
@@ -90,6 +96,15 @@ def run(
         raise typer.Exit(1) from exc
 
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
+    try:
+        AgentRegistry.load_from_directory(agents_dir).get(agent_id)
+    except RegistryLoadError as exc:
+        for error in exc.error_details:
+            field = f" field={error.field_path}" if error.field_path else ""
+            hint = f" hint={error.hint}" if error.hint else ""
+            typer.echo(f"{error.code}:{field} {error.message}{hint}", err=True)
+        raise typer.Exit(1) from exc
+
     run_migrations(resolved_dsn)
     resolved_events_path = events_path
     if resolved_events_path is None:
@@ -123,6 +138,27 @@ def run(
     typer.echo(f"run_id: {result.run_id}")
     typer.echo(f"status: {result.status.value}")
     typer.echo(f"terminal_event: {result.terminal_event}")
+
+
+@agents_app.command("list")
+def list_agents(
+    agents_dir: Annotated[Path, typer.Option("--agents-dir")] = Path(
+        "templates/service-app/agents"
+    ),
+) -> None:
+    """列出 registry 中已配置的 agent public descriptor。"""
+
+    try:
+        registry = AgentRegistry.load_from_directory(agents_dir)
+    except RegistryLoadError as exc:
+        for error in exc.error_details:
+            field = f" field={error.field_path}" if error.field_path else ""
+            hint = f" hint={error.hint}" if error.hint else ""
+            typer.echo(f"{error.code}:{field} {error.message}{hint}", err=True)
+        raise typer.Exit(1) from exc
+
+    for descriptor in registry.list_agents():
+        typer.echo(f"{descriptor.agent_id}\t{descriptor.name}\t{descriptor.model_policy.provider}")
 
 
 def main() -> None:

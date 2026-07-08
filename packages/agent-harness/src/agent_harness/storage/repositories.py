@@ -14,6 +14,8 @@ from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.storage.models import (
     AgentRunModel,
     CheckpointModel,
+    ContextAssemblyModel,
+    EmbeddingCacheModel,
     SessionModel,
     TenantModel,
 )
@@ -67,6 +69,33 @@ class CheckpointRecord(CheckpointCreate):
     created_at: datetime | None = None
 
 
+class ContextAssemblyCreate(HarnessDTO):
+    tenant_id: str
+    run_id: str | None = None
+    input_refs: list[str] = Field(default_factory=list)
+    token_budget: int
+    trust_summary: dict[str, Any] = Field(default_factory=dict)
+    truncation_summary: dict[str, Any] = Field(default_factory=dict)
+    output_ref: str
+
+
+class ContextAssemblyRecord(ContextAssemblyCreate):
+    id: str
+
+
+class EmbeddingCacheCreate(HarnessDTO):
+    tenant_id: str
+    provider: str
+    model: str
+    input_hash: str
+    vector_ref: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class EmbeddingCacheRecord(EmbeddingCacheCreate):
+    id: str
+
+
 def _tenant_record(model: TenantModel) -> TenantRecord:
     return TenantRecord(id=model.id, display_name=model.display_name)
 
@@ -107,6 +136,31 @@ def _checkpoint_record(model: CheckpointModel) -> CheckpointRecord:
         resume_token=model.resume_token,
         state=model.state_json,
         created_at=model.created_at,
+    )
+
+
+def _context_assembly_record(model: ContextAssemblyModel) -> ContextAssemblyRecord:
+    return ContextAssemblyRecord(
+        id=model.id,
+        tenant_id=model.tenant_id,
+        run_id=model.run_id,
+        input_refs=model.input_refs_json,
+        token_budget=model.token_budget,
+        trust_summary=model.trust_summary_json,
+        truncation_summary=model.truncation_summary_json,
+        output_ref=model.output_ref,
+    )
+
+
+def _embedding_cache_record(model: EmbeddingCacheModel) -> EmbeddingCacheRecord:
+    return EmbeddingCacheRecord(
+        id=model.id,
+        tenant_id=model.tenant_id,
+        provider=model.provider,
+        model=model.model,
+        input_hash=model.input_hash,
+        vector_ref=model.vector_ref,
+        metadata=model.metadata_json,
     )
 
 
@@ -258,3 +312,70 @@ class CheckpointRepository:
         )
         model = result.first()
         return None if model is None else _checkpoint_record(model)
+
+
+class ContextAssemblyRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(self, data: ContextAssemblyCreate) -> ContextAssemblyRecord:
+        model = ContextAssemblyModel(
+            id=str(uuid4()),
+            tenant_id=data.tenant_id,
+            run_id=data.run_id,
+            input_refs_json=data.input_refs,
+            token_budget=data.token_budget,
+            trust_summary_json=data.trust_summary,
+            truncation_summary_json=data.truncation_summary,
+            output_ref=data.output_ref,
+        )
+        self._session.add(model)
+        await self._session.flush()
+        return _context_assembly_record(model)
+
+    async def get(self, assembly_id: str) -> ContextAssemblyRecord | None:
+        model = await self._session.get(ContextAssemblyModel, assembly_id)
+        return None if model is None else _context_assembly_record(model)
+
+
+class EmbeddingCacheRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get(
+        self,
+        *,
+        provider: str,
+        model: str,
+        input_hash: str,
+    ) -> EmbeddingCacheRecord | None:
+        result = await self._session.scalars(
+            select(EmbeddingCacheModel).where(
+                EmbeddingCacheModel.provider == provider,
+                EmbeddingCacheModel.model == model,
+                EmbeddingCacheModel.input_hash == input_hash,
+            )
+        )
+        row = result.first()
+        return None if row is None else _embedding_cache_record(row)
+
+    async def put(self, data: EmbeddingCacheCreate) -> EmbeddingCacheRecord:
+        existing = await self.get(
+            provider=data.provider,
+            model=data.model,
+            input_hash=data.input_hash,
+        )
+        if existing is not None:
+            return existing
+        model = EmbeddingCacheModel(
+            id=str(uuid4()),
+            tenant_id=data.tenant_id,
+            provider=data.provider,
+            model=data.model,
+            input_hash=data.input_hash,
+            vector_ref=data.vector_ref,
+            metadata_json=data.metadata,
+        )
+        self._session.add(model)
+        await self._session.flush()
+        return _embedding_cache_record(model)

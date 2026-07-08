@@ -19,6 +19,8 @@ import sys
 from pathlib import Path
 
 from agent_harness.config import load_settings
+from agent_harness.context import ContextAssembler, ContextFragment
+from agent_harness.embeddings import EmbeddingRequest, LocalEmbeddingProvider
 from agent_harness.storage import SQLAlchemyStorage, run_migrations
 from agent_harness.storage.diagnostics import migration_revision, redis_status
 from agent_harness.storage.repositories import RunCreate, SessionCreate
@@ -130,6 +132,38 @@ async def repository_probe(dsn: str) -> str:
         await storage.dispose()
 
 
+async def context_embedding_probe(dsn: str) -> tuple[str, str]:
+    """穿过 PostgreSQL repository 写 context assembly 和 embedding cache 证据。"""
+
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    try:
+        async with storage.uow() as uow:
+            assembly = await ContextAssembler(uow.context_assemblies).assemble(
+                tenant_id="default",
+                run_id=None,
+                fragments=[
+                    ContextFragment(
+                        source_ref="smoke:history",
+                        trust_level="trusted",
+                        content="service smoke history",
+                        token_estimate=3,
+                    )
+                ],
+                token_budget=32,
+                output_ref="context://service-smoke",
+            )
+            provider = LocalEmbeddingProvider(cache=uow.embedding_cache)
+            first = await provider.embed(EmbeddingRequest(input="service smoke embedding"))
+            second = await provider.embed(EmbeddingRequest(input="service smoke embedding"))
+            await uow.commit()
+        cache_status = (
+            "hit" if second.cache.hit and first.vector_ref == second.vector_ref else "miss"
+        )
+        return assembly.id, cache_status
+    finally:
+        await storage.dispose()
+
+
 def run_worker_probe(dsn: str) -> str:
     """运行一次 service worker shell，返回 worker 创建的 run id。"""
 
@@ -202,9 +236,14 @@ def main() -> int:
 
     run_id = "(migrate-only)"
     worker_run_id = "(migrate-only)"
+    context_assembly_id = "(migrate-only)"
+    embedding_cache = "(migrate-only)"
     if not args.migrate_only:
         # repository probe 是 PostgreSQL storage adapter 的最小行为证明。
         run_id = asyncio.run(repository_probe(settings.storage.dsn))
+        context_assembly_id, embedding_cache = asyncio.run(
+            context_embedding_probe(settings.storage.dsn)
+        )
         # worker probe 证明 runtime worker shell 不是孤立占位，而是共用 runtime seam。
         worker_run_id = run_worker_probe(settings.storage.dsn)
 
@@ -213,6 +252,8 @@ def main() -> int:
     print(f"smoke-service: migration={revision}")
     print(f"smoke-service: redis={redis_message}")
     print(f"smoke-service: repository_run={run_id}")
+    print(f"smoke-service: context_assembly={context_assembly_id}")
+    print(f"smoke-service: embedding_cache={embedding_cache}")
     print(f"smoke-service: worker_run={worker_run_id}")
     print("smoke-service: ok")
     return 0

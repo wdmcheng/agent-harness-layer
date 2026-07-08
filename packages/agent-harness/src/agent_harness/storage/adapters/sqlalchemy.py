@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import (
 
 from agent_harness.storage.repositories import (
     CheckpointRepository,
+    ContextAssemblyRepository,
+    EmbeddingCacheRepository,
     RunRepository,
     SessionRepository,
     TenantRepository,
@@ -37,6 +39,8 @@ class SQLAlchemyUnitOfWork:
         self.sessions = SessionRepository(self.session)
         self.runs = RunRepository(self.session)
         self.checkpoints = CheckpointRepository(self.session)
+        self.context_assemblies = ContextAssemblyRepository(self.session)
+        self.embedding_cache = EmbeddingCacheRepository(self.session)
         return self
 
     async def __aexit__(

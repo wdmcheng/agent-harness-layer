@@ -1,0 +1,16 @@
+agent_id: examples.basic
+version: 0.1.0
+name: Basic Example Agent
+description: Offline fake model smoke agent.
+input_schema: agents.examples.basic.schemas.Input
+output_schema: agents.examples.basic.schemas.Output
+model:
+  provider: fake
+  default_model: fake-basic
+  fallback_models: []
+budget:
+  max_tokens_per_run: 8192
+  max_cost_usd_per_run: null
+tool_allowlist: []
+eval_dataset: eval-cases/drafts/basic.yaml
+delegation_edges: []

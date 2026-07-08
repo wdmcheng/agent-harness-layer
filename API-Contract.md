@@ -338,6 +338,76 @@
 - `reasoning.delta` 默认不对普通用户可见。
 - 大 payload 必须使用 `payload_ref`，并保留 checksum 或 artifact reference。
 
+### 5.10 `AgentDescriptor`
+
+`GET /api/v1/agents` 返回的 public descriptor。它来自 agent registry 的受控 `config.yaml`，不是完整本地配置。
+
+```json
+{
+  "agent_id": "examples.basic",
+  "version": "0.1.0",
+  "name": "Basic Example Agent",
+  "description": "Offline fake model smoke agent.",
+  "input_schema_ref": "agents.examples.basic.schemas.Input",
+  "output_schema_ref": "agents.examples.basic.schemas.Output",
+  "config_ref": "agents/examples/basic/config.yaml",
+  "tool_policy": {
+    "allowed_tools": []
+  },
+  "model_policy": {
+    "provider": "fake",
+    "default_model": "fake-basic",
+    "fallback_models": []
+  },
+  "budget": {
+    "max_tokens_per_run": 8192,
+    "max_cost_usd_per_run": null
+  },
+  "eval_dataset": "eval-cases/drafts/basic.yaml",
+  "delegation_targets": []
+}
+```
+
+字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `agent_id` | string | Yes | 稳定 agent ID；必须唯一。 |
+| `version` | string | Yes | descriptor/config 版本；用于未来兼容与审计，不代表 package version。 |
+| `name` | string | Yes | 人类可读名称。 |
+| `description` | string | Yes | 简短说明；不得包含 secret。 |
+| `input_schema_ref` | string | Yes | 输入 schema 引用，不返回本地绝对路径。 |
+| `output_schema_ref` | string | Yes | 输出 schema 引用，不返回本地绝对路径。 |
+| `config_ref` | string | Yes | agent config 的仓库相对引用；不得是本机绝对路径。 |
+| `tool_policy.allowed_tools` | string[] | Yes | 允许工具摘要；空数组表示无工具权限。 |
+| `model_policy.provider` | string | Yes | 模型 provider ID，例如 `fake`。 |
+| `model_policy.default_model` | string | Yes | 默认模型 ID。 |
+| `model_policy.fallback_models` | string[] | Yes | fallback 模型 ID 列表。 |
+| `budget.max_tokens_per_run` | integer | Yes | 单 run token 预算。 |
+| `budget.max_cost_usd_per_run` | number \| null | Yes | 单 run 成本预算；`null` 表示未设置成本上限。 |
+| `eval_dataset` | string \| null | Yes | eval dataset 引用。 |
+| `delegation_targets` | string[] | Yes | 显式允许 delegation 的目标 agent ID。 |
+
+禁止字段：
+
+- 不得返回本地绝对路径、provider secret、API key、callable、provider client、Python module object、SQLAlchemy model 或文件 handle。
+
+### 5.11 `AgentListResponse`
+
+```json
+{
+  "request_id": "req_123",
+  "agents": []
+}
+```
+
+字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `request_id` | string | Yes | API 请求关联 ID。 |
+| `agents` | `AgentDescriptor[]` | Yes | registry 中已配置 agent 的 public descriptor 列表。空数组表示 registry 可用但没有 agent。 |
+
 ## 6. Run API
 
 ### RUN-001 创建 agent-scoped run
@@ -360,10 +430,10 @@
 | 成功响应码 | `200` |
 | 响应头 | 当前只保证 `Content-Type: application/json`；不保证 `X-Request-Id` response header。 |
 | 响应体 | `RunCreateResponse` |
-| 错误响应码 | `400 api.http_error`、`404 api.not_found`、`409 run.invalid_transition`、`422 validation_error`、`500 api.internal_error`。其中 422 envelope 统一仍需后续补验证。 |
+| 错误响应码 | `400 api.http_error`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`500 api.internal_error`。 |
 | 状态语义 | `completed/failed/cancelled` 表示 terminal；`waiting` 表示调用方需要 approval 或 resume；`running/created` 表示后续通过 events/detail 追踪。 |
 | 安全规则 | API route 不得直接操作 ORM session、DBOS API 或 provider SDK；input 进入 runtime 前必须经过 guardrail/trust 标注；认证能力落地后无效 token 不得创建 run。 |
-| 验证要求 | `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 必须检查 route table、OpenAPI path、helper 使用 `RunOrchestrator`、idempotency、request_id 和 error envelope。 |
+| 验证要求 | `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 必须检查 route table、OpenAPI path、helper 使用 `RunOrchestrator`、idempotency、request_id 和 error envelope；Agent Registry 能力落地后，Phase 6 contract tests 还必须覆盖未知 `agent_id` 经 registry seam 返回 `registry.agent_not_found`，CLI 等价入口必须 exit 1。 |
 
 ### RUN-002 读取 run detail
 
@@ -465,13 +535,39 @@
 | 安全规则 | `resume_token` 必须属于 path 中的 `run_id`；错误 URL 不得推进其他 run。认证能力落地后 token 还必须匹配 tenant/identity/approval context。 |
 | 验证要求 | contract tests 必须覆盖 token/run_id mismatch 先失败且不推进任一 run。 |
 
-## 7. 保留 API 索引
+## 7. Agent Registry API
+
+### AGT-001 列出 agents
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `AGT-001` |
+| 状态 | 已实现，Phase 6 提供 template route、OpenAPI schema 和 CLI 等价入口；认证/可见性过滤留给 Phase 7。 |
+| 入口 / 调用方 | OpenAPI 调用方、service-app、未来 Access/API gateway；CLI 等价入口为 `agent-harness agents list`。 |
+| 用途 | 列出 registry 中已加载且通过校验的 agent public descriptor，供开发者、OpenAPI 调用方和后续管理面发现可运行 agent。 |
+| 方法 | `GET` |
+| 路径 | `/api/v1/agents` |
+| 认证 | 当前 local/template route 不接入 auth；认证能力落地后应按 tenant/identity 可见性过滤 agent descriptor。 |
+| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`；认证能力落地后可选/必填 `Authorization` 按环境配置。 |
+| Path 参数 | none |
+| URL 参数 | none；后续如加分页或过滤必须先更新本文档和 drift tests。 |
+| 请求体 | none |
+| 幂等性 | 幂等读取；不得创建 run、checkpoint、event、trace、audit 或 provider call。 |
+| 副作用 | none；允许读取 registry config 和验证结果。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`；不保证 `X-Request-Id` response header。 |
+| 响应体 | `AgentListResponse` |
+| 错误响应码 | `409 registry.duplicate_agent_id`、`422 registry.invalid_config`、`500 api.internal_error`；认证能力落地后增加 `401/403`。 |
+| 状态语义 | `agents=[]` 表示 registry 可用但当前没有 agent；`409/422` 表示 registry config 不可信，调用方不得把部分 descriptor 当作成功结果。 |
+| 安全规则 | API 只返回 public descriptor；不得暴露本地绝对路径、secret、provider client、callable、SQLAlchemy model 或 Python module object。重复 `agent_id` 或无效 config 必须整体拒绝 registry，不返回半成功列表。 |
+| 验证要求 | `tests/contracts/test_agent_registry_model_context_contracts.py` 必须覆盖 OpenAPI path/method、`AgentListResponse` schema、`AgentDescriptor` 可见字段和禁止字段、`ApiErrorEnvelope` 错误 schema、重复 `agent_id`、registry validation error，以及 route 通过 `AgentRegistry` seam 而非直接读文件。 |
+
+## 8. 保留 API 索引
 
 这些路径来自 `Product-Spec.md` 的当前版本 API 列表。它们不是当前已实现能力；对应计划项开工前必须先把本节扩展成第 3 节规定的完整 endpoint 条目，再写 route。
 
 | Contract ID | 状态 | 计划归属 | 路径 | 契约门禁 |
 |---|---|---:|---|---|
-| `AGT-001` | 规划中 | Agent Registry | `/api/v1/agents` | 必须定义 list schema、agent descriptor 可见字段、重复 `agent_id` 错误、registry config validation error。 |
 | `APR-001` | 规划中 | Auth / Policy / HITL | `/api/v1/runs/{run_id}/approvals` | 必须定义 approval list/create/read 语义、policy decision、audit 字段、waiting run 关联。 |
 | `APR-002` | 规划中 | Auth / Policy / HITL | `/api/v1/runs/{run_id}/approvals/{approval_id}` | 必须定义 approve/deny 方法、状态冲突、审批人身份、resume 触发规则。 |
 | `EVL-001` | 规划中 | Eval Gate | `/api/v1/eval-cases/drafts` | 必须定义 draft list/create/review schema、secret scan、trace source、不可自动进入 approved。 |
@@ -480,19 +576,20 @@
 | `POL-001` | 规划中 | Auth / Policy / HITL | `/api/v1/policies/check` | 必须定义 actor/resource/action/context request、allow/deny/require_approval response、audit policy。 |
 | `HLT-001` | 规划中 | Service App / Service Profile | `/api/v1/health` | 必须定义 local/service profile health 字段、storage/queue/observability 状态和公开性。 |
 
-## 8. 入口 / 调用方映射
+## 9. 入口 / 调用方映射
 
 | 入口 / 调用方 | 当前或目标接口 | 说明 |
 |---|---|---|
 | `agent-harness run <agent_id>` | 等价于 `RUN-001` 的 runtime seam | CLI 不走 HTTP，但必须使用同一 `RunOrchestrator`、storage、event bus 和 DTO 语义。 |
-| OpenAPI 调用方 | `RUN-001` 到 `RUN-005`，后续保留 API | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
-| service-app FastAPI | `RUN-001` 到 `RUN-005` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
+| `agent-harness agents list` | 等价于 `AGT-001` 的 registry seam | CLI 不走 HTTP，但必须使用同一 `AgentRegistry`、descriptor DTO 和 validation 语义。 |
+| OpenAPI 调用方 | `AGT-001`、`RUN-001` 到 `RUN-005`，后续保留 API | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
+| service-app FastAPI | `AGT-001`、`RUN-001` 到 `RUN-005` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
 | runtime worker | 内部 worker seam；不直接新增 HTTP route | worker 必须通过 runtime components，不直接操作 ORM/DBOS/provider SDK。 |
 | HITL approval flow | `RUN-005` + `APR-*` | approval/resume 必须关联 checkpoint、audit、tenant、run、identity。 |
 | Eval review flow | `EVL-*` | draft 到 approved 必须人工确认，secret/隐私脱敏是写入门禁。 |
 | future API/worker split | 所有 HTTP API + worker seam | 拆分后数据只走 DTO、CanonicalEvent、repository/provider/facade，不传进程内可变对象；queue message header 必须携带 `request_id` 和 `idempotency_key`。 |
 
-## 9. 流式与事件契约
+## 10. 流式与事件契约
 
 当前实现：
 
@@ -507,7 +604,7 @@
 - 断线恢复必须以 `seq` 为准；final 结算以 terminal event 为准。
 - 握手前错误走 `ApiErrorEnvelope`；握手后错误必须转成可序列化 event，且不得泄露 secret/provider 原始错误。
 
-## 10. OpenAPI 生成与漂移检查
+## 11. OpenAPI 生成与漂移检查
 
 当前必须保留：
 
@@ -534,9 +631,9 @@
 uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 ```
 
-后续新增 `agents`、`approvals`、`evals`、`policies` 或 `health` route 时，应按功能拆出对应 contract tests，而不是把所有 OpenAPI 检查堆进一个大测试。
+后续新增 `approvals`、`evals`、`policies` 或 `health` route 时，应按功能拆出对应 contract tests，而不是把所有 OpenAPI 检查堆进一个大测试。`agents` route 使用 `tests/contracts/test_agent_registry_model_context_contracts.py` 单独覆盖。
 
-## 11. 契约验收清单
+## 12. 契约验收清单
 
 - [x] 已区分当前已实现 run API 与保留 API。
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
@@ -545,7 +642,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] 已明确 `reasoning.delta` 默认不可见。
 - [x] 已明确 API route 不得暴露 ORM、DBOS、provider SDK 或进程内 handle。
 - [x] 已明确新增/修改 endpoint 必须先改本契约，再做局部 OpenAPI drift 检查。
-- [ ] Agent Registry 开工前补全 `AGT-001` 的完整 endpoint 条目和 contract tests。
+- [x] Agent Registry 开工前补全 `AGT-001` 的完整 endpoint 条目和 contract tests。
 - [ ] Auth / Policy / HITL 开工前补全 auth、policy、approval endpoint 条目和 contract tests。
 - [ ] Eval Gate 开工前补全 eval endpoint 条目和 contract tests。
 - [ ] Service App / Service Profile 收口时做全量 OpenAPI drift 复扫，并补齐 422 validation error envelope 统一验证。
