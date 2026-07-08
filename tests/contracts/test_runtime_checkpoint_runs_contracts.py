@@ -329,7 +329,8 @@ async def test_template_openapi_and_error_envelope_include_request_id(tmp_path: 
 
 @pytest.mark.asyncio
 async def test_events_api_filter_hides_reasoning_delta_by_default(tmp_path: Path) -> None:
-    # `reasoning.delta` 可以进 internal evidence，但普通用户 event stream 默认不能看到。
+    # `reasoning.delta` 可以进 internal evidence，但普通用户 event stream 默认
+    # 只能看到显式 public 的 lifecycle event。
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
     bus = EventBus(sink=sink)
     await bus.publish(
@@ -344,6 +345,7 @@ async def test_events_api_filter_hides_reasoning_delta_by_default(tmp_path: Path
         event_type=CanonicalEventType.RUN_COMPLETED,
         payload={"status": "completed"},
         terminal=True,
+        visibility="public",
     )
     events = await sink.read(run_id="run-reasoning")
 

@@ -13,9 +13,13 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from agent_harness.storage.repositories import (
+    ApiKeyRepository,
+    ApprovalRepository,
+    AuditLogRepository,
     CheckpointRepository,
     ContextAssemblyRepository,
     EmbeddingCacheRepository,
+    PolicyRuleRepository,
     RunRepository,
     SessionRepository,
     TenantRepository,
@@ -41,6 +45,10 @@ class SQLAlchemyUnitOfWork:
         self.checkpoints = CheckpointRepository(self.session)
         self.context_assemblies = ContextAssemblyRepository(self.session)
         self.embedding_cache = EmbeddingCacheRepository(self.session)
+        self.api_keys = ApiKeyRepository(self.session)
+        self.policy_rules = PolicyRuleRepository(self.session)
+        self.approvals = ApprovalRepository(self.session)
+        self.audit_logs = AuditLogRepository(self.session)
         return self
 
     async def __aexit__(

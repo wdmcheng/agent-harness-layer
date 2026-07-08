@@ -96,6 +96,47 @@ delegation_edges:
     assert settings.agent.delegation_edges == ["summarizer"]
 
 
+def test_empty_env_value_keeps_optional_setting_unconfigured(tmp_path: Path) -> None:
+    profile_path = tmp_path / "local.yaml"
+    profile_path.write_text(
+        """
+profile: local
+storage:
+  kind: sqlite
+  dsn: "sqlite+aiosqlite:///:memory:"
+queue:
+  kind: in-memory
+observability:
+  kind: local-jsonl
+  path: .agent-harness/traces.jsonl
+auth:
+  provider: local
+  required: false
+  dev_bearer_token: null
+policy:
+  provider: yaml
+model:
+  provider: fake
+  requires_api_key: false
+identity:
+  default:
+    tenant_id: default
+    user_id: local-user
+    session_id: local-session
+    roles: [admin]
+    permissions: ["*"]
+    auth_method: local
+""",
+        encoding="utf-8",
+    )
+    env_path = tmp_path / ".env"
+    env_path.write_text("AGENT_HARNESS_AUTH__DEV_BEARER_TOKEN=\n", encoding="utf-8")
+
+    settings = load_settings(profile_path=profile_path, env_file=env_path)
+
+    assert settings.auth.dev_bearer_token is None
+
+
 def test_config_errors_include_field_path_and_hint(tmp_path: Path) -> None:
     # 错误路径测试锁 operator-facing diagnostics，避免泄漏原始 Pydantic/YAML trace。
     profile_path = tmp_path / "broken.yaml"

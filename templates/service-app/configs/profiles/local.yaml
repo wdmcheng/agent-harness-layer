@@ -8,12 +8,26 @@ queue:
 observability:
   kind: local-jsonl
   path: .agent-harness/traces.jsonl
+auth:
+  provider: local
+  required: false
 policy:
   provider: yaml
+  path: configs/policy/default.yaml
   require_approval_actions:
     - shell.execute
     - file.delete
+    - file.bulk_write
     - external.network
+    - mcp.connect
+    - message.send
+    - ticket.create
+    - email.send
+    - workspace.write_outside
+    - dataset.write_approved
+    - policy.modify
+    - policy.update
+    - input.prompt_injection
 model:
   provider: fake
   requires_api_key: false

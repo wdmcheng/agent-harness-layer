@@ -11,6 +11,42 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.storage.access_repositories import (
+    ApiKeyCreate as ApiKeyCreate,
+)
+from agent_harness.storage.access_repositories import (
+    ApiKeyRecord as ApiKeyRecord,
+)
+from agent_harness.storage.access_repositories import (
+    ApiKeyRepository as ApiKeyRepository,
+)
+from agent_harness.storage.access_repositories import (
+    ApprovalCreate as ApprovalCreate,
+)
+from agent_harness.storage.access_repositories import (
+    ApprovalRecord as ApprovalRecord,
+)
+from agent_harness.storage.access_repositories import (
+    ApprovalRepository as ApprovalRepository,
+)
+from agent_harness.storage.access_repositories import (
+    AuditLogCreate as AuditLogCreate,
+)
+from agent_harness.storage.access_repositories import (
+    AuditLogRecord as AuditLogRecord,
+)
+from agent_harness.storage.access_repositories import (
+    AuditLogRepository as AuditLogRepository,
+)
+from agent_harness.storage.access_repositories import (
+    PolicyRuleCreate as PolicyRuleCreate,
+)
+from agent_harness.storage.access_repositories import (
+    PolicyRuleRecord as PolicyRuleRecord,
+)
+from agent_harness.storage.access_repositories import (
+    PolicyRuleRepository as PolicyRuleRepository,
+)
 from agent_harness.storage.models import (
     AgentRunModel,
     CheckpointModel,

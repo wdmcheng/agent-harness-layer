@@ -46,17 +46,19 @@ class RunOrchestrator:
         input: dict[str, Any],
         idempotency_key: IdempotencyKey | str | None = None,
         checkpoint_state: dict[str, Any] | None = None,
+        identity: IdentityContext | None = None,
     ) -> RunResult:
+        active_identity = identity or self._identity
         idempotency_value = _idempotency_value(idempotency_key)
         async with self._storage.uow() as uow:
             # identity 归属记录统一通过 repository 创建，API、CLI 和 worker
             # 路径都会穿过同一个 UoW 边界。
-            tenant = await uow.tenants.ensure(self._identity.tenant_id)
+            tenant = await uow.tenants.ensure(active_identity.tenant_id)
             session = await uow.sessions.ensure(
                 SessionCreate(
-                    session_id=self._identity.session_id,
+                    session_id=active_identity.session_id,
                     tenant_id=tenant.id,
-                    user_id=self._identity.user_id,
+                    user_id=active_identity.user_id,
                     agent_id=agent_id,
                 )
             )
@@ -86,31 +88,48 @@ class RunOrchestrator:
             await uow.commit()
 
         await self._event_bus.publish(
-            tenant_id=self._identity.tenant_id,
+            tenant_id=active_identity.tenant_id,
             run_id=run.id,
             agent_id=agent_id,
-            user_id=self._identity.user_id,
+            user_id=active_identity.user_id,
             event_type=CanonicalEventType.RUN_STARTED,
             payload={"agent_id": agent_id},
+            visibility="public",
         )
         # 当前可运行路径仍只走 fake provider。传入 checkpoint_state 只证明
         # pause/resume 持久化，不把 DBOS 或 HITL approval 行为提前拉进 runtime contract。
         if checkpoint_state is not None:
-            resume_token = await self._checkpoint(run.id, agent_id, checkpoint_state)
+            resume_token = await self._checkpoint(
+                run.id,
+                agent_id,
+                checkpoint_state,
+                identity=active_identity,
+            )
             return RunResult(run_id=run.id, status=RunStatus.WAITING, resume_token=resume_token)
-        terminal = await self._complete(run.id, agent_id, output={"result": "fake-ok"})
+        terminal = await self._complete(
+            run.id,
+            agent_id,
+            output={"result": "fake-ok"},
+            identity=active_identity,
+        )
         return RunResult(
             run_id=run.id,
             status=RunStatus.COMPLETED,
             terminal_event=terminal.event_type.value,
         )
 
-    async def get_run(self, run_id: str) -> RunResult:
+    async def get_run(
+        self,
+        run_id: str,
+        *,
+        identity: IdentityContext | None = None,
+    ) -> RunResult:
         """读取 run lifecycle 摘要，供 API/CLI 不碰 ORM 的 detail route 使用。"""
 
+        active_identity = identity or self._identity
         async with self._storage.uow() as uow:
             run = await uow.runs.get(run_id)
-            if run is None:
+            if run is None or run.tenant_id != active_identity.tenant_id:
                 raise LookupError(f"run not found: {run_id}")
             status = RunStatus(run.status)
         terminal_event = None
@@ -118,10 +137,16 @@ class RunOrchestrator:
             terminal_event = f"run.{status.value}"
         return RunResult(run_id=run_id, status=status, terminal_event=terminal_event)
 
-    async def cancel_run(self, run_id: str) -> RunResult:
+    async def cancel_run(
+        self,
+        run_id: str,
+        *,
+        identity: IdentityContext | None = None,
+    ) -> RunResult:
+        active_identity = identity or self._identity
         async with self._storage.uow() as uow:
             run = await uow.runs.get(run_id)
-            if run is None:
+            if run is None or run.tenant_id != active_identity.tenant_id:
                 raise LookupError(f"run not found: {run_id}")
             status = RunStatus(run.status)
             if status in TERMINAL_STATUSES:
@@ -129,17 +154,54 @@ class RunOrchestrator:
             await uow.runs.set_status(run_id, RunStatus.CANCELLED.value)
             await uow.commit()
         terminal = await self._event_bus.publish(
-            tenant_id=self._identity.tenant_id,
+            tenant_id=active_identity.tenant_id,
             run_id=run_id,
             agent_id=run.agent_id,
-            user_id=self._identity.user_id,
+            user_id=active_identity.user_id,
             event_type=CanonicalEventType.RUN_CANCELLED,
             payload={"status": RunStatus.CANCELLED.value},
             terminal=True,
+            visibility="public",
         )
         return RunResult(
             run_id=run_id,
             status=RunStatus.CANCELLED,
+            terminal_event=terminal.event_type.value,
+        )
+
+    async def fail_run(
+        self,
+        run_id: str,
+        *,
+        reason: str,
+        identity: IdentityContext | None = None,
+    ) -> RunResult:
+        active_identity = identity or self._identity
+        async with self._storage.uow() as uow:
+            run = await uow.runs.get(run_id)
+            if run is None or run.tenant_id != active_identity.tenant_id:
+                raise LookupError(f"run not found: {run_id}")
+            if RunStatus(run.status) in TERMINAL_STATUSES:
+                raise InvalidRunTransition(f"run is terminal: {run.id}")
+            await uow.runs.set_status(
+                run_id,
+                RunStatus.FAILED.value,
+                error={"reason": reason},
+            )
+            await uow.commit()
+        terminal = await self._event_bus.publish(
+            tenant_id=active_identity.tenant_id,
+            run_id=run_id,
+            agent_id=run.agent_id,
+            user_id=active_identity.user_id,
+            event_type=CanonicalEventType.RUN_FAILED,
+            payload={"status": RunStatus.FAILED.value, "reason": reason},
+            terminal=True,
+            visibility="public",
+        )
+        return RunResult(
+            run_id=run_id,
+            status=RunStatus.FAILED,
             terminal_event=terminal.event_type.value,
         )
 
@@ -148,34 +210,48 @@ class RunOrchestrator:
         resume_token: ResumeToken | str,
         *,
         expected_run_id: str | None = None,
+        identity: IdentityContext | None = None,
     ) -> RunResult:
+        active_identity = identity or self._identity
         token_value = _resume_token_value(resume_token)
         async with self._storage.uow() as uow:
             checkpoint = await uow.checkpoints.get_by_resume_token(token_value)
-            if checkpoint is None:
-                raise LookupError(f"checkpoint not found: {token_value}")
+            if checkpoint is None or checkpoint.tenant_id != active_identity.tenant_id:
+                raise LookupError("checkpoint not found")
             # API route 的 path 里有 run_id。必须先校验 token 归属再完成 run，
             # 否则错误 URL 会推进 token 所属的另一个 run。
             if expected_run_id is not None and checkpoint.run_id != expected_run_id:
                 raise LookupError("resume token does not belong to run")
             run = await uow.runs.get(checkpoint.run_id)
-            if run is None:
+            if run is None or run.tenant_id != active_identity.tenant_id:
                 raise LookupError(f"run not found: {checkpoint.run_id}")
             if RunStatus(run.status) in TERMINAL_STATUSES:
                 raise InvalidRunTransition(f"run is terminal: {run.id}")
-        terminal = await self._complete(run.id, run.agent_id, output={"resumed": True})
+        terminal = await self._complete(
+            run.id,
+            run.agent_id,
+            output={"resumed": True},
+            identity=active_identity,
+        )
         return RunResult(
             run_id=run.id,
             status=RunStatus.COMPLETED,
             terminal_event=terminal.event_type.value,
         )
 
-    async def _checkpoint(self, run_id: str, agent_id: str, state: dict[str, Any]) -> ResumeToken:
+    async def _checkpoint(
+        self,
+        run_id: str,
+        agent_id: str,
+        state: dict[str, Any],
+        *,
+        identity: IdentityContext,
+    ) -> ResumeToken:
         resume_token = ResumeToken(value=f"resume-{uuid4()}")
         async with self._storage.uow() as uow:
             await uow.checkpoints.create(
                 CheckpointCreate(
-                    tenant_id=self._identity.tenant_id,
+                    tenant_id=identity.tenant_id,
                     run_id=run_id,
                     sequence=1,
                     resume_token=resume_token.value,
@@ -185,27 +261,54 @@ class RunOrchestrator:
             await uow.runs.set_status(run_id, RunStatus.WAITING.value)
             await uow.commit()
         await self._event_bus.publish(
-            tenant_id=self._identity.tenant_id,
+            tenant_id=identity.tenant_id,
             run_id=run_id,
             agent_id=agent_id,
-            user_id=self._identity.user_id,
+            user_id=identity.user_id,
             event_type=CanonicalEventType.CHECKPOINT_CREATED,
-            payload={"resume_token": resume_token.value, "state": state},
+            payload={"state": state},
         )
         return resume_token
 
-    async def _complete(self, run_id: str, agent_id: str, output: dict[str, Any]) -> CanonicalEvent:
+    async def record_guardrail_check(
+        self,
+        *,
+        run_id: str,
+        agent_id: str,
+        identity: IdentityContext,
+        payload: dict[str, Any],
+    ) -> CanonicalEvent:
+        """把 run 创建前的输入 guardrail 决策挂回 run event stream。"""
+
+        return await self._event_bus.publish(
+            tenant_id=identity.tenant_id,
+            run_id=run_id,
+            agent_id=agent_id,
+            user_id=identity.user_id,
+            event_type=CanonicalEventType.INPUT_GUARDRAIL_CHECKED,
+            payload=payload,
+        )
+
+    async def _complete(
+        self,
+        run_id: str,
+        agent_id: str,
+        output: dict[str, Any],
+        *,
+        identity: IdentityContext,
+    ) -> CanonicalEvent:
         async with self._storage.uow() as uow:
             await uow.runs.set_status(run_id, RunStatus.COMPLETED.value, output=output)
             await uow.commit()
         return await self._event_bus.publish(
-            tenant_id=self._identity.tenant_id,
+            tenant_id=identity.tenant_id,
             run_id=run_id,
             agent_id=agent_id,
-            user_id=self._identity.user_id,
+            user_id=identity.user_id,
             event_type=CanonicalEventType.RUN_COMPLETED,
             payload={"status": RunStatus.COMPLETED.value, "output": output},
             terminal=True,
+            visibility="public",
         )
 
 

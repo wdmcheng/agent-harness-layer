@@ -6,10 +6,34 @@ from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage as SQLAl
 from agent_harness.storage.migrations.runner import get_current_revision as get_current_revision
 from agent_harness.storage.migrations.runner import run_migrations as run_migrations
 from agent_harness.storage.repositories import (
+    ApiKeyCreate as ApiKeyCreate,
+)
+from agent_harness.storage.repositories import (
+    ApiKeyRecord as ApiKeyRecord,
+)
+from agent_harness.storage.repositories import (
+    ApprovalCreate as ApprovalCreate,
+)
+from agent_harness.storage.repositories import (
+    ApprovalRecord as ApprovalRecord,
+)
+from agent_harness.storage.repositories import (
+    AuditLogCreate as AuditLogCreate,
+)
+from agent_harness.storage.repositories import (
+    AuditLogRecord as AuditLogRecord,
+)
+from agent_harness.storage.repositories import (
     CheckpointCreate as CheckpointCreate,
 )
 from agent_harness.storage.repositories import (
     CheckpointRecord as CheckpointRecord,
+)
+from agent_harness.storage.repositories import (
+    PolicyRuleCreate as PolicyRuleCreate,
+)
+from agent_harness.storage.repositories import (
+    PolicyRuleRecord as PolicyRuleRecord,
 )
 from agent_harness.storage.repositories import (
     RunCreate as RunCreate,
@@ -29,8 +53,16 @@ from agent_harness.storage.repositories import (
 from agent_harness.storage.settings import storage_dsn_from_settings as storage_dsn_from_settings
 
 _REPOSITORY_DTO_EXPORTS = [
+    "ApiKeyCreate",
+    "ApiKeyRecord",
+    "ApprovalCreate",
+    "ApprovalRecord",
+    "AuditLogCreate",
+    "AuditLogRecord",
     "CheckpointCreate",
     "CheckpointRecord",
+    "PolicyRuleCreate",
+    "PolicyRuleRecord",
     "RunCreate",
     "RunRecord",
     "SessionCreate",

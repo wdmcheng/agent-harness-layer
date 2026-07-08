@@ -8,16 +8,35 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field
 
+from agent_harness.approvals import ApprovalService
 from agent_harness.contracts import ApiErrorEnvelope
 from agent_harness.contracts.dto import HarnessDTO
-from agent_harness.events import CanonicalEvent, CanonicalEventType, EventSink
+from agent_harness.contracts.trust import GuardrailDecisionStatus
+from agent_harness.events import CanonicalEvent, EventSink
+from agent_harness.identity import IdentityContext
+from agent_harness.policy import (
+    InputGuardrail,
+    PolicyCheck,
+    PolicyDeniedError,
+    PolicyEngine,
+    YamlPolicyProvider,
+)
 from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator, RunStatus
+from app.api.dependencies import (
+    current_identity,
+    get_input_guardrail,
+    get_optional_approval_service,
+    get_policy_engine,
+)
 
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     400: {"model": ApiErrorEnvelope},
+    401: {"model": ApiErrorEnvelope},
+    403: {"model": ApiErrorEnvelope},
     404: {"model": ApiErrorEnvelope},
     409: {"model": ApiErrorEnvelope},
+    422: {"model": ApiErrorEnvelope},
     500: {"model": ApiErrorEnvelope},
 }
 
@@ -40,7 +59,6 @@ class RunCreateResponse(HarnessDTO):
     run_id: str
     status: RunStatus
     terminal_event: str | None = None
-    resume_token: str | None = None
 
 
 class RunResumeRequest(HarnessDTO):
@@ -83,30 +101,80 @@ def public_events(events: list[CanonicalEvent], *, include_internal: bool) -> li
 
     if include_internal:
         return events
-    # Product-Spec 明确 `reasoning.delta` 默认不对普通用户暴露。其他 internal
-    # evidence 仍可由后续 auth/role 策略细分；这里先锁最危险的思维流泄漏边界。
-    return [event for event in events if event.event_type != CanonicalEventType.REASONING_DELTA]
+    return [event for event in events if event.visibility == "public"]
 
 
 async def create_run_with_orchestrator(
     request: RunCreateRequest,
     *,
     orchestrator: RunOrchestrator,
+    identity: IdentityContext | None = None,
+    policy: PolicyEngine | None = None,
+    input_guardrail: InputGuardrail | None = None,
+    approval_service: ApprovalService | None = None,
     request_id: str = "local",
 ) -> RunCreateResponse:
     # route 必须保持薄适配层。idempotency、状态转换、事件写入和 storage
     # transaction boundary 都归 runtime 管。
+    checkpoint_state: dict[str, Any] | None = None
+    guardrail_payload: dict[str, Any] | None = None
+    if identity is not None:
+        await _check_run_create_permission(
+            policy=policy,
+            identity=identity,
+            agent_id=request.agent_id,
+            request_id=request_id,
+        )
+    if identity is not None and input_guardrail is not None:
+        guardrail = await input_guardrail.check(
+            actor=identity,
+            agent_id=request.agent_id,
+            input=request.input,
+        )
+        guardrail_payload = guardrail.to_payload()
+        if guardrail.decision == GuardrailDecisionStatus.DENY.value:
+            raise PolicyDeniedError(guardrail.reason)
+        if guardrail.decision == GuardrailDecisionStatus.REQUIRE_APPROVAL.value:
+            checkpoint_state = {
+                "reason": guardrail.reason,
+                "policy": guardrail_payload,
+            }
+
     result = await orchestrator.start_run(
         agent_id=request.agent_id,
         input=request.input,
         idempotency_key=request.idempotency_key,
+        checkpoint_state=checkpoint_state,
+        identity=identity,
     )
+    if identity is not None and guardrail_payload is not None:
+        await orchestrator.record_guardrail_check(
+            run_id=result.run_id,
+            agent_id=request.agent_id,
+            identity=identity,
+            payload=guardrail_payload,
+        )
+    if (
+        identity is not None
+        and approval_service is not None
+        and checkpoint_state is not None
+        and result.resume_token is not None
+    ):
+        await approval_service.require_approval(
+            actor=identity,
+            run_id=result.run_id,
+            agent_id=request.agent_id,
+            action="input.prompt_injection",
+            resource=f"agent:{request.agent_id}:input",
+            reason=checkpoint_state["reason"],
+            resume_token=result.resume_token,
+            request_id=request_id,
+        )
     return RunCreateResponse(
         request_id=request_id,
         run_id=result.run_id,
         status=result.status,
         terminal_event=result.terminal_event,
-        resume_token=result.resume_token.value if result.resume_token is not None else None,
     )
 
 
@@ -114,15 +182,15 @@ async def get_run_with_orchestrator(
     run_id: str,
     *,
     orchestrator: RunOrchestrator,
+    identity: IdentityContext | None = None,
     request_id: str = "local",
 ) -> RunCreateResponse:
-    result = await orchestrator.get_run(run_id)
+    result = await orchestrator.get_run(run_id, identity=identity)
     return RunCreateResponse(
         request_id=request_id,
         run_id=result.run_id,
         status=result.status,
         terminal_event=result.terminal_event,
-        resume_token=result.resume_token.value if result.resume_token is not None else None,
     )
 
 
@@ -133,6 +201,10 @@ async def create_agent_run(
     request: AgentRunCreateRequest,
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
     registry: Annotated[AgentRegistry, Depends(get_agent_registry)],
+    identity: Annotated[IdentityContext, Depends(current_identity)],
+    input_guardrail: Annotated[InputGuardrail | None, Depends(get_input_guardrail)],
+    approval_service: Annotated[ApprovalService | None, Depends(get_optional_approval_service)],
+    policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
 ) -> RunCreateResponse:
     """创建 agent-scoped run，agent_id 来自稳定 URL 边界。"""
 
@@ -144,6 +216,10 @@ async def create_agent_run(
             idempotency_key=request.idempotency_key,
         ),
         orchestrator=orchestrator,
+        identity=identity,
+        policy=policy,
+        input_guardrail=input_guardrail,
+        approval_service=approval_service,
         request_id=request_id_from(http_request),
     )
 
@@ -152,6 +228,7 @@ async def create_agent_run(
 async def get_run(
     http_request: Request,
     run_id: str,
+    identity: Annotated[IdentityContext, Depends(current_identity)],
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
 ) -> RunCreateResponse:
     """读取 run detail，不把 ORM model 暴露给 API 调用方。"""
@@ -159,6 +236,7 @@ async def get_run(
     return await get_run_with_orchestrator(
         run_id,
         orchestrator=orchestrator,
+        identity=identity,
         request_id=request_id_from(http_request),
     )
 
@@ -167,13 +245,19 @@ async def get_run(
 async def read_run_events(
     http_request: Request,
     run_id: str,
+    identity: Annotated[IdentityContext, Depends(current_identity)],
     event_sink: Annotated[EventSink, Depends(get_event_sink)],
+    orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
+    policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
     after_seq: int = Query(default=0, ge=0),
     include_internal: bool = Query(default=False),
 ) -> RunEventsResponse:
     """按 seq 读取 event stream，供 SSE/API resume 共用。"""
 
     # 这里读取 CanonicalEvent DTO，而不是返回 storage/event sink 私有对象。
+    await orchestrator.get_run(run_id, identity=identity)
+    if include_internal:
+        await _check_internal_event_permission(policy=policy, identity=identity, run_id=run_id)
     events = await event_sink.read(run_id=run_id, after_seq=after_seq)
     return RunEventsResponse(
         request_id=request_id_from(http_request),
@@ -186,10 +270,11 @@ async def cancel_run(
     http_request: Request,
     run_id: str,
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
+    identity: Annotated[IdentityContext, Depends(current_identity)],
 ) -> RunCreateResponse:
     """取消尚未 terminal 的 run。"""
 
-    result = await orchestrator.cancel_run(run_id)
+    result = await orchestrator.cancel_run(run_id, identity=identity)
     return RunCreateResponse(
         request_id=request_id_from(http_request),
         run_id=result.run_id,
@@ -204,10 +289,15 @@ async def resume_run(
     run_id: str,
     request: RunResumeRequest,
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
+    identity: Annotated[IdentityContext, Depends(current_identity)],
 ) -> RunCreateResponse:
     """使用 resume token 恢复 checkpointed run。"""
 
-    result = await orchestrator.resume_run(request.resume_token, expected_run_id=run_id)
+    result = await orchestrator.resume_run(
+        request.resume_token,
+        expected_run_id=run_id,
+        identity=identity,
+    )
     return RunCreateResponse(
         request_id=request_id_from(http_request),
         run_id=result.run_id,
@@ -219,3 +309,38 @@ async def resume_run(
 # 兼容 contract tests 和 template examples：它们可以直接调用同一段适配逻辑，
 # 不必为了证明 route 逻辑而启动完整 FastAPI app。
 create_run_for_test = create_run_with_orchestrator
+
+
+async def _check_internal_event_permission(
+    *,
+    policy: PolicyEngine | None,
+    identity: IdentityContext,
+    run_id: str,
+) -> None:
+    engine = policy or PolicyEngine(provider=YamlPolicyProvider.default())
+    await engine.require_allowed(
+        PolicyCheck(
+            actor=identity,
+            action="events.read_internal",
+            resource=f"run:{run_id}:events",
+            context={"include_internal": True},
+        )
+    )
+
+
+async def _check_run_create_permission(
+    *,
+    policy: PolicyEngine | None,
+    identity: IdentityContext,
+    agent_id: str,
+    request_id: str,
+) -> None:
+    engine = policy or PolicyEngine(provider=YamlPolicyProvider.default())
+    await engine.require_allowed(
+        PolicyCheck(
+            actor=identity,
+            action="run.create",
+            resource=f"agent:{agent_id}:run",
+            context={"agent_id": agent_id, "request_id": request_id},
+        )
+    )

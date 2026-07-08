@@ -34,7 +34,17 @@ class PolicySettings(HarnessDTO):
     """策略 provider 和危险动作默认清单。"""
 
     provider: str
+    path: str | None = None
     require_approval_actions: list[str] = Field(default_factory=list)
+    deny_actions: list[str] = Field(default_factory=list)
+
+
+class AuthSettings(HarnessDTO):
+    """API 认证配置；local 默认允许无 token 使用默认 identity。"""
+
+    provider: str = "local"
+    required: bool = False
+    dev_bearer_token: str | None = None
 
 
 class ModelSettings(HarnessDTO):
@@ -99,6 +109,7 @@ class HarnessSettings(HarnessDTO):
     storage: StorageSettings
     queue: QueueSettings
     observability: ObservabilitySettings
+    auth: AuthSettings = Field(default_factory=AuthSettings)
     policy: PolicySettings
     model: ModelSettings
     identity: IdentitySettings = Field(default_factory=IdentitySettings)

@@ -5,9 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from agent_harness.approvals import ApprovalService
 from agent_harness.artifacts import FileArtifactStore
+from agent_harness.audit import AuditService
+from agent_harness.auth import ApiKeyVerifier, StaticTokenVerifier, TokenVerifier
 from agent_harness.config import load_settings
 from agent_harness.events import EventBus, EventSink, LocalJsonlEventSink
+from agent_harness.policy import (
+    DatabasePolicyProvider,
+    InputGuardrail,
+    PolicyEngine,
+    YamlPolicyProvider,
+)
 from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator
 from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
@@ -21,6 +30,10 @@ class RuntimeComponents:
     event_sink: EventSink
     orchestrator: RunOrchestrator
     registry: AgentRegistry
+    auth_verifier: TokenVerifier | None
+    policy_engine: PolicyEngine
+    input_guardrail: InputGuardrail
+    approval_service: ApprovalService
 
     async def close(self) -> None:
         await self.storage.dispose()
@@ -58,13 +71,55 @@ def build_runtime_components(
         sink=event_sink,
         artifact_store=FileArtifactStore(artifact_root),
     )
+    audit = AuditService(storage=storage)
+    if settings.policy.provider == "db":
+        policy_provider = DatabasePolicyProvider(storage=storage)
+    else:
+        policy_path = None
+        if settings.policy.path is not None:
+            configured_path = Path(settings.policy.path)
+            policy_path = (
+                configured_path if configured_path.is_absolute() else service_root / configured_path
+            )
+        policy_provider = (
+            YamlPolicyProvider.from_path(
+                policy_path,
+                fallback_require_approval_actions=settings.policy.require_approval_actions,
+                fallback_deny_actions=settings.policy.deny_actions,
+            )
+            if policy_path is not None
+            else YamlPolicyProvider(
+                require_approval_actions=settings.policy.require_approval_actions,
+                deny_actions=settings.policy.deny_actions,
+            )
+        )
+    policy_engine = PolicyEngine(provider=policy_provider, audit=audit)
+    auth_verifier: TokenVerifier | None = None
+    if settings.auth.dev_bearer_token is not None:
+        auth_verifier = StaticTokenVerifier(
+            {settings.auth.dev_bearer_token: settings.identity.default}
+        )
+    elif settings.auth.required or settings.auth.provider == "api-key":
+        auth_verifier = ApiKeyVerifier(storage=storage)
+    orchestrator = RunOrchestrator(
+        storage=storage,
+        event_bus=event_bus,
+        identity=settings.identity.default,
+    )
+    input_guardrail = InputGuardrail(policy=policy_engine, audit=audit)
+    approval_service = ApprovalService(
+        storage=storage,
+        event_bus=event_bus,
+        orchestrator=orchestrator,
+        audit=audit,
+    )
     return RuntimeComponents(
         storage=storage,
         event_sink=event_sink,
-        orchestrator=RunOrchestrator(
-            storage=storage,
-            event_bus=event_bus,
-            identity=settings.identity.default,
-        ),
+        orchestrator=orchestrator,
         registry=AgentRegistry.load_from_directory(service_root / "agents"),
+        auth_verifier=auth_verifier,
+        policy_engine=policy_engine,
+        input_guardrail=input_guardrail,
+        approval_service=approval_service,
     )

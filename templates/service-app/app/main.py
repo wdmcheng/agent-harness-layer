@@ -8,14 +8,28 @@ from pathlib import Path
 from typing import cast
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from agent_harness.approvals import ApprovalService, ApprovalStateConflict
+from agent_harness.auth import AuthError, TokenVerifier
 from agent_harness.contracts import ApiErrorEnvelope, ErrorDetail
 from agent_harness.events import EventSink
+from agent_harness.policy import InputGuardrail, PolicyDeniedError, PolicyEngine
 from agent_harness.registry import RegistryLoadError
 from agent_harness.runtime import InvalidRunTransition, RunOrchestrator
+from agent_harness.security.redaction import redact_secrets
+from app.api.dependencies import (
+    get_approval_service,
+    get_auth_verifier,
+    get_input_guardrail,
+    get_optional_approval_service,
+    get_policy_engine,
+)
 from app.api.routes.agents import get_agent_registry as get_agents_route_registry
 from app.api.routes.agents import router as agents_router
+from app.api.routes.approvals import router as approvals_router
+from app.api.routes.policies import router as policies_router
 from app.api.routes.runs import (
     get_agent_registry as get_runs_route_registry,
 )
@@ -32,7 +46,7 @@ def api_error_response(
     status_code: int,
 ) -> JSONResponse:
     envelope = ApiErrorEnvelope(
-        error=ErrorDetail(code=code, message=message, request_id=request_id)
+        error=ErrorDetail(code=code, message=str(redact_secrets(message)), request_id=request_id)
     )
     return JSONResponse(status_code=status_code, content=envelope.to_payload())
 
@@ -46,6 +60,10 @@ def create_app(
     storage_dsn: str | None = None,
     events_path: Path | None = None,
     registry: object | None = None,
+    auth_verifier: TokenVerifier | None = None,
+    policy_engine: PolicyEngine | None = None,
+    input_guardrail: InputGuardrail | None = None,
+    approval_service: ApprovalService | None = None,
 ) -> FastAPI:
     """创建已注册 run routes 的 FastAPI app。
 
@@ -64,6 +82,10 @@ def create_app(
         orchestrator = orchestrator or components.orchestrator
         event_sink = event_sink or components.event_sink
         registry = registry or components.registry
+        auth_verifier = auth_verifier or components.auth_verifier
+        policy_engine = policy_engine or components.policy_engine
+        input_guardrail = input_guardrail or components.input_guardrail
+        approval_service = approval_service or components.approval_service
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
@@ -76,6 +98,8 @@ def create_app(
     app = FastAPI(title="Agent Harness Service", lifespan=lifespan)
     app.include_router(agents_router)
     app.include_router(runs_router)
+    app.include_router(approvals_router)
+    app.include_router(policies_router)
 
     async def http_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         http_exc = cast(HTTPException, exc)
@@ -104,6 +128,41 @@ def create_app(
             code="run.invalid_transition",
             message=str(exc),
             status_code=409,
+        )
+
+    async def auth_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        auth_exc = cast(AuthError, exc)
+        return api_error_response(
+            request_id=request_id_from(request),
+            code=auth_exc.code,
+            message=str(auth_exc),
+            status_code=auth_exc.status_code,
+        )
+
+    async def policy_denied_handler(request: Request, exc: Exception) -> JSONResponse:
+        policy_exc = cast(PolicyDeniedError, exc)
+        return api_error_response(
+            request_id=request_id_from(request),
+            code=policy_exc.code,
+            message=str(policy_exc),
+            status_code=policy_exc.status_code,
+        )
+
+    async def approval_conflict_handler(request: Request, exc: Exception) -> JSONResponse:
+        approval_exc = cast(ApprovalStateConflict, exc)
+        return api_error_response(
+            request_id=request_id_from(request),
+            code=approval_exc.code,
+            message=str(approval_exc),
+            status_code=approval_exc.status_code,
+        )
+
+    async def validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        return api_error_response(
+            request_id=request_id_from(request),
+            code="validation_error",
+            message="request validation failed",
+            status_code=422,
         )
 
     async def registry_load_error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -136,6 +195,10 @@ def create_app(
         )
 
     app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(AuthError, auth_error_handler)
+    app.add_exception_handler(PolicyDeniedError, policy_denied_handler)
+    app.add_exception_handler(ApprovalStateConflict, approval_conflict_handler)
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(LookupError, lookup_error_handler)
     app.add_exception_handler(InvalidRunTransition, invalid_transition_handler)
     app.add_exception_handler(RegistryLoadError, registry_load_error_handler)
@@ -147,4 +210,10 @@ def create_app(
     app.dependency_overrides[get_event_sink] = lambda: event_sink
     app.dependency_overrides[get_agents_route_registry] = lambda: registry
     app.dependency_overrides[get_runs_route_registry] = lambda: registry
+    app.dependency_overrides[get_auth_verifier] = lambda: auth_verifier
+    app.dependency_overrides[get_policy_engine] = lambda: policy_engine
+    app.dependency_overrides[get_input_guardrail] = lambda: input_guardrail
+    if approval_service is not None:
+        app.dependency_overrides[get_approval_service] = lambda: approval_service
+        app.dependency_overrides[get_optional_approval_service] = lambda: approval_service
     return app

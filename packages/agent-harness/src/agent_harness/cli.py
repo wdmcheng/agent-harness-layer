@@ -7,9 +7,13 @@ from typing import Annotated
 
 import typer
 
+from agent_harness.approvals import ApprovalService
 from agent_harness.artifacts import FileArtifactStore
-from agent_harness.config import SettingsLoadError, load_settings
+from agent_harness.audit import AuditService
+from agent_harness.cli_access import register_access_commands
+from agent_harness.cli_shared import event_path, load_settings_or_exit, policy_engine
 from agent_harness.events import EventBus, LocalJsonlEventSink
+from agent_harness.policy import InputGuardrail, PolicyCheck, PolicyDeniedError
 from agent_harness.registry import AgentRegistry, RegistryLoadError
 from agent_harness.runtime import RunOrchestrator
 from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
@@ -23,6 +27,7 @@ from agent_harness.storage.diagnostics import (
 app = typer.Typer(no_args_is_help=True)
 agents_app = typer.Typer(no_args_is_help=True)
 app.add_typer(agents_app, name="agents")
+register_access_commands(app)
 
 
 @app.callback()
@@ -38,14 +43,7 @@ def doctor(
 ) -> None:
     """校验 profile 配置，并按 profile 类型报告本地或 service 依赖状态。"""
 
-    try:
-        settings = load_settings(profile=profile, profiles_dir=profiles_dir)
-    except SettingsLoadError as exc:
-        for error in exc.errors:
-            field = f" field={error.field_path}" if error.field_path else ""
-            hint = f" hint={error.hint}" if error.hint else ""
-            typer.echo(f"{error.code}:{field} {error.message}{hint}", err=True)
-        raise typer.Exit(1) from exc
+    settings = load_settings_or_exit(profile, profiles_dir)
 
     key_status = "api key required" if settings.model.requires_api_key else "api key not required"
     typer.echo(f"profile: {settings.profile}")
@@ -83,17 +81,11 @@ def run(
         "templates/service-app/agents"
     ),
     idempotency_key: Annotated[str | None, typer.Option("--idempotency-key")] = None,
+    prompt: Annotated[str | None, typer.Option("--prompt")] = None,
 ) -> None:
     """运行内置 fake agent，验证 runtime、storage 和 event seam。"""
 
-    try:
-        settings = load_settings(profile=profile, profiles_dir=profiles_dir)
-    except SettingsLoadError as exc:
-        for error in exc.errors:
-            field = f" field={error.field_path}" if error.field_path else ""
-            hint = f" hint={error.hint}" if error.hint else ""
-            typer.echo(f"{error.code}:{field} {error.message}{hint}", err=True)
-        raise typer.Exit(1) from exc
+    settings = load_settings_or_exit(profile, profiles_dir)
 
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
     try:
@@ -106,32 +98,79 @@ def run(
         raise typer.Exit(1) from exc
 
     run_migrations(resolved_dsn)
-    resolved_events_path = events_path
-    if resolved_events_path is None:
-        resolved_events_path = Path(settings.observability.path or ".agent-harness/traces.jsonl")
+    resolved_events_path = event_path(settings, events_path)
     artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
+    audit = AuditService(storage=storage)
+    policy = policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
+    event_bus = EventBus(
+        sink=LocalJsonlEventSink(resolved_events_path),
+        artifact_store=FileArtifactStore(artifact_root),
+    )
     orchestrator = RunOrchestrator(
         storage=storage,
         # CLI 也带 artifact store；否则本地命令路径会绕过“大 payload 只留
         # payload_ref”的事件规则。
-        event_bus=EventBus(
-            sink=LocalJsonlEventSink(resolved_events_path),
-            artifact_store=FileArtifactStore(artifact_root),
-        ),
+        event_bus=event_bus,
         identity=settings.identity.default,
     )
+    approval_service = ApprovalService(
+        storage=storage,
+        event_bus=event_bus,
+        orchestrator=orchestrator,
+        audit=audit,
+    )
+    input_payload = {"source": "cli"}
+    if prompt is not None:
+        input_payload["prompt"] = prompt
 
     import asyncio
 
-    try:
-        result = asyncio.run(
-            orchestrator.start_run(
-                agent_id=agent_id,
-                input={"source": "cli"},
-                idempotency_key=idempotency_key,
-            )
+    async def _run():
+        guardrail = InputGuardrail(policy=policy, audit=audit)
+        decision = await guardrail.check(
+            actor=settings.identity.default,
+            agent_id=agent_id,
+            input=input_payload,
         )
+        if decision.decision == "deny":
+            raise PolicyDeniedError(decision.reason)
+        checkpoint_state = None
+        if decision.decision == "require_approval":
+            checkpoint_state = {
+                "reason": decision.reason,
+                "policy": decision.to_payload(),
+            }
+        run_result = await orchestrator.start_run(
+            agent_id=agent_id,
+            input=input_payload,
+            idempotency_key=idempotency_key,
+            checkpoint_state=checkpoint_state,
+            identity=settings.identity.default,
+        )
+        await orchestrator.record_guardrail_check(
+            run_id=run_result.run_id,
+            agent_id=agent_id,
+            identity=settings.identity.default,
+            payload=decision.to_payload(),
+        )
+        if checkpoint_state is not None and run_result.resume_token is not None:
+            await approval_service.require_approval(
+                actor=settings.identity.default,
+                run_id=run_result.run_id,
+                agent_id=agent_id,
+                action="input.prompt_injection",
+                resource=f"agent:{agent_id}:input",
+                reason=decision.reason,
+                resume_token=run_result.resume_token,
+            )
+        return run_result
+
+    try:
+        result = asyncio.run(_run())
+    except PolicyDeniedError as exc:
+        typer.echo(f"policy.denied: {exc}", err=True)
+        raise typer.Exit(1) from exc
     finally:
         asyncio.run(storage.dispose())
 
@@ -145,9 +184,13 @@ def list_agents(
     agents_dir: Annotated[Path, typer.Option("--agents-dir")] = Path(
         "templates/service-app/agents"
     ),
+    profile: Annotated[str, typer.Option("--profile")] = "local",
+    profiles_dir: Annotated[Path | None, typer.Option("--profiles-dir")] = None,
+    storage_dsn: Annotated[str | None, typer.Option("--storage-dsn")] = None,
 ) -> None:
     """列出 registry 中已配置的 agent public descriptor。"""
 
+    settings = load_settings_or_exit(profile, profiles_dir)
     try:
         registry = AgentRegistry.load_from_directory(agents_dir)
     except RegistryLoadError as exc:
@@ -156,6 +199,32 @@ def list_agents(
             hint = f" hint={error.hint}" if error.hint else ""
             typer.echo(f"{error.code}:{field} {error.message}{hint}", err=True)
         raise typer.Exit(1) from exc
+
+    resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
+    run_migrations(resolved_dsn)
+    storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
+    audit = AuditService(storage=storage)
+    policy = policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
+
+    import asyncio
+
+    async def _check_visibility() -> None:
+        await policy.require_allowed(
+            PolicyCheck(
+                actor=settings.identity.default,
+                action="agents.list",
+                resource="agents",
+                context={"source": "cli"},
+            )
+        )
+
+    try:
+        asyncio.run(_check_visibility())
+    except PolicyDeniedError as exc:
+        typer.echo(f"policy.denied: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    finally:
+        asyncio.run(storage.dispose())
 
     for descriptor in registry.list_agents():
         typer.echo(f"{descriptor.agent_id}\t{descriptor.name}\t{descriptor.model_policy.provider}")

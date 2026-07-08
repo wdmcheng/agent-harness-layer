@@ -11,33 +11,32 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context` 均已归档，并同步为主规格。
-- 代码状态: Phase 1-6 已完成实现、验证、code-review 和 OpenSpec 归档；Phase 6 新增 Agent Registry、模型路由、ContextAssembler、Embedding provider/cache、`AGT-001` API/CLI 契约和 PostgreSQL/Redis service smoke 证据。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals` 均已归档，并同步为主规格。
+- 代码状态: Phase 1-7 已完成实现、验证和 code-review；Phase 7 新增 API Key / Bearer Token 认证、PolicyEngine、InputGuardrail、HITL approval、audit evidence、approval/policy API 和 CLI seam，并通过 PostgreSQL/Redis service smoke 证据。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1-6 已实现并通过本地验证；Phase 7-15 仍待实现。 |
-| 当前 Phase | Phase 6 完成 | `agent-registry-model-context` 已归档到 `openspec/changes/archive/2026-07-08-agent-registry-model-context/`，主规格已同步到 `openspec/specs/agent-registry-model-context/spec.md`。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-6 已完成本地收口流程。 |
-| 当前 OpenSpec change | 无 active change | `openspec list --json` 输出 `changes: []`；归档后 `openspec validate --all --strict` 为 11 passed。 |
-| 当前验证基线 | 全量通过 | 本轮已通过 `uv sync`、`make quality`、`make test`（54 passed, 1 skipped）、Phase 6 局部 contract tests（14 passed）、`uv run agent-harness agents list --agents-dir templates/service-app/agents`、`make smoke-local`、`make smoke-service`（PostgreSQL/Redis，`migration=0002_context_embedding_cache`，`embedding_cache=hit`）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
+| 总体状态 | 进行中 | Phase 1-7 已实现并通过本地验证；Phase 8-15 仍待实现。 |
+| 当前 Phase | Phase 7 完成 | `auth-policy-hitl-approvals` 已归档到 `openspec/changes/archive/2026-07-08-auth-policy-hitl-approvals/`，主规格已同步到 `openspec/specs/auth-policy-hitl-approvals/spec.md`。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-7 已完成本地收口流程。 |
+| 当前 OpenSpec change | 无 active change | `openspec list --json` 输出 `changes: []`；归档后 `openspec validate --all --strict` 为 12 passed。 |
+| 当前验证基线 | 全量通过 | 本轮已通过 `uv sync`、`make quality`、`make test`（68 passed, 1 skipped）、Phase 7 局部 contract tests（18 passed）、`make smoke-local`、`make smoke-service`（PostgreSQL/Redis，`migration=0003_auth_policy_hitl_approvals`）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
 | 当前阻塞项 | 无 | 剩余是本轮本地提交。 |
-| 当前建议下一步 | 启动 Phase 7 proposal | 本轮提交后，从 Phase 7 认证、PolicyEngine 与 HITL 审批开始新的窄 OpenSpec change。 |
+| 当前建议下一步 | 启动 Phase 8 proposal | 本轮提交后，从 Phase 8 ToolRegistry、FileTool、ShellTool 与 MCP Client 开始新的窄 OpenSpec change。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 完成本轮本地提交。
-- 下一轮为 Phase 7 创建新的窄 OpenSpec change：认证、PolicyEngine 与 HITL 审批。
-- Phase 7 proposal 开工前，先扩展 `API-Contract.md` 中 approval/policy/auth 相关 endpoint，并新增对应局部 OpenAPI 漂移检查。
+- 完成本轮 Phase 7 归档和本地提交。
+- 下一轮为 Phase 8 创建新的窄 OpenSpec change：ToolRegistry、FileTool、ShellTool 与 MCP Client。
+- Phase 8 proposal 开工前，先扩展 `API-Contract.md` 中 tool/file/shell/MCP 相关 endpoint 或 CLI/API seam，并新增对应局部 contract tests。
 
 ### 后续 Phase
 
-- Phase 7: 认证、PolicyEngine 与 HITL 审批。
 - Phase 8: ToolRegistry、FileTool、ShellTool 与 MCP Client。
 - Phase 9: RetrievalProvider 与 RAG 能力。
 - Phase 10: Observability Provider Adapters 与脱敏。
@@ -49,7 +48,7 @@
 
 ### 尚未完成的关键验收
 
-- policy、tools、retrieval、provider observability adapter、eval gate 和 release automation 尚未实现。
+- tools、retrieval、provider observability adapter、eval gate 和 release automation 尚未实现。
 - GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
 - 深度文档、ADR、未来微服务拆分边界文档尚未完成。
 
@@ -335,15 +334,16 @@ Phase 1 Monorepo / quality spine
 - 实现 approval required、approve/deny、checkpoint resume 的 HTTP/CLI 闭环。
 
 **关键文件**：
-- `packages/agent-harness/src/agent_harness/auth/api_key.py` - API key / bearer 认证。
-- `packages/agent-harness/src/agent_harness/policy/engine.py` - policy decision 核心。
-- `packages/agent-harness/src/agent_harness/policy/providers.py` - YAML 和 DB provider interface。
-- `packages/agent-harness/src/agent_harness/policy/defaults.py` - 默认 require_approval 清单。
+- `packages/agent-harness/src/agent_harness/auth/tokens.py` - API key / bearer token verifier、token hash 和结构化认证错误。
+- `packages/agent-harness/src/agent_harness/policy/engine.py` - policy decision、YAML provider、DB provider interface、InputGuardrail 和默认危险动作策略。
 - `packages/agent-harness/src/agent_harness/approvals/service.py` - approval create/resolve/resume。
 - `packages/agent-harness/src/agent_harness/audit/service.py` - audit log 写入。
-- `templates/service-app/app/api/dependencies/auth.py` - API 认证依赖。
+- `templates/service-app/app/api/dependencies.py` - API 认证、policy、guardrail 和 approval dependency。
+- `templates/service-app/app/api/routes/agents.py` - agent list 可见性 policy check。
+- `templates/service-app/app/api/routes/runs.py` - run create `run.create` policy gate、InputGuardrail、approval/checkpoint 接入和 event visibility 过滤。
 - `templates/service-app/app/api/routes/approvals.py` - approval API routes。
-- `templates/service-app/app/cli/approvals.py` - approval CLI。
+- `templates/service-app/app/api/routes/policies.py` - policy check API。
+- `packages/agent-harness/src/agent_harness/cli.py` - policy check 和 approvals list/approve/deny CLI。
 - `templates/service-app/configs/policy/default.yaml` - 默认策略配置。
 
 **验收标准**：
@@ -352,6 +352,13 @@ Phase 1 Monorepo / quality spine
 - shell、删除文件、workspace 外访问、写 approved dataset、修改 policy 等动作默认产生 `approval.required` 或被拒绝。
 - approve 后 run 从 checkpoint resume，deny 后 run 按策略失败或 fallback，audit log 记录审批人、动作、结果和 trace。
 - `API-Contract.md` 中 auth、policy、approval 相关 endpoint 已扩展为完整条目，局部 OpenAPI drift test 覆盖 401/403、`ApiErrorEnvelope`、approval 状态冲突和 request_id。
+
+**实现证据**：
+- OpenSpec change `auth-policy-hitl-approvals` 已通过 artifact review 和 code-reviewer Stage 1/2 PASS；主规格已同步到 `openspec/specs/auth-policy-hitl-approvals/spec.md`。
+- API 契约已扩展 `APR-001`、`APR-002`、`POL-001` 和 `AGT-001`，并明确 `RunCreateResponse` 不暴露 `resume_token`、`PolicyDecisionResponse.audit_ref` 为必填、run create 前必须通过 `run.create` policy check。
+- 存储层复用 `0001` 已有 `policy_rules` / `audit_logs`，并通过 `0003_auth_policy_hitl_approvals` 新增 `api_keys` / `approvals`；`make smoke-service` 已在 PostgreSQL/Redis 上验证 migration=`0003_auth_policy_hitl_approvals`。
+- Phase 7 contract tests 已拆分为 auth/openapi、policy/guardrail/audit、approval API/CLI 和 event visibility 四组，覆盖无效 token no-side-effect、低权限 `run.create` 403、默认危险动作、approval 状态机、租户隔离、audit evidence 标准字段和 internal event 权限。
+- 验证命令已通过：`uv sync`、`make quality`、`make test`（68 passed, 1 skipped）、`uv run pytest tests/contracts/test_auth_policy_hitl_openapi_contracts.py tests/contracts/test_auth_policy_hitl_*_contracts.py tests/contracts/test_typed_config_contracts.py -q`（18 passed）、`make smoke-local`、`make smoke-service`、`make build`、`make license-check`、`uv run pre-commit run --all-files`、归档前 `openspec validate auth-policy-hitl-approvals --type change --strict` 和归档后 `openspec validate --all --strict`（12 passed）。
 
 ---
 

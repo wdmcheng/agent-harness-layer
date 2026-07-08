@@ -87,13 +87,14 @@
 当前状态：
 
 - 已有 `IdentityContext` / `PermissionContext` 和 default tenant/user contract。
-- 当前已实现 run routes 还没有 FastAPI auth dependency；local/template 路径用于开发、测试和 smoke。
+- 当前已实现 agents/run/policy/approval routes 已接入 FastAPI auth dependency；local/dev profile 未配置 verifier 时注入默认身份，service/API key profile 要求 Bearer/API key。
 
-目标状态：
+当前规则：
 
-- 认证能力落地后，除明确的 health/local dev seam 外，mutating API 必须支持 API Key / Bearer Token。
+- 除明确的 health/local dev seam 外，mutating API 必须支持 API Key / Bearer Token。
 - 认证层必须注入 `IdentityContext`，未启用多租户时使用默认 `tenant_id="default"`。
 - 无效 token 调用受保护 API 必须返回认证错误且不创建 run、approval、eval case 或 audit side effect。
+- `GET /api/v1/agents` 已接入认证和 tenant/identity 可见性过滤；该 route 不创建资源，但仍不得向未授权调用方暴露 descriptor。
 
 ### 4.3 通用请求头
 
@@ -102,7 +103,7 @@
 | `Accept` | No | 默认 `application/json`；未来 SSE endpoint 使用 `text/event-stream`。 |
 | `Content-Type` | Conditional | JSON mutating request 使用 `application/json`。 |
 | `X-Request-Id` | No | 调用方可传；服务端没有收到时生成 UUID，并写入响应 body 的 `request_id`。 |
-| `Authorization` | 认证能力落地后 Conditional | `Bearer <token>` 或等价 API key 方案。当前已实现 run routes 尚未接入。 |
+| `Authorization` | Conditional | 认证 profile 启用 verifier 时必填 `Bearer <token>` 或等价 API key；local/dev profile 未配置 verifier 时由服务端注入默认身份。 |
 
 ### 4.4 通用响应格式
 
@@ -157,7 +158,7 @@
 | 202 | 未来异步排队成功时可用；必须返回 task/run id。 |
 | 204 | 成功且无响应体。 |
 | 400 | 请求语义错误或 HTTPException 400。 |
-| 401 | 未认证或 token 无效，认证能力落地后适用。 |
+| 401 | 未认证或 token 无效；local/dev profile 未配置 verifier 时不要求 Authorization。 |
 | 403 | 已认证但权限、policy 或可见性限制不通过。 |
 | 404 | 资源不存在，或对当前身份不可见。 |
 | 409 | run 状态冲突、非法 transition、重复资源或 approval 状态冲突。 |
@@ -266,8 +267,7 @@
   "request_id": "req_123",
   "run_id": "run_123",
   "status": "completed",
-  "terminal_event": "run.completed",
-  "resume_token": "resume_123"
+  "terminal_event": "run.completed"
 }
 ```
 
@@ -279,7 +279,8 @@
 | `run_id` | string | Yes | run 稳定 ID。 |
 | `status` | `RunStatus` | Yes | 当前 run 状态。 |
 | `terminal_event` | string | No | terminal run event，例如 `run.completed`。非 terminal 状态可为空。 |
-| `resume_token` | string | No | run 处于 waiting/checkpoint 状态时可返回。调用方不得解析 token 格式。 |
+
+安全边界：`RunCreateResponse` 不返回 `resume_token`。恢复 token 只允许经 `RunResumeRequest` 输入，或由内部 approval service seam 持有；公共 response 和默认事件列表不得泄露 token。
 
 ### 5.7 `RunResumeRequest`
 
@@ -408,6 +409,170 @@
 | `request_id` | string | Yes | API 请求关联 ID。 |
 | `agents` | `AgentDescriptor[]` | Yes | registry 中已配置 agent 的 public descriptor 列表。空数组表示 registry 可用但没有 agent。 |
 
+### 5.12 `PolicyCheckRequest`
+
+```json
+{
+  "resource": "tool:shell",
+  "action": "shell.execute",
+  "context": {
+    "run_id": "run_123",
+    "trace_id": "trace_123"
+  }
+}
+```
+
+字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `resource` | string | Yes | 被检查资源，例如 `run:<id>`、`tool:shell`、`policy:default`。 |
+| `action` | string | Yes | 稳定动作名，例如 `run.create`、`shell.execute`、`policy.modify`。 |
+| `context` | object | No | 调用上下文。只能写摘要、ID、source/trust metadata，不得放完整 secret 或大 payload。 |
+
+### 5.13 `PolicyDecisionResponse`
+
+```json
+{
+  "request_id": "req_123",
+  "decision": "require_approval",
+  "reason": "dangerous action requires approval",
+  "matched_rules": ["default-dangerous-actions"],
+  "audit_ref": "audit_123",
+  "approval": {
+    "required": true,
+    "action": "shell.execute",
+    "resource": "tool:shell"
+  }
+}
+```
+
+字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `request_id` | string | Yes | API 请求关联 ID。 |
+| `decision` | `allow` / `deny` / `require_approval` | Yes | policy / guardrail 共用三态决策。 |
+| `reason` | string | Yes | 面向调用方的决策原因，必须脱敏。 |
+| `matched_rules` | string[] | Yes | 命中的规则摘要；不得暴露内部 Python 对象或 DB handle。 |
+| `audit_ref` | string | Yes | audit log 引用；`POST /api/v1/policies/check` 必须返回。 |
+| `approval` | object | No | `require_approval` 时的审批摘要，不直接替代 approval record。 |
+
+### 5.14 `ApprovalStatus`
+
+| 值 | 说明 |
+|---|---|
+| `waiting` | 等待人工审批。 |
+| `approved` | 已批准，runtime 可按关联 checkpoint resume。 |
+| `denied` | 已拒绝，动作不得执行，run 按策略 failed 或 fallback。 |
+| `cancelled` | 审批被系统或用户取消。 |
+
+### 5.15 `ApprovalRecord`
+
+```json
+{
+  "approval_id": "approval_123",
+  "tenant_id": "default",
+  "run_id": "run_123",
+  "agent_id": "examples.basic",
+  "status": "waiting",
+  "action": "shell.execute",
+  "resource": "tool:shell",
+  "reason": "dangerous action requires approval",
+  "trace_id": "trace_123",
+  "request_id": "req_123",
+  "requested_by": "local-user",
+  "resolved_by": null,
+  "result": null,
+  "created_at": "2026-07-08T00:00:00Z"
+}
+```
+
+字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `approval_id` | string | Yes | 审批记录稳定 ID。 |
+| `tenant_id` | string | Yes | 审批所属租户。 |
+| `run_id` | string | Yes | 关联 run。 |
+| `agent_id` | string | Yes | 关联 agent。 |
+| `status` | `ApprovalStatus` | Yes | 审批状态。 |
+| `action` | string | Yes | 被审批动作。 |
+| `resource` | string | Yes | 被审批资源。 |
+| `reason` | string | Yes | 脱敏后的审批原因。 |
+| `trace_id` | string | No | 关联 trace。 |
+| `request_id` | string | No | 创建审批时的请求关联 ID。 |
+| `requested_by` | string | No | 创建审批的 actor user id。 |
+| `resolved_by` | string | No | 审批人 user id。 |
+| `result` | string | No | `approved` / `denied` 后的结果摘要。 |
+| `created_at` | ISO 8601 string | Yes | 创建时间。 |
+
+### 5.16 `ApprovalListResponse`
+
+```json
+{
+  "request_id": "req_123",
+  "approvals": []
+}
+```
+
+字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `request_id` | string | Yes | API 请求关联 ID。 |
+| `approvals` | `ApprovalRecord[]` | Yes | 当前身份可见的审批列表。空数组表示没有等待或历史审批。 |
+
+### 5.17 `ApprovalResolveRequest`
+
+```json
+{
+  "decision": "approved",
+  "comment": "reviewed in CLI"
+}
+```
+
+字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `decision` | `approved` / `denied` | Yes | 本次 resolve 结果。 |
+| `comment` | string | No | 审批备注，必须脱敏后写入 audit。 |
+
+### 5.18 `ApprovalResolveResponse`
+
+```json
+{
+  "request_id": "req_123",
+  "approval": {
+    "approval_id": "approval_123",
+    "tenant_id": "default",
+    "run_id": "run_123",
+    "agent_id": "examples.basic",
+    "status": "approved",
+    "action": "shell.execute",
+    "resource": "tool:shell",
+    "reason": "dangerous action requires approval",
+    "request_id": "req_456",
+    "created_at": "2026-07-08T00:00:00Z"
+  },
+  "run": {
+    "request_id": "req_123",
+    "run_id": "run_123",
+    "status": "completed",
+    "terminal_event": "run.completed"
+  }
+}
+```
+
+字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `request_id` | string | Yes | API 请求关联 ID。 |
+| `approval` | `ApprovalRecord` | Yes | resolve 后的审批记录。 |
+| `run` | `RunCreateResponse` | No | approve/deny 推进 run 后的 public runtime 摘要。 |
+
 ## 6. Run API
 
 ### RUN-001 创建 agent-scoped run
@@ -420,8 +585,8 @@
 | 用途 | 为指定 agent 创建一次 run，并通过 runtime seam 写入 run lifecycle 和 events。 |
 | 方法 | `POST` |
 | 路径 | `/api/v1/agents/{agent_id}/runs` |
-| 认证 | 当前 local/template route 未接入 auth；认证能力落地后除 local dev seam 外应要求 API Key / Bearer。 |
-| 请求头 | `Content-Type: application/json`；可选 `Accept: application/json`、`X-Request-Id`；认证能力落地后可选/必填 `Authorization` 按环境配置。 |
+| 认证 | 已接入 `IdentityContext` dependency；local/dev 未配置 verifier 时注入默认身份，service/API key profile 要求 `Authorization: Bearer <token>` 或等价 API key；创建前必须通过 `run.create` policy check。 |
+| 请求头 | `Content-Type: application/json`；可选 `Accept: application/json`、`X-Request-Id`；认证 profile 启用 verifier 时必填 `Authorization: Bearer <token>` 或等价 API key。 |
 | Path 参数 | `agent_id: string`，稳定 agent ID。Agent Registry 能力落地后必须由 `AgentRegistry` 校验存在性和重复性。 |
 | URL 参数 | none |
 | 请求体 | `AgentRunCreateRequest` |
@@ -430,10 +595,10 @@
 | 成功响应码 | `200` |
 | 响应头 | 当前只保证 `Content-Type: application/json`；不保证 `X-Request-Id` response header。 |
 | 响应体 | `RunCreateResponse` |
-| 错误响应码 | `400 api.http_error`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`500 api.internal_error`。 |
+| 错误响应码 | `400 api.http_error`、`401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied` / `guardrail.denied`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`500 api.internal_error`。 |
 | 状态语义 | `completed/failed/cancelled` 表示 terminal；`waiting` 表示调用方需要 approval 或 resume；`running/created` 表示后续通过 events/detail 追踪。 |
-| 安全规则 | API route 不得直接操作 ORM session、DBOS API 或 provider SDK；input 进入 runtime 前必须经过 guardrail/trust 标注；认证能力落地后无效 token 不得创建 run。 |
-| 验证要求 | `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 必须检查 route table、OpenAPI path、helper 使用 `RunOrchestrator`、idempotency、request_id 和 error envelope；Agent Registry 能力落地后，Phase 6 contract tests 还必须覆盖未知 `agent_id` 经 registry seam 返回 `registry.agent_not_found`，CLI 等价入口必须 exit 1。 |
+| 安全规则 | API route 不得直接操作 ORM session、DBOS API 或 provider SDK；input 进入 runtime 前必须经过 `run.create` policy check 和 guardrail/trust 标注；无效 token 或缺少 `run.create` 权限不得创建 run。 |
+| 验证要求 | `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 必须检查 route table、OpenAPI path、helper 使用 `RunOrchestrator`、idempotency、request_id 和 error envelope；Phase 7 contract tests 必须覆盖无效 token 和缺少 `run.create` 权限均不创建 run、guardrail deny 不创建半截 run、guardrail require_approval 进入 approval/checkpoint 等待。 |
 
 ### RUN-002 读取 run detail
 
@@ -445,8 +610,8 @@
 | 用途 | 按 `run_id` 读取 run 当前状态，不暴露 ORM model 或内部 handle。 |
 | 方法 | `GET` |
 | 路径 | `/api/v1/runs/{run_id}` |
-| 认证 | 当前 local/template route 未接入 auth；认证能力落地后按 tenant/identity 可见性检查。 |
-| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`；认证能力落地后可选/必填 `Authorization` 按环境配置。 |
+| 认证 | 已接入 `IdentityContext` dependency；按 tenant/identity 可见性检查，local/dev 未配置 verifier 时使用默认身份。 |
+| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`；认证 profile 启用 verifier 时必填 `Authorization`。 |
 | Path 参数 | `run_id: string` |
 | URL 参数 | none |
 | 请求体 | none |
@@ -455,9 +620,9 @@
 | 成功响应码 | `200` |
 | 响应头 | 当前只保证 `Content-Type: application/json`。 |
 | 响应体 | `RunCreateResponse` |
-| 错误响应码 | `404 api.not_found`、`500 api.internal_error`；认证能力落地后增加 `401/403`。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`500 api.internal_error`。 |
 | 状态语义 | 调用方根据 `status` 和 `terminal_event` 判断继续轮询、读取 events、resume、cancel 或展示终态。 |
-| 安全规则 | 认证能力落地后，非当前 tenant 或不可见 run 必须返回 `404` 或 `403`，不能泄漏其他 tenant 的 run 是否存在。 |
+| 安全规则 | 非当前 tenant 或不可见 run 必须返回 `404` 或 `403`，不能泄漏其他 tenant 的 run 是否存在。 |
 | 验证要求 | OpenAPI schema 必须包含 `request_id`；404 必须走 `ApiErrorEnvelope`。 |
 
 ### RUN-003 读取 run events
@@ -470,8 +635,8 @@
 | 用途 | 按 `seq` 读取 `CanonicalEvent`，供断线恢复、debug、SSE/API resume 共用。 |
 | 方法 | `GET` |
 | 路径 | `/api/v1/runs/{run_id}/events` |
-| 认证 | 当前 local/template route 未接入 auth；认证能力落地后按 tenant/identity/event visibility 检查。 |
-| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`；认证能力落地后可选/必填 `Authorization` 按环境配置。 |
+| 认证 | 已接入 `IdentityContext` dependency；按 tenant/identity/event visibility 检查，`include_internal=true` 需要 policy 权限。 |
+| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`；认证 profile 启用 verifier 时必填 `Authorization`。 |
 | Path 参数 | `run_id: string` |
 | URL 参数 | `after_seq: integer >= 0`，默认 `0`；`include_internal: boolean`，默认 `false`。 |
 | 请求体 | none |
@@ -480,9 +645,9 @@
 | 成功响应码 | `200` |
 | 响应头 | 当前只保证 `Content-Type: application/json`。未来 SSE route 必须使用 `text/event-stream`，不能复用本 JSON route 伪装成 SSE。 |
 | 响应体 | `RunEventsResponse` |
-| 错误响应码 | `404 api.not_found`、`422 validation_error`、`500 api.internal_error`；认证能力落地后增加 `401/403`。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`422 validation_error`、`500 api.internal_error`。 |
 | 状态语义 | 空数组表示当前没有新事件，不等于 run 已结束；terminal event 的 `terminal=true` 才是最终结算信号。 |
-| 安全规则 | `include_internal=false` 时必须过滤 `reasoning.delta`；认证能力落地后 `include_internal=true` 需要权限。 |
+| 安全规则 | `include_internal=false` 时必须只返回 public event；`include_internal=true` 需要权限。 |
 | 验证要求 | contract tests 必须覆盖 `reasoning.delta` 默认隐藏、`include_internal=true` 可见、OpenAPI path 存在和 event seam 可读。 |
 
 ### RUN-004 取消 run
@@ -495,8 +660,8 @@
 | 用途 | 取消尚未 terminal 的 run。 |
 | 方法 | `POST` |
 | 路径 | `/api/v1/runs/{run_id}/cancel` |
-| 认证 | 当前 local/template route 未接入 auth；认证能力落地后需要 run 操作权限。 |
-| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`；认证能力落地后可选/必填 `Authorization`。 |
+| 认证 | 已接入 `IdentityContext` dependency；认证 profile 启用 verifier 时需要有效 Bearer/API key。 |
+| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`；认证 profile 启用 verifier 时必填 `Authorization`。 |
 | Path 参数 | `run_id: string` |
 | URL 参数 | none |
 | 请求体 | none |
@@ -505,7 +670,7 @@
 | 成功响应码 | `200` |
 | 响应头 | 当前只保证 `Content-Type: application/json`。 |
 | 响应体 | `RunCreateResponse` |
-| 错误响应码 | `404 api.not_found`、`409 run.invalid_transition`、`500 api.internal_error`；认证能力落地后增加 `401/403`。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 run.invalid_transition`、`500 api.internal_error`。 |
 | 状态语义 | 成功后 `status=cancelled`，`terminal_event=run.cancelled`。 |
 | 安全规则 | 取消动作不得绕过 policy/audit；后续 worker 分进程时必须通过 runtime seam 协调，不直接杀进程作为唯一状态来源。 |
 | 验证要求 | runtime transition tests 必须证明 terminal run 不能再取消。 |
@@ -520,8 +685,8 @@
 | 用途 | 使用 resume token 恢复 checkpointed run。 |
 | 方法 | `POST` |
 | 路径 | `/api/v1/runs/{run_id}/resume` |
-| 认证 | 当前 local/template route 未接入 auth；认证能力落地后需要 run 操作权限和 approval/policy 检查。 |
-| 请求头 | `Content-Type: application/json`；可选 `Accept: application/json`、`X-Request-Id`；认证能力落地后可选/必填 `Authorization`。 |
+| 认证 | 已接入 `IdentityContext` dependency；认证 profile 启用 verifier 时需要有效 Bearer/API key，resume token 还必须属于 path run。 |
+| 请求头 | `Content-Type: application/json`；可选 `Accept: application/json`、`X-Request-Id`；认证 profile 启用 verifier 时必填 `Authorization`。 |
 | Path 参数 | `run_id: string` |
 | URL 参数 | none |
 | 请求体 | `RunResumeRequest` |
@@ -530,9 +695,9 @@
 | 成功响应码 | `200` |
 | 响应头 | 当前只保证 `Content-Type: application/json`。 |
 | 响应体 | `RunCreateResponse` |
-| 错误响应码 | `404 api.not_found`、`409 run.invalid_transition`、`422 validation_error`、`500 api.internal_error`；认证能力落地后增加 `401/403`。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 run.invalid_transition`、`422 validation_error`、`500 api.internal_error`。 |
 | 状态语义 | 成功后返回新的 run status；如果完成则返回 terminal event。 |
-| 安全规则 | `resume_token` 必须属于 path 中的 `run_id`；错误 URL 不得推进其他 run。认证能力落地后 token 还必须匹配 tenant/identity/approval context。 |
+| 安全规则 | `resume_token` 必须属于 path 中的 `run_id`；错误 URL 不得推进其他 run；token 还必须匹配 tenant/identity/approval context。 |
 | 验证要求 | contract tests 必须覆盖 token/run_id mismatch 先失败且不推进任一 run。 |
 
 ## 7. Agent Registry API
@@ -542,46 +707,126 @@
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `AGT-001` |
-| 状态 | 已实现，Phase 6 提供 template route、OpenAPI schema 和 CLI 等价入口；认证/可见性过滤留给 Phase 7。 |
+| 状态 | 已实现，Phase 6 提供 template route、OpenAPI schema 和 CLI 等价入口；Phase 7 已补认证/可见性过滤。 |
 | 入口 / 调用方 | OpenAPI 调用方、service-app、未来 Access/API gateway；CLI 等价入口为 `agent-harness agents list`。 |
 | 用途 | 列出 registry 中已加载且通过校验的 agent public descriptor，供开发者、OpenAPI 调用方和后续管理面发现可运行 agent。 |
 | 方法 | `GET` |
 | 路径 | `/api/v1/agents` |
-| 认证 | 当前 local/template route 不接入 auth；认证能力落地后应按 tenant/identity 可见性过滤 agent descriptor。 |
-| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`；认证能力落地后可选/必填 `Authorization` 按环境配置。 |
+| 认证 | 已接入 `IdentityContext` dependency；local/dev 未配置 verifier 时注入默认身份，认证 profile 启用 verifier 时按 tenant/identity 可见性过滤 agent descriptor。 |
+| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`；认证 profile 启用 verifier 时必填 `Authorization`。 |
 | Path 参数 | none |
 | URL 参数 | none；后续如加分页或过滤必须先更新本文档和 drift tests。 |
 | 请求体 | none |
-| 幂等性 | 幂等读取；不得创建 run、checkpoint、event、trace、audit 或 provider call。 |
-| 副作用 | none；允许读取 registry config 和验证结果。 |
+| 幂等性 | 幂等读取；不得创建 run、checkpoint、event、trace 或 provider call；允许写入 `policy.decision` audit evidence。 |
+| 副作用 | 读取 registry config 和验证结果；写入 policy 可见性检查 audit evidence。 |
 | 成功响应码 | `200` |
 | 响应头 | 当前只保证 `Content-Type: application/json`；不保证 `X-Request-Id` response header。 |
 | 响应体 | `AgentListResponse` |
-| 错误响应码 | `409 registry.duplicate_agent_id`、`422 registry.invalid_config`、`500 api.internal_error`；认证能力落地后增加 `401/403`。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`409 registry.duplicate_agent_id`、`422 registry.invalid_config`、`500 api.internal_error`。 |
 | 状态语义 | `agents=[]` 表示 registry 可用但当前没有 agent；`409/422` 表示 registry config 不可信，调用方不得把部分 descriptor 当作成功结果。 |
-| 安全规则 | API 只返回 public descriptor；不得暴露本地绝对路径、secret、provider client、callable、SQLAlchemy model 或 Python module object。重复 `agent_id` 或无效 config 必须整体拒绝 registry，不返回半成功列表。 |
-| 验证要求 | `tests/contracts/test_agent_registry_model_context_contracts.py` 必须覆盖 OpenAPI path/method、`AgentListResponse` schema、`AgentDescriptor` 可见字段和禁止字段、`ApiErrorEnvelope` 错误 schema、重复 `agent_id`、registry validation error，以及 route 通过 `AgentRegistry` seam 而非直接读文件。 |
+| 安全规则 | API 只返回当前身份可见的 public descriptor；不得暴露本地绝对路径、secret、provider client、callable、SQLAlchemy model 或 Python module object。重复 `agent_id` 或无效 config 必须整体拒绝 registry，不返回半成功列表。 |
+| 验证要求 | `tests/contracts/test_agent_registry_model_context_contracts.py` 必须覆盖 OpenAPI path/method、`AgentListResponse` schema、`AgentDescriptor` 可见字段和禁止字段、`ApiErrorEnvelope` 错误 schema、重复 `agent_id`、registry validation error，以及 route 通过 `AgentRegistry` seam 而非直接读文件；Phase 7 contract tests 还必须覆盖 401/403 和身份可见性过滤。 |
 
-## 8. 保留 API 索引
+## 8. Auth / Policy / HITL API
+
+### APR-001 列出 run approvals
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `APR-001` |
+| 状态 | Phase 7 已实现。 |
+| 入口 / 调用方 | OpenAPI 调用方、HITL approval flow、CLI 等价入口 `agent-harness approvals list`、future Access/API gateway。 |
+| 用途 | 列出当前身份可见的 run approval 记录，供人工处理等待审批的危险动作。 |
+| 方法 | `GET` |
+| 路径 | `/api/v1/runs/{run_id}/approvals` |
+| 认证 | 必须注入 `IdentityContext`；当前身份必须能读取该 run 和审批。 |
+| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`；认证启用时必填 `Authorization`。 |
+| Path 参数 | `run_id: string` |
+| URL 参数 | `status: string` 可选；未传时返回当前身份可见的所有审批。 |
+| 请求体 | none |
+| 幂等性 | 幂等读取。 |
+| 副作用 | 写入 approval list/read audit evidence；不得推进 run、创建 approval 或写 provider call。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `ApprovalListResponse` |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`500 api.internal_error`。 |
+| 状态语义 | `approvals=[]` 表示该身份当前没有可见审批；不代表 run 不存在。 |
+| 安全规则 | 只返回脱敏 approval 摘要；不得返回 resume token、原始危险 payload、secret 或内部 checkpoint object。 |
+| 验证要求 | Phase 7 contract tests 必须覆盖 OpenAPI path/schema、401/403、request_id、空列表、waiting approval 可见性和 `ApiErrorEnvelope`。 |
+
+CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制表符摘要列：`approval_id`、`status`、`action`、`resource`、`reason`、`tenant_id`、`agent_id`、`run_id`、`trace_id`、`request_id`。
+
+单项读取使用 `GET /api/v1/runs/{run_id}/approvals/{approval_id}`，返回 `ApprovalRecord`，写入 approval read audit evidence，并复用同一认证、可见性、脱敏和 `ApiErrorEnvelope` 规则。
+
+### APR-002 resolve approval
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `APR-002` |
+| 状态 | Phase 7 已实现。 |
+| 入口 / 调用方 | OpenAPI 调用方、HITL approval flow、CLI 等价入口 `agent-harness approvals approve <approval_id>` / `agent-harness approvals deny <approval_id>`、future Access/API gateway。 |
+| 用途 | 对 waiting approval 执行 approve 或 deny，并按策略 resume / fail / fallback run。 |
+| 方法 | `POST` |
+| 路径 | `/api/v1/runs/{run_id}/approvals/{approval_id}` |
+| 认证 | 必须注入 `IdentityContext`；当前身份必须有审批权限。 |
+| 请求头 | `Content-Type: application/json`；可选 `Accept: application/json`、`X-Request-Id`；认证启用时必填 `Authorization`。 |
+| Path 参数 | `run_id: string`、`approval_id: string` |
+| URL 参数 | none |
+| 请求体 | `ApprovalResolveRequest` |
+| 幂等性 | 非幂等；已 resolved approval 再次 resolve 必须返回 409，不得重复推进 run 或 audit。 |
+| 副作用 | 更新 approval status、写 audit log、发布 `approval.resolved` event；approve 可通过 runtime resume seam 推进 run，deny 可让 run failed 或 fallback。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `ApprovalResolveResponse` |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 approval.invalid_transition` / `run.invalid_transition`、`422 validation_error`、`500 api.internal_error`。 |
+| 状态语义 | `approved` 表示原动作允许继续；`denied` 表示原动作不得执行。返回的 `run.status` 是 resolve 后 runtime 摘要。 |
+| 安全规则 | path 中的 `run_id` 必须与 approval 归属一致；错误 URL 不得推进其他 run。响应和 audit 不得泄漏 resume token、secret 或原始危险 payload。 |
+| 验证要求 | Phase 7 contract tests 必须覆盖 approve、deny、重复 resolve 409、跨 run resolve 拒绝、audit evidence、request_id 和 OpenAPI schema。 |
+
+### POL-001 policy check
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `POL-001` |
+| 状态 | Phase 7 已实现。 |
+| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness policy check`、runtime/tool/model/eval seam。 |
+| 用途 | 对 actor/resource/action/context 执行 policy check，返回 allow、deny 或 require_approval。 |
+| 方法 | `POST` |
+| 路径 | `/api/v1/policies/check` |
+| 认证 | 必须注入 `IdentityContext`；policy actor 从 `PermissionContext` 派生，不直接耦合认证实现。 |
+| 请求头 | `Content-Type: application/json`；可选 `Accept: application/json`、`X-Request-Id`；认证启用时必填 `Authorization`。 |
+| Path 参数 | none |
+| URL 参数 | none |
+| 请求体 | `PolicyCheckRequest` |
+| 幂等性 | 逻辑幂等；允许写 audit evidence，但不得执行目标动作。 |
+| 副作用 | 写 policy/audit evidence；`require_approval` 可返回 approval 摘要，但单独 policy check 不直接 resume run。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `PolicyDecisionResponse` |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`422 validation_error`、`500 api.internal_error`。 |
+| 状态语义 | `allow` 可继续执行；`deny` 必须阻断目标动作；`require_approval` 必须进入 approval seam 或返回调用方处理。 |
+| 安全规则 | context 只接收摘要和 refs；不得把完整 tool/retrieval/provider payload 或 secret 写入 request、response、event 或 audit。 |
+| 验证要求 | Phase 7 contract tests 必须覆盖三态决策、YAML/DB provider seam、401/403、`ApiErrorEnvelope`、request_id 和 OpenAPI schema。 |
+
+## 9. 保留 API 索引
 
 这些路径来自 `Product-Spec.md` 的当前版本 API 列表。它们不是当前已实现能力；对应计划项开工前必须先把本节扩展成第 3 节规定的完整 endpoint 条目，再写 route。
 
 | Contract ID | 状态 | 计划归属 | 路径 | 契约门禁 |
 |---|---|---:|---|---|
-| `APR-001` | 规划中 | Auth / Policy / HITL | `/api/v1/runs/{run_id}/approvals` | 必须定义 approval list/create/read 语义、policy decision、audit 字段、waiting run 关联。 |
-| `APR-002` | 规划中 | Auth / Policy / HITL | `/api/v1/runs/{run_id}/approvals/{approval_id}` | 必须定义 approve/deny 方法、状态冲突、审批人身份、resume 触发规则。 |
 | `EVL-001` | 规划中 | Eval Gate | `/api/v1/eval-cases/drafts` | 必须定义 draft list/create/review schema、secret scan、trace source、不可自动进入 approved。 |
 | `EVL-002` | 规划中 | Eval Gate | `/api/v1/eval-cases/approved` | 必须定义 approved dataset 写入权限、人工确认、audit 和回滚/归档规则。 |
 | `EVL-003` | 规划中 | Eval Gate | `/api/v1/evals/runs` | 必须定义 eval run create/detail/list schema、score sink、provider failure 降级。 |
-| `POL-001` | 规划中 | Auth / Policy / HITL | `/api/v1/policies/check` | 必须定义 actor/resource/action/context request、allow/deny/require_approval response、audit policy。 |
 | `HLT-001` | 规划中 | Service App / Service Profile | `/api/v1/health` | 必须定义 local/service profile health 字段、storage/queue/observability 状态和公开性。 |
 
-## 9. 入口 / 调用方映射
+## 10. 入口 / 调用方映射
 
 | 入口 / 调用方 | 当前或目标接口 | 说明 |
 |---|---|---|
 | `agent-harness run <agent_id>` | 等价于 `RUN-001` 的 runtime seam | CLI 不走 HTTP，但必须使用同一 `RunOrchestrator`、storage、event bus 和 DTO 语义。 |
-| `agent-harness agents list` | 等价于 `AGT-001` 的 registry seam | CLI 不走 HTTP，但必须使用同一 `AgentRegistry`、descriptor DTO 和 validation 语义。 |
+| `agent-harness agents list` | 等价于 `AGT-001` 的 registry seam | CLI 不走 HTTP，但必须使用同一 `AgentRegistry`、descriptor DTO、identity/policy visibility 和 validation 语义。 |
+| `agent-harness policy check` | 等价于 `POL-001` 的 policy seam | CLI 不走 HTTP，但必须使用同一 `PolicyEngine`、identity、audit 和 decision DTO。 |
+| `agent-harness approvals list/approve/deny` | 等价于 `APR-001` / `APR-002` 的 approval seam | CLI 不走 HTTP，但必须使用同一 `ApprovalService`、runtime resume 和 audit seam。 |
 | OpenAPI 调用方 | `AGT-001`、`RUN-001` 到 `RUN-005`，后续保留 API | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
 | service-app FastAPI | `AGT-001`、`RUN-001` 到 `RUN-005` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
 | runtime worker | 内部 worker seam；不直接新增 HTTP route | worker 必须通过 runtime components，不直接操作 ORM/DBOS/provider SDK。 |
@@ -589,7 +834,7 @@
 | Eval review flow | `EVL-*` | draft 到 approved 必须人工确认，secret/隐私脱敏是写入门禁。 |
 | future API/worker split | 所有 HTTP API + worker seam | 拆分后数据只走 DTO、CanonicalEvent、repository/provider/facade，不传进程内可变对象；queue message header 必须携带 `request_id` 和 `idempotency_key`。 |
 
-## 10. 流式与事件契约
+## 11. 流式与事件契约
 
 当前实现：
 
@@ -604,13 +849,14 @@
 - 断线恢复必须以 `seq` 为准；final 结算以 terminal event 为准。
 - 握手前错误走 `ApiErrorEnvelope`；握手后错误必须转成可序列化 event，且不得泄露 secret/provider 原始错误。
 
-## 11. OpenAPI 生成与漂移检查
+## 12. OpenAPI 生成与漂移检查
 
 当前必须保留：
 
 - FastAPI app 暴露 `/openapi.json`、`/docs`、`/redoc`。
 - OpenAPI paths 必须包含当前已实现 run routes。
 - `RunCreateResponse` schema 必须包含 `request_id`。
+- `RunCreateResponse` schema 不得包含 `resume_token`。
 - `ApiErrorEnvelope` 必须出现在已声明错误响应中。
 
 每个新增或修改 endpoint 的开发门禁：
@@ -631,9 +877,9 @@
 uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 ```
 
-后续新增 `approvals`、`evals`、`policies` 或 `health` route 时，应按功能拆出对应 contract tests，而不是把所有 OpenAPI 检查堆进一个大测试。`agents` route 使用 `tests/contracts/test_agent_registry_model_context_contracts.py` 单独覆盖。
+新增 `approvals` 和 `policies` route 时，应按 Phase 7 功能拆出对应 contract tests，不把所有 OpenAPI 检查堆进一个大测试。`agents` route 使用 `tests/contracts/test_agent_registry_model_context_contracts.py` 单独覆盖，Phase 7 还要补 401/403 和可见性检查。
 
-## 12. 契约验收清单
+## 13. 契约验收清单
 
 - [x] 已区分当前已实现 run API 与保留 API。
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
@@ -643,6 +889,6 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] 已明确 API route 不得暴露 ORM、DBOS、provider SDK 或进程内 handle。
 - [x] 已明确新增/修改 endpoint 必须先改本契约，再做局部 OpenAPI drift 检查。
 - [x] Agent Registry 开工前补全 `AGT-001` 的完整 endpoint 条目和 contract tests。
-- [ ] Auth / Policy / HITL 开工前补全 auth、policy、approval endpoint 条目和 contract tests。
+- [x] Auth / Policy / HITL 开工前补全 auth、policy、approval endpoint 条目和 contract tests 目标。
 - [ ] Eval Gate 开工前补全 eval endpoint 条目和 contract tests。
 - [ ] Service App / Service Profile 收口时做全量 OpenAPI drift 复扫，并补齐 422 validation error envelope 统一验证。

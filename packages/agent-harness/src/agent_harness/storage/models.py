@@ -147,6 +147,20 @@ class EmbeddingCacheModel(TimestampMixin, Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
 
+class ApiKeyModel(TimestampMixin, Base):
+    __tablename__ = "api_keys"
+    __table_args__ = (UniqueConstraint("token_hash", name="uq_api_keys_token_hash"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    roles_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    permissions_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    disabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
 class CanonicalEventModel(Base):
     __tablename__ = "canonical_events"
     __table_args__ = (UniqueConstraint("run_id", "seq", name="uq_canonical_events_run_seq"),)
@@ -234,6 +248,26 @@ class PolicyRuleModel(TimestampMixin, Base):
     action: Mapped[str] = mapped_column(String(255), nullable=False)
     decision: Mapped[str] = mapped_column(String(32), nullable=False)
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class ApprovalModel(TimestampMixin, Base):
+    __tablename__ = "approvals"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
+    run_id: Mapped[str] = mapped_column(String(36), ForeignKey("agent_runs.id"), index=True)
+    agent_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(255), nullable=False)
+    resource: Mapped[str] = mapped_column(String(255), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="waiting", index=True)
+    resume_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    requested_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
 
 class AuditLogModel(Base):

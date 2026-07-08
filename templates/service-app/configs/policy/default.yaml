@@ -1,0 +1,17 @@
+provider: yaml
+require_approval_actions:
+  - shell.execute
+  - file.delete
+  - file.bulk_write
+  - external.network
+  - mcp.connect
+  - message.send
+  - ticket.create
+  - email.send
+  - workspace.write_outside
+  - dataset.write_approved
+  - policy.modify
+  - policy.update
+  - model.over_budget
+  - input.prompt_injection
+deny_actions: []

@@ -201,6 +201,8 @@ def _assign_nested(target: dict[str, Any], parts: list[str], value: Any) -> None
 def _parse_env_value(value: str) -> Any:
     """只把明确的 bool/int 字面量转换类型，其余保留字符串。"""
 
+    if value == "":
+        return None
     lowered = value.lower()
     if lowered == "true":
         return True

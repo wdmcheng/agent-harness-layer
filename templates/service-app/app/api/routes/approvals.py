@@ -1,0 +1,217 @@
+"""HITL approval API routes。"""
+
+from __future__ import annotations
+
+from typing import Annotated, Any, Literal
+
+from fastapi import APIRouter, Depends, Query, Request
+
+from agent_harness.approvals import ApprovalResolveResult, ApprovalService
+from agent_harness.contracts import ApiErrorEnvelope
+from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.identity import IdentityContext
+from agent_harness.policy import PolicyCheck, PolicyEngine, YamlPolicyProvider
+from agent_harness.runtime import RunResult
+from agent_harness.storage import ApprovalRecord
+from app.api.dependencies import current_identity, get_approval_service, get_policy_engine
+from app.api.routes.runs import RunCreateResponse, request_id_from
+
+ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    401: {"model": ApiErrorEnvelope},
+    403: {"model": ApiErrorEnvelope},
+    404: {"model": ApiErrorEnvelope},
+    409: {"model": ApiErrorEnvelope},
+    422: {"model": ApiErrorEnvelope},
+    500: {"model": ApiErrorEnvelope},
+}
+
+router = APIRouter(prefix="/api/v1", tags=["approvals"], responses=ERROR_RESPONSES)
+
+
+class ApprovalPublicRecord(HarnessDTO):
+    approval_id: str
+    tenant_id: str
+    run_id: str
+    agent_id: str
+    status: str
+    action: str
+    resource: str
+    reason: str
+    trace_id: str | None = None
+    request_id: str | None = None
+    requested_by: str | None = None
+    resolved_by: str | None = None
+    result: str | None = None
+    created_at: str | None = None
+
+
+class ApprovalListResponse(HarnessDTO):
+    request_id: str
+    approvals: list[ApprovalPublicRecord]
+
+
+class ApprovalDetailResponse(HarnessDTO):
+    request_id: str
+    approval: ApprovalPublicRecord
+
+
+class ApprovalResolveRequest(HarnessDTO):
+    decision: Literal["approved", "denied"]
+    comment: str | None = None
+
+
+class ApprovalResolveResponse(HarnessDTO):
+    request_id: str
+    approval: ApprovalPublicRecord
+    run: RunCreateResponse | None = None
+
+
+@router.get("/runs/{run_id}/approvals", response_model=ApprovalListResponse)
+async def list_approvals(
+    http_request: Request,
+    run_id: str,
+    identity: Annotated[IdentityContext, Depends(current_identity)],
+    approvals: Annotated[ApprovalService, Depends(get_approval_service)],
+    policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
+    status: str | None = Query(default=None),
+) -> ApprovalListResponse:
+    await _check_read_permission(policy=policy, identity=identity, run_id=run_id)
+    rows = await approvals.list_for_run(actor=identity, run_id=run_id)
+    if status is not None:
+        rows = [row for row in rows if row.status == status]
+    return ApprovalListResponse(
+        request_id=request_id_from(http_request),
+        approvals=[_public_approval(row) for row in rows],
+    )
+
+
+@router.get("/runs/{run_id}/approvals/{approval_id}", response_model=ApprovalDetailResponse)
+async def get_approval(
+    http_request: Request,
+    run_id: str,
+    approval_id: str,
+    identity: Annotated[IdentityContext, Depends(current_identity)],
+    approvals: Annotated[ApprovalService, Depends(get_approval_service)],
+    policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
+) -> ApprovalDetailResponse:
+    await _check_read_permission(
+        policy=policy,
+        identity=identity,
+        run_id=run_id,
+        approval_id=approval_id,
+    )
+    row = await approvals.get(actor=identity, run_id=run_id, approval_id=approval_id)
+    return ApprovalDetailResponse(
+        request_id=request_id_from(http_request),
+        approval=_public_approval(row),
+    )
+
+
+@router.post("/runs/{run_id}/approvals/{approval_id}", response_model=ApprovalResolveResponse)
+async def resolve_approval(
+    http_request: Request,
+    run_id: str,
+    approval_id: str,
+    request: ApprovalResolveRequest,
+    identity: Annotated[IdentityContext, Depends(current_identity)],
+    approvals: Annotated[ApprovalService, Depends(get_approval_service)],
+    policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
+) -> ApprovalResolveResponse:
+    request_id = request_id_from(http_request)
+    await _check_resolve_permission(
+        policy=policy,
+        identity=identity,
+        run_id=run_id,
+        approval_id=approval_id,
+        decision=request.decision,
+    )
+    result: ApprovalResolveResult
+    if request.decision == "approved":
+        result = await approvals.approve(
+            actor=identity,
+            run_id=run_id,
+            approval_id=approval_id,
+            request_id=request_id,
+            comment=request.comment,
+        )
+    else:
+        result = await approvals.deny(
+            actor=identity,
+            run_id=run_id,
+            approval_id=approval_id,
+            request_id=request_id,
+            comment=request.comment,
+        )
+    return ApprovalResolveResponse(
+        request_id=request_id,
+        approval=_public_approval(result.approval),
+        run=_public_run(result.run, request_id=request_id),
+    )
+
+
+async def _check_resolve_permission(
+    *,
+    policy: PolicyEngine | None,
+    identity: IdentityContext,
+    run_id: str,
+    approval_id: str,
+    decision: str,
+) -> None:
+    engine = policy or PolicyEngine(provider=YamlPolicyProvider.default())
+    await engine.require_allowed(
+        PolicyCheck(
+            actor=identity,
+            action="approval.resolve",
+            resource=f"run:{run_id}:approval:{approval_id}",
+            context={"decision": decision},
+        )
+    )
+
+
+async def _check_read_permission(
+    *,
+    policy: PolicyEngine | None,
+    identity: IdentityContext,
+    run_id: str,
+    approval_id: str | None = None,
+) -> None:
+    engine = policy or PolicyEngine(provider=YamlPolicyProvider.default())
+    resource = f"run:{run_id}:approval:{approval_id}" if approval_id else f"run:{run_id}:approvals"
+    await engine.require_allowed(
+        PolicyCheck(
+            actor=identity,
+            action="approval.read",
+            resource=resource,
+            context={"approval_id": approval_id} if approval_id else {},
+        )
+    )
+
+
+def _public_approval(record: ApprovalRecord) -> ApprovalPublicRecord:
+    return ApprovalPublicRecord(
+        approval_id=record.approval_id,
+        tenant_id=record.tenant_id,
+        run_id=record.run_id,
+        agent_id=record.agent_id,
+        status=record.status,
+        action=record.action,
+        resource=record.resource,
+        reason=record.reason,
+        trace_id=record.trace_id,
+        request_id=record.request_id,
+        requested_by=record.requested_by,
+        resolved_by=record.resolved_by,
+        result=record.status if record.status in {"approved", "denied", "cancelled"} else None,
+        created_at=record.created_at.isoformat() if record.created_at is not None else None,
+    )
+
+
+def _public_run(run: RunResult | None, *, request_id: str) -> RunCreateResponse | None:
+    if run is None:
+        return None
+    return RunCreateResponse(
+        request_id=request_id,
+        run_id=run.run_id,
+        status=run.status,
+        terminal_event=run.terminal_event,
+    )
