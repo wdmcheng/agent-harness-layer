@@ -290,6 +290,7 @@ Phase 1 Monorepo / quality spine
 **交付内容**：
 - 实现多 agent registry、`AgentDescriptor`、agent config schema 校验和受控 delegation 配置读取。
 - 实现 Pydantic AI 默认 adapter、FakeModelProvider、ModelRouter、预算估算、timeout、fallback。
+- 为 ModelRouter、预算和 provider 配置预留显式 reload seam；P0 不要求 worker 运行中自动热重载。
 - 实现 ContextAssembler：收口 history、retrieval、tool output、artifact refs、trust marker、token budget 和上下文降级链。
 - 实现 EmbeddingProvider、mock/local embedding、OpenAI-compatible embedding adapter 和 embedding cache。
 
@@ -311,6 +312,7 @@ Phase 1 Monorepo / quality spine
 - `agent-harness agents list` 能列出已配置 agent。
 - 重复 `agent_id` 或不合法 config 会被 registry 拒绝。
 - fake model 下不需要真实 API key 就能跑测试和 eval smoke。
+- ModelRouter / budget 配置变更有明确 reload seam 或 restart seam，不要求业务 agent 手读配置。
 - ContextAssembler 生成 context assembly trace，能解释 source、trust_level、token budget、truncation 和 fallback decision。
 - 业务 agent 不直接 import `pydantic_ai`；替换 fake adapter 后 contract tests 仍通过。
 - `API-Contract.md` 的 `AGT-001` 已扩展为完整 endpoint 条目，OpenAPI drift test 覆盖 `/api/v1/agents` 的 route、schema、错误 envelope 和 registry validation error。
@@ -489,6 +491,7 @@ Phase 1 Monorepo / quality spine
 **交付内容**：
 - 完成 Docker Compose service profile，PostgreSQL、Redis、API 进程和 runtime worker 使用同一 storage/queue 配置协作。
 - 验证 DBOS service adapter、shared checkpoint、event stream 和 run worker pickup。
+- Redis queue adapter 的消息 header 必须传递 `request_id` 和 `idempotency_key`，避免 worker pickup 重试产生重复 run。
 - 在代码和文档中固定未来微服务拆分顺序：先拆 worker，再拆 tool/model gateway，最后拆 observability/event pipeline；storage service 仅在 repository contract 稳定后拆；guardrail/context assembly 边界必须随 API/worker/model/tool gateway 保持 DTO/CanonicalEvent 兼容。
 
 **关键文件**：
@@ -504,6 +507,7 @@ Phase 1 Monorepo / quality spine
 **验收标准**：
 - `make smoke-service` 能启动 PostgreSQL、Redis、API 和 worker。
 - 分别启动 API 进程和 worker 进程后提交 run，run 被 worker 执行并产出 event stream。
+- API 到 worker 的 queue message 保留 `request_id`、`idempotency_key`、`tenant_id`、`run_id`，Redis 重试不产生重复 run。
 - API、worker、tool/model adapter 交换数据只使用 Pydantic DTO、CanonicalEvent、repository/provider/facade interface。
 - API/worker/model/tool gateway 拆分后仍保留 source_ref、trust_level、context assembly trace 和 guardrail/audit 关联字段。
 - 文档能让维护者指出 API、runtime worker、model/tool gateway、storage、event pipeline 的当前形态和未来拆分路径。

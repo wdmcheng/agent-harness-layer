@@ -23,10 +23,14 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 
 项目内架构图为核心输入：
 
-- `artifacts/pydantic-ai-agent-architecture.drawio`
-- `artifacts/pydantic-ai-agent-architecture.png`
+| 图 | 作用 | 可编辑源 | PNG 预览 |
+|---|---|---|---|
+| 企业级 Pydantic AI 控制论全栈架构 | 产品级全景图，定义 5 层运行链路、Agent Loop、治理面、观测面和 P0 可拆部署边界。 | `artifacts/pydantic-ai-agent-architecture.drawio` | `artifacts/pydantic-ai-agent-architecture.png` |
+| 技术架构图（Agent Harness Layer） | 开发级结构图，落到核心包、template app、DTO、CanonicalEvent、Repository/UoW、config/identity/runtime/event/artifact/storage 边界。 | `artifacts/agent-harness-technical-architecture.drawio` / `artifacts/agent-harness-technical-architecture.excalidraw` | `artifacts/agent-harness-technical-architecture.png` |
+| 运行链路与信任边界图（Agent Harness Layer） | 运行级链路图，说明 CLI/API -> RunOrchestrator -> storage/checkpoint -> EventBus/artifact -> JSON events/SSE，并标出 tool/MCP/retrieval 不可信输入边界。 | `artifacts/agent-harness-runtime-trust-boundaries.drawio` / `artifacts/agent-harness-runtime-trust-boundaries.excalidraw` | `artifacts/agent-harness-runtime-trust-boundaries.png` |
+| 部署边界图（Agent Harness Layer） | 部署级边界图，说明 local profile、service profile、API/worker/PostgreSQL/Redis 协作，以及未来 gateway / worker pool / storage / event pipeline 拆分路径。 | `artifacts/agent-harness-deployment-boundaries.drawio` / `artifacts/agent-harness-deployment-boundaries.excalidraw` | `artifacts/agent-harness-deployment-boundaries.png` |
 
-架构图表达：
+全景图重点表达：
 
 - 纵向 5 层运行中轴：Access、Runtime、Engine、Tools、Infra。
 - 主链路回边：Runtime 通过 Graph 节点驱动 Agent，Engine 与 Tools 形成 Agent Loop，Engine 通过 SSE/WS 向 Access 流式回传，HITL 审批回到 Runtime/Access 后 resume。
@@ -428,6 +432,7 @@ templates/service-app/
 - MUST 所有配置有 Pydantic schema 校验。
 - MUST 业务 agent 不直接 `open("config.yaml")`。
 - MUST 配置校验错误包含字段路径和修复提示。
+- SHOULD 配置加载边界为后续热更新保留 seam；P0 不要求 worker 运行中自动热重载，模型路由、预算和 provider 变更先走显式 reload / restart 路径。
 
 **验收标准：**
 - [ ] AC-008: Given 缺失必填配置, when 启动应用, then 启动失败并输出 schema 错误。
@@ -865,6 +870,7 @@ eval.score.recorded
 - MUST hook/policy/approval 控制事件进 audit/local-jsonl，即使不推给前端。
 - MUST 大 payload 走 `payload_ref`。
 - MUST SSE 是输出协议，不是内部事件模型。
+- MUST SSE 断线恢复以 `CanonicalEvent.seq` 为准；HTTP SSE adapter 应把 `Last-Event-ID` 映射为续读起点。
 
 **验收标准：**
 - [x] AC-037: Given 一个 run, when event stream 完成, then terminal event 只有一个。
@@ -1156,6 +1162,7 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - P0 MUST 在文档中定义未来可拆服务边界：Access/API gateway、Runtime worker、Model gateway、Tool gateway、Storage service、Event/Observability pipeline。
 - P0 MUST 所有跨边界数据使用 Pydantic schema、CanonicalEvent、repository interface、provider interface 或明确 DTO，不允许直接传递 ORM session、SDK 原始对象或进程内可变全局对象。
 - P0 MUST 所有跨边界调用带 `tenant_id`、`agent_id`、`run_id`、`request_id` 或 `trace_id` 中适用的关联字段。
+- P0 MUST API/worker 通过 queue 协作时传递 `request_id` 和 `idempotency_key`，避免 Redis 重试或 worker pickup 超时导致重复 run。
 - P0 MUST 工具执行、模型调用、存储访问、事件输出都通过 adapter/provider/facade，不允许业务 agent 直接依赖具体实现。
 - P0 SHOULD 定义 `EventBus` / `EventSink` 抽象；默认实现可以是 local/jsonl、DBOS/Redis queue 或进程内测试 adapter，Kafka/RabbitMQ/NATS 放 P1/P2 adapter。
 - P0 SHOULD 在 DEV-PLAN 中写明未来拆分顺序，默认先拆 worker，再拆 tool/model gateway，最后拆 observability/event pipeline。
@@ -1391,7 +1398,9 @@ P0 完成条件：
 
 ### 12.1 已读取 / 已验证资料
 
-- 项目架构图：`artifacts/pydantic-ai-agent-architecture.drawio`，已导出 PNG 并通过 drawio validate。
+- 项目架构图源文件：`artifacts/pydantic-ai-agent-architecture.drawio`、`artifacts/agent-harness-technical-architecture.drawio`、`artifacts/agent-harness-runtime-trust-boundaries.drawio`、`artifacts/agent-harness-deployment-boundaries.drawio`，以 drawio 可编辑版本作为项目内引用。
+- 项目架构图 Excalidraw 可编辑版本：`artifacts/agent-harness-technical-architecture.excalidraw`、`artifacts/agent-harness-runtime-trust-boundaries.excalidraw`、`artifacts/agent-harness-deployment-boundaries.excalidraw`。
+- 项目架构图 PNG 预览版本：`artifacts/pydantic-ai-agent-architecture.png`、`artifacts/agent-harness-technical-architecture.png`、`artifacts/agent-harness-runtime-trust-boundaries.png`、`artifacts/agent-harness-deployment-boundaries.png`，用于人工审阅和多模态模型快速理解；可编辑源仍以 `.drawio` / `.excalidraw` 为准。
 - 项目说明：`AGENT-PACK.md`，用于区分当前 Agent Pack 能力包与新脚手架产品。
 - Pydantic AI 官方文档：overview、streaming、durable execution、multi-agent、Logfire integration、Harness overview。
 - SQLAlchemy 2.0 官方文档：typed declarative、async ORM。
@@ -1408,6 +1417,6 @@ P0 完成条件：
 
 ### 12.3 运行验证状态
 
-- 已验证 drawio 源文件结构：`0 error(s), 0 warning(s)`。
-- 已导出架构图 PNG：`artifacts/pydantic-ai-agent-architecture.png`。
+- 已验证四张 drawio 源文件结构：`0 error(s), 0 warning(s)`。
+- 已导出四张架构图 PNG 预览；PNG 用于审阅和快速理解，项目内可编辑真相源仍以 `.drawio` / `.excalidraw` 为准。
 - 尚未实现代码；本文档是需求事实源，不是运行结果。
