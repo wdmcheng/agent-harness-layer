@@ -1,5 +1,3 @@
-"""代码修改后标记 review gate 的 Codex/Claude 共享 hook。"""
-
 from __future__ import annotations
 
 import json
@@ -78,8 +76,6 @@ PHASE_LABEL_PATTERN = re.compile(
 
 
 def clean_candidate_path(raw: str) -> str | None:
-    """把 patch/git header 中的路径清洗成仓库相对路径。"""
-
     path = raw.split("\t", 1)[0].strip().strip('"')
     if path in ("", "/dev/null"):
         return None
@@ -89,8 +85,6 @@ def clean_candidate_path(raw: str) -> str | None:
 
 
 def is_relative_to(path: Path, root: Path) -> bool:
-    """兼容旧 Python 版本的相对路径判断。"""
-
     try:
         path.relative_to(root)
         return True
@@ -99,14 +93,12 @@ def is_relative_to(path: Path, root: Path) -> bool:
 
 
 def is_config_file(name: str) -> bool:
-    """识别需要按代码处理的构建/配置入口文件。"""
-
-    return name in CONFIG_NAMES or any(name.startswith(pattern) for pattern in CONFIG_PATTERNS)
+    return name in CONFIG_NAMES or any(
+        name.startswith(pattern) for pattern in CONFIG_PATTERNS
+    )
 
 
 def is_code_file(path: Path, root: Path) -> bool:
-    """判断路径是否属于需要触发 code-review gate 的代码产物。"""
-
     try:
         root = root.resolve(strict=False)
         candidate = root / path if not path.is_absolute() else path
@@ -128,8 +120,6 @@ def is_code_file(path: Path, root: Path) -> bool:
 
 
 def iter_patch_paths(text: str):
-    """从 apply_patch 或 git diff 文本中提取候选路径。"""
-
     for line in text.splitlines():
         for prefix in (
             "*** Add File: ",
@@ -149,9 +139,9 @@ def iter_patch_paths(text: str):
 
 
 def iter_payload_paths(data: dict):
-    """从不同 agent 工具 payload 形状中提取候选路径。"""
-
-    tool_input = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+    tool_input = (
+        data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+    )
     for key in ("file_path", "path", "filename"):
         value = tool_input.get(key)
         if isinstance(value, str):
@@ -177,8 +167,6 @@ def iter_payload_paths(data: dict):
 
 
 def patch_has_phase_label_in_code(text: str, root: Path) -> bool:
-    """扫描 patch 文本，识别开发阶段标签是否泄漏进代码产物。"""
-
     current_code_path = False
     saw_patch_header = False
     for line in text.splitlines():
@@ -215,9 +203,9 @@ def patch_has_phase_label_in_code(text: str, root: Path) -> bool:
 
 
 def payload_has_phase_label_in_code(data: dict, root: Path) -> bool:
-    """判断一次工具 payload 是否把阶段标签写进代码产物。"""
-
-    tool_input = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+    tool_input = (
+        data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+    )
     for key in ("patch", "input", "command", "content"):
         value = tool_input.get(key)
         if isinstance(value, str) and patch_has_phase_label_in_code(value, root):
@@ -238,8 +226,6 @@ def payload_has_phase_label_in_code(data: dict, root: Path) -> bool:
 
 
 def mark_review_needed(root: Path, data: dict, agent: str = "") -> int:
-    """按工具 payload 判断是否写入 `.agents/.needs-review`。"""
-
     state_file = root / ".agents" / ".needs-review"
     state = (
         "needs_review: 疑似开发阶段标签泄漏到代码产物，"
@@ -248,7 +234,9 @@ def mark_review_needed(root: Path, data: dict, agent: str = "") -> int:
         else "needs_review\n"
     )
     if agent == "claude":
-        tool_input = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+        tool_input = (
+            data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+        )
         file_path = tool_input.get("file_path")
         if isinstance(file_path, str) and is_claude_code_file(file_path, root):
             state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -264,8 +252,6 @@ def mark_review_needed(root: Path, data: dict, agent: str = "") -> int:
 
 
 def is_claude_code_file(file_path: str, root: Path) -> bool:
-    """Claude hook 只在绝对路径指向代码产物时触发 review gate。"""
-
     path = Path(file_path)
     if not path.is_absolute():
         return False
@@ -273,8 +259,6 @@ def is_claude_code_file(file_path: str, root: Path) -> bool:
 
 
 def stop_gate(root: Path) -> int:
-    """在 review gate 未清理前阻止继续收口。"""
-
     state_file = root / ".agents" / ".needs-review"
     if not state_file.exists():
         return 0
