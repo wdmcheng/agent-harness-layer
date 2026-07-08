@@ -22,16 +22,15 @@
 | 总体状态 | 进行中 | Phase 1-8 已实现并通过本地验证和 code-review；Phase 9-15 仍待实现。 |
 | 当前 Phase | Phase 8 完成 | `tool-execution-boundaries` 已完成本地实现、合同测试、质量门禁、SQLite/PostgreSQL smoke 和 fresh code-reviewer Stage 1/2 PASS。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-8 已完成本地收口流程。 |
-| 当前 OpenSpec change | `tool-execution-boundaries` active | `openspec validate tool-execution-boundaries --type change --strict` 通过；Phase 8 实现已提交，但不自动 archive，需用户明确同意。 |
-| 当前验证基线 | 全量通过 | 本轮已通过 `uv run pytest`（86 passed, 1 skipped）、Phase 8 局部 contract tests（18 passed）、`make quality`、`openspec validate tool-execution-boundaries --type change --strict`、`uv run python scripts/smoke_local.py`、`make smoke-service`（PostgreSQL/Redis，`migration=0004_tool_execution_boundaries`）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
-| 当前阻塞项 | 无 | OpenSpec archive 需要用户明确同意。 |
-| 当前建议下一步 | 归档或进入 Phase 9 | 用户可选择归档 `tool-execution-boundaries`，或直接进入 Phase 9 RetrievalProvider 与 RAG 能力。 |
+| 当前 OpenSpec change | 无 active change | `tool-execution-boundaries` 已归档到 `openspec/changes/archive/2026-07-08-tool-execution-boundaries/`，主规格已同步到 `openspec/specs/tool-execution-boundaries/spec.md`；`openspec list --json` 输出 `changes: []`。 |
+| 当前验证基线 | 全量通过 | 本轮已通过 `uv run pytest`（86 passed, 1 skipped）、Phase 8 局部 contract tests（18 passed）、`make quality`、`openspec validate tool-execution-boundaries --type change --strict`、`uv run python scripts/smoke_local.py`、`make smoke-service`（PostgreSQL/Redis，`migration=0004_tool_execution_boundaries`）、`make build`、`make license-check`、`uv run pre-commit run --all-files`；归档后 `openspec validate --all --strict` 为 13 passed。 |
+| 当前阻塞项 | 无 | Phase 9 尚未开工。 |
+| 当前建议下一步 | 进入 Phase 9 | 下一轮进入 Phase 9 RetrievalProvider 与 RAG 能力。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 用户明确同意后，归档 `tool-execution-boundaries`。
 - 下一轮进入 Phase 9：RetrievalProvider 与 RAG 能力。
 
 ### 后续 Phase
@@ -362,7 +361,7 @@ Phase 1 Monorepo / quality spine
 
 ## Phase 8: ToolRegistry、FileTool、ShellTool 与 MCP Client
 
-**状态**：实现、全量验证、fresh code-reviewer Stage 1/2 PASS 和本地提交已完成；OpenSpec change 保持 active，等待用户明确决定是否 archive。
+**状态**：实现、全量验证、fresh code-reviewer Stage 1/2 PASS、本地提交和 OpenSpec archive 已完成；主规格已同步到 `openspec/specs/tool-execution-boundaries/spec.md`。
 
 **交付内容**：
 - 实现 `ToolRegistry`，统一本地工具、MCP 工具、schema validation、policy interception、trace/audit。
