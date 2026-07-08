@@ -25,6 +25,10 @@ from agent_harness.storage.repositories import (
     TenantRepository,
 )
 from agent_harness.storage.settings import normalize_async_dsn
+from agent_harness.storage.tool_repositories import (
+    ToolInvocationRepository,
+    WorkspaceRepository,
+)
 
 
 class SQLAlchemyUnitOfWork:
@@ -49,6 +53,8 @@ class SQLAlchemyUnitOfWork:
         self.policy_rules = PolicyRuleRepository(self.session)
         self.approvals = ApprovalRepository(self.session)
         self.audit_logs = AuditLogRepository(self.session)
+        self.workspaces = WorkspaceRepository(self.session)
+        self.tool_invocations = ToolInvocationRepository(self.session)
         return self
 
     async def __aexit__(

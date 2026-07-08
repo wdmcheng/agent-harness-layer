@@ -573,6 +573,100 @@
 | `approval` | `ApprovalRecord` | Yes | resolve 后的审批记录。 |
 | `run` | `RunCreateResponse` | No | approve/deny 推进 run 后的 public runtime 摘要。 |
 
+### 5.19 `ToolCallRequest`
+
+Phase 8 CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP request body。
+
+```json
+{
+  "agent_id": "dev-assistant",
+  "run_id": "run_123",
+  "tool_name": "file.read_file",
+  "arguments": {
+    "path": "README.md"
+  },
+  "request_id": "req_123",
+  "trace_id": "trace_123"
+}
+```
+
+字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `agent_id` | string | Yes | 发起工具调用的 agent；用于 allowlist、policy、audit 和 trace 关联。 |
+| `run_id` | string | No | 关联 run；CLI 单独验证时可为空，但生产 runtime 调用必须提供。 |
+| `tool_name` | string | Yes | 稳定工具名，例如 `file.read_file`、`shell.execute`、`mcp.<server>.<tool>`。 |
+| `arguments` | object | Yes | 工具输入；必须先过工具 descriptor 的 input schema validation。 |
+| `request_id` | string | No | 调用方 request id；没有时由 CLI/runtime seam 生成。 |
+| `trace_id` | string | No | 调用方 trace id；用于 tool event、audit 和 tool invocation 记录。 |
+
+### 5.20 `ToolCallResult`
+
+Phase 8 工具调用稳定结果 DTO；当前不作为 HTTP response body 直接暴露。
+
+```json
+{
+  "tool_name": "shell.execute",
+  "status": "completed",
+  "result": {
+    "exit_code": 0,
+    "stdout": "short output",
+    "stdout_ref": "artifact://stdout-large",
+    "stderr": "",
+    "stderr_ref": null
+  },
+  "source_ref": "tool://shell.execute/run_123/inv_123",
+  "trust_level": "untrusted",
+  "artifact_ref": "artifact://...",
+  "truncation": {
+    "truncated": true,
+    "original_bytes": 20000,
+    "retained_bytes": 4096
+  },
+  "policy": {
+    "decision": "allow"
+  },
+  "error": null,
+  "request_id": "req_123",
+  "trace_id": "trace_123",
+  "invocation_id": "inv_123"
+}
+```
+
+字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `tool_name` | string | Yes | 被执行的工具名。 |
+| `status` | string | Yes | `completed`、`failed`、`denied`、`requires_approval`、`disabled` 或 `timeout`。 |
+| `result` | object | No | 小结果摘要；不得包含完整大 payload、secret 或 provider 原始对象。ShellTool 的 `stdout_ref` / `stderr_ref` 位于此对象内，值必须是 artifact ref。 |
+| `source_ref` | string | Yes | 可追踪来源引用，进入 ContextAssembler 前必须保留。 |
+| `trust_level` | string | Yes | tool/MCP 输出默认 `untrusted`；本地元数据可为 `system` 或 `trusted`，但内容输出不得默认 trusted。 |
+| `artifact_ref` | string | No | 整体工具结果、文件内容或 MCP payload 的主 artifact 引用；ShellTool 分流 stdout/stderr 时使用 `result.stdout_ref` / `result.stderr_ref`。 |
+| `truncation` | object | Yes | 至少包含 `truncated`；截断时包含原始/保留大小。 |
+| `policy` | object | Yes | policy decision 摘要；包含 `decision`、`reason` 和可选 `audit_ref`。 |
+| `error` | object / null | No | 失败或拒绝时的稳定错误摘要，形状复用 `ErrorDetail` 字段；成功时为空。 |
+| `request_id` | string | No | 请求关联 ID。 |
+| `trace_id` | string | No | trace 关联 ID。 |
+| `invocation_id` | string | Yes | `tool_invocations` 持久化记录 ID 或等价稳定引用。 |
+
+### 5.21 Tool execution error codes
+
+Phase 8 工具 seam 必须使用稳定错误码，CLI、runtime 和未来 API route 都按这些 code 分支，不解析人类文案。
+
+| code | status | 触发场景 |
+|---|---|---|
+| `tool.not_found` | `failed` | `ToolRegistry` 找不到请求的 `tool_name`。 |
+| `tool.schema_validation_failed` | `failed` | `arguments` 不符合工具 input schema，且目标工具没有执行。 |
+| `tool.policy_denied` | `denied` | `PolicyEngine` 返回 `deny`，目标工具没有执行。 |
+| `tool.approval_required` | `requires_approval` | `PolicyEngine` 返回 `require_approval`，目标工具没有执行，调用方必须进入 approval seam。 |
+| `tool.disabled` | `disabled` | ShellTool 或某个工具未显式启用。 |
+| `tool.timeout` | `timeout` | Shell/MCP/工具执行超过 timeout 并被终止或取消。 |
+| `tool.workspace_denied` | `denied` | workspace root 外路径或 `.agentignore` 命中导致 FileTool 拒绝。 |
+| `tool.allowlist_denied` | `denied` | shell command、MCP server 或 MCP tool 未在 allowlist 内。 |
+| `tool.execution_failed` | `failed` | 工具实现执行失败；错误摘要已脱敏，不包含 provider 原始异常或 secret。 |
+
 ## 6. Run API
 
 ### RUN-001 创建 agent-scoped run
@@ -808,7 +902,42 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 安全规则 | context 只接收摘要和 refs；不得把完整 tool/retrieval/provider payload 或 secret 写入 request、response、event 或 audit。 |
 | 验证要求 | 认证/策略/HITL contract tests 必须覆盖三态决策、YAML/DB provider seam、401/403、`ApiErrorEnvelope`、request_id 和 OpenAPI schema。 |
 
-## 9. 保留 API 索引
+## 9. Tool Execution CLI / Runtime Seam
+
+Phase 8 不新增 HTTP route。工具执行先通过 CLI、runtime module seam 和未来 worker seam 暴露，避免在 tool 安全边界未稳定前公开远程执行 API。后续若新增 `/api/v1/tools` 或等价 route，必须先按第 3 节补完整 endpoint 条目和 OpenAPI drift tests。
+
+### 9.1 当前入口
+
+| Contract ID | 状态 | 入口 / 调用方 | 用途 |
+|---|---|---|---|
+| `TLS-001` | Phase 8 目标 | `agent-harness tools list`、runtime registry seam | 列出当前 actor/agent 可见的内置工具、FileTool、ShellTool 和 MCP discovery 工具摘要。 |
+| `TLS-002` | Phase 8 目标 | `agent-harness tools call`、runtime registry seam | 通过 `ToolRegistry` 执行一次受 policy 控制的工具调用，输出 `ToolCallResult`。 |
+| `TLS-003` | Phase 8 目标 | `agent_harness.tools.ToolRegistry` | 供 runtime、worker 和 template agent 通过 module seam 调用工具，不暴露 callable 或 vendor SDK object。 |
+
+### 9.2 行为契约
+
+| 字段 | 约束 |
+|---|---|
+| 认证 / 身份 | CLI 使用 profile 中的 `IdentityContext`；runtime/worker 必须传入已认证 actor。所有 mutating、shell、MCP、workspace 外访问和危险动作都进入 `PolicyEngine`。 |
+| 请求 DTO | `ToolCallRequest`；CLI arguments 可来自 JSON 字符串或文件，但进入 registry 前必须转换成该 DTO 形状。 |
+| 响应 DTO | `ToolCallResult`；CLI 输出可用文本或 JSON，但字段语义不得偏离 DTO。 |
+| 幂等性 | 工具执行默认不幂等；调用方必须通过 run/trace/invocation id 关联审计。读文件和 list/search 是逻辑读操作，仍要记录 invocation evidence。 |
+| 副作用 | FileTool 可读写 workspace；ShellTool 可启动受控子进程；MCP client 可连接配置 server。所有副作用必须先通过 schema validation、allowlist 和 policy。 |
+| 持久化 | Phase 8 必须持久化 `workspaces` 和 `tool_invocations`，至少记录 workspace root/policy ref、tool name、args_ref、result_ref、status、duration、tenant/run/agent/trace。大参数和结果走 artifact/ref。 |
+| 安全规则 | 空 `agent.tool_allowlist` 表示无工具权限；workspace 外访问默认 deny 或 require_approval；ShellTool 默认 disabled，显式启用后仍必须拒绝越过 workspace 的路径参数和 symlink target；MCP tool 未 allowlist 时 policy 拒绝；secret 不进 inline result、event、audit 或 error。 |
+| ContextAssembler | tool/MCP output 进入上下文前必须带 `source_ref`、`trust_level`、token/truncation metadata 和 artifact_ref，不允许裸字符串拼接。 |
+| stdout/stderr refs | ShellTool 的大 stdout/stderr 必须写入 artifact store，并在 `ToolCallResult.result.stdout_ref` / `ToolCallResult.result.stderr_ref` 中返回 artifact ref；`artifact_ref` 只用于整体结果或非流式 payload。 |
+| 错误码 | 工具 seam 必须使用第 5.21 节错误码；`ToolCallResult.error.code` 是调用方分支依据。 |
+| OpenAPI | 当前 OpenAPI 不得出现未记录的 `/api/v1/tools` route；contract tests 要显式保护这一点。 |
+
+### 9.3 验证要求
+
+- Contract tests 必须检查 `API-Contract.md` 包含 `TLS-001`、`TLS-002`、`ToolCallRequest`、`ToolCallResult` 和“无新增 HTTP route”说明。
+- CLI/runtime tests 必须覆盖 unknown tool、schema validation failure、policy deny、require_approval、空 agent tool allowlist、workspace 外路径、workspace 内 symlink 指向外部路径、`.agentignore`、ShellTool disabled、timeout、长 stdout/stderr artifact_ref、MCP allowlist denial 和 untrusted output metadata，并断言第 5.21 节错误码。
+- Import-boundary tests 必须证明 MCP SDK 只出现在 `agent_harness.adapters.mcp` 或测试替身中。
+- SQLite local migration tests 和 PostgreSQL service smoke 必须把 `workspaces`、`tool_invocations` 与既有 core schema 的证据分开报告。
+
+## 10. 保留 API 索引
 
 这些路径来自 `Product-Spec.md` 的当前版本 API 列表。它们不是当前已实现能力；对应计划项开工前必须先把本节扩展成第 3 节规定的完整 endpoint 条目，再写 route。
 
@@ -819,7 +948,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | `EVL-003` | 规划中 | Eval Gate | `/api/v1/evals/runs` | 必须定义 eval run create/detail/list schema、score sink、provider failure 降级。 |
 | `HLT-001` | 规划中 | Service App / Service Profile | `/api/v1/health` | 必须定义 local/service profile health 字段、storage/queue/observability 状态和公开性。 |
 
-## 10. 入口 / 调用方映射
+## 11. 入口 / 调用方映射
 
 | 入口 / 调用方 | 当前或目标接口 | 说明 |
 |---|---|---|
@@ -827,6 +956,8 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | `agent-harness agents list` | 等价于 `AGT-001` 的 registry seam | CLI 不走 HTTP，但必须使用同一 `AgentRegistry`、descriptor DTO、identity/policy visibility 和 validation 语义。 |
 | `agent-harness policy check` | 等价于 `POL-001` 的 policy seam | CLI 不走 HTTP，但必须使用同一 `PolicyEngine`、identity、audit 和 decision DTO。 |
 | `agent-harness approvals list/approve/deny` | 等价于 `APR-001` / `APR-002` 的 approval seam | CLI 不走 HTTP，但必须使用同一 `ApprovalService`、runtime resume 和 audit seam。 |
+| `agent-harness tools list/call` | 等价于 `TLS-001` / `TLS-002` 的 tool execution seam | CLI 不走 HTTP，但必须使用同一 `ToolRegistry`、PolicyEngine、workspace guard、artifact store、audit 和 DTO 语义。 |
+| runtime / worker tool call | 等价于 `TLS-003` 的 module seam | runtime/worker 必须通过 `ToolRegistry`，不得直接调用 FileTool、ShellTool、MCP SDK、subprocess 或文件系统危险操作。 |
 | OpenAPI 调用方 | `AGT-001`、`RUN-001` 到 `RUN-005`，后续保留 API | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
 | service-app FastAPI | `AGT-001`、`RUN-001` 到 `RUN-005` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
 | runtime worker | 内部 worker seam；不直接新增 HTTP route | worker 必须通过 runtime components，不直接操作 ORM/DBOS/provider SDK。 |
@@ -834,7 +965,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | Eval review flow | `EVL-*` | draft 到 approved 必须人工确认，secret/隐私脱敏是写入门禁。 |
 | future API/worker split | 所有 HTTP API + worker seam | 拆分后数据只走 DTO、CanonicalEvent、repository/provider/facade，不传进程内可变对象；queue message header 必须携带 `request_id` 和 `idempotency_key`。 |
 
-## 11. 流式与事件契约
+## 12. 流式与事件契约
 
 当前实现：
 
@@ -849,7 +980,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 - 断线恢复必须以 `seq` 为准；final 结算以 terminal event 为准。
 - 握手前错误走 `ApiErrorEnvelope`；握手后错误必须转成可序列化 event，且不得泄露 secret/provider 原始错误。
 
-## 12. OpenAPI 生成与漂移检查
+## 13. OpenAPI 生成与漂移检查
 
 当前必须保留：
 
@@ -879,7 +1010,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 
 新增 `approvals` 和 `policies` route 时，应按认证、策略、HITL 能力边界拆出对应 contract tests，不把所有 OpenAPI 检查堆进一个大测试。`agents` route 使用 `tests/contracts/test_agent_registry_model_context_contracts.py` 单独覆盖，认证/策略/HITL 还要补 401/403 和可见性检查。
 
-## 13. 契约验收清单
+## 14. 契约验收清单
 
 - [x] 已区分当前已实现 run API 与保留 API。
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
@@ -890,5 +1021,6 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] 已明确新增/修改 endpoint 必须先改本契约，再做局部 OpenAPI drift 检查。
 - [x] Agent Registry 开工前补全 `AGT-001` 的完整 endpoint 条目和 contract tests。
 - [x] Auth / Policy / HITL 开工前补全 auth、policy、approval endpoint 条目和 contract tests 目标。
+- [x] Tool execution 开工前补全 tools CLI/runtime/module seam、无新增 HTTP route 和 contract tests 目标。
 - [ ] Eval Gate 开工前补全 eval endpoint 条目和 contract tests。
 - [ ] Service App / Service Profile 收口时做全量 OpenAPI drift 复扫，并补齐 422 validation error envelope 统一验证。

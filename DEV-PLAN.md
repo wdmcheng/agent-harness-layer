@@ -11,33 +11,31 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals` 均已归档，并同步为主规格。
-- 代码状态: Phase 1-7 已完成实现、验证和 code-review；Phase 7 新增 API Key / Bearer Token 认证、PolicyEngine、InputGuardrail、HITL approval、audit evidence、approval/policy API 和 CLI seam，并通过 PostgreSQL/Redis service smoke 证据。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals` 均已归档，并同步为主规格。Phase 8 使用 active change `tool-execution-boundaries`。
+- 代码状态: Phase 1-8 已完成实现、验证和 code-review；Phase 8 新增 ToolRegistry、Workspace FileTool、ShellTool、MCP client connector、工具执行 CLI/runtime seam 和 tool evidence storage。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1-7 已实现并通过本地验证；Phase 8-15 仍待实现。 |
-| 当前 Phase | Phase 7 完成 | `auth-policy-hitl-approvals` 已归档到 `openspec/changes/archive/2026-07-08-auth-policy-hitl-approvals/`，主规格已同步到 `openspec/specs/auth-policy-hitl-approvals/spec.md`。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-7 已完成本地收口流程。 |
-| 当前 OpenSpec change | 无 active change | `openspec list --json` 输出 `changes: []`；归档后 `openspec validate --all --strict` 为 12 passed。 |
-| 当前验证基线 | 全量通过 | 本轮已通过 `uv sync`、`make quality`、`make test`（68 passed, 1 skipped）、Phase 7 局部 contract tests（18 passed）、`make smoke-local`、`make smoke-service`（PostgreSQL/Redis，`migration=0003_auth_policy_hitl_approvals`）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
-| 当前阻塞项 | 无 | 剩余是本轮本地提交。 |
-| 当前建议下一步 | 启动 Phase 8 proposal | 本轮提交后，从 Phase 8 ToolRegistry、FileTool、ShellTool 与 MCP Client 开始新的窄 OpenSpec change。 |
+| 总体状态 | 进行中 | Phase 1-8 已实现并通过本地验证和 code-review；Phase 9-15 仍待实现。 |
+| 当前 Phase | Phase 8 完成 | `tool-execution-boundaries` 已完成本地实现、合同测试、质量门禁、SQLite/PostgreSQL smoke 和 fresh code-reviewer Stage 1/2 PASS。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-8 已完成本地收口流程。 |
+| 当前 OpenSpec change | `tool-execution-boundaries` active | `openspec validate tool-execution-boundaries --type change --strict` 通过；Phase 8 实现已提交，但不自动 archive，需用户明确同意。 |
+| 当前验证基线 | 全量通过 | 本轮已通过 `uv run pytest`（86 passed, 1 skipped）、Phase 8 局部 contract tests（18 passed）、`make quality`、`openspec validate tool-execution-boundaries --type change --strict`、`uv run python scripts/smoke_local.py`、`make smoke-service`（PostgreSQL/Redis，`migration=0004_tool_execution_boundaries`）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
+| 当前阻塞项 | 无 | OpenSpec archive 需要用户明确同意。 |
+| 当前建议下一步 | 归档或进入 Phase 9 | 用户可选择归档 `tool-execution-boundaries`，或直接进入 Phase 9 RetrievalProvider 与 RAG 能力。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 完成本轮 Phase 7 归档和本地提交。
-- 下一轮为 Phase 8 创建新的窄 OpenSpec change：ToolRegistry、FileTool、ShellTool 与 MCP Client。
-- Phase 8 proposal 开工前，先扩展 `API-Contract.md` 中 tool/file/shell/MCP 相关 endpoint 或 CLI/API seam，并新增对应局部 contract tests。
+- 用户明确同意后，归档 `tool-execution-boundaries`。
+- 下一轮进入 Phase 9：RetrievalProvider 与 RAG 能力。
 
 ### 后续 Phase
 
-- Phase 8: ToolRegistry、FileTool、ShellTool 与 MCP Client。
 - Phase 9: RetrievalProvider 与 RAG 能力。
 - Phase 10: Observability Provider Adapters 与脱敏。
 - Phase 11: Eval Gate 与 Trace 到 Eval 闭环。
@@ -364,6 +362,8 @@ Phase 1 Monorepo / quality spine
 
 ## Phase 8: ToolRegistry、FileTool、ShellTool 与 MCP Client
 
+**状态**：实现、全量验证、fresh code-reviewer Stage 1/2 PASS 和本地提交已完成；OpenSpec change 保持 active，等待用户明确决定是否 archive。
+
 **交付内容**：
 - 实现 `ToolRegistry`，统一本地工具、MCP 工具、schema validation、policy interception、trace/audit。
 - 实现 Workspace FileTool：read/write/list/search/patch/delete，受 workspace 根目录、`.agentignore` 和 policy 控制。
@@ -372,18 +372,22 @@ Phase 1 Monorepo / quality spine
 
 **关键文件**：
 - `packages/agent-harness/src/agent_harness/tools/registry.py` - tool registry。
-- `packages/agent-harness/src/agent_harness/tools/schema.py` - tool input/output schema validation。
+- `packages/agent-harness/src/agent_harness/tools/types.py` - tool request/result/error/descriptor DTO。
 - `packages/agent-harness/src/agent_harness/tools/output_guard.py` - tool/MCP output source_ref、trust_level、截断和注入检测。
 - `packages/agent-harness/src/agent_harness/tools/file_tool.py` - workspace file operations。
 - `packages/agent-harness/src/agent_harness/tools/shell_tool.py` - guarded shell execution。
 - `packages/agent-harness/src/agent_harness/tools/workspace.py` - workspace root、`.agentignore`、path guard。
+- `packages/agent-harness/src/agent_harness/tools/cli_runtime.py` - CLI/runtime registry assembly、artifact/audit/persistence。
+- `packages/agent-harness/src/agent_harness/tools/mcp_tools.py` - MCP tool wrapper。
 - `packages/agent-harness/src/agent_harness/mcp/client.py` - MCP client interface。
 - `packages/agent-harness/src/agent_harness/adapters/mcp/python_sdk.py` - official MCP SDK adapter。
+- `packages/agent-harness/src/agent_harness/storage/tool_repositories.py` - workspace/tool invocation repository seam。
+- `packages/agent-harness/src/agent_harness/storage/migrations/versions/0004_tool_execution_boundaries.py` - Phase 8 tool evidence migration。
 - `templates/service-app/configs/tools.yaml` - tool allowlist / denylist / MCP server config。
 
 **验收标准**：
 - workspace 外路径默认被拒绝或要求审批。
-- shell tool 默认 disabled；显式启用后仍受 allowlist、timeout、环境变量白名单和 approval 控制。
+- shell tool 默认 disabled；显式启用后仍受 allowlist、workspace 路径参数边界、timeout、环境变量白名单和 approval 控制。
 - MCP tool 未在 allowlist 时被 policy 拒绝。
 - 大 tool output 被截断并写 artifact_ref，事件和 audit 不塞入完整大文本。
 - MCP/tool output 进入 ContextAssembler 前必须带 source_ref、trust_level 和 truncation metadata；指令型文本不得覆盖 system/policy/developer 指令。

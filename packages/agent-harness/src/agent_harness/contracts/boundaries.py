@@ -8,6 +8,7 @@ BANNED_VENDOR_IMPORTS = {
     "dbos",
     "langfuse",
     "logfire",
+    "mcp",
     "phoenix",
     "pydantic_ai",
 }

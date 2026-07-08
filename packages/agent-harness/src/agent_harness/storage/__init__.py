@@ -51,6 +51,14 @@ from agent_harness.storage.repositories import (
     TenantRecord as TenantRecord,
 )
 from agent_harness.storage.settings import storage_dsn_from_settings as storage_dsn_from_settings
+from agent_harness.storage.tool_repositories import (
+    ToolInvocationCreate as ToolInvocationCreate,
+)
+from agent_harness.storage.tool_repositories import (
+    ToolInvocationRecord as ToolInvocationRecord,
+)
+from agent_harness.storage.tool_repositories import WorkspaceCreate as WorkspaceCreate
+from agent_harness.storage.tool_repositories import WorkspaceRecord as WorkspaceRecord
 
 _REPOSITORY_DTO_EXPORTS = [
     "ApiKeyCreate",
@@ -68,6 +76,10 @@ _REPOSITORY_DTO_EXPORTS = [
     "SessionCreate",
     "SessionRecord",
     "TenantRecord",
+    "ToolInvocationCreate",
+    "ToolInvocationRecord",
+    "WorkspaceCreate",
+    "WorkspaceRecord",
 ]
 
 _STORAGE_ADAPTER_EXPORTS = [

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, cast
+from uuid import uuid4
 
 import typer
 
@@ -23,10 +26,14 @@ from agent_harness.storage.diagnostics import (
     observability_status,
     redis_status,
 )
+from agent_harness.tools import ToolCallRequest, ToolRuntimeContext, WorkspacePolicy
+from agent_harness.tools.cli_runtime import call_and_record_tool, visible_tool_descriptors
 
 app = typer.Typer(no_args_is_help=True)
 agents_app = typer.Typer(no_args_is_help=True)
+tools_app = typer.Typer(no_args_is_help=True)
 app.add_typer(agents_app, name="agents")
+app.add_typer(tools_app, name="tools")
 register_access_commands(app)
 
 
@@ -228,6 +235,91 @@ def list_agents(
 
     for descriptor in registry.list_agents():
         typer.echo(f"{descriptor.agent_id}\t{descriptor.name}\t{descriptor.model_policy.provider}")
+
+
+@tools_app.command("list")
+def list_tools(
+    profile: Annotated[str, typer.Option("--profile")] = "local",
+    profiles_dir: Annotated[Path | None, typer.Option("--profiles-dir")] = None,
+    workspace: Annotated[Path, typer.Option("--workspace")] = Path("."),
+) -> None:
+    """列出本地可用工具；这不是 HTTP tools route。"""
+
+    settings = load_settings_or_exit(profile, profiles_dir)
+    workspace_policy = WorkspacePolicy(
+        root=workspace,
+        ignore_file=settings.tools.workspace.ignore_file,
+    )
+    artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
+    descriptors = asyncio.run(
+        visible_tool_descriptors(
+            settings=settings,
+            workspace_policy=workspace_policy,
+            artifact_store=FileArtifactStore(artifact_root),
+            actor=settings.identity.default,
+            profiles_dir=profiles_dir,
+        )
+    )
+    for descriptor in descriptors:
+        typer.echo(json.dumps(descriptor.to_payload(), ensure_ascii=False))
+
+
+@tools_app.command("call")
+def call_tool(
+    tool_name: str,
+    profile: Annotated[str, typer.Option("--profile")] = "local",
+    profiles_dir: Annotated[Path | None, typer.Option("--profiles-dir")] = None,
+    workspace: Annotated[Path, typer.Option("--workspace")] = Path("."),
+    arguments: Annotated[str, typer.Option("--arguments")] = "{}",
+    agent_id: Annotated[str, typer.Option("--agent-id")] = "cli.tool",
+) -> None:
+    """通过 CLI 调用内置工具，输出 ToolCallResult JSON。"""
+
+    settings = load_settings_or_exit(profile, profiles_dir)
+    try:
+        loaded_arguments: Any = json.loads(arguments)
+    except json.JSONDecodeError as exc:
+        typer.echo(f"tool.schema_validation_failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    if not isinstance(loaded_arguments, dict):
+        typer.echo("tool.schema_validation_failed: arguments must be a JSON object", err=True)
+        raise typer.Exit(1)
+    parsed_arguments = cast(dict[str, Any], loaded_arguments)
+
+    workspace_policy = WorkspacePolicy(
+        root=workspace,
+        ignore_file=settings.tools.workspace.ignore_file,
+    )
+    artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
+    artifacts = FileArtifactStore(artifact_root)
+    request_id = f"req_{uuid4()}"
+    trace_id = f"trace_{uuid4()}"
+    context = ToolRuntimeContext(
+        actor=settings.identity.default,
+        agent_id=agent_id,
+        request_id=request_id,
+        trace_id=trace_id,
+    )
+    request = ToolCallRequest(
+        tool_name=tool_name,
+        arguments=parsed_arguments,
+        agent_id=agent_id,
+        request_id=request_id,
+        trace_id=trace_id,
+    )
+    result = asyncio.run(
+        call_and_record_tool(
+            request,
+            context=context,
+            workspace_policy=workspace_policy,
+            artifact_store=artifacts,
+            settings=settings,
+            profiles_dir=profiles_dir,
+        )
+    )
+    typer.echo(json.dumps(result.to_payload(), ensure_ascii=False))
+    if result.status != "completed":
+        raise typer.Exit(1)
 
 
 def main() -> None:

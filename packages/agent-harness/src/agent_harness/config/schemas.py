@@ -84,6 +84,47 @@ class ServiceSettings(HarnessDTO):
     worker_process: ProcessSettings = Field(default_factory=ProcessSettings)
 
 
+def _empty_string_list() -> list[str]:
+    return []
+
+
+class WorkspaceToolSettings(HarnessDTO):
+    """workspace 文件工具的默认安全边界。"""
+
+    ignore_file: str = ".agentignore"
+    inline_result_bytes: int = 8192
+
+
+class ShellToolSettings(HarnessDTO):
+    """ShellTool 默认禁用，启用后仍受 allowlist 和 timeout 约束。"""
+
+    enabled: bool = False
+    allowlist: list[str] = Field(default_factory=list)
+    denylist: list[str] = Field(default_factory=list)
+    env_whitelist: list[str] = Field(default_factory=list)
+    timeout_seconds: int = 30
+    inline_output_bytes: int = 8192
+
+
+class MCPServerSettings(HarnessDTO):
+    """单个 MCP server 的受控连接配置。"""
+
+    name: str
+    transport: str = "stdio"
+    command: str | None = None
+    args: list[str] = Field(default_factory=_empty_string_list)
+    url: str | None = None
+    allowlist: list[str] = Field(default_factory=_empty_string_list)
+
+
+class ToolSettings(HarnessDTO):
+    """Phase 8 工具执行配置；profile 未声明时使用安全默认值。"""
+
+    workspace: WorkspaceToolSettings = Field(default_factory=WorkspaceToolSettings)
+    shell: ShellToolSettings = Field(default_factory=ShellToolSettings)
+    mcp_servers: list[MCPServerSettings] = Field(default_factory=lambda: [])
+
+
 class AgentBudgetSettings(HarnessDTO):
     """单个 agent 可覆盖的预算片段。"""
 
@@ -115,4 +156,5 @@ class HarnessSettings(HarnessDTO):
     identity: IdentitySettings = Field(default_factory=IdentitySettings)
     budget: BudgetSettings = Field(default_factory=BudgetSettings)
     service: ServiceSettings = Field(default_factory=ServiceSettings)
+    tools: ToolSettings = Field(default_factory=ToolSettings)
     agent: AgentConfig = Field(default_factory=AgentConfig)
