@@ -2,7 +2,7 @@
 
 - Product-Spec.md：`REQ-010`、`REQ-012`、`REQ-014`、`REQ-015`；terminal event、seq resume、payload_ref、guardrail/context 摘要和 local evidence 相关验收。
 - DEV-PLAN.md：`Phase 4: CanonicalEvent、Artifact 与本地观测脊柱`；风险表中 prompt/tool output injection 和 event/observability boundary。
-- 设计稿 / 架构图：`artifacts/pydantic-ai-agent-architecture.drawio` 中 Event Stream、Observability、Eval Gate 和信任边界。
+- 设计稿 / 架构图：`docs/architecture/pydantic-ai-agent-architecture.drawio` 中 Event Stream、Observability、Eval Gate 和信任边界。
 - CONTEXT.md / ADR：当前仓库无。
 
 ## 为什么
@@ -34,6 +34,6 @@ runtime、eval、audit 和 service smoke 都需要同一套事件与证据格式
 
 ## 影响
 
-- 受影响代码：`packages/agent-harness/src/agent_harness/events/**`、`artifacts/**`、`security/**`、`observability/**`、`templates/service-app/app/api/sse.py`。
+- 受影响代码：`packages/agent-harness/src/agent_harness/events/**`、`docs/architecture/**`、`security/**`、`observability/**`、`templates/service-app/app/api/sse.py`。
 - 受影响测试：event stream contract tests、artifact store tests、redaction tests、SSE adapter smoke。
 - 受影响数据：local jsonl traces 和 filesystem artifact payload。

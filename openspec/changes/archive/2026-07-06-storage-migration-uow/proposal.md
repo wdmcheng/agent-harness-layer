@@ -2,7 +2,7 @@
 
 - Product-Spec.md：`REQ-005` 存储、迁移与事务边界；`AC-010`、`AC-011`、`AC-012`；`DEP-008`、`DEP-009`、`DEP-011`。
 - DEV-PLAN.md：`Phase 3: 存储、迁移与事务边界`；核心表矩阵中 `tenants`、`sessions`、`agent_runs`、`checkpoints`。
-- 设计稿 / 架构图：`artifacts/pydantic-ai-agent-architecture.drawio` 中 Storage / Runtime / Event spine 边界。
+- 设计稿 / 架构图：`docs/architecture/pydantic-ai-agent-architecture.drawio` 中 Storage / Runtime / Event spine 边界。
 - CONTEXT.md / ADR：当前仓库无。
 
 ## 为什么

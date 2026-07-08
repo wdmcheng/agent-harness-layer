@@ -9,7 +9,7 @@
 
 - Product Spec: `Product-Spec.md` 已存在，版本为 2026-07-05 的 v1.0。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
-- 设计稿 / 架构图: 已读取 `artifacts/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
+- 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
 - OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context` 均已归档，并同步为主规格。
 - 代码状态: Phase 1-6 已完成实现、验证、code-review 和 OpenSpec 归档；Phase 6 新增 Agent Registry、模型路由、ContextAssembler、Embedding provider/cache、`AGT-001` API/CLI 契约和 PostgreSQL/Redis service smoke 证据。
@@ -509,7 +509,7 @@ Phase 1 Monorepo / quality spine
 - `packages/agent-harness/src/agent_harness/runtime/queue.py` - run queue interface。
 - `packages/agent-harness/src/agent_harness/adapters/queue/redis.py` - Redis queue adapter。
 - `packages/agent-harness/src/agent_harness/adapters/runtime/dbos.py` - DBOS workflow/checkpoint integration。
-- `docs/architecture.md` - 当前同进程形态和未来拆分边界。
+- `docs/architecture/README.md` - 当前同进程形态和未来拆分边界。
 - `docs/adr/0001-p0-service-boundaries.md` - P0 不强制微服务但预留接口的决策。
 
 **验收标准**：
@@ -531,7 +531,7 @@ Phase 1 Monorepo / quality spine
 
 **关键文件**：
 - `README.md` - 根 README 最终版。
-- `docs/architecture.md` - 架构和未来拆分边界。
+- `docs/architecture/README.md` - 架构和未来拆分边界。
 - `docs/extension-guide.md` - 扩展 agent、tool、model、retrieval、observability、eval adapter。
 - `docs/adapter-contracts.md` - provider/repository/facade contract。
 - `docs/context-and-trust-boundary.md` - Agent Loop、HITL 回边、SSE/WS 回传、ContextAssembler 和 untrusted input 处理。

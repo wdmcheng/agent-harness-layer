@@ -20,7 +20,7 @@
 |---|---|
 | `Product-Spec.md` | 产品范围、当前版本 API 列表、身份/权限/HITL、CanonicalEvent、未来拆分边界。 |
 | `DEV-PLAN.md` | 开发计划顺序、已完成能力、后续 endpoint 所属计划项和验收门禁。 |
-| `artifacts/pydantic-ai-agent-architecture.drawio` | 5 层运行中轴、SSE/WS 回边、HITL 回路、信任边界、部署拆分边界。 |
+| `docs/architecture/pydantic-ai-agent-architecture.drawio` | 5 层运行中轴、SSE/WS 回边、HITL 回路、信任边界、部署拆分边界。 |
 | `openspec/specs/core-contracts/spec.md` | DTO serialization、typed error envelope、trust/source/context refs 的稳定公共契约。 |
 | `openspec/specs/runtime-checkpoint-runs/spec.md` | API、CLI、worker 共用 `RunOrchestrator` seam 的行为契约。 |
 | `templates/service-app/app/api/routes/runs.py` | 当前已实现 run API route、请求/响应 DTO 和事件读取 seam。 |

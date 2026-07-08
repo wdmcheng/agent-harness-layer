@@ -2,7 +2,7 @@
 
 - Product-Spec.md：`REQ-002` 核心包与上游隔离；`REQ-004` 配置系统；`REQ-009` 租户、身份与认证；`REQ-010` PolicyEngine、权限拦截、InputGuardrail 与 HITL；`REQ-012` 模型、预算、上下文组装与 embedding；`REQ-022` 部署边界与未来微服务拆分基础。
 - DEV-PLAN.md：`Phase 2: 核心契约、配置系统与身份上下文`；风险表中 Pydantic AI vendor 漂移、未来拆分边界、prompt/tool output injection 三项。
-- 设计稿 / 架构图：`artifacts/pydantic-ai-agent-architecture.drawio`，重点对应 Access 层的 Auth/Tenant/Session、Input Guardrails、Request & Response Schema，Engine 层的 Context Assembly / Budget Policy，Tools 层信任边界，以及 P0 部署边界。
+- 设计稿 / 架构图：`docs/architecture/pydantic-ai-agent-architecture.drawio`，重点对应 Access 层的 Auth/Tenant/Session、Input Guardrails、Request & Response Schema，Engine 层的 Context Assembly / Budget Policy，Tools 层信任边界，以及 P0 部署边界。
 - CONTEXT.md / ADR：当前仓库无。
 
 ## 为什么

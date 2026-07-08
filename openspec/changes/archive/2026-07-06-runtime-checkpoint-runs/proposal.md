@@ -2,7 +2,7 @@
 
 - Product-Spec.md：`REQ-006` Durable runtime、checkpoint 和 resume；`REQ-008` API/CLI 与管理面；`REQ-014` CanonicalEvent 与流式输出；`AC-014`、`AC-060`。`AC-013` approval/HITL resume 只作为后续 Phase 7 背景，不由本 change 关闭。
 - DEV-PLAN.md：`Phase 5: Durable Runtime、Checkpoint 与 Run 生命周期`；DBOS adapter 风险项；未来 service boundary 风险项。
-- 设计稿 / 架构图：`artifacts/pydantic-ai-agent-architecture.drawio` 中 Agent Loop、Runtime、Checkpoint、Event Stream 和 worker boundary。
+- 设计稿 / 架构图：`docs/architecture/pydantic-ai-agent-architecture.drawio` 中 Agent Loop、Runtime、Checkpoint、Event Stream 和 worker boundary。
 - CONTEXT.md / ADR：当前仓库无。
 
 ## 为什么

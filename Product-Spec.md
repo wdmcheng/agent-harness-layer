@@ -25,10 +25,10 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 
 | 图 | 作用 | 可编辑源 | PNG 预览 |
 |---|---|---|---|
-| 企业级 Pydantic AI 控制论全栈架构 | 产品级全景图，定义 5 层运行链路、Agent Loop、治理面、观测面和 P0 可拆部署边界。 | `artifacts/pydantic-ai-agent-architecture.drawio` | `artifacts/pydantic-ai-agent-architecture.png` |
-| 技术架构图（Agent Harness Layer） | 开发级结构图，落到核心包、template app、DTO、CanonicalEvent、Repository/UoW、config/identity/runtime/event/artifact/storage 边界。 | `artifacts/agent-harness-technical-architecture.drawio` / `artifacts/agent-harness-technical-architecture.excalidraw` | `artifacts/agent-harness-technical-architecture.png` |
-| 运行链路与信任边界图（Agent Harness Layer） | 运行级链路图，说明 CLI/API -> RunOrchestrator -> storage/checkpoint -> EventBus/artifact -> JSON events/SSE，并标出 tool/MCP/retrieval 不可信输入边界。 | `artifacts/agent-harness-runtime-trust-boundaries.drawio` / `artifacts/agent-harness-runtime-trust-boundaries.excalidraw` | `artifacts/agent-harness-runtime-trust-boundaries.png` |
-| 部署边界图（Agent Harness Layer） | 部署级边界图，说明 local profile、service profile、API/worker/PostgreSQL/Redis 协作，以及未来 gateway / worker pool / storage / event pipeline 拆分路径。 | `artifacts/agent-harness-deployment-boundaries.drawio` / `artifacts/agent-harness-deployment-boundaries.excalidraw` | `artifacts/agent-harness-deployment-boundaries.png` |
+| 企业级 Pydantic AI 控制论全栈架构 | 产品级全景图，定义 5 层运行链路、Agent Loop、治理面、观测面和 P0 可拆部署边界。 | `docs/architecture/pydantic-ai-agent-architecture.drawio` / `docs/architecture/pydantic-ai-agent-architecture.excalidraw` | `docs/architecture/pydantic-ai-agent-architecture.png` |
+| 技术架构图（Agent Harness Layer） | 开发级结构图，落到核心包、template app、DTO、CanonicalEvent、Repository/UoW、config/identity/runtime/event/artifact/storage 边界。 | `docs/architecture/agent-harness-technical-architecture.drawio` / `docs/architecture/agent-harness-technical-architecture.excalidraw` | `docs/architecture/agent-harness-technical-architecture.png` |
+| 运行链路与信任边界图（Agent Harness Layer） | 运行级链路图，说明 CLI/API -> RunOrchestrator -> storage/checkpoint -> EventBus/artifact -> JSON events/SSE，并标出 tool/MCP/retrieval 不可信输入边界。 | `docs/architecture/agent-harness-runtime-trust-boundaries.drawio` / `docs/architecture/agent-harness-runtime-trust-boundaries.excalidraw` | `docs/architecture/agent-harness-runtime-trust-boundaries.png` |
+| 部署边界图（Agent Harness Layer） | 部署级边界图，说明 local profile、service profile、API/worker/PostgreSQL/Redis 协作，以及未来 gateway / worker pool / storage / event pipeline 拆分路径。 | `docs/architecture/agent-harness-deployment-boundaries.drawio` / `docs/architecture/agent-harness-deployment-boundaries.excalidraw` | `docs/architecture/agent-harness-deployment-boundaries.png` |
 
 全景图重点表达：
 
@@ -988,7 +988,7 @@ README 是入口，深度文档解释架构和维护边界。
 - Release Process
 
 **深度文档 MUST 包含：**
-- `docs/architecture.md`
+- `docs/architecture/README.md`
 - `docs/extension-guide.md`
 - `docs/adapter-contracts.md`
 - `docs/eval-observability-loop.md`
@@ -1169,7 +1169,7 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 
 **规则：**
 - MUST P0 不把物理微服务、服务注册发现、WAF、Kubernetes、多 AZ 当作必交付功能。
-- MUST README / `docs/architecture.md` 解释哪些模块今天同进程、哪些边界未来可拆、拆分时哪些接口不变。
+- MUST README / `docs/architecture/README.md` 解释哪些模块今天同进程、哪些边界未来可拆、拆分时哪些接口不变。
 - MUST CI 至少包含一条 service profile smoke，验证 API 进程和 worker 进程使用同一 storage/queue 配置时可协作。
 - MUST 禁止为了图上好看提前引入分布式复杂度；边界优先，分布式实现后置。
 
@@ -1398,9 +1398,9 @@ P0 完成条件：
 
 ### 12.1 已读取 / 已验证资料
 
-- 项目架构图源文件：`artifacts/pydantic-ai-agent-architecture.drawio`、`artifacts/agent-harness-technical-architecture.drawio`、`artifacts/agent-harness-runtime-trust-boundaries.drawio`、`artifacts/agent-harness-deployment-boundaries.drawio`，以 drawio 可编辑版本作为项目内引用。
-- 项目架构图 Excalidraw 可编辑版本：`artifacts/agent-harness-technical-architecture.excalidraw`、`artifacts/agent-harness-runtime-trust-boundaries.excalidraw`、`artifacts/agent-harness-deployment-boundaries.excalidraw`。
-- 项目架构图 PNG 预览版本：`artifacts/pydantic-ai-agent-architecture.png`、`artifacts/agent-harness-technical-architecture.png`、`artifacts/agent-harness-runtime-trust-boundaries.png`、`artifacts/agent-harness-deployment-boundaries.png`，用于人工审阅和多模态模型快速理解；可编辑源仍以 `.drawio` / `.excalidraw` 为准。
+- 项目架构图源文件：`docs/architecture/pydantic-ai-agent-architecture.drawio`、`docs/architecture/agent-harness-technical-architecture.drawio`、`docs/architecture/agent-harness-runtime-trust-boundaries.drawio`、`docs/architecture/agent-harness-deployment-boundaries.drawio`，以 drawio 可编辑版本作为项目内引用。
+- 项目架构图 Excalidraw 可编辑版本：`docs/architecture/pydantic-ai-agent-architecture.excalidraw`、`docs/architecture/agent-harness-technical-architecture.excalidraw`、`docs/architecture/agent-harness-runtime-trust-boundaries.excalidraw`、`docs/architecture/agent-harness-deployment-boundaries.excalidraw`。
+- 项目架构图 PNG 预览版本：`docs/architecture/pydantic-ai-agent-architecture.png`、`docs/architecture/agent-harness-technical-architecture.png`、`docs/architecture/agent-harness-runtime-trust-boundaries.png`、`docs/architecture/agent-harness-deployment-boundaries.png`，用于人工审阅和多模态模型快速理解；可编辑源仍以 `.drawio` / `.excalidraw` 为准。
 - 项目说明：`AGENT-PACK.md`，用于区分当前 Agent Pack 能力包与新脚手架产品。
 - Pydantic AI 官方文档：overview、streaming、durable execution、multi-agent、Logfire integration、Harness overview。
 - SQLAlchemy 2.0 官方文档：typed declarative、async ORM。
@@ -1419,4 +1419,4 @@ P0 完成条件：
 
 - 已验证四张 drawio 源文件结构：`0 error(s), 0 warning(s)`。
 - 已导出四张架构图 PNG 预览；PNG 用于审阅和快速理解，项目内可编辑真相源仍以 `.drawio` / `.excalidraw` 为准。
-- 尚未实现代码；本文档是需求事实源，不是运行结果。
+- 本文档是需求事实源；当前实现进度、验证证据和已归档变更以 `DEV-PLAN.md` 与 `openspec/specs/` 为准。

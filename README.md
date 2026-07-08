@@ -92,7 +92,7 @@ Cross-boundary data should move through Pydantic DTOs, context refs, identity/pe
 
 Deep documentation is introduced incrementally:
 
-- `docs/architecture.md` is reserved for architecture and deployment boundaries.
+- `docs/architecture/README.md` contains architecture diagram sources, PNG previews, and deployment boundary notes.
 - `docs/extension-guide.md` is reserved for extension guidance.
 - `docs/adapter-contracts.md` is reserved for adapter contracts.
 - `docs/eval-observability-loop.md` is reserved for trace-to-eval guidance.
