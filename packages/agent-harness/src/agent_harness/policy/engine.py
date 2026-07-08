@@ -27,6 +27,8 @@ class PolicyDeniedError(RuntimeError):
 
 
 class PolicyCheck(HarnessDTO):
+    """一次策略检查的稳定输入，不携带执行动作本身。"""
+
     actor: IdentityContext
     resource: str
     action: str
@@ -34,12 +36,16 @@ class PolicyCheck(HarnessDTO):
 
 
 class PolicyApprovalRequirement(HarnessDTO):
+    """require_approval 决策返回给调用方的审批摘要。"""
+
     action: str
     resource: str
     reason: str
 
 
 class PolicyEvaluation(HarnessDTO):
+    """PolicyEngine 输出的三态决策和审计元数据。"""
+
     decision: str
     reason: str
     actor: IdentityContext
@@ -50,6 +56,8 @@ class PolicyEvaluation(HarnessDTO):
 
 
 class PolicyProvider(Protocol):
+    """策略来源的最小协议；provider 只判断，不执行动作。"""
+
     async def evaluate(self, check: PolicyCheck) -> PolicyEvaluation: ...
 
 
@@ -117,6 +125,8 @@ class YamlPolicyProvider:
         )
 
     async def evaluate(self, check: PolicyCheck) -> PolicyEvaluation:
+        """按 YAML 默认规则返回 allow、deny 或 require_approval。"""
+
         if check.action in self._deny_actions:
             return _decision(
                 check,
@@ -217,7 +227,11 @@ class PolicyEngine:
 
 
 class InputGuardrail:
-    """run 创建前检查用户输入中明显的 prompt-injection 风险。"""
+    """run 创建前检查用户输入中明显的 prompt-injection 风险。
+
+    当前入口只覆盖 API/CLI 用户输入；tool、MCP 和 retrieval output 的信任传播
+    由对应 adapter 接入，但必须复用同一 policy/audit seam。
+    """
 
     _PATTERNS = (
         "ignore previous instructions",
@@ -240,6 +254,7 @@ class InputGuardrail:
         text = str(input).lower()
         detected = [pattern for pattern in self._PATTERNS if pattern in text]
         if not detected:
+            # 未命中风险词时仍返回可序列化 decision，方便 audit 和测试断言统一形状。
             result = _decision(
                 PolicyCheck(
                     actor=actor,

@@ -20,6 +20,8 @@ from agent_harness.storage.models import (
 
 
 class ApiKeyCreate(HarnessDTO):
+    """创建 API key 记录时的脱敏输入。"""
+
     tenant_id: str
     user_id: str
     name: str
@@ -30,10 +32,14 @@ class ApiKeyCreate(HarnessDTO):
 
 
 class ApiKeyRecord(ApiKeyCreate):
+    """已持久化的 API key 记录，只包含 token hash。"""
+
     id: str
 
 
 class PolicyRuleCreate(HarnessDTO):
+    """DB policy provider 的规则写入 DTO。"""
+
     tenant_id: str
     name: str
     action: str
@@ -42,10 +48,14 @@ class PolicyRuleCreate(HarnessDTO):
 
 
 class PolicyRuleRecord(PolicyRuleCreate):
+    """已持久化的策略规则。"""
+
     id: str
 
 
 class ApprovalCreate(HarnessDTO):
+    """创建 waiting approval 所需的 run、动作和 resume 关联字段。"""
+
     tenant_id: str
     run_id: str
     agent_id: str
@@ -60,6 +70,8 @@ class ApprovalCreate(HarnessDTO):
 
 
 class ApprovalRecord(ApprovalCreate):
+    """approval 状态机的公开 repository 记录。"""
+
     approval_id: str
     status: str
     resolved_by: str | None = None
@@ -68,6 +80,8 @@ class ApprovalRecord(ApprovalCreate):
 
 
 class AuditLogCreate(HarnessDTO):
+    """写入 audit_logs 的结构化审计输入。"""
+
     tenant_id: str
     actor_user_id: str | None = None
     action: str
@@ -76,6 +90,8 @@ class AuditLogCreate(HarnessDTO):
 
 
 class AuditLogRecord(AuditLogCreate):
+    """已持久化的审计记录。"""
+
     id: str
     created_at: datetime | None = None
 
@@ -138,10 +154,14 @@ def _audit_log_record(model: AuditLogModel) -> AuditLogRecord:
 
 
 class ApiKeyRepository:
+    """API key verifier 使用的 token hash 查询 repository。"""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def create(self, data: ApiKeyCreate) -> ApiKeyRecord:
+        """写入已 hash 的 API key；repository 不接收明文 token。"""
+
         model = ApiKeyModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
@@ -165,10 +185,14 @@ class ApiKeyRepository:
 
 
 class PolicyRuleRepository:
+    """DB-backed PolicyProvider 使用的规则 repository。"""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def create(self, data: PolicyRuleCreate) -> PolicyRuleRecord:
+        """写入 DB policy provider 可读取的单条规则。"""
+
         model = PolicyRuleModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
@@ -189,10 +213,14 @@ class PolicyRuleRepository:
 
 
 class ApprovalRepository:
+    """ApprovalService 使用的 waiting/resolve 状态 repository。"""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def create(self, data: ApprovalCreate) -> ApprovalRecord:
+        """创建初始 waiting approval，resolve 只能走 `resolve()`。"""
+
         model = ApprovalModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
@@ -222,6 +250,8 @@ class ApprovalRepository:
         *,
         tenant_id: str | None = None,
     ) -> list[ApprovalRecord]:
+        """按 run 顺序读取 approvals；传入 tenant_id 时同时执行租户过滤。"""
+
         conditions = [ApprovalModel.run_id == run_id]
         if tenant_id is not None:
             conditions.append(ApprovalModel.tenant_id == tenant_id)
@@ -240,6 +270,8 @@ class ApprovalRepository:
         resolved_by: str,
         metadata: dict[str, Any] | None = None,
     ) -> ApprovalRecord:
+        """把 waiting approval 转成最终状态，并保留 resolve 审计元数据。"""
+
         model = await self._session.get(ApprovalModel, approval_id)
         if model is None or model.run_id != run_id or model.tenant_id != tenant_id:
             raise LookupError(f"approval not found: {approval_id}")
@@ -255,10 +287,14 @@ class ApprovalRepository:
 
 
 class AuditLogRepository:
+    """AuditService 使用的追加式审计 repository。"""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def create(self, data: AuditLogCreate) -> AuditLogRecord:
+        """追加一条结构化审计记录；调用方负责先完成 secret redaction。"""
+
         model = AuditLogModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,

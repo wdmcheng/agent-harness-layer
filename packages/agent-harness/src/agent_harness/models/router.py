@@ -11,6 +11,8 @@ from agent_harness.models.providers import ModelDecision, ModelProvider, ModelRe
 
 
 class ModelRouterConfig(HarnessDTO):
+    """模型路由的运行时配置，支持显式 reload。"""
+
     default_provider: str = "fake"
     default_model: str
     fallback_models: list[str] = Field(default_factory=list)
@@ -19,7 +21,11 @@ class ModelRouterConfig(HarnessDTO):
 
 
 class ModelRouter:
-    """根据 provider/model/budget 配置选择模型。"""
+    """根据 provider/model/budget 配置选择模型。
+
+    Router 只产出 provider-neutral decision，不直接触发 PolicyEngine。后续
+    runtime、tool 或 eval seam 可以根据 `policy_required` 决策进入审批或降级。
+    """
 
     def __init__(
         self,
@@ -47,6 +53,8 @@ class ModelRouter:
             self.config.max_tokens_per_call is not None
             and estimated_tokens > self.config.max_tokens_per_call
         ):
+            # 超预算先尝试 fallback；没有 fallback 才把判断交给 policy seam。
+            # 这里不抛异常，是为了让调用方保留可审计的 decision summary。
             if self.config.fallback_models:
                 action = "fallback"
                 fallback_model = self.config.fallback_models[0]

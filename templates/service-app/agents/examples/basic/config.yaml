@@ -1,14 +1,18 @@
 agent_id: examples.basic
 version: 0.1.0
+# name/description 是 API 契约和 contract tests 使用的 fixture 值；如要改文案，
+# 需要同步 API-Contract 示例和相关测试期望。
 name: Basic Example Agent
 description: Offline fake model smoke agent.
 input_schema: agents.examples.basic.schemas.Input
 output_schema: agents.examples.basic.schemas.Output
 model:
+  # 示例 agent 使用 fake model，保证模板安装后不需要真实 provider key。
   provider: fake
   default_model: fake-basic
   fallback_models: []
 budget:
+  # 预算值用于 model router 和 contract tests，不代表真实计费额度。
   max_tokens_per_run: 8192
   max_cost_usd_per_run: null
 tool_allowlist: []

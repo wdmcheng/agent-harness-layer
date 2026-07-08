@@ -25,11 +25,15 @@ PROFILES = ROOT / "templates" / "service-app" / "configs" / "profiles"
 
 
 def sqlite_dsn(path: Path) -> str:
+    """生成 storage 合同测试专用 SQLite DSN。"""
+
     # 测试使用独立临时库，避免 migration 或 rollback 验证写入开发者本地 profile。
     return f"sqlite+aiosqlite:///{path}"
 
 
 def assert_core_schema(db_path: Path) -> None:
+    """断言迁移后核心表存在，避免只检查 revision 字符串。"""
+
     # 这里直接检查 SQLite catalog，因为 public seam 是“migration 后 schema 存在”。
     # Repository 行为另有 UoW 测试覆盖，避免一个测试同时承担两层证据。
     with sqlite3.connect(db_path) as connection:

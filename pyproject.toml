@@ -19,17 +19,21 @@ dev = [
 ]
 
 [tool.uv.workspace]
+# 根 workspace 只聚合核心包和可安装 service-app 模板；不要把生成产物或外部项目
+# 放进 members，否则 import boundary 和 build 证据会失真。
 members = [
     "packages/agent-harness",
     "templates/service-app",
 ]
 
 [tool.uv.sources]
+# 模板依赖核心包必须走 workspace source，确保本地验证覆盖当前 checkout。
 agent-harness = { workspace = true }
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# ruff/pyright 扫描模板和脚本，是为了防止示例代码绕过核心包边界。
 src = [
     "packages/agent-harness/src",
     "scripts",
@@ -41,11 +45,13 @@ src = [
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
+# tests 通过 pythonpath 暴露 service-app 模板，合同测试才能直接验证模板 route seam。
 addopts = "-q"
 pythonpath = [".", "templates/service-app"]
 testpaths = ["tests"]
 
 [tool.pyright]
+# strict 模式覆盖模板代码；模板一旦复制出去，类型边界也要可维护。
 venvPath = "."
 venv = ".venv"
 include = [

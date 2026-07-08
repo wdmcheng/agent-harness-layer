@@ -21,6 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
+# CLI 入口必须留在核心包，service-app 模板只负责 profile 和 API/worker 组合。
 agent-harness = "agent_harness.cli:main"
 
 [build-system]
@@ -28,4 +29,5 @@ requires = ["hatchling==1.30.1"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
+# wheel 只打包核心 `agent_harness`，不把模板 app、tests 或脚本带进运行时包。
 packages = ["src/agent_harness"]

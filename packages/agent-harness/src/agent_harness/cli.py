@@ -231,6 +231,8 @@ def list_agents(
 
 
 def main() -> None:
+    """执行 Typer 根应用。"""
+
     app()
 
 

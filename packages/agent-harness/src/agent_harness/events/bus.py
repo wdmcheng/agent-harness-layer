@@ -48,6 +48,8 @@ class EventBus:
         span_id: str | None = None,
         raw_event_ref: str | None = None,
     ) -> CanonicalEvent:
+        """发布 CanonicalEvent，并在同一锁内分配 run 内递增 seq。"""
+
         async with self._lock:
             # Terminal event 会关闭 run stream。先检查再分配 seq，避免被拒绝的
             # 重复 terminal 写入消耗序号，进而干扰 SSE resume 调用方。

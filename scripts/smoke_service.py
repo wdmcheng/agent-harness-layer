@@ -1,4 +1,4 @@
-"""Run service profile smoke against Docker Compose PostgreSQL and Redis.
+"""运行基于 Docker Compose PostgreSQL 和 Redis 的 service profile smoke。
 
 这个脚本是 storage/runtime service profile 的证据入口，不是单纯的“能起容器”：
 它必须证明 PostgreSQL migration revision、Redis reachability，以及 repository
@@ -212,6 +212,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """运行 service smoke，并输出可被 reviewer 复核的证据行。"""
+
     args = parse_args()
     settings = load_settings(profile="service", profiles_dir=PROFILES)
     env = compose_env()

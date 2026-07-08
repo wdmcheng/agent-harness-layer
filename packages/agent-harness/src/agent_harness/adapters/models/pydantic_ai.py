@@ -50,6 +50,8 @@ class PydanticAIModelProvider:
         return cast(_PydanticAgent, Agent(model, instructions=self._instructions))
 
     def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        """执行 Pydantic AI agent，并把 timeout/usage 收敛成内部 ModelResponse。"""
+
         started = perf_counter()
         agent = self._agent_factory(model)
         try:
@@ -85,6 +87,12 @@ class PydanticAIModelProvider:
 
 
 def _run_sync_with_timeout(agent: _PydanticAgent, request: ModelRequest) -> _AgentRunResult:
+    """在同步 Pydantic AI 调用外包一层超时边界。
+
+    Pydantic AI 的同步 API 没有被暴露到 router；这里用线程池把 timeout
+    限制留在 adapter 内，失败时上层只看到 provider-neutral decision。
+    """
+
     timeout = request.timeout_seconds
     if timeout is None or timeout <= 0:
         return agent.run_sync(request.prompt)

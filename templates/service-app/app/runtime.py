@@ -75,6 +75,7 @@ def build_runtime_components(
     if settings.policy.provider == "db":
         policy_provider = DatabasePolicyProvider(storage=storage)
     else:
+        # YAML policy 是 local/service 模板默认入口；DB provider 只作为可替换 seam。
         policy_path = None
         if settings.policy.path is not None:
             configured_path = Path(settings.policy.path)
@@ -96,6 +97,7 @@ def build_runtime_components(
     policy_engine = PolicyEngine(provider=policy_provider, audit=audit)
     auth_verifier: TokenVerifier | None = None
     if settings.auth.dev_bearer_token is not None:
+        # dev token 只映射到 profile 中的默认身份，避免 service-app 自己发明用户体系。
         auth_verifier = StaticTokenVerifier(
             {settings.auth.dev_bearer_token: settings.identity.default}
         )

@@ -1,4 +1,4 @@
-"""Agent registry API routes。"""
+"""Agent registry API 路由。"""
 
 from __future__ import annotations
 
@@ -26,11 +26,15 @@ router = APIRouter(prefix="/api/v1", tags=["agents"], responses=ERROR_RESPONSES)
 
 
 class AgentListResponse(HarnessDTO):
+    """AGT-001 返回的 agent 列表响应。"""
+
     request_id: str
     agents: list[AgentDescriptor]
 
 
 class AgentRegistryDependency(Protocol):
+    """route 只依赖 registry seam，不直接读取模板目录。"""
+
     def list_agents(self) -> list[AgentDescriptor]: ...
 
 
@@ -47,6 +51,8 @@ async def list_agents(
     identity: Annotated[IdentityContext, Depends(current_identity)],
     policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
 ) -> AgentListResponse:
+    """列出当前身份可见的 public agent descriptor。"""
+
     if policy is not None:
         await policy.require_allowed(
             PolicyCheck(

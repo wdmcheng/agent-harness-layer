@@ -1,4 +1,4 @@
-"""HITL approval API routes。"""
+"""HITL approval API 路由。"""
 
 from __future__ import annotations
 
@@ -29,6 +29,8 @@ router = APIRouter(prefix="/api/v1", tags=["approvals"], responses=ERROR_RESPONS
 
 
 class ApprovalPublicRecord(HarnessDTO):
+    """对 HTTP/CLI 可见的脱敏审批记录。"""
+
     approval_id: str
     tenant_id: str
     run_id: str
@@ -46,21 +48,29 @@ class ApprovalPublicRecord(HarnessDTO):
 
 
 class ApprovalListResponse(HarnessDTO):
+    """APR-001 列表响应。"""
+
     request_id: str
     approvals: list[ApprovalPublicRecord]
 
 
 class ApprovalDetailResponse(HarnessDTO):
+    """单个 approval 读取响应。"""
+
     request_id: str
     approval: ApprovalPublicRecord
 
 
 class ApprovalResolveRequest(HarnessDTO):
+    """审批 resolve 请求；run_id 和 approval_id 来自 URL 边界。"""
+
     decision: Literal["approved", "denied"]
     comment: str | None = None
 
 
 class ApprovalResolveResponse(HarnessDTO):
+    """APR-002 resolve 后的审批记录和可选 run 摘要。"""
+
     request_id: str
     approval: ApprovalPublicRecord
     run: RunCreateResponse | None = None
@@ -75,6 +85,8 @@ async def list_approvals(
     policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
     status: str | None = Query(default=None),
 ) -> ApprovalListResponse:
+    """列出当前身份可见的 run approvals。"""
+
     await _check_read_permission(policy=policy, identity=identity, run_id=run_id)
     rows = await approvals.list_for_run(actor=identity, run_id=run_id)
     if status is not None:
@@ -94,6 +106,8 @@ async def get_approval(
     approvals: Annotated[ApprovalService, Depends(get_approval_service)],
     policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
 ) -> ApprovalDetailResponse:
+    """读取单个 approval，保持 run_id 与 approval_id 归属一致。"""
+
     await _check_read_permission(
         policy=policy,
         identity=identity,
@@ -117,6 +131,8 @@ async def resolve_approval(
     approvals: Annotated[ApprovalService, Depends(get_approval_service)],
     policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
 ) -> ApprovalResolveResponse:
+    """对 waiting approval 执行 approve/deny，并按策略推进 run。"""
+
     request_id = request_id_from(http_request)
     await _check_resolve_permission(
         policy=policy,

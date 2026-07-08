@@ -1,4 +1,4 @@
-"""Phase 7 internal event visibility contract tests."""
+"""认证、策略与 HITL internal event 可见性合同测试。"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from tests.contracts.phase7_contract_helpers import asgi_request, descriptor, sqlite_dsn
+from tests.contracts.auth_policy_hitl_contract_helpers import asgi_request, descriptor, sqlite_dsn
 
 from agent_harness.events import CanonicalEventType, EventBus, LocalJsonlEventSink
 from agent_harness.identity import IdentityContext

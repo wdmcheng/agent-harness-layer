@@ -1,4 +1,4 @@
-"""创建认证与 HITL approval 表。"""
+"""创建 API key 与 HITL approval 表。"""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ depends_on = None
 
 
 def timestamp_columns() -> Sequence[sa.Column[Any]]:
+    """保持新增表和 ORM TimestampMixin 的列形状一致。"""
+
     return (
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
@@ -26,6 +28,8 @@ def timestamp_columns() -> Sequence[sa.Column[Any]]:
 
 
 def upgrade() -> None:
+    """创建 API key 与 HITL approval 持久化表。"""
+
     op.create_table(
         "api_keys",
         sa.Column("id", sa.String(length=36), primary_key=True),
@@ -68,5 +72,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """回滚 API key 与 HITL approval 持久化表。"""
+
     op.drop_table("approvals")
     op.drop_table("api_keys")

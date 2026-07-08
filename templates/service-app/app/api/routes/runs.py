@@ -44,17 +44,23 @@ router = APIRouter(prefix="/api/v1", tags=["runs"], responses=ERROR_RESPONSES)
 
 
 class RunCreateRequest(HarnessDTO):
+    """内部 run create helper 使用的完整请求 DTO。"""
+
     agent_id: str
     input: dict[str, Any] = Field(default_factory=dict)
     idempotency_key: str | None = None
 
 
 class AgentRunCreateRequest(HarnessDTO):
+    """agent-scoped HTTP route 的请求体，agent_id 固定来自 URL。"""
+
     input: dict[str, Any] = Field(default_factory=dict)
     idempotency_key: str | None = None
 
 
 class RunCreateResponse(HarnessDTO):
+    """run create/detail/cancel/resume 共用的公开响应。"""
+
     request_id: str
     run_id: str
     status: RunStatus
@@ -62,10 +68,14 @@ class RunCreateResponse(HarnessDTO):
 
 
 class RunResumeRequest(HarnessDTO):
+    """checkpoint resume 的请求体；token 不会出现在公开响应里。"""
+
     resume_token: str
 
 
 class RunEventsResponse(HarnessDTO):
+    """按 seq 读取 run event stream 的公开响应。"""
+
     request_id: str
     events: list[CanonicalEvent]
 
@@ -114,6 +124,8 @@ async def create_run_with_orchestrator(
     approval_service: ApprovalService | None = None,
     request_id: str = "local",
 ) -> RunCreateResponse:
+    """API 和测试共用的 run create 适配逻辑。"""
+
     # route 必须保持薄适配层。idempotency、状态转换、事件写入和 storage
     # transaction boundary 都归 runtime 管。
     checkpoint_state: dict[str, Any] | None = None
@@ -185,6 +197,8 @@ async def get_run_with_orchestrator(
     identity: IdentityContext | None = None,
     request_id: str = "local",
 ) -> RunCreateResponse:
+    """API 和测试共用的 run detail 适配逻辑。"""
+
     result = await orchestrator.get_run(run_id, identity=identity)
     return RunCreateResponse(
         request_id=request_id,

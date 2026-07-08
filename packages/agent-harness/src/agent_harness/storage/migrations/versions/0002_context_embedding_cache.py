@@ -15,6 +15,8 @@ depends_on = None
 
 
 def timestamp_columns() -> Sequence[sa.Column[Any]]:
+    """保持新增表和 ORM TimestampMixin 的列形状一致。"""
+
     return (
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
@@ -26,6 +28,8 @@ def timestamp_columns() -> Sequence[sa.Column[Any]]:
 
 
 def upgrade() -> None:
+    """创建上下文组装 trace 与 embedding cache 表。"""
+
     op.create_table(
         "context_assemblies",
         sa.Column("id", sa.String(length=36), primary_key=True),
@@ -61,5 +65,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """回滚上下文组装 trace 与 embedding cache 表。"""
+
     op.drop_table("embedding_cache")
     op.drop_table("context_assemblies")

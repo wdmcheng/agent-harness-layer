@@ -1,4 +1,4 @@
-"""Phase 7 auth/policy/HITL contract test helpers."""
+"""认证、策略与 HITL 合同测试 helper。"""
 
 from __future__ import annotations
 
@@ -20,10 +20,14 @@ PROFILES = ROOT / "templates" / "service-app" / "configs" / "profiles"
 
 
 def sqlite_dsn(path: Path) -> str:
+    """生成测试专用 SQLite async DSN。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
 def descriptor(agent_id: str = "examples.basic") -> AgentDescriptor:
+    """构造与模板 smoke agent 同形状的 public descriptor fixture。"""
+
     return AgentDescriptor(
         agent_id=agent_id,
         version="0.1.0",
@@ -55,6 +59,8 @@ async def asgi_request(
     body: dict[str, Any] | None = None,
     headers: Sequence[tuple[bytes, bytes]] = (),
 ) -> tuple[int, dict[str, Any]]:
+    """直接驱动 ASGI app，避免 HTTP client 依赖掩盖 route 契约。"""
+
     messages: list[dict[str, Any]] = []
     raw_body = b"" if body is None else json.dumps(body).encode()
 
@@ -65,7 +71,7 @@ async def asgi_request(
         messages.append(message)
 
     request_headers = [
-        (b"x-request-id", b"req-phase7"),
+        (b"x-request-id", b"req-auth-policy-hitl"),
         *list(headers),
     ]
     if body is not None:
@@ -99,11 +105,15 @@ async def asgi_request(
 
 
 def table_count(db_path: Path, table: str) -> int:
+    """读取 SQLite 表行数，用于验证 no-side-effect。"""
+
     with sqlite3.connect(db_path) as connection:
         return cast(int, connection.execute(f"select count(*) from {table}").fetchone()[0])
 
 
 def table_json_payloads(db_path: Path, table: str) -> list[dict[str, Any]]:
+    """读取审计表 JSON payload，验证 secret redaction 和证据字段。"""
+
     with sqlite3.connect(db_path) as connection:
         rows = connection.execute(f"select payload_json from {table}").fetchall()
     return [cast(dict[str, Any], json.loads(row[0])) for row in rows]

@@ -24,6 +24,8 @@ class ApprovalStateConflict(RuntimeError):
 
 
 class ApprovalResolveResult(HarnessDTO):
+    """审批 resolve 后返回审批记录和可能被推进的 run。"""
+
     approval: ApprovalRecord
     run: RunResult | None = None
 
@@ -58,6 +60,8 @@ class ApprovalService:
         request_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> ApprovalRecord:
+        """创建 waiting approval，并同步发布 event/audit 证据。"""
+
         token_value = _resume_token_value(resume_token)
         async with self._storage.uow() as uow:
             await uow.tenants.ensure(actor.tenant_id)
@@ -100,6 +104,8 @@ class ApprovalService:
         return record
 
     async def list_for_run(self, *, actor: IdentityContext, run_id: str) -> list[ApprovalRecord]:
+        """列出调用方租户可见的 run approvals，并记录 read audit evidence。"""
+
         if not _can_read_approval(actor):
             raise PolicyDeniedError("approval read permission missing")
         async with self._storage.uow() as uow:
@@ -120,6 +126,8 @@ class ApprovalService:
         approval_id: str,
         audit_read: bool = True,
     ) -> ApprovalRecord:
+        """按 approval id 读取记录，供 CLI 和内部 resolve 前置检查复用。"""
+
         if not (_can_read_approval(actor) or _can_resolve_approval(actor)):
             raise PolicyDeniedError("approval permission missing")
         async with self._storage.uow() as uow:
@@ -142,6 +150,8 @@ class ApprovalService:
         run_id: str,
         approval_id: str,
     ) -> ApprovalRecord:
+        """按 run + approval 双重定位公开 API detail，避免跨 run 泄漏。"""
+
         if not _can_read_approval(actor):
             raise PolicyDeniedError("approval read permission missing")
         async with self._storage.uow() as uow:
@@ -166,6 +176,8 @@ class ApprovalService:
         request_id: str | None = None,
         comment: str | None = None,
     ) -> ApprovalResolveResult:
+        """批准 waiting approval；实际 run 推进由 `_resolve` 统一控制。"""
+
         return await self._resolve(
             actor=actor,
             run_id=run_id,
@@ -184,6 +196,8 @@ class ApprovalService:
         request_id: str | None = None,
         comment: str | None = None,
     ) -> ApprovalResolveResult:
+        """拒绝 waiting approval；实际 run 失败写入由 `_resolve` 统一控制。"""
+
         return await self._resolve(
             actor=actor,
             run_id=run_id,
@@ -203,6 +217,8 @@ class ApprovalService:
         request_id: str | None,
         comment: str | None,
     ) -> ApprovalResolveResult:
+        """按 approve/deny 更新 approval，并只通过 runtime seam 推进 run。"""
+
         if not _can_resolve_approval(actor):
             raise PolicyDeniedError("approval resolve permission missing")
         async with self._storage.uow() as uow:
@@ -220,6 +236,8 @@ class ApprovalService:
             resource = existing.resource
             trace_id = existing.trace_id
 
+        # 先让 runtime seam 校验 resume token 和状态转换；失败时 approval 仍保持
+        # waiting，避免出现“审批已通过但 run 没有推进”的不可恢复状态。
         run_result: RunResult | None = None
         if status == "approved":
             if resume_token is not None:

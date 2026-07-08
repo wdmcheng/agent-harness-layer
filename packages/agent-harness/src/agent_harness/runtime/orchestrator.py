@@ -19,6 +19,8 @@ class InvalidRunTransition(RuntimeError):
 
 
 class RunResult(HarnessDTO):
+    """runtime seam 返回给 API、CLI 和 approval 的 run 摘要。"""
+
     run_id: str
     status: RunStatus
     terminal_event: str | None = None
@@ -48,6 +50,12 @@ class RunOrchestrator:
         checkpoint_state: dict[str, Any] | None = None,
         identity: IdentityContext | None = None,
     ) -> RunResult:
+        """创建 run 并写入公开事件，必要时停在 checkpoint 等待外部恢复。
+
+        幂等键在 tenant/session/agent 维度内生效；调用方拿到的始终是 DTO，
+        不会泄漏 repository 或 ORM model。
+        """
+
         active_identity = identity or self._identity
         idempotency_value = _idempotency_value(idempotency_key)
         async with self._storage.uow() as uow:
@@ -143,6 +151,8 @@ class RunOrchestrator:
         *,
         identity: IdentityContext | None = None,
     ) -> RunResult:
+        """把非 terminal run 转为 cancelled，并发布唯一 terminal event。"""
+
         active_identity = identity or self._identity
         async with self._storage.uow() as uow:
             run = await uow.runs.get(run_id)
@@ -176,6 +186,8 @@ class RunOrchestrator:
         reason: str,
         identity: IdentityContext | None = None,
     ) -> RunResult:
+        """把非 terminal run 转为 failed，并把失败原因写入公开 terminal event。"""
+
         active_identity = identity or self._identity
         async with self._storage.uow() as uow:
             run = await uow.runs.get(run_id)
@@ -212,6 +224,12 @@ class RunOrchestrator:
         expected_run_id: str | None = None,
         identity: IdentityContext | None = None,
     ) -> RunResult:
+        """用 resume token 完成等待中的 run。
+
+        如果 API URL 带有 run_id，必须通过 `expected_run_id` 校验 token 归属，
+        防止错误路径推进另一个 run。
+        """
+
         active_identity = identity or self._identity
         token_value = _resume_token_value(resume_token)
         async with self._storage.uow() as uow:

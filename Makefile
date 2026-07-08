@@ -3,6 +3,8 @@ UV ?= uv
 
 .PHONY: sync quality test smoke-local smoke-service build license-check format
 
+# 根 Makefile 是 reviewer 和 CI 的统一入口；各 target 保持薄包装，实际边界说明
+# 留在对应 Python 脚本和 pyproject 工具配置里。
 sync:
 	$(UV) sync
 
@@ -15,9 +17,11 @@ quality:
 test:
 	$(UV) run pytest
 
+# local smoke 只证明离线 profile 和 CLI/template shell 可用，不替代 service smoke。
 smoke-local:
 	$(UV) run python scripts/smoke_local.py
 
+# service smoke 需要 Docker Compose、PostgreSQL 和 Redis；不能用 SQLite 结果替代。
 smoke-service:
 	$(UV) run python scripts/smoke_service.py
 

@@ -1,17 +1,22 @@
 profile: local
 storage:
+  # local profile 必须保持离线可运行；SQLite 文件写入模板目录下的本地状态目录。
   kind: sqlite
   root: .agent-harness/local
   dsn: sqlite+aiosqlite:///.agent-harness/local/agent_harness.db
 queue:
+  # local smoke 不依赖外部队列服务。
   kind: in-memory
 observability:
+  # 本地 trace 使用 JSONL，方便测试和人工审查直接读取。
   kind: local-jsonl
   path: .agent-harness/traces.jsonl
 auth:
+  # local profile 默认不要求认证；需要模拟 token 时用 `.env` 注入 dev bearer token。
   provider: local
   required: false
 policy:
+  # YAML policy 是模板默认 provider；DB provider 留给 service profile 或部署配置切换。
   provider: yaml
   path: configs/policy/default.yaml
   require_approval_actions:
@@ -29,6 +34,7 @@ policy:
     - policy.update
     - input.prompt_injection
 model:
+  # fake provider 是离线 smoke 默认值，不需要真实模型 key。
   provider: fake
   requires_api_key: false
   default_model: fake-local
@@ -36,6 +42,7 @@ model:
 budget:
   max_tokens_per_run: 8192
 identity:
+  # 默认身份只用于 local/dev seam；service profile 开启认证后由 token verifier 映射。
   default:
     tenant_id: default
     user_id: local-user
@@ -46,6 +53,7 @@ identity:
       - "*"
     auth_method: local
 service:
+  # local profile 不自动拆 API/worker 进程，避免 smoke 依赖后台服务。
   api_process:
     enabled: false
   worker_process:

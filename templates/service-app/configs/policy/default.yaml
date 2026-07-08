@@ -1,4 +1,6 @@
 provider: yaml
+# 默认策略只表达“需要人工审批”的危险动作；deny_actions 仍为空，避免模板
+# 在没有用户自定义策略前直接阻断 smoke 路径。
 require_approval_actions:
   - shell.execute
   - file.delete

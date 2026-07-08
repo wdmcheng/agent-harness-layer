@@ -10,17 +10,23 @@ from agent_harness.storage.repositories import EmbeddingCacheCreate, EmbeddingCa
 
 
 class EmbeddingRequest(HarnessDTO):
+    """一次 embedding 请求的稳定输入，tenant 用于 cache 证据归属。"""
+
     input: str
     tenant_id: str = "default"
 
 
 class EmbeddingCacheInfo(HarnessDTO):
+    """embedding cache 命中状态和可复用 vector 引用。"""
+
     hit: bool
     input_hash: str
     vector_ref: str
 
 
 class EmbeddingResponse(HarnessDTO):
+    """provider 生成或命中 cache 后返回的统一 embedding 结果。"""
+
     provider: str
     model: str
     vector_ref: str
@@ -29,6 +35,8 @@ class EmbeddingResponse(HarnessDTO):
 
 
 class EmbeddingProvider(Protocol):
+    """embedding adapter 的公共协议，屏蔽 HTTP/provider SDK 细节。"""
+
     provider: str
     model: str
 
@@ -59,6 +67,7 @@ class LocalEmbeddingProvider:
             input_hash=input_hash,
         )
         if cached is not None:
+            # cache hit 只返回 vector_ref，不重复携带向量正文，避免事件和 API payload 膨胀。
             return EmbeddingResponse(
                 provider=self.provider,
                 model=self.model,
@@ -92,4 +101,6 @@ class LocalEmbeddingProvider:
 
 
 def _deterministic_vector(input_hash: str) -> list[float]:
+    """从 input hash 派生短向量，保证测试和 smoke 不依赖真实 provider。"""
+
     return [int(input_hash[index : index + 2], 16) / 255 for index in range(0, 8, 2)]

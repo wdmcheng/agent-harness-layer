@@ -71,6 +71,8 @@ def check_local_profile() -> int:
 
 
 def check_doctor() -> int:
+    """运行 doctor CLI，验证 local profile 诊断路径保持只读。"""
+
     # 通过模块入口运行 doctor，避免 console script 安装状态掩盖 CLI seam 问题。
     # doctor 设计为只读诊断；本 smoke 不允许它初始化数据库、队列或外部 provider。
     result = subprocess.run(
@@ -122,6 +124,8 @@ def check_agents_list() -> int:
 
 
 def main() -> int:
+    """依次运行 local smoke 检查。"""
+
     checks = [
         check_import,
         check_template_layout,

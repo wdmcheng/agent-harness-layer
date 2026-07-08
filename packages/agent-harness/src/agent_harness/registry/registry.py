@@ -59,7 +59,7 @@ class DelegationDecision(HarnessDTO):
 
 
 class DelegationSummary(HarnessDTO):
-    """declared delegation 的 parent/child 归属摘要。"""
+    """已声明 delegation 的 parent/child 归属摘要。"""
 
     parent_agent_id: str
     target_agent_id: str
@@ -78,6 +78,8 @@ class AgentRegistry:
 
     @classmethod
     def load_from_directory(cls, root: Path) -> AgentRegistry:
+        """从受控目录加载所有 agent config，并拒绝部分可用的脏 registry。"""
+
         descriptors: list[AgentDescriptor] = []
         seen: dict[str, Path] = {}
         for config_path in sorted(root.rglob("config.yaml")):
@@ -170,6 +172,8 @@ def _load_descriptor(config_path: Path, *, root: Path) -> AgentDescriptor:
         config = _AgentConfig.model_validate(raw)
     except ValidationError as exc:
         raise RegistryLoadError(_validation_errors(exc, config_path)) from exc
+    # public descriptor 只能带相对 config_ref 和摘要字段，不能把本机路径或
+    # provider/client/callable 暴露给 API 和 CLI 调用方。
     return AgentDescriptor(
         agent_id=config.agent_id,
         version=config.version,

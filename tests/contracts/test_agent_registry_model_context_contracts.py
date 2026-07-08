@@ -53,6 +53,8 @@ def _write_agent_config(root: Path, relative: str, content: str) -> None:
 
 
 def sqlite_dsn(path: Path) -> str:
+    """生成 registry/model/context 合同测试专用 SQLite DSN。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 

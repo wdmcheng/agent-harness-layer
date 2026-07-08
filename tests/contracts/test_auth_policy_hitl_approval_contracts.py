@@ -1,4 +1,4 @@
-"""Phase 7 HITL approval API and CLI contract tests."""
+"""HITL approval API 与 CLI 合同测试。"""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from tests.contracts.phase7_contract_helpers import (
+from tests.contracts.auth_policy_hitl_contract_helpers import (
     PROFILES,
     ROOT,
     asgi_request,
@@ -202,7 +202,7 @@ async def test_approval_api_and_cli_share_service_seam(tmp_path: Path) -> None:
         await storage.dispose()
 
     assert list_status == 200
-    assert list_body["request_id"] == "req-phase7"
+    assert list_body["request_id"] == "req-auth-policy-hitl"
     assert list_body["approvals"][0]["approval_id"] == approval.approval_id
     assert list_body["approvals"][0]["tenant_id"] == "default"
     assert list_body["approvals"][0]["request_id"] == "req-seed"

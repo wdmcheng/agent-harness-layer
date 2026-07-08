@@ -1,4 +1,4 @@
-"""Provider-neutral model request / response DTO。"""
+"""模型 provider 无关的请求、响应与决策 DTO。"""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from agent_harness.contracts.dto import HarnessDTO
 
 
 class ModelRequest(HarnessDTO):
+    """进入模型路由前的稳定请求形状，不携带 provider SDK 对象。"""
+
     provider: str = "fake"
     prompt: str
     model: str | None = None
@@ -17,6 +19,8 @@ class ModelRequest(HarnessDTO):
 
 
 class ModelDecision(HarnessDTO):
+    """模型路由对调用、fallback 或策略介入的可追踪判断。"""
+
     action: str
     estimated_tokens: int
     max_tokens: int | None = None
@@ -25,6 +29,8 @@ class ModelDecision(HarnessDTO):
 
 
 class ModelResponse(HarnessDTO):
+    """provider adapter 返回给 runtime 的统一结果。"""
+
     provider: str
     model: str
     output_text: str
@@ -34,6 +40,8 @@ class ModelResponse(HarnessDTO):
 
 
 class ModelProvider(Protocol):
+    """所有模型 adapter 必须实现的最小 provider seam。"""
+
     provider_id: str
 
     def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:

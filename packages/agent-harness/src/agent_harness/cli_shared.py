@@ -1,4 +1,4 @@
-"""CLI command helpers shared by local subcommands."""
+"""本地 CLI 子命令共用的配置、事件路径和策略构造 helper。"""
 
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ from agent_harness.storage import SQLAlchemyStorage
 
 
 def load_settings_or_exit(profile: str, profiles_dir: Path | None) -> HarnessSettings:
+    """加载 settings；失败时按 CLI 可读格式输出结构化诊断。"""
+
     try:
         return load_settings(profile=profile, profiles_dir=profiles_dir)
     except SettingsLoadError as exc:
@@ -24,6 +26,8 @@ def load_settings_or_exit(profile: str, profiles_dir: Path | None) -> HarnessSet
 
 
 def event_path(settings: HarnessSettings, events_path: Path | None) -> Path:
+    """解析 local/jsonl event sink 路径。"""
+
     if events_path is not None:
         return events_path
     return Path(settings.observability.path or ".agent-harness/traces.jsonl")
@@ -35,6 +39,8 @@ def policy_engine(
     audit: AuditService,
     profiles_dir: Path | None = None,
 ) -> PolicyEngine:
+    """按 profile 构造 CLI 使用的 PolicyEngine。"""
+
     if settings.policy.provider == "db":
         provider = DatabasePolicyProvider(storage=storage)
     else:
@@ -55,6 +61,8 @@ def policy_engine(
 
 
 def resolve_policy_path(settings: HarnessSettings, profiles_dir: Path | None) -> Path | None:
+    """解析相对 policy YAML 路径，兼容模板目录和当前工作目录。"""
+
     if settings.policy.path is None:
         return None
     configured_path = Path(settings.policy.path)

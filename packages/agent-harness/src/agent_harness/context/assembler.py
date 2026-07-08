@@ -10,6 +10,8 @@ from agent_harness.storage.repositories import ContextAssemblyCreate, ContextAss
 
 
 class ContextFragment(HarnessDTO):
+    """进入模型上下文前的单个片段，必须携带来源和信任级别。"""
+
     source_ref: str
     trust_level: str
     content: str
@@ -20,6 +22,8 @@ class ContextFragment(HarnessDTO):
 
 
 class ContextFragmentTrace(HarnessDTO):
+    """单个片段在预算裁剪后的可解释 trace。"""
+
     source_ref: str
     kind: str
     trust_level: str
@@ -31,6 +35,8 @@ class ContextFragmentTrace(HarnessDTO):
 
 
 class ContextAssemblyResult(HarnessDTO):
+    """一次上下文组装的输出、持久化记录引用和降级摘要。"""
+
     id: str
     output_ref: str
     input_refs: list[str]
@@ -79,6 +85,8 @@ class ContextAssembler:
         token_budget: int,
         output_ref: str,
     ) -> ContextAssemblyResult:
+        """组装上下文并把输入 refs、trust 和截断摘要写入 repository。"""
+
         working = [
             _WorkingFragment(
                 index=index,
@@ -135,6 +143,8 @@ class ContextAssembler:
 
 
 def _apply_budget(working: list[_WorkingFragment], token_budget: int) -> None:
+    """按项目契约执行预算降级：先 history，再 retrieval/tool，最后低优先级片段。"""
+
     if token_budget < 0:
         token_budget = 0
     while _used_tokens(working) > token_budget:

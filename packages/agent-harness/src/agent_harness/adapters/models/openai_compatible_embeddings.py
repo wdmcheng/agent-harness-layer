@@ -42,6 +42,8 @@ class OpenAICompatibleEmbeddingProvider:
         self._client = client
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+        """读取或创建 embedding vector ref，避免调用方处理 provider 原始响应。"""
+
         input_hash = hashlib.sha256(request.input.encode("utf-8")).hexdigest()
         cached = await self._cache.get(
             provider=self.provider,
@@ -49,6 +51,7 @@ class OpenAICompatibleEmbeddingProvider:
             input_hash=input_hash,
         )
         if cached is not None:
+            # 复用 cache 时只交还 vector_ref；调用方不需要再次处理 provider 原始响应。
             return EmbeddingResponse(
                 provider=self.provider,
                 model=self.model,
@@ -112,6 +115,8 @@ class OpenAICompatibleEmbeddingProvider:
 
 
 def _extract_embedding_vector(payload: dict[str, Any]) -> list[float]:
+    """把 OpenAI-compatible 响应收敛成内部向量列表。"""
+
     data = payload.get("data")
     if not isinstance(data, list) or not data:
         raise ValueError("embedding response is missing data[0].embedding")

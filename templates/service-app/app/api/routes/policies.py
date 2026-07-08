@@ -1,4 +1,4 @@
-"""PolicyEngine API routes。"""
+"""PolicyEngine API 路由。"""
 
 from __future__ import annotations
 
@@ -25,12 +25,16 @@ router = APIRouter(prefix="/api/v1", tags=["policies"], responses=ERROR_RESPONSE
 
 
 class PolicyCheckRequest(HarnessDTO):
+    """HTTP policy check 请求；actor 由认证 dependency 注入。"""
+
     action: str
     resource: str
     context: dict[str, Any] = Field(default_factory=dict)
 
 
 class PolicyDecisionResponse(HarnessDTO):
+    """POL-001 对外返回的三态决策摘要。"""
+
     request_id: str
     decision: str
     reason: str
@@ -46,6 +50,8 @@ async def check_policy(
     identity: Annotated[IdentityContext, Depends(current_identity)],
     policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
 ) -> PolicyDecisionResponse:
+    """执行 policy check，并要求结果携带 audit_ref 证据。"""
+
     if policy is None:
         raise RuntimeError("PolicyEngine dependency is not configured")
     request_id = request_id_from(http_request)

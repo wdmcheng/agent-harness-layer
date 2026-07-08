@@ -2,6 +2,8 @@ name: agent-harness-layer
 
 services:
   postgres:
+    # 默认镜像和端口可通过环境变量覆盖，便于本地复用镜像；compose 文件本身
+    # 仍表达 service smoke 的 PostgreSQL 依赖。
     image: ${AGENT_HARNESS_POSTGRES_IMAGE:-postgres:18}
     container_name: agent-harness-postgres
     profiles: ["service"]
@@ -20,6 +22,8 @@ services:
       retries: 30
 
   redis:
+    # Redis 当前只验证 service profile 的 queue/diagnostics reachability。
+    # 真正队列消费语义由 worker/runtime 合同测试和后续 service smoke 扩展覆盖。
     image: ${AGENT_HARNESS_REDIS_IMAGE:-redis:7.2.4}
     container_name: agent-harness-redis
     profiles: ["service"]

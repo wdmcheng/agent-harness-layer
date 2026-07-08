@@ -45,6 +45,8 @@ def api_error_response(
     message: str,
     status_code: int,
 ) -> JSONResponse:
+    """把内部结构化异常转换成统一 ApiErrorEnvelope。"""
+
     envelope = ApiErrorEnvelope(
         error=ErrorDetail(code=code, message=str(redact_secrets(message)), request_id=request_id)
     )

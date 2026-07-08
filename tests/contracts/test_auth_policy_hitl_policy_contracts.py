@@ -1,4 +1,4 @@
-"""Phase 7 PolicyEngine, guardrail, and audit contract tests."""
+"""PolicyEngine、guardrail 与 audit 合同测试。"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from tests.contracts.phase7_contract_helpers import (
+from tests.contracts.auth_policy_hitl_contract_helpers import (
     ROOT,
     asgi_request,
     descriptor,
@@ -131,14 +131,14 @@ async def test_policy_api_shape_and_default_dangerous_actions(tmp_path: Path) ->
         )
 
         assert status == 200
-        assert body["request_id"] == "req-phase7"
+        assert body["request_id"] == "req-auth-policy-hitl"
         assert body["decision"] == "require_approval"
         assert body["reason"]
         assert body["matched_rules"] == ["default-dangerous-actions"]
         assert body["audit_ref"]
         assert body["approval"]["action"] == "shell.execute"
         audit_text = json.dumps(table_json_payloads(db_path, "audit_logs"))
-        assert "req-phase7" in audit_text
+        assert "req-auth-policy-hitl" in audit_text
 
         invalid_status, invalid_body = await asgi_request(
             cast(Any, app),
@@ -201,7 +201,7 @@ async def test_policy_engine_guardrail_approval_and_audit_flow(tmp_path: Path) -
     storage = SQLAlchemyStorage.from_dsn(dsn)
     event_bus = EventBus(sink=LocalJsonlEventSink(events_path))
     orchestrator = RunOrchestrator(storage=storage, event_bus=event_bus)
-    identity = IdentityContext.local_default(session_id="phase7-session")
+    identity = IdentityContext.local_default(session_id="auth-policy-hitl-session")
     audit = AuditService(storage=storage)
     approval_service = ApprovalService(
         storage=storage,
@@ -297,7 +297,7 @@ async def test_policy_engine_guardrail_approval_and_audit_flow(tmp_path: Path) -
         "evidence",
     }
     assert all(required_audit_fields <= set(payload) for payload in audit_payloads)
-    assert any(payload["session_id"] == "phase7-session" for payload in audit_payloads)
+    assert any(payload["session_id"] == "auth-policy-hitl-session" for payload in audit_payloads)
     assert any(payload["decision"] == "require_approval" for payload in audit_payloads)
     assert any(payload["run_id"] == waiting.run_id for payload in audit_payloads)
     assert any(payload["trace_id"] == "trace-approval" for payload in audit_payloads)

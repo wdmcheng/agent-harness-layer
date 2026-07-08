@@ -11,6 +11,8 @@ class FakeModelProvider:
     provider_id = "fake"
 
     def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        """返回确定性文本，供 local smoke 和 contract tests 不依赖外部 provider。"""
+
         output = f"fake:{request.prompt}"
         return ModelResponse(
             provider=self.provider_id,

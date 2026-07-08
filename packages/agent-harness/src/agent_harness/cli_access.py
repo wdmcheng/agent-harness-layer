@@ -1,4 +1,4 @@
-"""Policy and HITL approval CLI subcommands."""
+"""PolicyEngine 与 HITL approval 的 CLI 子命令。"""
 
 from __future__ import annotations
 
@@ -21,6 +21,8 @@ approvals_app = typer.Typer(no_args_is_help=True)
 
 
 def register_access_commands(root: typer.Typer) -> None:
+    """把 access 相关子命令挂到根 CLI。"""
+
     root.add_typer(policy_app, name="policy")
     root.add_typer(approvals_app, name="approvals")
 
@@ -185,6 +187,8 @@ def resolve_approval(
     events_path: Path | None,
     comment: str | None,
 ) -> None:
+    """解析本地依赖后，通过 ApprovalService 完成 approve/deny。"""
+
     settings = load_settings_or_exit(profile, profiles_dir)
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
     run_migrations(resolved_dsn)

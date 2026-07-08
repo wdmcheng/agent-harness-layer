@@ -36,6 +36,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def sqlite_dsn(path: Path) -> str:
+    """生成 runtime 合同测试专用 SQLite DSN。"""
+
     # 每个 runtime 测试使用自己的数据库和事件文件，避免 idempotency/checkpoint 串数据。
     return f"sqlite+aiosqlite:///{path}"
 
@@ -50,6 +52,8 @@ def test_runtime_public_seams_expose_checkpoint_dtos() -> None:
 
 
 async def build_orchestrator(tmp_path: Path) -> tuple[RunOrchestrator, SQLAlchemyStorage, Path]:
+    """构造带 SQLite storage 和 local event sink 的测试 runtime。"""
+
     # 这个 helper 故意返回 storage，让测试在 finally 中显式 dispose。
     # runtime tests 会重建 orchestrator；如果这里把 DB/sink 藏成全局 fixture，
     # 就很容易误把内存状态当成 checkpoint/resume 证据。

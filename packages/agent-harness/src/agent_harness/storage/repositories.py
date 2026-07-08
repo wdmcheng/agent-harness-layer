@@ -60,11 +60,15 @@ from agent_harness.storage.models import (
 # 以下 DTO 是 runtime/API/tests 能看到的公开数据形状。SQLAlchemy model 实例
 # 留在 storage 包内，repository 行为才能用同一套断言覆盖 SQLite 和 PostgreSQL。
 class TenantRecord(HarnessDTO):
+    """repository 对外返回的租户记录。"""
+
     id: str
     display_name: str
 
 
 class SessionCreate(HarnessDTO):
+    """创建或复用 session 时的输入 DTO。"""
+
     session_id: str | None = None
     tenant_id: str
     user_id: str
@@ -73,10 +77,14 @@ class SessionCreate(HarnessDTO):
 
 
 class SessionRecord(SessionCreate):
+    """已持久化的 session 记录。"""
+
     id: str
 
 
 class RunCreate(HarnessDTO):
+    """创建 run 时写入 repository 的稳定输入。"""
+
     tenant_id: str
     session_id: str
     agent_id: str
@@ -86,6 +94,8 @@ class RunCreate(HarnessDTO):
 
 
 class RunRecord(RunCreate):
+    """repository 对 runtime 返回的 run 摘要。"""
+
     id: str
     status: str
     output: dict[str, Any] | None = None
@@ -93,6 +103,8 @@ class RunRecord(RunCreate):
 
 
 class CheckpointCreate(HarnessDTO):
+    """创建 checkpoint/resume token 时的输入 DTO。"""
+
     tenant_id: str
     run_id: str
     sequence: int
@@ -101,11 +113,15 @@ class CheckpointCreate(HarnessDTO):
 
 
 class CheckpointRecord(CheckpointCreate):
+    """已持久化的 checkpoint 记录。"""
+
     id: str
     created_at: datetime | None = None
 
 
 class ContextAssemblyCreate(HarnessDTO):
+    """写入 context_assemblies 时的审计摘要。"""
+
     tenant_id: str
     run_id: str | None = None
     input_refs: list[str] = Field(default_factory=list)
@@ -116,10 +132,14 @@ class ContextAssemblyCreate(HarnessDTO):
 
 
 class ContextAssemblyRecord(ContextAssemblyCreate):
+    """已持久化的 context assembly 摘要。"""
+
     id: str
 
 
 class EmbeddingCacheCreate(HarnessDTO):
+    """写入 embedding_cache 的 provider/model/input_hash 记录。"""
+
     tenant_id: str
     provider: str
     model: str
@@ -129,6 +149,8 @@ class EmbeddingCacheCreate(HarnessDTO):
 
 
 class EmbeddingCacheRecord(EmbeddingCacheCreate):
+    """已持久化的 embedding cache 记录。"""
+
     id: str
 
 
@@ -201,10 +223,14 @@ def _embedding_cache_record(model: EmbeddingCacheModel) -> EmbeddingCacheRecord:
 
 
 class TenantRepository:
+    """租户表 repository，负责按需创建 default tenant。"""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def ensure(self, tenant_id: str, display_name: str | None = None) -> TenantRecord:
+        """确保 tenant 存在，local profile 可用 `default` 作为稳定归属。"""
+
         model = await self._session.get(TenantModel, tenant_id)
         if model is None:
             model = TenantModel(id=tenant_id, display_name=display_name or tenant_id)
@@ -214,10 +240,14 @@ class TenantRepository:
 
 
 class SessionRepository:
+    """session 表 repository，封装 local identity 的 session 复用。"""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def create(self, data: SessionCreate) -> SessionRecord:
+        """创建 session 记录；调用方决定是否传入稳定 session_id。"""
+
         model = SessionModel(
             id=data.session_id or str(uuid4()),
             tenant_id=data.tenant_id,
@@ -240,10 +270,14 @@ class SessionRepository:
 
 
 class RunRepository:
+    """run 表 repository，集中处理幂等键和状态更新。"""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def create(self, data: RunCreate) -> RunRecord:
+        """创建 run 记录，并在幂等键命中时返回既有记录。"""
+
         if data.idempotency_key is not None:
             # 创建前先处理 idempotency，重复 API/CLI 提交会收敛到同一条持久化
             # AgentRun 记录。
@@ -282,6 +316,8 @@ class RunRepository:
         agent_id: str,
         idempotency_key: str,
     ) -> RunRecord | None:
+        """按 tenant/session/agent/idempotency_key 查找重复提交。"""
+
         result = await self._session.scalars(
             select(AgentRunModel).where(
                 AgentRunModel.tenant_id == tenant_id,
@@ -314,10 +350,14 @@ class RunRepository:
 
 
 class CheckpointRepository:
+    """checkpoint 表 repository，提供 latest 和 resume token 查询。"""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def create(self, data: CheckpointCreate) -> CheckpointRecord:
+        """持久化 checkpoint state 和 resume token。"""
+
         model = CheckpointModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
@@ -351,10 +391,14 @@ class CheckpointRepository:
 
 
 class ContextAssemblyRepository:
+    """ContextAssembler 专用 repository，避免业务代码直接写 ORM model。"""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def create(self, data: ContextAssemblyCreate) -> ContextAssemblyRecord:
+        """保存一次 ContextAssembler 的输入 refs、trust 和截断摘要。"""
+
         model = ContextAssemblyModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
@@ -375,6 +419,8 @@ class ContextAssemblyRepository:
 
 
 class EmbeddingCacheRepository:
+    """EmbeddingProvider 专用 cache repository。"""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
@@ -396,12 +442,15 @@ class EmbeddingCacheRepository:
         return None if row is None else _embedding_cache_record(row)
 
     async def put(self, data: EmbeddingCacheCreate) -> EmbeddingCacheRecord:
+        """写入 embedding cache；已存在时返回既有 vector_ref。"""
+
         existing = await self.get(
             provider=data.provider,
             model=data.model,
             input_hash=data.input_hash,
         )
         if existing is not None:
+            # 并发前先做幂等保护；唯一约束仍是跨进程写入的最终防线。
             return existing
         model = EmbeddingCacheModel(
             id=str(uuid4()),

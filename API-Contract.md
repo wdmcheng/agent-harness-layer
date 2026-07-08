@@ -598,7 +598,7 @@
 | 错误响应码 | `400 api.http_error`、`401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied` / `guardrail.denied`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`500 api.internal_error`。 |
 | 状态语义 | `completed/failed/cancelled` 表示 terminal；`waiting` 表示调用方需要 approval 或 resume；`running/created` 表示后续通过 events/detail 追踪。 |
 | 安全规则 | API route 不得直接操作 ORM session、DBOS API 或 provider SDK；input 进入 runtime 前必须经过 `run.create` policy check 和 guardrail/trust 标注；无效 token 或缺少 `run.create` 权限不得创建 run。 |
-| 验证要求 | `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 必须检查 route table、OpenAPI path、helper 使用 `RunOrchestrator`、idempotency、request_id 和 error envelope；Phase 7 contract tests 必须覆盖无效 token 和缺少 `run.create` 权限均不创建 run、guardrail deny 不创建半截 run、guardrail require_approval 进入 approval/checkpoint 等待。 |
+| 验证要求 | `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 必须检查 route table、OpenAPI path、helper 使用 `RunOrchestrator`、idempotency、request_id 和 error envelope；认证/策略/HITL contract tests 必须覆盖无效 token 和缺少 `run.create` 权限均不创建 run、guardrail deny 不创建半截 run、guardrail require_approval 进入 approval/checkpoint 等待。 |
 
 ### RUN-002 读取 run detail
 
@@ -707,7 +707,7 @@
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `AGT-001` |
-| 状态 | 已实现，Phase 6 提供 template route、OpenAPI schema 和 CLI 等价入口；Phase 7 已补认证/可见性过滤。 |
+| 状态 | 已实现，提供 template route、OpenAPI schema、CLI 等价入口和认证可见性过滤。 |
 | 入口 / 调用方 | OpenAPI 调用方、service-app、未来 Access/API gateway；CLI 等价入口为 `agent-harness agents list`。 |
 | 用途 | 列出 registry 中已加载且通过校验的 agent public descriptor，供开发者、OpenAPI 调用方和后续管理面发现可运行 agent。 |
 | 方法 | `GET` |
@@ -725,7 +725,7 @@
 | 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`409 registry.duplicate_agent_id`、`422 registry.invalid_config`、`500 api.internal_error`。 |
 | 状态语义 | `agents=[]` 表示 registry 可用但当前没有 agent；`409/422` 表示 registry config 不可信，调用方不得把部分 descriptor 当作成功结果。 |
 | 安全规则 | API 只返回当前身份可见的 public descriptor；不得暴露本地绝对路径、secret、provider client、callable、SQLAlchemy model 或 Python module object。重复 `agent_id` 或无效 config 必须整体拒绝 registry，不返回半成功列表。 |
-| 验证要求 | `tests/contracts/test_agent_registry_model_context_contracts.py` 必须覆盖 OpenAPI path/method、`AgentListResponse` schema、`AgentDescriptor` 可见字段和禁止字段、`ApiErrorEnvelope` 错误 schema、重复 `agent_id`、registry validation error，以及 route 通过 `AgentRegistry` seam 而非直接读文件；Phase 7 contract tests 还必须覆盖 401/403 和身份可见性过滤。 |
+| 验证要求 | `tests/contracts/test_agent_registry_model_context_contracts.py` 必须覆盖 OpenAPI path/method、`AgentListResponse` schema、`AgentDescriptor` 可见字段和禁止字段、`ApiErrorEnvelope` 错误 schema、重复 `agent_id`、registry validation error，以及 route 通过 `AgentRegistry` seam 而非直接读文件；认证/策略/HITL contract tests 还必须覆盖 401/403 和身份可见性过滤。 |
 
 ## 8. Auth / Policy / HITL API
 
@@ -734,7 +734,7 @@
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `APR-001` |
-| 状态 | Phase 7 已实现。 |
+| 状态 | 已实现。 |
 | 入口 / 调用方 | OpenAPI 调用方、HITL approval flow、CLI 等价入口 `agent-harness approvals list`、future Access/API gateway。 |
 | 用途 | 列出当前身份可见的 run approval 记录，供人工处理等待审批的危险动作。 |
 | 方法 | `GET` |
@@ -752,7 +752,7 @@
 | 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`500 api.internal_error`。 |
 | 状态语义 | `approvals=[]` 表示该身份当前没有可见审批；不代表 run 不存在。 |
 | 安全规则 | 只返回脱敏 approval 摘要；不得返回 resume token、原始危险 payload、secret 或内部 checkpoint object。 |
-| 验证要求 | Phase 7 contract tests 必须覆盖 OpenAPI path/schema、401/403、request_id、空列表、waiting approval 可见性和 `ApiErrorEnvelope`。 |
+| 验证要求 | 认证/策略/HITL contract tests 必须覆盖 OpenAPI path/schema、401/403、request_id、空列表、waiting approval 可见性和 `ApiErrorEnvelope`。 |
 
 CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制表符摘要列：`approval_id`、`status`、`action`、`resource`、`reason`、`tenant_id`、`agent_id`、`run_id`、`trace_id`、`request_id`。
 
@@ -763,7 +763,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `APR-002` |
-| 状态 | Phase 7 已实现。 |
+| 状态 | 已实现。 |
 | 入口 / 调用方 | OpenAPI 调用方、HITL approval flow、CLI 等价入口 `agent-harness approvals approve <approval_id>` / `agent-harness approvals deny <approval_id>`、future Access/API gateway。 |
 | 用途 | 对 waiting approval 执行 approve 或 deny，并按策略 resume / fail / fallback run。 |
 | 方法 | `POST` |
@@ -781,14 +781,14 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 approval.invalid_transition` / `run.invalid_transition`、`422 validation_error`、`500 api.internal_error`。 |
 | 状态语义 | `approved` 表示原动作允许继续；`denied` 表示原动作不得执行。返回的 `run.status` 是 resolve 后 runtime 摘要。 |
 | 安全规则 | path 中的 `run_id` 必须与 approval 归属一致；错误 URL 不得推进其他 run。响应和 audit 不得泄漏 resume token、secret 或原始危险 payload。 |
-| 验证要求 | Phase 7 contract tests 必须覆盖 approve、deny、重复 resolve 409、跨 run resolve 拒绝、audit evidence、request_id 和 OpenAPI schema。 |
+| 验证要求 | 认证/策略/HITL contract tests 必须覆盖 approve、deny、重复 resolve 409、跨 run resolve 拒绝、audit evidence、request_id 和 OpenAPI schema。 |
 
 ### POL-001 policy check
 
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `POL-001` |
-| 状态 | Phase 7 已实现。 |
+| 状态 | 已实现。 |
 | 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness policy check`、runtime/tool/model/eval seam。 |
 | 用途 | 对 actor/resource/action/context 执行 policy check，返回 allow、deny 或 require_approval。 |
 | 方法 | `POST` |
@@ -806,7 +806,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`422 validation_error`、`500 api.internal_error`。 |
 | 状态语义 | `allow` 可继续执行；`deny` 必须阻断目标动作；`require_approval` 必须进入 approval seam 或返回调用方处理。 |
 | 安全规则 | context 只接收摘要和 refs；不得把完整 tool/retrieval/provider payload 或 secret 写入 request、response、event 或 audit。 |
-| 验证要求 | Phase 7 contract tests 必须覆盖三态决策、YAML/DB provider seam、401/403、`ApiErrorEnvelope`、request_id 和 OpenAPI schema。 |
+| 验证要求 | 认证/策略/HITL contract tests 必须覆盖三态决策、YAML/DB provider seam、401/403、`ApiErrorEnvelope`、request_id 和 OpenAPI schema。 |
 
 ## 9. 保留 API 索引
 
@@ -877,7 +877,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 ```
 
-新增 `approvals` 和 `policies` route 时，应按 Phase 7 功能拆出对应 contract tests，不把所有 OpenAPI 检查堆进一个大测试。`agents` route 使用 `tests/contracts/test_agent_registry_model_context_contracts.py` 单独覆盖，Phase 7 还要补 401/403 和可见性检查。
+新增 `approvals` 和 `policies` route 时，应按认证、策略、HITL 能力边界拆出对应 contract tests，不把所有 OpenAPI 检查堆进一个大测试。`agents` route 使用 `tests/contracts/test_agent_registry_model_context_contracts.py` 单独覆盖，认证/策略/HITL 还要补 401/403 和可见性检查。
 
 ## 13. 契约验收清单
 

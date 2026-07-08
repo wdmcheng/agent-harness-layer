@@ -24,6 +24,8 @@ class AuditService:
         resource: str | None = None,
         payload: dict[str, Any] | None = None,
     ) -> AuditLogRecord:
+        """写入审计记录，并在入库前统一脱敏 payload。"""
+
         audit_payload = _audit_payload(
             actor=actor,
             action=action,
@@ -52,6 +54,8 @@ def _audit_payload(
     resource: str | None,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
+    """把不同 seam 的 payload 收敛成统一审计字段。"""
+
     decision = _metadata_value(payload, "decision")
     result = _metadata_value(payload, "result") or _metadata_value(payload, "status") or decision
     return {
@@ -72,6 +76,8 @@ def _audit_payload(
 
 
 def _metadata_value(payload: dict[str, Any], key: str) -> Any:
+    """从常见 payload 嵌套位置提取审计关联字段。"""
+
     direct = payload.get(key)
     if direct is not None:
         return direct

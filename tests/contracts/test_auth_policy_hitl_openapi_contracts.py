@@ -1,4 +1,4 @@
-"""Phase 7 auth, OpenAPI, and local identity contract tests."""
+"""认证、OpenAPI 与 local identity 合同测试。"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from tests.contracts.phase7_contract_helpers import (
+from tests.contracts.auth_policy_hitl_contract_helpers import (
     ROOT,
     asgi_request,
     descriptor,
@@ -24,7 +24,7 @@ from agent_harness.storage import SQLAlchemyStorage, run_migrations
 from app.main import create_app
 
 
-def test_api_contract_documents_phase7_auth_policy_approval_endpoints() -> None:
+def test_api_contract_documents_auth_policy_approval_endpoints() -> None:
     contract = (ROOT / "API-Contract.md").read_text(encoding="utf-8")
 
     assert "### APR-001 列出 run approvals" in contract
@@ -33,12 +33,14 @@ def test_api_contract_documents_phase7_auth_policy_approval_endpoints() -> None:
     assert "### 5.12 `PolicyCheckRequest`" in contract
     assert "### 5.15 `ApprovalRecord`" in contract
     assert "GET /api/v1/agents" in contract
-    assert "Phase 7 contract tests 还必须覆盖 401/403 和身份可见性过滤" in contract
+    assert "认证/策略/HITL contract tests 还必须覆盖 401/403 和身份可见性过滤" in contract
     assert "| `APR-001` | 规划中 | Auth / Policy / HITL |" not in contract
     assert "| `POL-001` | 规划中 | Auth / Policy / HITL |" not in contract
 
 
-def test_openapi_exposes_phase7_paths_security_and_error_envelopes(tmp_path: Path) -> None:
+def test_openapi_exposes_auth_policy_hitl_paths_security_and_error_envelopes(
+    tmp_path: Path,
+) -> None:
     from agent_harness.auth import StaticTokenVerifier
 
     app = create_app(
@@ -149,7 +151,7 @@ async def test_invalid_bearer_token_rejects_agents_and_run_without_side_effects(
     assert run_status == 401
     assert agents_body["error"]["code"] == "auth.invalid_token"
     assert run_body["error"]["code"] == "auth.invalid_token"
-    assert run_body["error"]["request_id"] == "req-phase7"
+    assert run_body["error"]["request_id"] == "req-auth-policy-hitl"
     assert table_count(db_path, "agent_runs") == 0
     assert table_count(db_path, "checkpoints") == 0
     assert table_count(db_path, "approvals") == 0
