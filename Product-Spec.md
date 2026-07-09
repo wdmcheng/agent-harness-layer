@@ -88,7 +88,7 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 | SCOPE-001 | `uv workspace` monorepo 结构 | P0 | 分离核心包、模板、示例、文档 |
 | SCOPE-002 | `packages/agent-harness` 可打包核心库 | P0 | 支持 wheel/sdist、本地安装、私有发布 |
 | SCOPE-003 | `templates/service-app` 后端服务型 agent 模板 | P0 | FastAPI + CLI + worker + configs + tests |
-| SCOPE-004 | Pydantic AI 默认生态与适配层 | P0 | 默认依赖上游包，不 vendoring 全源码 |
+| SCOPE-004 | Pydantic AI 默认生态与适配层 | P0 | Pydantic AI core 是默认 runtime；`pydantic-ai-harness` 是可选 capability library，按能力需要经 integration boundary 引入，不作为 P0 必选依赖 |
 | SCOPE-005 | DBOS durable execution 默认 adapter | P0 | service profile 默认，local profile 用 SQLite-backed checkpoint |
 | SCOPE-006 | SQLAlchemy 2.0 + Alembic storage | P0 | PostgreSQL/SQLite adapter，Repository + Unit of Work |
 | SCOPE-007 | PostgreSQL + Redis service profile | P0 | Redis 默认带上，但核心抽象不硬绑 Redis |
@@ -1258,28 +1258,29 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | DEP-001 | Python 3.12+ | 运行语言 | Yes | P0 默认 |
 | DEP-002 | uv | workspace、依赖、lock、build/publish | Yes | P0 使用 `uv build` |
 | DEP-003 | Pydantic AI / pydantic-ai-slim | 默认 agent runtime 底座 | Yes | 通过 adapter 隔离 |
-| DEP-004 | FastAPI | HTTP/SSE API | Yes | service app 接入层 |
-| DEP-005 | Typer | CLI | Yes | `agent-harness` CLI |
-| DEP-006 | DBOS | P0 durable execution service adapter | Yes for service profile | 通过 runtime adapter |
-| DEP-007 | SQLAlchemy 2.0 | ORM | Yes | typed declarative |
-| DEP-008 | Alembic | DB migration | Yes | `make migrate` |
-| DEP-009 | PostgreSQL | service profile 主存储 | Yes for service profile | checkpoint/session/eval/policy |
-| DEP-010 | Redis | service profile queue/cache | Yes for service profile | 核心抽象不硬绑 |
-| DEP-011 | SQLite | local profile 存储 | Yes for local profile | 本地/CI |
-| DEP-012 | OpenTelemetry | 观测底座 | Yes | provider adapter 前的统一协议 |
-| DEP-013 | Logfire | 推荐观测/eval provider | No | P0 adapter/recommended |
-| DEP-014 | Phoenix | 可选观测/eval provider | No | adapter |
-| DEP-015 | Langfuse | 可选观测/eval provider | No | adapter |
-| DEP-016 | PGroonga | CJK/multilingual full-text search | No | P0 optional adapter |
-| DEP-017 | pgvector | semantic retrieval | No | P0 optional adapter |
-| DEP-018 | MCP | 外部工具协议 | No | P0 client support |
-| DEP-019 | ruff | lint/format | Yes | quality gate |
-| DEP-020 | pyright | typecheck | Yes | quality gate |
-| DEP-021 | pytest / pytest-asyncio | tests | Yes | TDD |
-| DEP-022 | coverage.py | coverage | Yes | CI evidence |
-| DEP-023 | pre-commit | local quality hook | Yes | P0 |
-| DEP-024 | python-semantic-release or release-please | release automation | Yes | 具体工具可在 dev plan 决策，能力必须 P0 |
-| DEP-025 | Docker Compose | service profile local deps | Yes | Postgres/Redis smoke |
+| DEP-004 | Pydantic AI Harness / pydantic-ai-harness | 可选 capability library：CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等 | No | 不作为 P0 必选依赖；只有具体能力块需要时才通过受控 integration boundary 引入并锁版本 |
+| DEP-005 | FastAPI | HTTP/SSE API | Yes | service app 接入层 |
+| DEP-006 | Typer | CLI | Yes | `agent-harness` CLI |
+| DEP-007 | DBOS | P0 durable execution service adapter | Yes for service profile | 通过 runtime adapter |
+| DEP-008 | SQLAlchemy 2.0 | ORM | Yes | typed declarative |
+| DEP-009 | Alembic | DB migration | Yes | `make migrate` |
+| DEP-010 | PostgreSQL | service profile 主存储 | Yes for service profile | checkpoint/session/eval/policy |
+| DEP-011 | Redis | service profile queue/cache | Yes for service profile | 核心抽象不硬绑 |
+| DEP-012 | SQLite | local profile 存储 | Yes for local profile | 本地/CI |
+| DEP-013 | OpenTelemetry | 观测底座 | Yes | provider adapter 前的统一协议 |
+| DEP-014 | Logfire | 推荐观测/eval provider | No | P0 adapter/recommended |
+| DEP-015 | Phoenix | 可选观测/eval provider | No | adapter |
+| DEP-016 | Langfuse | 可选观测/eval provider | No | adapter |
+| DEP-017 | PGroonga | CJK/multilingual full-text search | No | P0 optional adapter |
+| DEP-018 | pgvector | semantic retrieval | No | P0 optional adapter |
+| DEP-019 | MCP | 外部工具协议 | No | P0 client support |
+| DEP-020 | ruff | lint/format | Yes | quality gate |
+| DEP-021 | pyright | typecheck | Yes | quality gate |
+| DEP-022 | pytest / pytest-asyncio | tests | Yes | TDD |
+| DEP-023 | coverage.py | coverage | Yes | CI evidence |
+| DEP-024 | pre-commit | local quality hook | Yes | P0 |
+| DEP-025 | python-semantic-release or release-please | release automation | Yes | 具体工具可在 dev plan 决策，能力必须 P0 |
+| DEP-026 | Docker Compose | service profile local deps | Yes | Postgres/Redis smoke |
 
 ## 8. 非功能需求
 
@@ -1323,7 +1324,7 @@ P0 完成条件：
 | 编号 | 假设 | 假设依据 | 错误风险 |
 |---|---|---|---|
 | ASM-001 | 主线是后端服务型 agent 脚手架 | 用户确认前端 UI P0 不做，架构图偏后端服务化 | 如果后续转本地桌面工具，Access/Storage/Policy 设计需调整 |
-| ASM-002 | Pydantic AI 是默认生态 | 用户确认架构以 Pydantic AI 生态为主 | 如果上游重大变动，需 adapter/fork 决策 |
+| ASM-002 | Pydantic AI 是默认生态，Pydantic AI Harness 是可选能力库 | 用户确认架构以 Pydantic AI 生态为主；官方将 `pydantic-ai-harness` 定位为独立 capability library | 如果 Harness 能力成熟到必须进入 P0，需先更新依赖表、import boundary 和 adapter 计划 |
 | ASM-003 | DBOS 是 P0 service durable execution 默认 | 用户确认接受 DBOS，Temporal 放 P1 | 如果 DBOS 不满足部署要求，需提前实现 Temporal adapter |
 | ASM-004 | PostgreSQL + Redis 是 service profile 默认 | 用户确认 Redis 按建议走 | 如果部署环境不能用 Redis，queue adapter 需提前增强 |
 | ASM-005 | PGroonga 可作为 P0 optional adapter | 用户明确知道安装方式并要求 P0 | 如果目标用户环境难安装，doctor/degrade 文档要更强 |

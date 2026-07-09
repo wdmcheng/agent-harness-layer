@@ -65,7 +65,7 @@ Maintain the package boundary first:
 
 - `agent_harness/*` must not depend on concrete template or example code.
 - `app/*` must not contain business agent logic.
-- Vendor SDKs such as Pydantic AI, DBOS, Logfire, Phoenix, and Langfuse must stay behind future adapters or controlled integration modules.
+- Vendor SDKs and capability libraries such as Pydantic AI, Pydantic AI Harness, DBOS, Logfire, Phoenix, and Langfuse must stay behind future adapters or controlled integration modules.
 - Template app code should import settings, identity, trust, and DTO types from `agent_harness.*` instead of reading YAML or provider SDKs directly.
 - `eval-cases/approved` will be written only by a future approval flow.
 - Future run records must carry tenant, agent, run, and trace correlation fields once those subsystems exist.

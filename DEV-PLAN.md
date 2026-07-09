@@ -59,6 +59,7 @@
 | 包管理 / Workspace | uv | `0.11.26` | GitHub Release 2026-06-30 最新稳定版；负责 workspace、lock、build、publish。 |
 | Build backend | hatchling | `1.30.1` | 现代 Python build backend，配合 `uv build` 产出 wheel/sdist。 |
 | Agent runtime 底座 | pydantic-ai / pydantic-ai-slim | `2.5.0` | 默认底座，但业务 agent 只依赖 `agent_harness` 公共接口；优先使用 slim + extras 降低依赖面。 |
+| Agent capability library | pydantic-ai-harness | 不作为 P0 必选依赖；按能力块引入时重新核验并锁版本 | 官方 capability library，用于 CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等可选能力；进入实现前必须走受控 integration boundary。 |
 | 数据校验 | Pydantic | `2.13.4` | 配置、DTO、API schema、CanonicalEvent 和 adapter contract 的统一 schema 基础。 |
 | HTTP API | FastAPI | `0.139.0` | 实现 `/api/v1/...`、OpenAPI、Swagger、Redoc 和 SSE endpoint。 |
 | ASGI Server | Uvicorn | `0.50.0` | service app 本地 API 入口；开发态使用 `uvicorn[standard]`，CI 可用基础安装。 |
@@ -661,6 +662,7 @@ Phase 1 Monorepo / quality spine
 | 风险 | 影响范围 | 处理 Phase | 当前状态 | 处理方式 / 验收信号 |
 |------|----------|------------|----------|----------------------|
 | Pydantic AI 2.5.0 刚发布，上游 API 和包边界可能变化。 | 核心 runtime、registry、model adapter 和业务 agent import 边界。 | Phase 2、Phase 6、Phase 10 | 已缓解 | Phase 2 已定义 `agent_harness` 公共契约和 vendor import 边界；Phase 6 已锁定 `pydantic-ai==2.5.0`，并把 `Agent.run_sync()` 调用隔离在 `agent_harness.adapters.models.pydantic_ai`。 |
+| Pydantic AI Harness 是独立可选 capability library，过早设为必选会扩大依赖面。 | CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等未来 capability integration。 | Phase 8、Phase 10、Phase 14 | 未处理 | P0 不直接依赖 `pydantic-ai-harness`；只有具体能力块需要时才新增 adapter/integration seam、锁定版本并扩展 import boundary 检查。 |
 | DBOS 2.26.0 是关键 service runtime 依赖，过早耦合会污染领域模型。 | Durable runtime、checkpoint、worker lifecycle。 | Phase 5、Phase 13 | 未处理 | 通过 `DBOSRuntimeAdapter` 隔离；验收时证明内部 run/checkpoint model 不依赖 DBOS 类型。 |
 | Redis 8.8 许可证变化影响 Apache-2.0 合规判断。 | Docker Compose service profile、queue/cache adapter、发布合规。 | Phase 13、Phase 15 | 已缓解 | P0 Docker Compose 固定 Redis 7.2.4；后续升级必须走 ADR 和 license review。 |
 | PGroonga 和 pgvector 是 optional adapter，可能拖累 local profile 或 CI。 | Retrieval、embedding cache、service profile smoke。 | Phase 9、Phase 13 | 未处理 | local profile 不硬依赖 PGroonga/pgvector；service profile 单独验 PostgreSQL 扩展和 adapter 行为。 |
