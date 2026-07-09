@@ -23,11 +23,30 @@ class QueueSettings(HarnessDTO):
     dsn: str | None = None
 
 
+class ObservabilityProviderSettings(HarnessDTO):
+    """外部 observability provider 的可选配置入口。
+
+    token 只通过 env 名称或部署 secret 引用传递，profile 不承载真实 secret。
+    """
+
+    kind: str
+    enabled: bool = False
+    endpoint: str | None = None
+    token_env: str | None = None
+
+
+def _empty_observability_providers() -> list[ObservabilityProviderSettings]:
+    return []
+
+
 class ObservabilitySettings(HarnessDTO):
     """观测输出边界配置；local-jsonl 必须永远可作为 fallback。"""
 
     kind: str
     path: str | None = None
+    providers: list[ObservabilityProviderSettings] = Field(
+        default_factory=_empty_observability_providers
+    )
 
 
 class PolicySettings(HarnessDTO):

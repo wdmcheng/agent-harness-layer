@@ -6,10 +6,27 @@ import re
 from collections.abc import Mapping
 from typing import Any, cast
 
-SECRET_KEY_MARKERS = ("api_key", "apikey", "password", "secret", "token")
+SECRET_KEY_MARKERS = (
+    "api_key",
+    "apikey",
+    "authorization",
+    "cookie",
+    "password",
+    "secret",
+    "token",
+)
+NON_SECRET_TOKEN_KEYS = {
+    "input_tokens",
+    "output_tokens",
+    "token_count",
+    "tokens",
+    "total_tokens",
+}
 SECRET_VALUE_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{8,}"),
-    re.compile(r"(?i)(api[_-]?key|password|secret|token)\s*[:=]\s*['\"]?[^\s,'\"]+"),
+    re.compile(r"(?i)\bauthorization\s*[:=]\s*(?:bearer|basic)?\s*['\"]?[^\s,'\";]+"),
+    re.compile(r"(?i)\b(set-cookie|cookie)\s*:\s*[^\r\n;]+(?:;[^\r\n]*)?"),
+    re.compile(r"(?i)(api[_-]?key|password|secret|token)\s*[:=]\s*['\"]?[^\s,'\";&]+"),
 )
 
 
@@ -19,7 +36,9 @@ def redact_secrets(value: Any) -> Any:
         mapping = cast(Mapping[object, object], value)
         for key, item in mapping.items():
             key_text = str(key).lower()
-            if any(marker in key_text for marker in SECRET_KEY_MARKERS):
+            if key_text in NON_SECRET_TOKEN_KEYS:
+                redacted[str(key)] = redact_secrets(item)
+            elif any(marker in key_text for marker in SECRET_KEY_MARKERS):
                 redacted[str(key)] = "[REDACTED]"
             else:
                 redacted[str(key)] = redact_secrets(item)

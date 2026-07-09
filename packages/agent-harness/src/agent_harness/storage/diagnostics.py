@@ -10,7 +10,8 @@ from urllib.parse import urlparse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from agent_harness.config.schemas import HarnessSettings
+from agent_harness.config.schemas import HarnessSettings, ObservabilityProviderSettings
+from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage.migrations.runner import get_current_revision
 from agent_harness.storage.settings import storage_dsn_from_settings
 
@@ -76,6 +77,32 @@ def observability_status(settings: HarnessSettings) -> tuple[bool, str]:
     if not ok:
         return False, f"local-jsonl path not writable: {message}"
     return True, f"local-jsonl writable ({sink_path})"
+
+
+def observability_provider_statuses(settings: HarnessSettings) -> list[str]:
+    """返回外部 observability provider 的 doctor 摘要。
+
+    provider 是 optional fan-out；缺失 token 或未启用不应影响 local/jsonl evidence。
+    """
+
+    if not settings.observability.providers:
+        return ["none configured"]
+    return [
+        _format_observability_provider(provider) for provider in settings.observability.providers
+    ]
+
+
+def _format_observability_provider(provider: ObservabilityProviderSettings) -> str:
+    if not provider.enabled:
+        return f"{provider.kind}: disabled (optional; local-jsonl remains active)"
+    if provider.token_env is not None:
+        return (
+            f"{provider.kind}: enabled "
+            f"(token env {redact_secrets(provider.token_env)}, local-jsonl fallback active)"
+        )
+    if provider.endpoint is not None:
+        return f"{provider.kind}: enabled ({provider.endpoint}, local-jsonl fallback active)"
+    return f"{provider.kind}: enabled (local-jsonl fallback active)"
 
 
 def redis_status(settings: HarnessSettings, timeout_seconds: float = 1.0) -> tuple[bool, str]:

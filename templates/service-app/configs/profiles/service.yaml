@@ -11,6 +11,21 @@ observability:
   # service smoke 仍使用本地 JSONL trace，避免需要外部 observability provider。
   kind: local-jsonl
   path: .agent-harness/service-traces.jsonl
+  # 外部 provider 是 optional fan-out。默认 disabled，避免 service smoke 依赖 SaaS key；
+  # 启用时只提交 env 名称或 endpoint，不把真实 token 写进 profile。
+  providers:
+    - kind: otel
+      enabled: false
+      endpoint: http://localhost:4318/v1/traces
+    - kind: logfire
+      enabled: false
+      token_env: LOGFIRE_TOKEN
+    - kind: phoenix
+      enabled: false
+      endpoint: http://127.0.0.1:6006/v1/traces
+    - kind: langfuse
+      enabled: false
+      token_env: LANGFUSE_SECRET_KEY
 auth:
   # service profile 默认要求 API key / bearer token；不要在模板里提交真实 token。
   provider: api-key

@@ -24,6 +24,7 @@ from agent_harness.storage.diagnostics import (
     eval_directory_status,
     format_retrieval_extension_status,
     migration_revision,
+    observability_provider_statuses,
     observability_status,
     redis_status,
     retrieval_extension_statuses,
@@ -70,6 +71,8 @@ def doctor(
     observability_ok, observability_message = observability_status(settings)
     typer.echo(f"observability: {settings.observability.kind}")
     typer.echo(f"observability sink: {observability_message}")
+    for provider_status in observability_provider_statuses(settings):
+        typer.echo(f"observability provider: {provider_status}")
     eval_ok, eval_message, eval_directory = eval_directory_status(profiles_dir)
     typer.echo(f"eval directory: {eval_directory} ({eval_message})")
     for extension_status in retrieval_extension_statuses(settings, storage_dsn=storage_dsn):

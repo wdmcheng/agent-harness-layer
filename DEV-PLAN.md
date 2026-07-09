@@ -11,31 +11,30 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals`、Phase 8 的 `tool-execution-boundaries` 均已归档，并同步为主规格；Phase 9 的 `retrieval-rag-foundation` 当前为 active change，已完成实现、验证和 fresh code-reviewer Stage 1/2 PASS，停在 ready-to-archive，不自动归档。
-- 代码状态: Phase 1-9 已完成实现、验证和 code-review；Phase 9 已新增 RetrievalProvider、local SQLite FTS5/BM25、PostgreSQL native FTS fallback、optional PGroonga/pgvector 探测、hybrid RRF、retrieval context helper、storage migration 和 RAG assistant config/eval 基础。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals`、Phase 8 的 `tool-execution-boundaries` 均已归档，并同步为主规格；Phase 9 的 `retrieval-rag-foundation` 和 Phase 10 的 `observability-provider-adapters` 当前为 active changes，均已完成实现、验证和 fresh code-reviewer Stage 1/2 PASS，停在 ready-to-archive，不自动归档。
+- 代码状态: Phase 1-10 已完成实现、验证和 code-review；Phase 10 已新增 TelemetryFacade、TelemetryContext、provider 前 redaction、OTel span/metric/event mapping、Logfire/Phoenix/Langfuse adapter contract、service profile provider 配置入口和 doctor 降级诊断。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1-9 已实现并通过本地验证和 code-review；Phase 10-15 仍待实现。 |
-| 当前 Phase | Phase 9 完成 | `retrieval-rag-foundation` 已完成本地实现、合同测试、质量门禁、SQLite/PostgreSQL smoke、fresh code-reviewer Stage 1/2 PASS 和 `.agents/.needs-review=clean`；本轮 git 提交收口后继续停在 ready-to-archive。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-9 已完成本地收口流程。 |
-| 当前 OpenSpec change | `retrieval-rag-foundation` ready-to-archive | 已通过 artifact review PASS、实现后 strict validate、全量验证和 fresh code-reviewer Stage 1/2 PASS；除非用户明确要求，不自动执行 `openspec archive`。 |
-| 当前验证基线 | 全量通过 | 本轮已通过 Phase 9 targeted tests（16 passed, 1 skipped）、`uv run pytest`（98 passed, 1 skipped）、`make quality`、`openspec validate retrieval-rag-foundation --type change --strict`、`openspec validate --all --strict`（14 passed）、`uv run python scripts/smoke_local.py`、`make smoke-service`（PostgreSQL/Redis，`migration=0006_retrieval_chunk_identity`，retrieval result 带 v2 citation/trust，PGroonga/pgvector 缺失按 optional 降级）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
-| 当前阻塞项 | 无 | Phase 9 已完成；OpenSpec change 停在 ready-to-archive。 |
-| 当前建议下一步 | 归档或进入 Phase 10 | 用户明确确认后可执行 `openspec archive retrieval-rag-foundation`；否则下一轮进入 Phase 10 Observability Provider Adapters 与脱敏。 |
+| 总体状态 | 进行中 | Phase 1-10 已实现并通过本地验证和 code-review；Phase 11-15 仍待实现。 |
+| 当前 Phase | Phase 10 完成 | `observability-provider-adapters` 已完成 artifact review PASS、本地实现、合同测试、质量门禁、local/service smoke、fresh code-reviewer Stage 1/2 PASS 和 `.agents/.needs-review=clean`；本轮 git 提交收口后继续停在 ready-to-archive。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-10 已完成本地收口流程。 |
+| 当前 OpenSpec change | `retrieval-rag-foundation` ready-to-archive；`observability-provider-adapters` ready-to-archive | 两个 active changes 均已通过 artifact review PASS、实现后 strict validate、全量验证和 fresh code-reviewer Stage 1/2 PASS；除非用户明确要求，不自动执行 `openspec archive`。 |
+| 当前验证基线 | 全量通过 | 本轮已通过 Phase 10 targeted tests（10 passed）、targeted regression/config/import tests（17 passed）、`uv run pytest` / `make test`（107 passed, 1 skipped）、`make quality`、`uv run openspec validate observability-provider-adapters --type change --strict`、`uv run openspec validate --all --strict`（15 passed）、`uv run python scripts/smoke_local.py`、`make smoke-service`（PostgreSQL/Redis，`migration=0006_retrieval_chunk_identity`，retrieval result 带 citation/trust，PGroonga/pgvector 缺失按 optional 降级）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
+| 当前阻塞项 | 无 | Phase 10 已完成；两个 active OpenSpec changes 停在 ready-to-archive。 |
+| 当前建议下一步 | 归档或进入 Phase 11 | 用户明确确认后可分别执行 `openspec archive retrieval-rag-foundation` 和 `openspec archive observability-provider-adapters`；否则下一轮进入 Phase 11 Eval Gate 与 Trace 到 Eval 闭环。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 可选收口：用户明确确认后归档 `retrieval-rag-foundation`；否则下一轮进入 Phase 10 Observability Provider Adapters 与脱敏。
+- 可选收口：用户明确确认后归档 `retrieval-rag-foundation` 和 / 或 `observability-provider-adapters`；否则下一轮进入 Phase 11 Eval Gate 与 Trace 到 Eval 闭环。
 
 ### 后续 Phase
 
-- Phase 10: Observability Provider Adapters 与脱敏。
 - Phase 11: Eval Gate 与 Trace 到 Eval 闭环。
 - Phase 12: Service App 模板与四个 P0 示例 Agent。
 - Phase 13: Service Profile、API/Worker 分进程与未来拆分边界。
@@ -44,13 +43,13 @@
 
 ### 尚未完成的关键验收
 
-- tools、retrieval、provider observability adapter、eval gate 和 release automation 尚未实现。
+- eval gate、service app 示例、service profile 分进程边界、深度文档和 release automation 尚未实现。
 - GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
 - 深度文档、ADR、未来微服务拆分边界文档尚未完成。
 
 ## 技术栈决策
 
-以下版本于 2026-07-05 通过官方文档、PyPI、GitHub Release 或项目官网核验。开发时使用 `uv.lock` 锁定实际解析版本；本表给出 P0 目标线和上限策略。
+以下版本于 2026-07-05 通过官方文档、PyPI、GitHub Release 或项目官网核验；Phase 10 provider 版本于 2026-07-09 追加核验。开发时使用 `uv.lock` 锁定实际解析版本；本表给出 P0 目标线和上限策略。
 
 | 层级 | 技术 | 版本 | 说明 |
 |------|------|------|------|
@@ -71,10 +70,10 @@
 | Service database | PostgreSQL | `18.4` | 官网 2026-05-14 最新稳定补丁线；Docker Compose 可先固定 `postgres:18.4`。 |
 | Queue / cache | Redis server | `7.2.4` for Docker Compose | Redis 8.8 已是当前 GA，但 Redis 8 许可证为 RSALv2/SSPLv1/AGPLv3 三选一；为 Apache-2.0 项目降低合规风险，P0 service profile 默认容器固定 Redis 7.2.4。 |
 | Redis client | redis-py | `8.0.1` | 最新客户端支持 Redis 7.2 到 8.8；P0 只使用兼容 7.2 的基础能力。 |
-| Observability 底座 | OpenTelemetry Python | `1.43.0` | OTel API/SDK 作为 provider adapter 前的统一协议。 |
+| Observability 底座 | OpenTelemetry Python | `1.43.0` current；Phase 10 `observability` extra 锁 `1.42.1` SDK/exporter | 2026-07-09 通过 PyPI 核验 current 为 1.43.0；Logfire 4.37.0 当前要求 `opentelemetry-sdk<1.43.0`，因此 provider extra 先锁可解析的 1.42.1 SDK/exporter 组合，OTel API/SDK 仍作为 provider adapter 前的统一协议。 |
 | 推荐观测 provider | Logfire | `4.37.0` | 推荐 adapter；业务代码不直接 import。 |
-| 可选观测 provider | Arize Phoenix | `17.18.0` | 可选 adapter contract，覆盖 trace/dataset/eval/feedback 工作流。 |
-| 可选观测 provider | Langfuse Python SDK | `4.13.0` | v4 SDK；adapter 层处理 v4 API，不污染核心接口。 |
+| 可选观测 provider | Arize Phoenix | `17.21.0` | 2026-07-09 通过 PyPI 重新核验；可选 adapter contract，覆盖 trace/dataset/eval/feedback 工作流。 |
+| 可选观测 provider | Langfuse Python SDK | `4.13.2` | 2026-07-09 通过 PyPI 重新核验；v4 SDK；adapter 层处理 v4 API，不污染核心接口。 |
 | MCP client SDK | mcp | `>=1.28.1,<2` | 官方 PyPI 说明 v1 是稳定线、v2 是 alpha；P0 明确 `<2` 防止破坏性升级。 |
 | HTTP client | HTTPX | `0.28.1` | MCP HTTP/SSE、provider adapter 和 smoke tests 使用。 |
 | Lint / Format | Ruff | `0.15.20` | `make quality` 的 lint + format 主工具。 |
@@ -442,6 +441,11 @@ Phase 1 Monorepo / quality spine
 - 配置 Logfire/Phoenix/Langfuse adapter 时，adapter contract tests 通过且业务 agent 无 provider SDK import。
 - 外部 provider 失败不丢本地 trace 和 audit。
 - secret fixture 在 trace、eval、audit、local/jsonl 和 provider payload 中均被脱敏或被阻止写入。
+
+**完成状态**：
+- 已通过 `observability-provider-adapters` OpenSpec artifact review PASS、strict validate、Phase 10 targeted contract tests、全量质量/测试/smoke/build/license/pre-commit 验证和 fresh code-reviewer Stage 1/2 PASS。
+- 已新增 `agent-harness[observability]` optional extra，锁定 Logfire/Phoenix/Langfuse 当前版本；因 Logfire 4.37.0 约束 `opentelemetry-sdk<1.43.0`，OTel SDK/exporter 在该 extra 内锁为可解析的 1.42.1。
+- 不自动归档；`observability-provider-adapters` 停在 ready-to-archive。
 
 ---
 

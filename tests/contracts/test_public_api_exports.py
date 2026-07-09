@@ -12,6 +12,7 @@ PUBLIC_FACADE_MODULES = [
     "agent_harness.contracts",
     "agent_harness.events",
     "agent_harness.identity",
+    "agent_harness.observability",
     "agent_harness.runtime",
     "agent_harness.security",
     "agent_harness.storage",

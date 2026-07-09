@@ -19,6 +19,9 @@ from agent_harness.config.schemas import (
     ModelSettings as ModelSettings,
 )
 from agent_harness.config.schemas import (
+    ObservabilityProviderSettings as ObservabilityProviderSettings,
+)
+from agent_harness.config.schemas import (
     ObservabilitySettings as ObservabilitySettings,
 )
 from agent_harness.config.schemas import (
@@ -44,6 +47,7 @@ _SCHEMA_MODEL_EXPORTS = [
     "IdentitySettings",
     "ModelSettings",
     "ObservabilitySettings",
+    "ObservabilityProviderSettings",
     "PolicySettings",
     "QueueSettings",
     "ServiceSettings",
