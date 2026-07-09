@@ -7,6 +7,7 @@
 
 # Local code index
 .codegraph/
+graphify-out/
 
 # OS files
 .DS_Store
