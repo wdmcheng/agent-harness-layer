@@ -33,6 +33,8 @@ agent-harness = { workspace = true }
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = [".agents", ".codex", ".claude"]
+force-exclude = true
 # ruff/pyright 扫描模板和脚本，是为了防止示例代码绕过核心包边界。
 src = [
     "packages/agent-harness/src",
