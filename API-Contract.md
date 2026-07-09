@@ -774,7 +774,7 @@ Phase 8 工具 seam 必须使用稳定错误码，CLI、runtime 和未来 API ro
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `RUN-005` |
-| 状态 | 已实现 checkpoint resume seam；完整 HITL approval resume 依赖后续认证/审批能力。 |
+| 状态 | 已实现 checkpoint resume seam；Phase 7 已接入 HITL approval resolve 与认证/审批能力。 |
 | 入口 / 调用方 | OpenAPI 调用方、HITL approval flow、future worker/API gateway。 |
 | 用途 | 使用 resume token 恢复 checkpointed run。 |
 | 方法 | `POST` |

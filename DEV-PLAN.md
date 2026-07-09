@@ -11,7 +11,7 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals` 均已归档，并同步为主规格。Phase 8 使用 active change `tool-execution-boundaries`。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals`、Phase 8 的 `tool-execution-boundaries` 均已归档，并同步为主规格；当前无 active change。
 - 代码状态: Phase 1-8 已完成实现、验证和 code-review；Phase 8 新增 ToolRegistry、Workspace FileTool、ShellTool、MCP client connector、工具执行 CLI/runtime seam 和 tool evidence storage。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 

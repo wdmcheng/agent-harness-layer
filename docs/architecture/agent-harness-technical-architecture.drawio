@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <mxfile host="drawio" version="26.0.0">
   <diagram name="Page-1">
     <mxGraphModel dx="1820" dy="1180" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1820" pageHeight="1180" math="0" shadow="0">
@@ -8,10 +8,10 @@
         <mxCell id="title" value="技术架构图（Agent Harness Layer）" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#111827;align=center;verticalAlign=middle;" parent="1" vertex="1">
           <mxGeometry x="280" y="24" width="1260" height="44" as="geometry" />
         </mxCell>
-        <mxCell id="legend-current" value="已实现 Phase 1-5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;fontSize=12;" parent="1" vertex="1">
+        <mxCell id="legend-current" value="已实现 Phase 1-8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;fontSize=12;" parent="1" vertex="1">
           <mxGeometry x="40" y="28" width="190" height="24" as="geometry" />
         </mxCell>
-        <mxCell id="legend-future" value="待实现 Phase 6-15" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;fontSize=12;" parent="1" vertex="1">
+        <mxCell id="legend-future" value="待实现 Phase 9-15" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;fontSize=12;" parent="1" vertex="1">
           <mxGeometry x="40" y="60" width="190" height="24" as="geometry" />
         </mxCell>
         <mxCell id="legend-split" value="未来拆分 / P1+" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;fontSize=12;" parent="1" vertex="1">
@@ -26,10 +26,10 @@
         <mxCell id="template" value="模板应用 template service-app：薄 API / worker / profile 装配层" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f0f9ff;strokeColor=#0369a1;" parent="1" vertex="1">
           <mxGeometry x="1260" y="150" width="520" height="900" as="geometry" />
         </mxCell>
-        <mxCell id="contract-note" value="边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。&#10;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=Phase 6-15 或未来拆分，红虚线=信任边界。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
+        <mxCell id="contract-note" value="边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。&#10;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=Phase 9-15 或未来拆分，红虚线=信任边界。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
           <mxGeometry x="250" y="1080" width="980" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="status-note" value="当前实现：Phase 1-5。黄色节点是 Phase 6-15 待实现，不代表已交付。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
+        <mxCell id="status-note" value="当前实现：Phase 1-8。黄色节点是 Phase 9-15 待实现，不代表已交付。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
           <mxGeometry x="1280" y="1080" width="500" height="60" as="geometry" />
         </mxCell>
         <mxCell id="dto" value="稳定载荷契约（DTO）&#10;HarnessDTO / ApiErrorEnvelope&#10;trust/source refs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
@@ -68,13 +68,13 @@
         <mxCell id="dbos" value="耐久运行适配边界&#10;DBOSRuntimeAdapter&#10;NoopDBOSRuntimeAdapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="60" y="650" width="250" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="model" value="待实现 Phase 6&#10;模型提供方与路由&#10;ModelProvider / ModelRouter&#10;Pydantic AI adapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;" parent="core" vertex="1">
+        <mxCell id="model" value="已实现 Phase 6&#10;AgentRegistry / ModelRouter&#10;ContextAssembler&#10;Pydantic AI adapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="350" y="650" width="230" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="policy" value="待实现 Phase 7&#10;策略与人工审批&#10;PolicyEngine / HITL&#10;审计日志" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;" parent="core" vertex="1">
+        <mxCell id="policy" value="已实现 Phase 7&#10;Auth / PolicyEngine / HITL&#10;ApprovalService&#10;AuditService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="620" y="650" width="220" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="tools" value="待实现 Phase 8&#10;工具系统&#10;ToolRegistry&#10;File/Shell/MCP 输出不可信" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;" parent="core" vertex="1">
+        <mxCell id="tools" value="已实现 Phase 8&#10;ToolRegistry&#10;File/Shell/MCP client&#10;output_guard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="350" y="770" width="230" height="90" as="geometry" />
         </mxCell>
         <mxCell id="retrieval" value="待实现 Phase 9&#10;检索能力&#10;RetrievalProvider / RAG&#10;trust_level" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;" parent="core" vertex="1">
@@ -101,10 +101,10 @@
         <mxCell id="sse" value="流式输出格式化&#10;SSE formatter&#10;CanonicalEvent -&gt; SSE&#10;Last-Event-ID -&gt; seq&#10;当前 JSON events seam" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
           <mxGeometry x="280" y="430" width="210" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="agentroutes" value="待实现 Phase 6/12&#10;Agent 路由与示例&#10;registry smoke" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;" parent="template" vertex="1">
+        <mxCell id="agentroutes" value="已实现 Phase 6&#10;Agent routes / registry smoke&#10;Phase 12 示例待实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
           <mxGeometry x="40" y="610" width="210" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="authroutes" value="待实现 Phase 7/11&#10;认证/审批/策略/eval&#10;保留 API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;" parent="template" vertex="1">
+        <mxCell id="authroutes" value="已实现 Phase 7&#10;认证/审批/策略 routes&#10;Eval API Phase 11 待实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
           <mxGeometry x="280" y="610" width="210" height="100" as="geometry" />
         </mxCell>
         <mxCell id="e-config-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" parent="1" edge="1" source="config" target="runtime">
@@ -173,13 +173,13 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-model-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" parent="1" edge="1" source="model" target="runtime">
+        <mxCell id="e-model-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="model" target="runtime">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-policy-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" parent="1" edge="1" source="policy" target="runtime">
+        <mxCell id="e-policy-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="policy" target="runtime">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-tools-policy" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" parent="1" edge="1" source="tools" target="policy">
+        <mxCell id="e-tools-policy" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="tools" target="policy">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e-retrieval-tools" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" parent="1" edge="1" source="retrieval" target="tools">
