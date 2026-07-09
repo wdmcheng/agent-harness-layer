@@ -11,31 +11,30 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals`、Phase 8 的 `tool-execution-boundaries` 均已归档，并同步为主规格；当前无 active change。
-- 代码状态: Phase 1-8 已完成实现、验证和 code-review；Phase 8 新增 ToolRegistry、Workspace FileTool、ShellTool、MCP client connector、工具执行 CLI/runtime seam 和 tool evidence storage。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals`、Phase 8 的 `tool-execution-boundaries` 均已归档，并同步为主规格；Phase 9 的 `retrieval-rag-foundation` 当前为 active change，已完成实现、验证和 fresh code-reviewer Stage 1/2 PASS，停在 ready-to-archive，不自动归档。
+- 代码状态: Phase 1-9 已完成实现、验证和 code-review；Phase 9 已新增 RetrievalProvider、local SQLite FTS5/BM25、PostgreSQL native FTS fallback、optional PGroonga/pgvector 探测、hybrid RRF、retrieval context helper、storage migration 和 RAG assistant config/eval 基础。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1-8 已实现并通过本地验证和 code-review；Phase 9-15 仍待实现。 |
-| 当前 Phase | Phase 8 完成 | `tool-execution-boundaries` 已完成本地实现、合同测试、质量门禁、SQLite/PostgreSQL smoke 和 fresh code-reviewer Stage 1/2 PASS。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-8 已完成本地收口流程。 |
-| 当前 OpenSpec change | 无 active change | `tool-execution-boundaries` 已归档到 `openspec/changes/archive/2026-07-08-tool-execution-boundaries/`，主规格已同步到 `openspec/specs/tool-execution-boundaries/spec.md`；`openspec list --json` 输出 `changes: []`。 |
-| 当前验证基线 | 全量通过 | 本轮已通过 `uv run pytest`（86 passed, 1 skipped）、Phase 8 局部 contract tests（18 passed）、`make quality`、`openspec validate tool-execution-boundaries --type change --strict`、`uv run python scripts/smoke_local.py`、`make smoke-service`（PostgreSQL/Redis，`migration=0004_tool_execution_boundaries`）、`make build`、`make license-check`、`uv run pre-commit run --all-files`；归档后 `openspec validate --all --strict` 为 13 passed。 |
-| 当前阻塞项 | 无 | Phase 9 尚未开工。 |
-| 当前建议下一步 | 进入 Phase 9 | 下一轮进入 Phase 9 RetrievalProvider 与 RAG 能力。 |
+| 总体状态 | 进行中 | Phase 1-9 已实现并通过本地验证和 code-review；Phase 10-15 仍待实现。 |
+| 当前 Phase | Phase 9 完成 | `retrieval-rag-foundation` 已完成本地实现、合同测试、质量门禁、SQLite/PostgreSQL smoke、fresh code-reviewer Stage 1/2 PASS 和 `.agents/.needs-review=clean`；本轮 git 提交收口后继续停在 ready-to-archive。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-9 已完成本地收口流程。 |
+| 当前 OpenSpec change | `retrieval-rag-foundation` ready-to-archive | 已通过 artifact review PASS、实现后 strict validate、全量验证和 fresh code-reviewer Stage 1/2 PASS；除非用户明确要求，不自动执行 `openspec archive`。 |
+| 当前验证基线 | 全量通过 | 本轮已通过 Phase 9 targeted tests（16 passed, 1 skipped）、`uv run pytest`（98 passed, 1 skipped）、`make quality`、`openspec validate retrieval-rag-foundation --type change --strict`、`openspec validate --all --strict`（14 passed）、`uv run python scripts/smoke_local.py`、`make smoke-service`（PostgreSQL/Redis，`migration=0006_retrieval_chunk_identity`，retrieval result 带 v2 citation/trust，PGroonga/pgvector 缺失按 optional 降级）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
+| 当前阻塞项 | 无 | Phase 9 已完成；OpenSpec change 停在 ready-to-archive。 |
+| 当前建议下一步 | 归档或进入 Phase 10 | 用户明确确认后可执行 `openspec archive retrieval-rag-foundation`；否则下一轮进入 Phase 10 Observability Provider Adapters 与脱敏。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 下一轮进入 Phase 9：RetrievalProvider 与 RAG 能力。
+- 可选收口：用户明确确认后归档 `retrieval-rag-foundation`；否则下一轮进入 Phase 10 Observability Provider Adapters 与脱敏。
 
 ### 后续 Phase
 
-- Phase 9: RetrievalProvider 与 RAG 能力。
 - Phase 10: Observability Provider Adapters 与脱敏。
 - Phase 11: Eval Gate 与 Trace 到 Eval 闭环。
 - Phase 12: Service App 模板与四个 P0 示例 Agent。
@@ -665,7 +664,7 @@ Phase 1 Monorepo / quality spine
 | Pydantic AI Harness 是独立可选 capability library，过早设为必选会扩大依赖面。 | CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等未来 capability integration。 | Phase 8、Phase 10、Phase 14 | 未处理 | P0 不直接依赖 `pydantic-ai-harness`；只有具体能力块需要时才新增 adapter/integration seam、锁定版本并扩展 import boundary 检查。 |
 | DBOS 2.26.0 是关键 service runtime 依赖，过早耦合会污染领域模型。 | Durable runtime、checkpoint、worker lifecycle。 | Phase 5、Phase 13 | 未处理 | 通过 `DBOSRuntimeAdapter` 隔离；验收时证明内部 run/checkpoint model 不依赖 DBOS 类型。 |
 | Redis 8.8 许可证变化影响 Apache-2.0 合规判断。 | Docker Compose service profile、queue/cache adapter、发布合规。 | Phase 13、Phase 15 | 已缓解 | P0 Docker Compose 固定 Redis 7.2.4；后续升级必须走 ADR 和 license review。 |
-| PGroonga 和 pgvector 是 optional adapter，可能拖累 local profile 或 CI。 | Retrieval、embedding cache、service profile smoke。 | Phase 9、Phase 13 | 未处理 | local profile 不硬依赖 PGroonga/pgvector；service profile 单独验 PostgreSQL 扩展和 adapter 行为。 |
+| PGroonga 和 pgvector 是 optional adapter，可能拖累 local profile 或 CI。 | Retrieval、embedding cache、service profile smoke。 | Phase 9、Phase 13 | 已缓解 | Phase 9 已把 PGroonga/pgvector 作为 optional capability probe；local profile 不硬依赖扩展，service smoke 输出缺失降级提示并继续走 PostgreSQL native FTS fallback。 |
 | P0 只做可拆边界，不做完整微服务；如果 API/worker/storage/tool 边界不清，后续会重构。 | API、runtime worker、model/tool gateway、storage、event/observability。 | Phase 2、Phase 4、Phase 5、Phase 13、Phase 14 | 部分缓解 | Phase 2 已通过 typed service profile、DTO/context/identity contracts 和 README 部署边界说明建立接口基础；Phase 13 做 API/worker 分进程 smoke。 |
 | Phoenix、Langfuse、Logfire 的 dataset/score/workflow 能力差异大。 | Observability adapter、Eval Gate、score sink。 | Phase 10、Phase 11 | 未处理 | P0 先做 provider-neutral contract 和 local/jsonl fallback；复杂 provider-native workflow 放 P1。 |
-| Prompt injection / tool output injection 如果后补，会污染所有 agent 和 eval 证据。 | Access input、MCP、tools、retrieval、context assembly、audit。 | Phase 2、Phase 4、Phase 6、Phase 8、Phase 9 | 部分缓解 | Phase 2 已定义 trust marker/source_ref/context ref 和 guardrail decision DTO；Phase 6 已在 ContextAssembler 保留 per-fragment source/trust/token/truncation trace；后续仍需在 tool/MCP/retrieval adapters 中强制传播并写入 trace/audit。 |
+| Prompt injection / tool output injection 如果后补，会污染所有 agent 和 eval 证据。 | Access input、MCP、tools、retrieval、context assembly、audit。 | Phase 2、Phase 4、Phase 6、Phase 8、Phase 9 | 已缓解 | Phase 2 已定义 trust marker/source_ref/context ref 和 guardrail decision DTO；Phase 6 已在 ContextAssembler 保留 per-fragment source/trust/token/truncation trace；Phase 8 已处理 tool/MCP output；Phase 9 已让 retrieval chunk 进入 context 前保留 citation/source_ref/trust_level，prompt injection 文本只作为 untrusted citation 内容。 |

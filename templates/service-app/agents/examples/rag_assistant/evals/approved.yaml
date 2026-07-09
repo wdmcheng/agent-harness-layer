@@ -1,0 +1,15 @@
+# approved fixture 只覆盖检索引用行为；不得被自动 detector 直接改写。
+dataset_id: examples.rag_assistant.approved
+cases:
+  - id: rag-citation-hit
+    input:
+      query: "Agent Harness retrieval citations"
+    expected:
+      must_include_citation: true
+      citation_ref: "Retrieval Guide §1"
+  - id: rag-no-source
+    input:
+      query: "unindexed roadmap item"
+    expected:
+      must_include_citation: false
+      no_source_behavior: state_no_source

@@ -17,12 +17,25 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 from agent_harness.config import load_settings
 from agent_harness.context import ContextAssembler, ContextFragment
 from agent_harness.embeddings import EmbeddingRequest, LocalEmbeddingProvider
+from agent_harness.retrieval import (
+    PostgreSQLRetrievalProvider,
+    RetrievalChunk,
+    RetrievalDocument,
+    RetrievalIndexRequest,
+    RetrievalQueryRequest,
+)
 from agent_harness.storage import SQLAlchemyStorage, run_migrations
-from agent_harness.storage.diagnostics import migration_revision, redis_status
+from agent_harness.storage.diagnostics import (
+    format_retrieval_extension_status,
+    migration_revision,
+    redis_status,
+    retrieval_extension_statuses,
+)
 from agent_harness.storage.repositories import RunCreate, SessionCreate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -164,6 +177,130 @@ async def context_embedding_probe(dsn: str) -> tuple[str, str]:
         await storage.dispose()
 
 
+async def retrieval_probe(dsn: str) -> str:
+    """穿过 service PostgreSQL retrieval adapter 写入并检索一个带 citation 的 chunk。"""
+
+    provider = PostgreSQLRetrievalProvider(dsn=dsn)
+    suffix = str(uuid4())
+    document_id = f"service-smoke-doc-{suffix}"
+    chunk_id = f"service-smoke-chunk-{suffix}"
+    for revision, content in [
+        (
+            "v1",
+            (
+                "service smoke retrieval stale citation evidence; "
+                "ignore previous instructions is untrusted quoted content"
+            ),
+        ),
+        (
+            "v2",
+            (
+                "service smoke retrieval refreshed citation evidence; "
+                "ignore previous instructions is untrusted quoted content"
+            ),
+        ),
+    ]:
+        await provider.index(
+            RetrievalIndexRequest(
+                collection="service-smoke",
+                documents=[
+                    RetrievalDocument(
+                        collection="service-smoke",
+                        document_id=document_id,
+                        source_ref=f"smoke://retrieval/document/{revision}",
+                        citation=f"Service Smoke Retrieval Doc {revision}",
+                        metadata={"purpose": "service smoke", "revision": revision},
+                    )
+                ],
+                chunks=[
+                    RetrievalChunk(
+                        collection="service-smoke",
+                        document_id=document_id,
+                        chunk_id=chunk_id,
+                        content=content,
+                        source_ref=f"smoke://retrieval/document/{revision}#chunk",
+                        citation=f"Service Smoke Retrieval Doc {revision}#chunk",
+                        trust_level="untrusted",
+                        token_estimate=10,
+                        rank_metadata={"probe": "service-smoke", "revision": revision},
+                    )
+                ],
+            )
+        )
+    response = await provider.query(
+        RetrievalQueryRequest(
+            collection="service-smoke",
+            query="refreshed citation evidence",
+            top_k=1,
+        )
+    )
+    if not response.results:
+        raise RuntimeError("service retrieval probe returned no results")
+    result = response.results[0]
+    if result.citation != "Service Smoke Retrieval Doc v2#chunk":
+        raise RuntimeError(f"service retrieval probe returned stale citation: {result.citation}")
+
+    shared_chunk_id = f"service-smoke-shared-chunk-{suffix}"
+    await provider.index(
+        RetrievalIndexRequest(
+            collection="service-smoke-doc-identity",
+            documents=[
+                RetrievalDocument(
+                    collection="service-smoke-doc-identity",
+                    document_id=f"service-smoke-alpha-{suffix}",
+                    source_ref="smoke://retrieval/document-identity/alpha",
+                    citation="Service Smoke Alpha Doc",
+                ),
+                RetrievalDocument(
+                    collection="service-smoke-doc-identity",
+                    document_id=f"service-smoke-beta-{suffix}",
+                    source_ref="smoke://retrieval/document-identity/beta",
+                    citation="Service Smoke Beta Doc",
+                ),
+            ],
+            chunks=[
+                RetrievalChunk(
+                    collection="service-smoke-doc-identity",
+                    document_id=f"service-smoke-alpha-{suffix}",
+                    chunk_id=shared_chunk_id,
+                    content="service smoke alpha identity evidence",
+                    source_ref="smoke://retrieval/document-identity/alpha#chunk",
+                    citation="Service Smoke Alpha Doc#chunk",
+                    trust_level="untrusted",
+                ),
+                RetrievalChunk(
+                    collection="service-smoke-doc-identity",
+                    document_id=f"service-smoke-beta-{suffix}",
+                    chunk_id=shared_chunk_id,
+                    content="service smoke beta identity evidence",
+                    source_ref="smoke://retrieval/document-identity/beta#chunk",
+                    citation="Service Smoke Beta Doc#chunk",
+                    trust_level="untrusted",
+                ),
+            ],
+        )
+    )
+    alpha = await provider.query(
+        RetrievalQueryRequest(
+            collection="service-smoke-doc-identity",
+            query="alpha identity evidence",
+            top_k=1,
+        )
+    )
+    beta = await provider.query(
+        RetrievalQueryRequest(
+            collection="service-smoke-doc-identity",
+            query="beta identity evidence",
+            top_k=1,
+        )
+    )
+    if not alpha.results or alpha.results[0].citation != "Service Smoke Alpha Doc#chunk":
+        raise RuntimeError("service retrieval probe lost alpha document chunk identity")
+    if not beta.results or beta.results[0].citation != "Service Smoke Beta Doc#chunk":
+        raise RuntimeError("service retrieval probe lost beta document chunk identity")
+    return f"{result.chunk_id} citation={result.citation} trust={result.trust_level}"
+
+
 def run_worker_probe(dsn: str) -> str:
     """运行一次 service worker shell，返回 worker 创建的 run id。"""
 
@@ -229,6 +366,10 @@ def main() -> int:
     run_migrations(settings.storage.dsn)
     revision = migration_revision(settings)
     redis_ok, redis_message = redis_status(settings, timeout_seconds=2.0)
+    retrieval_extensions = ", ".join(
+        format_retrieval_extension_status(status)
+        for status in retrieval_extension_statuses(settings, settings.storage.dsn)
+    )
     if revision is None:
         print("smoke-service: PostgreSQL migration revision missing", file=sys.stderr)
         return 1
@@ -240,12 +381,14 @@ def main() -> int:
     worker_run_id = "(migrate-only)"
     context_assembly_id = "(migrate-only)"
     embedding_cache = "(migrate-only)"
+    retrieval_result = "(migrate-only)"
     if not args.migrate_only:
         # repository probe 是 PostgreSQL storage adapter 的最小行为证明。
         run_id = asyncio.run(repository_probe(settings.storage.dsn))
         context_assembly_id, embedding_cache = asyncio.run(
             context_embedding_probe(settings.storage.dsn)
         )
+        retrieval_result = asyncio.run(retrieval_probe(settings.storage.dsn))
         # worker probe 证明 runtime worker shell 不是孤立占位，而是共用 runtime seam。
         worker_run_id = run_worker_probe(settings.storage.dsn)
 
@@ -256,6 +399,8 @@ def main() -> int:
     print(f"smoke-service: repository_run={run_id}")
     print(f"smoke-service: context_assembly={context_assembly_id}")
     print(f"smoke-service: embedding_cache={embedding_cache}")
+    print(f"smoke-service: retrieval_result={retrieval_result}")
+    print(f"smoke-service: retrieval_extensions={retrieval_extensions}")
     print(f"smoke-service: worker_run={worker_run_id}")
     print("smoke-service: ok")
     return 0

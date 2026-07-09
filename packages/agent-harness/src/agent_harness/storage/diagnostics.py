@@ -3,12 +3,29 @@
 from __future__ import annotations
 
 import socket
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from agent_harness.config.schemas import HarnessSettings
 from agent_harness.storage.migrations.runner import get_current_revision
 from agent_harness.storage.settings import storage_dsn_from_settings
+
+RETRIEVAL_OPTIONAL_EXTENSIONS = ("pgroonga", "vector")
+
+
+@dataclass(frozen=True)
+class ExtensionStatus:
+    """PostgreSQL extension 的 doctor 诊断摘要。"""
+
+    name: str
+    status: str
+    default_version: str | None = None
+    installed_version: str | None = None
+    error: str | None = None
 
 
 def eval_directory_for_profiles(profiles_dir: Path | None) -> Path:
@@ -79,3 +96,93 @@ def redis_status(settings: HarnessSettings, timeout_seconds: float = 1.0) -> tup
     if response.startswith(b"+PONG"):
         return True, "ok"
     return False, "bad response"
+
+
+def retrieval_extension_statuses(
+    settings: HarnessSettings,
+    storage_dsn: str | None = None,
+) -> list[ExtensionStatus]:
+    """返回 retrieval optional extensions 的诊断状态，不把缺失当作必需失败。"""
+
+    if settings.storage.kind != "postgresql":
+        return [
+            ExtensionStatus(name=name, status="not_required")
+            for name in RETRIEVAL_OPTIONAL_EXTENSIONS
+        ]
+    try:
+        dsn = storage_dsn or storage_dsn_from_settings(settings)
+    except ValueError as exc:
+        return [
+            ExtensionStatus(name=name, status="unknown", error=str(exc))
+            for name in RETRIEVAL_OPTIONAL_EXTENSIONS
+        ]
+    return _run_extension_probe(dsn, RETRIEVAL_OPTIONAL_EXTENSIONS)
+
+
+def format_retrieval_extension_status(status: ExtensionStatus) -> str:
+    """格式化 doctor 输出，明确 optional extension 的降级语义。"""
+
+    if status.status == "not_required":
+        return f"{status.name}: not required for local profile"
+    if status.status == "installed":
+        version = f" ({status.installed_version})" if status.installed_version else ""
+        return f"{status.name}: installed{version}"
+    if status.status == "available":
+        version = f" ({status.default_version})" if status.default_version else ""
+        return (
+            f"{status.name}: available{version} "
+            "(optional; not installed, degraded to PostgreSQL native FTS/local BM25)"
+        )
+    if status.status == "missing":
+        return f"{status.name}: missing (optional; degraded to PostgreSQL native FTS/local BM25)"
+    detail = f" ({status.error})" if status.error else ""
+    return f"{status.name}: unknown{detail}"
+
+
+def _run_extension_probe(dsn: str, names: tuple[str, ...]) -> list[ExtensionStatus]:
+    import asyncio
+
+    return asyncio.run(_extension_probe(dsn, names))
+
+
+async def _extension_probe(dsn: str, names: tuple[str, ...]) -> list[ExtensionStatus]:
+    engine = create_async_engine(dsn)
+    statuses: list[ExtensionStatus] = []
+    try:
+        async with engine.connect() as connection:
+            for name in names:
+                result = await connection.execute(
+                    text(
+                        """
+                        select name, default_version, installed_version
+                        from pg_available_extensions
+                        where name = :name
+                        """
+                    ),
+                    {"name": name},
+                )
+                row = result.mappings().first()
+                if row is None:
+                    statuses.append(ExtensionStatus(name=name, status="missing"))
+                elif row["installed_version"]:
+                    statuses.append(
+                        ExtensionStatus(
+                            name=name,
+                            status="installed",
+                            default_version=row["default_version"],
+                            installed_version=row["installed_version"],
+                        )
+                    )
+                else:
+                    statuses.append(
+                        ExtensionStatus(
+                            name=name,
+                            status="available",
+                            default_version=row["default_version"],
+                        )
+                    )
+    except Exception as exc:  # noqa: BLE001 - doctor must report diagnostics, not traceback
+        statuses = [ExtensionStatus(name=name, status="unknown", error=str(exc)) for name in names]
+    finally:
+        await engine.dispose()
+    return statuses

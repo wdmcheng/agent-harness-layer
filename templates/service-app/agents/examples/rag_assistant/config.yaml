@@ -1,0 +1,18 @@
+agent_id: examples.rag_assistant
+version: 0.1.0
+# RAG 示例只锁检索配置和 eval fixture；完整示例 agent 流程由后续示例阶段承接。
+name: RAG Assistant Example
+description: Offline RAG assistant fixture with citation-aware retrieval.
+input_schema: agents.examples.rag_assistant.schemas.Input
+output_schema: agents.examples.rag_assistant.schemas.Output
+model:
+  provider: fake
+  default_model: fake-rag
+  fallback_models: []
+budget:
+  max_tokens_per_run: 8192
+  max_cost_usd_per_run: null
+tool_allowlist:
+  - retrieval.query
+eval_dataset: agents/examples/rag_assistant/evals/approved.yaml
+delegation_edges: []

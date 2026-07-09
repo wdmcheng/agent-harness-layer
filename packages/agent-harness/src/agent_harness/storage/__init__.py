@@ -50,6 +50,18 @@ from agent_harness.storage.repositories import (
 from agent_harness.storage.repositories import (
     TenantRecord as TenantRecord,
 )
+from agent_harness.storage.retrieval_repositories import (
+    RetrievalChunkCreate as RetrievalChunkCreate,
+)
+from agent_harness.storage.retrieval_repositories import (
+    RetrievalChunkRecord as RetrievalChunkRecord,
+)
+from agent_harness.storage.retrieval_repositories import (
+    RetrievalDocumentCreate as RetrievalDocumentCreate,
+)
+from agent_harness.storage.retrieval_repositories import (
+    RetrievalDocumentRecord as RetrievalDocumentRecord,
+)
 from agent_harness.storage.settings import storage_dsn_from_settings as storage_dsn_from_settings
 from agent_harness.storage.tool_repositories import (
     ToolInvocationCreate as ToolInvocationCreate,
@@ -76,6 +88,10 @@ _REPOSITORY_DTO_EXPORTS = [
     "SessionCreate",
     "SessionRecord",
     "TenantRecord",
+    "RetrievalChunkCreate",
+    "RetrievalChunkRecord",
+    "RetrievalDocumentCreate",
+    "RetrievalDocumentRecord",
     "ToolInvocationCreate",
     "ToolInvocationRecord",
     "WorkspaceCreate",

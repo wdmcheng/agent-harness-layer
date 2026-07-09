@@ -22,9 +22,11 @@ from agent_harness.runtime import RunOrchestrator
 from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
 from agent_harness.storage.diagnostics import (
     eval_directory_status,
+    format_retrieval_extension_status,
     migration_revision,
     observability_status,
     redis_status,
+    retrieval_extension_statuses,
 )
 from agent_harness.tools import ToolCallRequest, ToolRuntimeContext, WorkspacePolicy
 from agent_harness.tools.cli_runtime import call_and_record_tool, visible_tool_descriptors
@@ -70,6 +72,8 @@ def doctor(
     typer.echo(f"observability sink: {observability_message}")
     eval_ok, eval_message, eval_directory = eval_directory_status(profiles_dir)
     typer.echo(f"eval directory: {eval_directory} ({eval_message})")
+    for extension_status in retrieval_extension_statuses(settings, storage_dsn=storage_dsn):
+        typer.echo(f"retrieval extension {format_retrieval_extension_status(extension_status)}")
 
     if settings.profile == "service" and (
         revision is None or not redis_ok or not observability_ok or not eval_ok

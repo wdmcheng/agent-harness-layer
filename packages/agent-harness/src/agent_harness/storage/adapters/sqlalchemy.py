@@ -24,6 +24,10 @@ from agent_harness.storage.repositories import (
     SessionRepository,
     TenantRepository,
 )
+from agent_harness.storage.retrieval_repositories import (
+    RetrievalChunkRepository,
+    RetrievalDocumentRepository,
+)
 from agent_harness.storage.settings import normalize_async_dsn
 from agent_harness.storage.tool_repositories import (
     ToolInvocationRepository,
@@ -49,6 +53,8 @@ class SQLAlchemyUnitOfWork:
         self.checkpoints = CheckpointRepository(self.session)
         self.context_assemblies = ContextAssemblyRepository(self.session)
         self.embedding_cache = EmbeddingCacheRepository(self.session)
+        self.retrieval_documents = RetrievalDocumentRepository(self.session)
+        self.retrieval_chunks = RetrievalChunkRepository(self.session)
         self.api_keys = ApiKeyRepository(self.session)
         self.policy_rules = PolicyRuleRepository(self.session)
         self.approvals = ApprovalRepository(self.session)
