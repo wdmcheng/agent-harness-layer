@@ -12,6 +12,11 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from agent_harness.storage.eval_repositories import (
+    EvalCaseRepository,
+    EvalRunRepository,
+    EvalScoreRepository,
+)
 from agent_harness.storage.repositories import (
     ApiKeyRepository,
     ApprovalRepository,
@@ -59,6 +64,9 @@ class SQLAlchemyUnitOfWork:
         self.policy_rules = PolicyRuleRepository(self.session)
         self.approvals = ApprovalRepository(self.session)
         self.audit_logs = AuditLogRepository(self.session)
+        self.eval_cases = EvalCaseRepository(self.session)
+        self.eval_runs = EvalRunRepository(self.session)
+        self.eval_scores = EvalScoreRepository(self.session)
         self.workspaces = WorkspaceRepository(self.session)
         self.tool_invocations = ToolInvocationRepository(self.session)
         return self

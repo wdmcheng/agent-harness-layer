@@ -9,6 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from agent_harness.approvals import ApprovalService
 from agent_harness.auth import AuthError, TokenVerifier
+from agent_harness.evals import EvalService
 from agent_harness.identity import IdentityContext
 from agent_harness.policy import InputGuardrail, PolicyEngine
 
@@ -43,6 +44,12 @@ def get_optional_approval_service() -> ApprovalService | None:
     """run create 可选接入 approval；缺失时只走 checkpoint seam。"""
 
     return None
+
+
+def get_eval_service() -> EvalService:
+    """返回 EvalService，未注入时让 eval route 显式失败。"""
+
+    raise RuntimeError("EvalService dependency is not configured")
 
 
 async def current_identity(

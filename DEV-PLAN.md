@@ -11,31 +11,30 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals`、Phase 8 的 `tool-execution-boundaries` 均已归档，并同步为主规格；Phase 9 的 `retrieval-rag-foundation` 和 Phase 10 的 `observability-provider-adapters` 当前为 active changes，均已完成实现、验证和 fresh code-reviewer Stage 1/2 PASS，停在 ready-to-archive，不自动归档。
-- 代码状态: Phase 1-10 已完成实现、验证和 code-review；Phase 10 已新增 TelemetryFacade、TelemetryContext、provider 前 redaction、OTel span/metric/event mapping、Logfire/Phoenix/Langfuse adapter contract、service profile provider 配置入口和 doctor 降级诊断。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals`、Phase 8 的 `tool-execution-boundaries` 均已归档，并同步为主规格；Phase 9 的 `retrieval-rag-foundation`、Phase 10 的 `observability-provider-adapters` 和 Phase 11 的 `eval-gate-trace-loop` 当前为 active changes，均停在 ready-to-archive，不自动归档。
+- 代码状态: Phase 1-11 已完成实现和本地验证；Phase 11 已新增 EvalCaseFactory、draft/approved review queue、EvalRunner、ScoreSink、eval API/CLI、`make eval` 和 `0007_eval_gate_trace_loop` migration。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1-10 已实现并通过本地验证和 code-review；Phase 11-15 仍待实现。 |
-| 当前 Phase | Phase 10 完成 | `observability-provider-adapters` 已完成 artifact review PASS、本地实现、合同测试、质量门禁、local/service smoke、fresh code-reviewer Stage 1/2 PASS 和 `.agents/.needs-review=clean`；本轮 git 提交收口后继续停在 ready-to-archive。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-10 已完成本地收口流程。 |
-| 当前 OpenSpec change | `retrieval-rag-foundation` ready-to-archive；`observability-provider-adapters` ready-to-archive | 两个 active changes 均已通过 artifact review PASS、实现后 strict validate、全量验证和 fresh code-reviewer Stage 1/2 PASS；除非用户明确要求，不自动执行 `openspec archive`。 |
-| 当前验证基线 | 全量通过 | 本轮已通过 Phase 10 targeted tests（10 passed）、targeted regression/config/import tests（17 passed）、`uv run pytest` / `make test`（107 passed, 1 skipped）、`make quality`、`uv run openspec validate observability-provider-adapters --type change --strict`、`uv run openspec validate --all --strict`（15 passed）、`uv run python scripts/smoke_local.py`、`make smoke-service`（PostgreSQL/Redis，`migration=0006_retrieval_chunk_identity`，retrieval result 带 citation/trust，PGroonga/pgvector 缺失按 optional 降级）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
-| 当前阻塞项 | 无 | Phase 10 已完成；两个 active OpenSpec changes 停在 ready-to-archive。 |
-| 当前建议下一步 | 归档或进入 Phase 11 | 用户明确确认后可分别执行 `openspec archive retrieval-rag-foundation` 和 `openspec archive observability-provider-adapters`；否则下一轮进入 Phase 11 Eval Gate 与 Trace 到 Eval 闭环。 |
+| 总体状态 | 进行中 | Phase 1-11 已实现并通过本地验证；Phase 12-15 仍待实现。 |
+| 当前 Phase | Phase 11 完成实现与验证 | `eval-gate-trace-loop` 已完成 OpenSpec artifact review、合同测试、质量门禁、local/service smoke、`make eval`、build、license 和 pre-commit 验证；提交前 fresh code-reviewer gate 以本轮最终证据为准。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-11 已完成本地收口流程。 |
+| 当前 OpenSpec change | `retrieval-rag-foundation` ready-to-archive；`observability-provider-adapters` ready-to-archive；`eval-gate-trace-loop` ready-to-archive | 三个 active changes 均已通过 strict validate 和本地验证；除非用户明确要求，不自动执行 `openspec archive`。 |
+| 当前验证基线 | 全量通过 | 本轮已通过 Phase 11 targeted tests（13 passed）、targeted regression tests（30 passed, 1 skipped）、`uv run pytest` / `make test`（120 passed, 1 skipped）、`make quality`、`uv run openspec validate eval-gate-trace-loop --type change --strict`、`uv run openspec validate --all --strict`（16 passed）、`uv run python scripts/smoke_local.py`、`make smoke-service`（PostgreSQL/Redis，`migration=0007_eval_gate_trace_loop`，retrieval result 带 citation/trust，PGroonga/pgvector 缺失按 optional 降级）、`make eval`（无 approved case 时返回 `no_approved_cases`）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
+| 当前阻塞项 | 无 | Phase 11 已完成实现与验证；active OpenSpec changes 停在 ready-to-archive。 |
+| 当前建议下一步 | 归档或进入 Phase 12 | 用户明确确认后可分别执行 `openspec archive retrieval-rag-foundation`、`openspec archive observability-provider-adapters` 和 / 或 `openspec archive eval-gate-trace-loop`；否则下一轮进入 Phase 12 Service App 模板与四个 P0 示例 Agent。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 可选收口：用户明确确认后归档 `retrieval-rag-foundation` 和 / 或 `observability-provider-adapters`；否则下一轮进入 Phase 11 Eval Gate 与 Trace 到 Eval 闭环。
+- 可选收口：用户明确确认后归档 `retrieval-rag-foundation`、`observability-provider-adapters` 和 / 或 `eval-gate-trace-loop`；否则下一轮进入 Phase 12 Service App 模板与四个 P0 示例 Agent。
 
 ### 后续 Phase
 
-- Phase 11: Eval Gate 与 Trace 到 Eval 闭环。
 - Phase 12: Service App 模板与四个 P0 示例 Agent。
 - Phase 13: Service Profile、API/Worker 分进程与未来拆分边界。
 - Phase 14: 深度文档、ADR 与维护者指南。
@@ -458,13 +457,13 @@ Phase 1 Monorepo / quality spine
 
 **关键文件**：
 - `packages/agent-harness/src/agent_harness/evals/cases.py` - eval case model、draft/approved 状态。
-- `packages/agent-harness/src/agent_harness/evals/factory.py` - trace 到 draft case。
+- `packages/agent-harness/src/agent_harness/evals/cases.py` - trace source 到 draft case factory。
 - `packages/agent-harness/src/agent_harness/evals/review_queue.py` - human review queue。
 - `packages/agent-harness/src/agent_harness/evals/runner.py` - eval runner。
 - `packages/agent-harness/src/agent_harness/evals/score_sink.py` - score sink interface。
 - `packages/agent-harness/src/agent_harness/adapters/evals/local_jsonl.py` - local eval result sink。
 - `templates/service-app/app/api/routes/evals.py` - eval API routes。
-- `templates/service-app/app/cli/eval.py` - eval CLI。
+- `packages/agent-harness/src/agent_harness/cli.py` - eval CLI。
 - `templates/service-app/eval-cases/drafts/.gitkeep` - draft dataset 目录。
 - `templates/service-app/eval-cases/approved/.gitkeep` - approved dataset 目录。
 
@@ -474,6 +473,10 @@ Phase 1 Monorepo / quality spine
 - `make eval` 只跑 approved cases，输出 eval result 和 score sink 记录。
 - score 可写回 local/jsonl，并可通过 Logfire/Phoenix/Langfuse adapter contract 写入 provider。
 - `API-Contract.md` 中 eval draft、approved dataset 和 eval run endpoint 已扩展为完整条目，局部 OpenAPI drift test 覆盖人工确认、secret 脱敏错误和 score sink 降级语义。
+
+**当前状态**：
+- `eval-gate-trace-loop` OpenSpec change 已完成实现与本地验证，停在 ready-to-archive；除非用户明确要求，不执行 `openspec archive`。
+- `make eval` 已接入根 Makefile 和 service template；无 approved case 时返回 `no_approved_cases`，不会把 draft 纳入评分。
 
 ---
 

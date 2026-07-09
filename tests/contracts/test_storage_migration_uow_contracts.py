@@ -62,7 +62,7 @@ def assert_core_schema(db_path: Path) -> None:
             "tool_invocations",
         } <= tables
         revision = connection.execute("select version_num from alembic_version").fetchone()
-        assert revision == ("0006_retrieval_chunk_identity",)
+        assert revision == ("0007_eval_gate_trace_loop",)
 
 
 def test_local_sqlite_migration_creates_core_schema(tmp_path: Path) -> None:
@@ -227,7 +227,7 @@ def test_doctor_cli_reports_local_storage_migration_and_eval_status(tmp_path: Pa
 
     assert result.returncode == 0, result.stderr
     assert "storage: sqlite" in result.stdout
-    assert "migration: 0006_retrieval_chunk_identity" in result.stdout
+    assert "migration: 0007_eval_gate_trace_loop" in result.stdout
     assert "redis: not required" in result.stdout
     assert "eval directory:" in result.stdout
 

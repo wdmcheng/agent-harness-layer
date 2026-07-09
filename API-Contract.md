@@ -937,15 +937,50 @@ Phase 8 不新增 HTTP route。工具执行先通过 CLI、runtime module seam �
 - Import-boundary tests 必须证明 MCP SDK 只出现在 `agent_harness.adapters.mcp` 或测试替身中。
 - SQLite local migration tests 和 PostgreSQL service smoke 必须把 `workspaces`、`tool_invocations` 与既有 core schema 的证据分开报告。
 
+## 10. Eval Gate API
+
+### EVL-001 draft eval case
+
+| 项目 | 契约 |
+|---|---|
+| Method / Path | `POST /api/v1/eval-cases/drafts`、`GET /api/v1/eval-cases/drafts` |
+| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval draft` / `agent-harness eval list --status draft`、trace/score detector seam。 |
+| 身份 / 权限 | 需要有效 HTTP Bearer；未认证必须返回 401 且不创建 eval case、approved dataset、eval run、score 或 audit side effect。 |
+| Request | draft create body 包含 `agent_id`、`run_id`、`trace_id`、`trigger`、`input`、可选 `output` / `expected` / `scores` / `score_threshold` / `source_refs` / `artifact_refs` / `metadata`。 |
+| Response | 返回 `request_id` 和脱敏 `EvalCaseRecord`；`status` 必须是 `draft`，不得返回完整大 payload 或原始 secret。 |
+| 错误语义 | secret / privacy 扫描失败返回 422 `ApiErrorEnvelope`，错误摘要必须脱敏；provider 状态不参与 draft 创建成败。 |
+| OpenAPI | operation 必须声明 `HTTPBearer` security，401/403/422/500 均返回 `ApiErrorEnvelope`。 |
+
+### EVL-002 approve eval case
+
+| 项目 | 契约 |
+|---|---|
+| Method / Path | `POST /api/v1/eval-cases/{case_id}/approve`、`GET /api/v1/eval-cases/approved` |
+| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval approve <case_id>` / `agent-harness eval list --status approved`。 |
+| 身份 / 权限 | approved dataset 写入必须携带人工审核身份；默认走 policy/approval seam，不能由自动 detector 直接调用。 |
+| Request | approve body 包含 `reason`，可选 `dataset`；`case_id` 来自 URL 边界。 |
+| Response | 返回 `request_id` 和 approved `EvalCaseRecord`，包含 reviewer、reason、dataset、source refs、artifact refs 和 audit ref 摘要。 |
+| 副作用 | 成功时 case 进入 approved dataset 并写 audit log；audit payload、case payload 和 API 响应均必须先脱敏。 |
+| 回滚语义 | approved dataset 或 audit 写入失败时，draft 保持可审阅状态；不得留下半个 approved case。 |
+
+### EVL-003 run eval and read scores
+
+| 项目 | 契约 |
+|---|---|
+| Method / Path | `POST /api/v1/evals/runs`、`GET /api/v1/evals/runs/{eval_run_id}`、`GET /api/v1/evals/runs/{eval_run_id}/scores` |
+| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval run` / `agent-harness eval scores`、`make eval`。 |
+| 身份 / 权限 | 需要有效 HTTP Bearer；未认证不得创建 eval run、score 或 provider write side effect。 |
+| Request | run create body 包含 `agent_id` 和可选 `dataset`；runner MUST 只读取 approved cases。 |
+| Response | 返回 `request_id`、`eval_run_id`、`status`、`case_count`、`score_summary`、local evidence refs 和 provider degraded status；不得暴露 provider 原始响应。 |
+| ScoreSink | score 先写 local/jsonl，再通过 `TelemetryFacade` 或 provider adapter contract 写回 provider；provider failure 只返回脱敏 degraded summary，不影响 local evidence。 |
+| Empty dataset | approved dataset 为空时稳定返回 no approved cases 摘要，不运行 draft case，不伪造 score。 |
+
 ## 10. 保留 API 索引
 
 这些路径来自 `Product-Spec.md` 的当前版本 API 列表。它们不是当前已实现能力；对应计划项开工前必须先把本节扩展成第 3 节规定的完整 endpoint 条目，再写 route。
 
 | Contract ID | 状态 | 计划归属 | 路径 | 契约门禁 |
 |---|---|---:|---|---|
-| `EVL-001` | 规划中 | Eval Gate | `/api/v1/eval-cases/drafts` | 必须定义 draft list/create/review schema、secret scan、trace source、不可自动进入 approved。 |
-| `EVL-002` | 规划中 | Eval Gate | `/api/v1/eval-cases/approved` | 必须定义 approved dataset 写入权限、人工确认、audit 和回滚/归档规则。 |
-| `EVL-003` | 规划中 | Eval Gate | `/api/v1/evals/runs` | 必须定义 eval run create/detail/list schema、score sink、provider failure 降级。 |
 | `HLT-001` | 规划中 | Service App / Service Profile | `/api/v1/health` | 必须定义 local/service profile health 字段、storage/queue/observability 状态和公开性。 |
 
 ## 11. 入口 / 调用方映射
@@ -1022,5 +1057,5 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] Agent Registry 开工前补全 `AGT-001` 的完整 endpoint 条目和 contract tests。
 - [x] Auth / Policy / HITL 开工前补全 auth、policy、approval endpoint 条目和 contract tests 目标。
 - [x] Tool execution 开工前补全 tools CLI/runtime/module seam、无新增 HTTP route 和 contract tests 目标。
-- [ ] Eval Gate 开工前补全 eval endpoint 条目和 contract tests。
+- [x] Eval Gate 开工前补全 eval endpoint 条目和 contract tests。
 - [ ] Service App / Service Profile 收口时做全量 OpenAPI drift 复扫，并补齐 422 validation error envelope 统一验证。

@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from agent_harness.approvals import ApprovalService, ApprovalStateConflict
 from agent_harness.auth import AuthError, TokenVerifier
 from agent_harness.contracts import ApiErrorEnvelope, ErrorDetail
+from agent_harness.evals import EvalService
 from agent_harness.events import EventSink
 from agent_harness.policy import InputGuardrail, PolicyDeniedError, PolicyEngine
 from agent_harness.registry import RegistryLoadError
@@ -22,6 +23,7 @@ from agent_harness.security.redaction import redact_secrets
 from app.api.dependencies import (
     get_approval_service,
     get_auth_verifier,
+    get_eval_service,
     get_input_guardrail,
     get_optional_approval_service,
     get_policy_engine,
@@ -29,6 +31,7 @@ from app.api.dependencies import (
 from app.api.routes.agents import get_agent_registry as get_agents_route_registry
 from app.api.routes.agents import router as agents_router
 from app.api.routes.approvals import router as approvals_router
+from app.api.routes.evals import router as evals_router
 from app.api.routes.policies import router as policies_router
 from app.api.routes.runs import (
     get_agent_registry as get_runs_route_registry,
@@ -66,6 +69,7 @@ def create_app(
     policy_engine: PolicyEngine | None = None,
     input_guardrail: InputGuardrail | None = None,
     approval_service: ApprovalService | None = None,
+    eval_service: EvalService | None = None,
 ) -> FastAPI:
     """创建已注册 run routes 的 FastAPI app。
 
@@ -88,6 +92,7 @@ def create_app(
         policy_engine = policy_engine or components.policy_engine
         input_guardrail = input_guardrail or components.input_guardrail
         approval_service = approval_service or components.approval_service
+        eval_service = eval_service or components.eval_service
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
@@ -102,6 +107,7 @@ def create_app(
     app.include_router(runs_router)
     app.include_router(approvals_router)
     app.include_router(policies_router)
+    app.include_router(evals_router)
 
     async def http_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         http_exc = cast(HTTPException, exc)
@@ -218,4 +224,6 @@ def create_app(
     if approval_service is not None:
         app.dependency_overrides[get_approval_service] = lambda: approval_service
         app.dependency_overrides[get_optional_approval_service] = lambda: approval_service
+    if eval_service is not None:
+        app.dependency_overrides[get_eval_service] = lambda: eval_service
     return app

@@ -15,6 +15,13 @@ from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
 from agent_harness.cli_access import register_access_commands
 from agent_harness.cli_shared import event_path, load_settings_or_exit, policy_engine
+from agent_harness.evals import (
+    EvalCaseFactory,
+    EvalRunner,
+    EvalService,
+    EvalTraceSource,
+    ScoreSink,
+)
 from agent_harness.events import EventBus, LocalJsonlEventSink
 from agent_harness.policy import InputGuardrail, PolicyCheck, PolicyDeniedError
 from agent_harness.registry import AgentRegistry, RegistryLoadError
@@ -35,8 +42,10 @@ from agent_harness.tools.cli_runtime import call_and_record_tool, visible_tool_d
 app = typer.Typer(no_args_is_help=True)
 agents_app = typer.Typer(no_args_is_help=True)
 tools_app = typer.Typer(no_args_is_help=True)
+eval_app = typer.Typer(no_args_is_help=True)
 app.add_typer(agents_app, name="agents")
 app.add_typer(tools_app, name="tools")
+app.add_typer(eval_app, name="eval")
 register_access_commands(app)
 
 
@@ -327,6 +336,215 @@ def call_tool(
     typer.echo(json.dumps(result.to_payload(), ensure_ascii=False))
     if result.status != "completed":
         raise typer.Exit(1)
+
+
+def _eval_service_from_cli(
+    *,
+    profile: str,
+    profiles_dir: Path | None,
+    storage_dsn: str | None,
+    dataset_dir: Path,
+    scores_path: Path,
+) -> tuple[Any, SQLAlchemyStorage, EvalService]:
+    settings = load_settings_or_exit(profile, profiles_dir)
+    resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
+    run_migrations(resolved_dsn)
+    storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
+    service = EvalService(
+        storage=storage,
+        factory=EvalCaseFactory(),
+        score_sink=ScoreSink(local_path=scores_path),
+        drafts_dir=dataset_dir / "drafts",
+        approved_dir=dataset_dir / "approved",
+    )
+    return settings, storage, service
+
+
+def _parse_eval_scores(score_items: list[str] | None) -> dict[str, float]:
+    scores: dict[str, float] = {}
+    for item in score_items or []:
+        metric, separator, value = item.partition("=")
+        if not metric or separator != "=":
+            typer.echo(f"eval.invalid_score: {item}", err=True)
+            raise typer.Exit(2)
+        try:
+            scores[metric] = float(value)
+        except ValueError as exc:
+            typer.echo(f"eval.invalid_score: {item}", err=True)
+            raise typer.Exit(2) from exc
+    return scores
+
+
+@eval_app.command("draft")
+def eval_draft(
+    agent_id: str,
+    dataset_dir: Annotated[Path, typer.Option("--dataset-dir")] = Path(
+        "templates/service-app/eval-cases"
+    ),
+    profile: Annotated[str, typer.Option("--profile")] = "local",
+    profiles_dir: Annotated[Path | None, typer.Option("--profiles-dir")] = None,
+    storage_dsn: Annotated[str | None, typer.Option("--storage-dsn")] = None,
+    scores_path: Annotated[Path, typer.Option("--scores-path")] = Path(
+        ".agent-harness/eval/scores.jsonl"
+    ),
+    run_id: Annotated[str | None, typer.Option("--run-id")] = None,
+    trace_id: Annotated[str | None, typer.Option("--trace-id")] = None,
+    trigger: Annotated[str, typer.Option("--trigger")] = "failed_run",
+    prompt: Annotated[str, typer.Option("--prompt")] = "",
+    output: Annotated[str | None, typer.Option("--output")] = None,
+    expected: Annotated[str | None, typer.Option("--expected")] = None,
+    score: Annotated[list[str] | None, typer.Option("--score")] = None,
+    score_threshold: Annotated[float | None, typer.Option("--score-threshold")] = None,
+) -> None:
+    """从 CLI 输入生成 repository-backed draft eval case，不写 approved dataset。"""
+
+    settings, storage, service = _eval_service_from_cli(
+        profile=profile,
+        profiles_dir=profiles_dir,
+        storage_dsn=storage_dsn,
+        dataset_dir=dataset_dir,
+        scores_path=scores_path,
+    )
+
+    async def _draft() -> Any:
+        try:
+            return await service.draft_from_trace(
+                EvalTraceSource(
+                    tenant_id=settings.identity.default.tenant_id,
+                    agent_id=agent_id,
+                    run_id=run_id,
+                    trace_id=trace_id,
+                    trigger=trigger,
+                    input={"prompt": prompt},
+                    output=None if output is None else {"answer": output},
+                    expected=None if expected is None else {"answer": expected},
+                    scores=_parse_eval_scores(score),
+                    source_refs=[],
+                    artifact_refs=[],
+                ),
+                score_threshold=score_threshold,
+            )
+        finally:
+            await storage.dispose()
+
+    record = asyncio.run(_draft())
+    typer.echo(f"case_id: {record.case_id}")
+    typer.echo("status: draft")
+
+
+@eval_app.command("approve")
+def eval_approve(
+    case_id: str,
+    dataset_dir: Annotated[Path, typer.Option("--dataset-dir")] = Path(
+        "templates/service-app/eval-cases"
+    ),
+    profile: Annotated[str, typer.Option("--profile")] = "local",
+    profiles_dir: Annotated[Path | None, typer.Option("--profiles-dir")] = None,
+    storage_dsn: Annotated[str | None, typer.Option("--storage-dsn")] = None,
+    scores_path: Annotated[Path, typer.Option("--scores-path")] = Path(
+        ".agent-harness/eval/scores.jsonl"
+    ),
+    reviewer: Annotated[str, typer.Option("--reviewer")] = "local-reviewer",
+    reason: Annotated[str, typer.Option("--reason")] = "approved via CLI",
+    dataset: Annotated[str, typer.Option("--dataset")] = "default",
+) -> None:
+    """把 draft case 人工确认到 approved dataset，并写 repository/audit。"""
+
+    settings, storage, service = _eval_service_from_cli(
+        profile=profile,
+        profiles_dir=profiles_dir,
+        storage_dsn=storage_dsn,
+        dataset_dir=dataset_dir,
+        scores_path=scores_path,
+    )
+    actor = settings.identity.default.model_copy(update={"user_id": reviewer})
+
+    async def _approve() -> Any:
+        try:
+            return await service.approve_case(
+                actor=actor,
+                case_id=case_id,
+                reason=reason,
+                dataset=dataset,
+            )
+        finally:
+            await storage.dispose()
+
+    result = asyncio.run(_approve())
+    record = result.case
+    typer.echo(f"case_id: {record.case_id}")
+    typer.echo("status: approved")
+
+
+@eval_app.command("list")
+def eval_list(
+    dataset_dir: Annotated[Path, typer.Option("--dataset-dir")] = Path(
+        "templates/service-app/eval-cases"
+    ),
+    status: Annotated[str, typer.Option("--status")] = "approved",
+    agent_id: Annotated[str | None, typer.Option("--agent-id")] = None,
+) -> None:
+    """列出 draft 或 approved eval case 文件摘要。"""
+
+    from agent_harness.evals import ReviewDatasetAdapter
+
+    adapter = ReviewDatasetAdapter(
+        drafts_dir=dataset_dir / "drafts",
+        approved_dir=dataset_dir / "approved",
+    )
+    cases = (
+        adapter.load_approved(agent_id=agent_id)
+        if status == "approved"
+        else [
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted((dataset_dir / "drafts").glob("*.json"))
+        ]
+    )
+    for case in cases:
+        if agent_id is not None and case.get("agent_id") != agent_id:
+            continue
+        typer.echo(json.dumps(case, ensure_ascii=False, sort_keys=True))
+
+
+@eval_app.command("run")
+def eval_run(
+    dataset_dir: Annotated[Path, typer.Option("--dataset-dir")] = Path(
+        "templates/service-app/eval-cases"
+    ),
+    scores_path: Annotated[Path, typer.Option("--scores-path")] = Path(
+        ".agent-harness/eval/scores.jsonl"
+    ),
+    agent_id: Annotated[str, typer.Option("--agent-id")] = "examples.basic",
+    tenant_id: Annotated[str, typer.Option("--tenant-id")] = "default",
+) -> None:
+    """运行 approved eval cases；draft 只统计不执行。"""
+
+    runner = EvalRunner(score_sink=ScoreSink(local_path=scores_path))
+    result = asyncio.run(
+        runner.run_file_dataset(
+            dataset_dir=dataset_dir,
+            tenant_id=tenant_id,
+            agent_id=agent_id,
+        )
+    )
+    typer.echo(f"eval_run_id: {result.eval_run_id}")
+    typer.echo(f"status: {result.status}")
+    typer.echo(f"case_count: {result.case_count}")
+    typer.echo(f"skipped_drafts: {result.skipped_drafts}")
+    typer.echo(f"score_summary: {json.dumps(result.score_summary, ensure_ascii=False)}")
+
+
+@eval_app.command("scores")
+def eval_scores(
+    scores_path: Annotated[Path, typer.Option("--scores-path")] = Path(
+        ".agent-harness/eval/scores.jsonl"
+    ),
+) -> None:
+    """输出本地 score JSONL。"""
+
+    if not scores_path.exists():
+        return
+    typer.echo(scores_path.read_text(encoding="utf-8"), nl=False)
 
 
 def main() -> None:

@@ -1,7 +1,7 @@
 SHELL := /bin/sh
 UV ?= uv
 
-.PHONY: migrate-service smoke-local smoke-service worker
+.PHONY: migrate-service smoke-local smoke-service eval worker
 
 # 模板 Makefile 始终回到 workspace 根执行脚本，避免复制出的 app 和当前 checkout
 # 使用不同的依赖解析路径。
@@ -14,6 +14,9 @@ migrate-service:
 
 smoke-service:
 	cd ../.. && $(UV) run python scripts/smoke_service.py
+
+eval:
+	cd ../.. && $(UV) run python -m agent_harness.cli eval run --dataset-dir templates/service-app/eval-cases
 
 # worker 入口和 API 使用同一套 RuntimeComponents；不要在模板里另起一套存储装配。
 worker:

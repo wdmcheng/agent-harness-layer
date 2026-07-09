@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage as SQLAlchemyStorage
+from agent_harness.storage.eval_repositories import EvalCaseCreate as EvalCaseCreate
+from agent_harness.storage.eval_repositories import EvalCaseRecord as EvalCaseRecord
+from agent_harness.storage.eval_repositories import EvalRunCreate as EvalRunCreate
+from agent_harness.storage.eval_repositories import EvalRunRecord as EvalRunRecord
+from agent_harness.storage.eval_repositories import EvalScoreCreate as EvalScoreCreate
+from agent_harness.storage.eval_repositories import EvalScoreRecord as EvalScoreRecord
 from agent_harness.storage.migrations.runner import get_current_revision as get_current_revision
 from agent_harness.storage.migrations.runner import run_migrations as run_migrations
 from agent_harness.storage.repositories import (
@@ -88,6 +94,12 @@ _REPOSITORY_DTO_EXPORTS = [
     "SessionCreate",
     "SessionRecord",
     "TenantRecord",
+    "EvalCaseCreate",
+    "EvalCaseRecord",
+    "EvalRunCreate",
+    "EvalRunRecord",
+    "EvalScoreCreate",
+    "EvalScoreRecord",
     "RetrievalChunkCreate",
     "RetrievalChunkRecord",
     "RetrievalDocumentCreate",

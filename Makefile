@@ -1,7 +1,7 @@
 SHELL := /bin/sh
 UV ?= uv
 
-.PHONY: sync quality test smoke-local smoke-service build license-check format
+.PHONY: sync quality test smoke-local smoke-service eval build license-check format
 
 # 根 Makefile 是 reviewer 和 CI 的统一入口；各 target 保持薄包装，实际边界说明
 # 留在对应 Python 脚本和 pyproject 工具配置里。
@@ -16,6 +16,9 @@ quality:
 
 test:
 	$(UV) run pytest
+
+eval:
+	$(UV) run python -m agent_harness.cli eval run
 
 # local smoke 只证明离线 profile 和 CLI/template shell 可用，不替代 service smoke。
 smoke-local:
