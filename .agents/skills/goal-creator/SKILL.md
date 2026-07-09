@@ -46,6 +46,7 @@ description: 当用户想把一个目标交给 /goal 自驱执行时使用。结
 
 [工作流程]
     理解目标：从上下文确认用户要自驱什么，不清楚就问一句。
+    OpenSpec 检查：项目存在 openspec/，且目标是全量开发、阶段开发、或从文档到代码的实现交付时，/goal 必须把 OpenSpec 边界写进完成标准或硬约束：先创建或选定 change，执行 `openspec validate <change> --type change --strict`，派 code-reviewer 做 OpenSpec artifact review 到 PASS；若 change 与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突，停下让用户决定；实现完成后只停在 ready-to-archive，不自动 archive。不要预设 change 名称，也不要替下游拆步骤。
     填模板：完成条件、验证、约束逐项填实，填不出的占位行删掉、套话删掉，整条压进 4000 字符。
     给用户：把写好的 /goal 整段放进代码块，附一句"复制这段发送即可启动 /goal"。
     提醒：涉及 commit、push、部署、删除等不可逆操作的，让用户发送前再扫一眼。

@@ -82,14 +82,16 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
 [外部契约输入]
     API-Contract.md：有前端 UI + 后端 API 的项目，编码 endpoint、页面数据对接、异步任务、文件上传或流式接口前必须读取。新增或修改 endpoint 前先更新 API-Contract.md；同一功能点 / Phase 验收时用 `/openapi.json` 或等价运行时接口文档做局部漂移检查，并把命令和结果写进完成证据。若 API-Contract.md 与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突，先列出冲突和影响，等用户拍板后再改。
     OpenSpec change：如果用户指定 change、分支名或任务上下文能对应到 openspec/changes/<change>/，编码前读取该 change 下存在的 proposal.md、specs/**/*.md、design.md、tasks.md、README.md 和 .openspec.yaml。proposal/specs 说明本次行为契约，design 说明实现取舍，tasks 可作为 Task 拆分参考；它们不替代 Product-Spec.md 和 DEV-PLAN.md。发现 OpenSpec 与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突时，先列出冲突和影响，等用户拍板后再改。
-    OpenSpec artifact 语言与复审门禁：本轮创建或修改 proposal.md、specs/**/*.md、design.md、tasks.md、README.md 时，标题、正文和验收说明默认使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径、schema、协议关键字保留英文。写完后先做语言自检，再运行 `openspec validate <change> --type change --strict` 做格式和契约可解析自检，并派 code-reviewer 按 OpenSpec artifact review 范围审查 proposal/specs/design/tasks 到 PASS；`openspec validate` 不能替代 code-reviewer，PASS 前不得进入实现。
+    OpenSpec 变更契约语言与复审门禁：本轮创建或修改 proposal.md、specs/**/*.md、design.md、tasks.md、README.md 时，标题、正文和验收说明默认使用项目主语言；必要的 MUST/SHALL/WHEN/THEN、字段名、命令、路径、schema、协议关键字保留英文。写完后先做语言自检，再运行 `openspec validate <change> --type change --strict` 做格式和契约可解析自检，并派 code-reviewer 按 OpenSpec 变更契约审查范围审查 proposal/specs/design/tasks 到 PASS；`openspec validate` 不能替代 code-reviewer，PASS 前不得进入实现。
     OpenSpec 增量切片：仓库存在 openspec/ 且用户目标是开发完整 DEV-PLAN Phase 时，进入实现前先为本轮最小行为增量创建或选定一个窄 OpenSpec change。这个 change 必须有 proposal/specs/design/tasks，范围只覆盖一个可审查、可验证、可提交的行为切片；不要把整段 Phase 塞进一个巨型 change。契约草案完成后派 code-reviewer 审查，按审查意见迭代到通过，再开始编码。
+    OpenSpec 多变更联合审查门禁：完整 Phase/目标拆成多个 change 时，编码前列出 change 关系矩阵，至少覆盖依赖 DAG、共享验收、共享接口/schema、文件所有权和允许实现顺序。存在任一关联时，每个 change 必须先各自完成严格校验和变更契约审查并达到 PASS，再由新的 code-reviewer 实例对全部相关变更契约产物与上游真相源做多变更联合审查；整体 Stage 1/2 PASS 前不得实现任一相关 change。只有关系矩阵能证明无顺序依赖、无共享接口、无共享验收且无所有权冲突时，才允许逐 change 独立开工。
+    联合审查门禁漏检恢复：若实现已在多变更联合审查 PASS 前发生，立即冻结新增实现；先按 Product-Spec、DEV-PLAN、API-Contract、设计/ADR 修正变更契约产物，不得用现有代码倒推契约。随后重跑各 change 严格校验、`validate --all --strict`，并由新的 code-reviewer 实例重新执行多变更联合审查；再建立规格到代码影响矩阵，逐项保留未受影响实现、修改或删除受影响实现，完成定向和全量验证，并从 Stage 1 重置最终实现审查。
     OpenSpec 验证：涉及 OpenSpec change 时自动跑开发期验证门禁。change 草案完成后运行 `openspec validate <change> --type change --strict`；实现完成且 tasks 全勾后再次运行同一严格校验。CLI 不可用时说明未运行原因，并用文件结构和 delta spec 格式做静态检查，不得宣称已验证。不要自动 archive；`openspec archive <change>` 是 OpenSpec 原生的验证、同步主规格、归档收口命令，只在整体任务或 Phase 收口后提示用户可选执行；在支持 OPSX/OpenSpec 命令的 Agent 会话中，同时提示可用 `/opsx:archive <change>`。archive 不作为每个 change 的交互门槛。
     领域语言：存在 CONTEXT-MAP.md 时，先按映射读取与本次任务相关的 CONTEXT.md；否则有根目录 CONTEXT.md 就读。存在 docs/adr/ 或上下文目录 docs/adr/ 时，只读与本次改动相关的 ADR。缺失时静默降级，不要求用户补。
     使用边界：CONTEXT.md 只约束命名和领域边界，ADR 只约束既有决策；需求、范围、验收仍以 Product-Spec.md、DEV-PLAN.md、Design-Brief.md、设计稿和 OpenSpec change 为准。
 
 [Phase 执行流程]
-    Plan：进入 Phase 先读 DEV-PLAN 该 Phase 章节和 Spec 相关章节的原文，写出 Task 拆分。每个页面、组件、功能一个 Task。若本仓库有 openspec/ 且当前目标是完整 Phase，先把 Phase 拆成一个或多个窄 OpenSpec change；每轮只实现当前 change 覆盖的行为切片。
+    Plan：进入 Phase 先读 DEV-PLAN 该 Phase 章节和 Spec 相关章节的原文，写出 Task 拆分。每个页面、组件、功能一个 Task。若本仓库有 openspec/ 且当前目标是完整 Phase，先把 Phase 拆成一个或多个窄 OpenSpec change；多个 change 先完成关系矩阵和适用的多变更联合审查门禁，再按已审查的依赖顺序逐轮实现当前 change 覆盖的行为切片。
     每个 Task 走 review→fix 循环：
         编码前读 DEV-PLAN 交付清单、Spec 功能描述、Design-Brief 视觉方向；涉及 endpoint、页面数据对接、异步任务、上传或流式接口时读取 API-Contract.md；涉及 OpenSpec change、CONTEXT.md、ADR 时读取相关原文，不凭记忆
         涉及 OpenSpec change 时，按该 change 的 tasks 和 delta spec 先写或更新公开 seam 测试，再实现；测试接缝必须来自用户行为、API、CLI、模块接口或持久化边界
@@ -114,7 +116,7 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
     通过后向用户汇报附证据，用户确认后 Phase 完成。修验证中发现的问题用 fix: 提交。
 
 [自驱整个 Phase]
-    要把整个 Phase 交给 /goal 自驱，用 goal-creator 技能生成指令。生成 /goal 时先识别任务类型，不内联整套规则；只写入最小硬约束：执行前必须读取并在最终输出中列出本任务适用的规则来源、适用/不适用判断和自证证据。开发类 goal 至少引用 [共享规则文件]、dev-builder 和 code-review；涉及 OpenSpec change 时还要引用对应 proposal/specs/design/tasks，并要求输出 `openspec validate` 结果和 code-reviewer verdict。非开发类 goal 只引用对应任务类型的规则和 Skill，不把开发约束硬塞进去。完成条件仍以四步走验收为准，比如交付清单逐项贴出、编译输出已贴、code-reviewer 两阶段 PASS 已贴。
+    要把整个 Phase 交给 /goal 自驱，用 goal-creator 技能生成指令。生成 /goal 时先识别任务类型，不内联整套规则；只写入最小硬约束：执行前必须读取并在最终输出中列出本任务适用的规则来源、适用/不适用判断和自证证据。开发类 goal 至少引用 [共享规则文件]、dev-builder 和 code-review；涉及 OpenSpec change 时还要引用对应 proposal/specs/design/tasks，并要求输出 `openspec validate` 结果和 code-reviewer 结论。非开发类 goal 只引用对应任务类型的规则和 Skill，不把开发约束硬塞进去。完成条件仍以四步走验收为准，比如交付清单逐项贴出、编译输出已贴、code-reviewer 两阶段 PASS 已贴。
 
 [初始化模式]
     无代码时搭骨架：
