@@ -975,7 +975,24 @@ Phase 8 不新增 HTTP route。工具执行先通过 CLI、runtime module seam �
 | ScoreSink | score 先写 local/jsonl，再通过 `TelemetryFacade` 或 provider adapter contract 写回 provider；provider failure 只返回脱敏 degraded summary，不影响 local evidence。 |
 | Empty dataset | approved dataset 为空时稳定返回 no approved cases 摘要，不运行 draft case，不伪造 score。 |
 
-## 10. 保留 API 索引
+### EVL-004 eval experiment and harness comparison
+
+本条目是 Phase 12 之后的 trace/eval 升级契约。它不改变 Phase 11 已实现的 draft / approve / run 基础链路；开工前必须先补 contract tests，再实现 route、CLI 和 storage schema。
+
+| 项目 | 契约 |
+|---|---|
+| Method / Path | `POST /api/v1/evals/experiments`、`GET /api/v1/evals/experiments/{experiment_id}`、`GET /api/v1/evals/experiments/{experiment_id}/comparison`、`POST /api/v1/evals/experiments/{experiment_id}/accept` |
+| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval experiment create` / `agent-harness eval experiment compare` / `agent-harness eval experiment accept`、release gate 和 maintainer review flow。 |
+| 身份 / 权限 | 创建和读取 experiment 需要有效 HTTP Bearer；accept 必须携带人工 reviewer 身份，并通过 policy/approval seam。未认证或未授权不得创建 experiment、eval run、accepted harness record 或 audit side effect。 |
+| Request | create body 包含 `agent_id`、`dataset`、`tags`、`split_strategy`、`baseline_harness_version`、可选 `candidate_harness_version` / `optimization_ratio` / `holdout_ratio` / `regression_policy` / `metadata`。`tags` 必须来自 approved case metadata；draft case 不得参与 split。 |
+| Response | create/read 返回 `request_id`、`experiment_id`、`status`、`agent_id`、`dataset`、`tags`、`optimization_case_count`、`holdout_case_count`、baseline/candidate eval run refs、local evidence refs 和 provider degraded summary。 |
+| Comparison | comparison response 返回 per-tag `baseline_score`、`candidate_score`、`delta`、`holdout_delta`、`regressions`、`new_failures`、`fixed_failures`、`acceptance_recommendation` 和脱敏 evidence refs；不得返回 provider 原始响应或完整大 payload。 |
+| Accept | accept body 包含 `decision`、`reason`、`accepted_harness_version`，可选 `followup_issue_ref`。只有 `decision=accepted` 且 policy 允许时，才可写 accepted harness record 和 audit log；不得自动修改 prompt、tool description 或生产配置文件。 |
+| 幂等性 | create 必须支持 `Idempotency-Key`；相同 key 和相同 body 返回同一 `experiment_id`。accept 重试必须返回同一 acceptance record，不得重复写 audit 或 accepted harness record。 |
+| 错误语义 | 标签不存在、split 后 holdout 为空、candidate harness 缺失、provider 写入失败或 comparison evidence 不完整时返回稳定 `ApiErrorEnvelope` 或 degraded summary；provider failure 不得删除 local evidence。 |
+| OpenAPI | operation 必须声明 `HTTPBearer` security，401/403/409/422/500 均返回 `ApiErrorEnvelope`；accept endpoint 必须在 schema 中暴露人工 reviewer / policy decision / audit ref 字段。 |
+
+## 11. 保留 API 索引
 
 这些路径来自 `Product-Spec.md` 的当前版本 API 列表。它们不是当前已实现能力；对应计划项开工前必须先把本节扩展成第 3 节规定的完整 endpoint 条目，再写 route。
 
@@ -983,7 +1000,7 @@ Phase 8 不新增 HTTP route。工具执行先通过 CLI、runtime module seam �
 |---|---|---:|---|---|
 | `HLT-001` | 规划中 | Service App / Service Profile | `/api/v1/health` | 必须定义 local/service profile health 字段、storage/queue/observability 状态和公开性。 |
 
-## 11. 入口 / 调用方映射
+## 12. 入口 / 调用方映射
 
 | 入口 / 调用方 | 当前或目标接口 | 说明 |
 |---|---|---|
@@ -997,10 +1014,10 @@ Phase 8 不新增 HTTP route。工具执行先通过 CLI、runtime module seam �
 | service-app FastAPI | `AGT-001`、`RUN-001` 到 `RUN-005` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
 | runtime worker | 内部 worker seam；不直接新增 HTTP route | worker 必须通过 runtime components，不直接操作 ORM/DBOS/provider SDK。 |
 | HITL approval flow | `RUN-005` + `APR-*` | approval/resume 必须关联 checkpoint、audit、tenant、run、identity。 |
-| Eval review flow | `EVL-*` | draft 到 approved 必须人工确认，secret/隐私脱敏是写入门禁。 |
+| Eval review / experiment flow | `EVL-*` | draft 到 approved 必须人工确认，secret/隐私脱敏是写入门禁；experiment accept 必须有人审、policy/audit 和回归证据。 |
 | future API/worker split | 所有 HTTP API + worker seam | 拆分后数据只走 DTO、CanonicalEvent、repository/provider/facade，不传进程内可变对象；queue message header 必须携带 `request_id` 和 `idempotency_key`。 |
 
-## 12. 流式与事件契约
+## 13. 流式与事件契约
 
 当前实现：
 
@@ -1015,7 +1032,7 @@ Phase 8 不新增 HTTP route。工具执行先通过 CLI、runtime module seam �
 - 断线恢复必须以 `seq` 为准；final 结算以 terminal event 为准。
 - 握手前错误走 `ApiErrorEnvelope`；握手后错误必须转成可序列化 event，且不得泄露 secret/provider 原始错误。
 
-## 13. OpenAPI 生成与漂移检查
+## 14. OpenAPI 生成与漂移检查
 
 当前必须保留：
 
@@ -1045,7 +1062,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 
 新增 `approvals` 和 `policies` route 时，应按认证、策略、HITL 能力边界拆出对应 contract tests，不把所有 OpenAPI 检查堆进一个大测试。`agents` route 使用 `tests/contracts/test_agent_registry_model_context_contracts.py` 单独覆盖，认证/策略/HITL 还要补 401/403 和可见性检查。
 
-## 14. 契约验收清单
+## 15. 契约验收清单
 
 - [x] 已区分当前已实现 run API 与保留 API。
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
@@ -1058,4 +1075,5 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] Auth / Policy / HITL 开工前补全 auth、policy、approval endpoint 条目和 contract tests 目标。
 - [x] Tool execution 开工前补全 tools CLI/runtime/module seam、无新增 HTTP route 和 contract tests 目标。
 - [x] Eval Gate 开工前补全 eval endpoint 条目和 contract tests。
+- [x] Trace/eval 升级开工前补全 eval experiment、harness comparison、acceptance gate endpoint 条目和 contract tests 目标。
 - [ ] Service App / Service Profile 收口时做全量 OpenAPI drift 复扫，并补齐 422 validation error envelope 统一验证。

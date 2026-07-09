@@ -19,30 +19,32 @@
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1-11 已实现并通过本地验证；Phase 12-15 仍待实现。 |
+| 总体状态 | 进行中 | Phase 1-11 已实现并通过本地验证；Phase 12、Phase 12.5、Phase 13-15 仍待实现。 |
 | 当前 Phase | Phase 11 完成实现与验证 | `eval-gate-trace-loop` 已完成 OpenSpec artifact review、合同测试、质量门禁、local/service smoke、`make eval`、build、license 和 pre-commit 验证；提交前 fresh code-reviewer gate 以本轮最终证据为准。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-11 已完成本地收口流程。 |
 | 当前 OpenSpec change | `retrieval-rag-foundation` ready-to-archive；`observability-provider-adapters` ready-to-archive；`eval-gate-trace-loop` ready-to-archive | 三个 active changes 均已通过 strict validate 和本地验证；除非用户明确要求，不自动执行 `openspec archive`。 |
 | 当前验证基线 | 全量通过 | 本轮已通过 Phase 11 targeted tests（13 passed）、targeted regression tests（30 passed, 1 skipped）、`uv run pytest` / `make test`（120 passed, 1 skipped）、`make quality`、`uv run openspec validate eval-gate-trace-loop --type change --strict`、`uv run openspec validate --all --strict`（16 passed）、`uv run python scripts/smoke_local.py`、`make smoke-service`（PostgreSQL/Redis，`migration=0007_eval_gate_trace_loop`，retrieval result 带 citation/trust，PGroonga/pgvector 缺失按 optional 降级）、`make eval`（无 approved case 时返回 `no_approved_cases`）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
 | 当前阻塞项 | 无 | Phase 11 已完成实现与验证；active OpenSpec changes 停在 ready-to-archive。 |
-| 当前建议下一步 | 归档或进入 Phase 12 | 用户明确确认后可分别执行 `openspec archive retrieval-rag-foundation`、`openspec archive observability-provider-adapters` 和 / 或 `openspec archive eval-gate-trace-loop`；否则下一轮进入 Phase 12 Service App 模板与四个 P0 示例 Agent。 |
+| 当前建议下一步 | 归档或进入 Phase 12 | 用户明确确认后可分别执行 `openspec archive retrieval-rag-foundation`、`openspec archive observability-provider-adapters` 和 / 或 `openspec archive eval-gate-trace-loop`；否则下一轮进入 Phase 12 Service App 模板与四个 P0 示例 Agent。Phase 12 完成后先进入 Phase 12.5 trace/eval 实验闭环，再推进 Phase 13-15。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
 - 可选收口：用户明确确认后归档 `retrieval-rag-foundation`、`observability-provider-adapters` 和 / 或 `eval-gate-trace-loop`；否则下一轮进入 Phase 12 Service App 模板与四个 P0 示例 Agent。
+- 顺序门禁：Phase 12 完成后不要直接进入 service split / release 收口，先执行 Phase 12.5，把四个示例 agent 产生的真实行为分布接入 eval tags、optimization / holdout split、baseline/compare 和人工 acceptance gate。
 
 ### 后续 Phase
 
 - Phase 12: Service App 模板与四个 P0 示例 Agent。
+- Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环。
 - Phase 13: Service Profile、API/Worker 分进程与未来拆分边界。
 - Phase 14: 深度文档、ADR 与维护者指南。
 - Phase 15: CI/CD、Release Automation 与合规收口。
 
 ### 尚未完成的关键验收
 
-- eval gate、service app 示例、service profile 分进程边界、深度文档和 release automation 尚未实现。
+- service app 示例、Better-Harness 式 eval experiment 闭环、service profile 分进程边界、深度文档和 release automation 尚未实现。
 - GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
 - 深度文档、ADR、未来微服务拆分边界文档尚未完成。
 
@@ -114,9 +116,10 @@ Phase 1 Monorepo / quality spine
         -> Phase 10 Observability provider adapters
           -> Phase 11 Eval Gate / trace-to-eval loop
             -> Phase 12 Service-app template / examples
-              -> Phase 13 Service profile / split API-worker smoke
-                -> Phase 14 Docs / ADR / maintainer guide
-                  -> Phase 15 CI/CD / release automation / compliance
+              -> Phase 12.5 Eval experiment / harness hill-climb loop
+                -> Phase 13 Service profile / split API-worker smoke
+                  -> Phase 14 Docs / ADR / maintainer guide
+                    -> Phase 15 CI/CD / release automation / compliance
 ```
 
 并行规则：Phase 2 之后，文档草稿可以和代码并行，但每个 Phase 的验收必须等代码、测试和文档证据一致后才算通过。
@@ -511,6 +514,42 @@ Phase 1 Monorepo / quality spine
 
 ---
 
+## Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环
+
+**进入条件**：
+- Phase 12 已完成四个 P0 示例 agent，并且每个示例都有可运行 fake model eval 和 trace evidence。
+- `eval-gate-trace-loop` 基础链路仍然保持人工 draft -> approve -> approved dataset -> eval run -> score sink；本 Phase 不允许把 draft 自动写入 approved dataset。
+
+**交付内容**：
+- 为 approved eval cases 增加 behavior tags、dataset metadata、optimization / holdout split 和 regression subset 管理。
+- 实现 baseline experiment、candidate harness experiment、per-tag score comparison、holdout result 和 regression report。
+- 建立 harness version metadata，覆盖 prompt、tool description、agent config、retrieval config、policy default 等会影响 agent 行为的变更输入。
+- 增加人工 acceptance gate：只有分数提升、holdout 未明显退化、关键 regression 通过且 reviewer 明确接受后，候选 harness 才能进入 accepted record。
+- 编写 trace mining / eval curation 指南，说明手写 case、生产 trace、外部数据集和饱和 case 清理的标准。
+
+**关键文件**：
+- `Product-Spec.md` - REQ-016 的 eval experiment / holdout / acceptance 要求。
+- `API-Contract.md` - `EVL-004` experiment、comparison 和 accept endpoint 契约。
+- `packages/agent-harness/src/agent_harness/evals/datasets.py` - behavior tags、dataset split 和 regression subset model。
+- `packages/agent-harness/src/agent_harness/evals/experiments.py` - baseline/candidate experiment runner 和 comparison service。
+- `packages/agent-harness/src/agent_harness/evals/harness_versions.py` - harness version metadata、diff summary 和 accepted record。
+- `packages/agent-harness/src/agent_harness/storage/migrations/versions/0008_eval_experiment_loop.py` - experiment、split、accepted harness schema。
+- `templates/service-app/app/api/routes/evals.py` - `EVL-004` API routes。
+- `packages/agent-harness/src/agent_harness/cli.py` - `agent-harness eval experiment ...` CLI。
+- `docs/eval-observability-loop.md` - trace -> eval -> experiment -> harness acceptance 操作指南。
+- `tests/contracts/test_eval_experiment_loop_contracts.py` - API/schema/policy/secret/regression contract tests。
+
+**验收标准**：
+- approved cases 可按行为标签过滤，至少覆盖 tool selection、retrieval quality、follow-up quality、policy/approval、context/trust boundary。
+- split 只读取 approved cases；draft case、secret 命中的 case 和缺少必需标签的 case 不得进入 optimization / holdout。
+- baseline 和 candidate harness experiment 都记录 `harness_version`、`agent_id`、dataset split、score summary、regression summary、local/provider evidence ref。
+- comparison report 输出 per-tag score delta、holdout delta、new failures、fixed failures 和 acceptance recommendation。
+- accept 操作必须走人工 reviewer、policy decision 和 audit log；系统不得自动修改 prompt、tool description 或生产配置。
+- 局部 OpenAPI drift tests 覆盖 `EVL-004` 的 create/read/comparison/accept endpoint、认证、422、409、provider degraded 和 idempotency 语义。
+- `make eval` 继续保持基础 approved dataset 跑法；新增 experiment 命令不能破坏 Phase 11 的无 approved case 降级语义。
+
+---
+
 ## Phase 13: Service Profile、API/Worker 分进程与未来拆分边界
 
 **交付内容**：
@@ -618,6 +657,9 @@ Phase 1 Monorepo / quality spine
 | `eval_cases` | Phase 11 | draft / approved eval case，关联 trace 和 agent。 |
 | `eval_runs` | Phase 11 | 一次 eval 执行的状态和 score summary。 |
 | `eval_scores` | Phase 11 | per-case / per-metric score 和 provider ref。 |
+| `eval_dataset_splits` | Phase 12.5 | behavior tag、optimization / holdout / regression subset 和 case membership。 |
+| `eval_experiments` | Phase 12.5 | baseline/candidate harness experiment、score delta、holdout result 和 comparison evidence。 |
+| `harness_acceptance_records` | Phase 12.5 | 人工 acceptance decision、policy decision、audit ref 和 accepted harness version。 |
 | `release_records` | Phase 15 | version、tag、CHANGELOG、artifact、commit sha。 |
 
 ## Spec 覆盖矩阵
@@ -639,7 +681,7 @@ Phase 1 Monorepo / quality spine
 | REQ-013 Retrieval 与 RAG | Phase 6, Phase 9, Phase 12 |
 | REQ-014 CanonicalEvent 与流式输出 | Phase 4, Phase 5 |
 | REQ-015 Observability 转换层 | Phase 4, Phase 10 |
-| REQ-016 Eval Gate 与 trace/eval 闭环 | Phase 10, Phase 11 |
+| REQ-016 Eval Gate 与 trace/eval 闭环 | Phase 10, Phase 11, Phase 12.5 |
 | REQ-017 示例 agent | Phase 12 |
 | REQ-018 README 与文档体系 | Phase 1, Phase 14 |
 | REQ-019 TDD、测试与质量门禁 | Phase 1, all phases |
@@ -661,6 +703,7 @@ Phase 1 Monorepo / quality spine
 - 危险动作默认走 policy 和 approval；不得为了测试方便绕过 PolicyEngine。
 - 外部输入、MCP output、tool output、retrieval chunk 默认按 untrusted 处理；进入模型上下文必须经过 ContextAssembler 并保留 source_ref、trust_level 和 truncation metadata。
 - `eval-cases/approved` 只能由审核流程写入；自动 detector 只能写 draft。
+- Phase 12.5 开始后，harness 变更接受必须基于 baseline/candidate comparison、holdout result、regression summary 和人工 review；不得只看总分上涨就接受。
 - 所有核心数据、trace、eval、audit、artifact 必须带 `tenant_id`，run 相关数据必须带 `agent_id`、`run_id` 或 `trace_id`。
 
 ## 已知风险与限制
@@ -674,4 +717,5 @@ Phase 1 Monorepo / quality spine
 | PGroonga 和 pgvector 是 optional adapter，可能拖累 local profile 或 CI。 | Retrieval、embedding cache、service profile smoke。 | Phase 9、Phase 13 | 已缓解 | Phase 9 已把 PGroonga/pgvector 作为 optional capability probe；local profile 不硬依赖扩展，service smoke 输出缺失降级提示并继续走 PostgreSQL native FTS fallback。 |
 | P0 只做可拆边界，不做完整微服务；如果 API/worker/storage/tool 边界不清，后续会重构。 | API、runtime worker、model/tool gateway、storage、event/observability。 | Phase 2、Phase 4、Phase 5、Phase 13、Phase 14 | 部分缓解 | Phase 2 已通过 typed service profile、DTO/context/identity contracts 和 README 部署边界说明建立接口基础；Phase 13 做 API/worker 分进程 smoke。 |
 | Phoenix、Langfuse、Logfire 的 dataset/score/workflow 能力差异大。 | Observability adapter、Eval Gate、score sink。 | Phase 10、Phase 11 | 未处理 | P0 先做 provider-neutral contract 和 local/jsonl fallback；复杂 provider-native workflow 放 P1。 |
+| Eval 只用已知 case 做优化会过拟合，尤其是示例 agent 数量少时。 | Eval experiment、harness prompt/tool description/config 变更、release gate。 | Phase 12.5、Phase 15 | 未处理 | Phase 12 先交付四个示例 agent 形成真实行为分布；Phase 12.5 必须按 behavior tags 拆 optimization / holdout，保留 regression subset，并用人工 review 拦住无意义或过拟合的 harness 变更。 |
 | Prompt injection / tool output injection 如果后补，会污染所有 agent 和 eval 证据。 | Access input、MCP、tools、retrieval、context assembly、audit。 | Phase 2、Phase 4、Phase 6、Phase 8、Phase 9 | 已缓解 | Phase 2 已定义 trust marker/source_ref/context ref 和 guardrail decision DTO；Phase 6 已在 ContextAssembler 保留 per-fragment source/trust/token/truncation trace；Phase 8 已处理 tool/MCP output；Phase 9 已让 retrieval chunk 进入 context 前保留 citation/source_ref/trust_level，prompt injection 文本只作为 untrusted citation 内容。 |

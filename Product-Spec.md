@@ -75,6 +75,7 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 | 模板可用 | `templates/service-app` 可在 local profile 和 service profile 下跑通核心流程 |
 | 能力块可验收 | runtime、storage、policy、tools、events、observability、eval、retrieval、release 都有测试和验收证据 |
 | 闭环成立 | failed/low-score trace 可生成 draft eval case，经人工确认后进入 approved dataset，eval score 可写回本地 sink 和可配置观测 provider |
+| 闭环可优化 | 示例 agent 提供真实行为分布后，eval case 可按行为标签拆分 optimization / holdout，baseline 与候选 harness 可对比，回归和人工验收共同决定是否接受 harness 变更 |
 | 上游可替换 | 业务 agent 不直接 import Pydantic AI、DBOS、Logfire、Phoenix、Langfuse 等厂商实现 |
 | TDD 落地 | 每个能力块开发前有失败测试或 contract test，完成后测试转绿并进入 CI |
 | 发布可治理 | P0 内置版本、tag、CHANGELOG、build、release artifact、私有发布路径和 GitHub/GitLab CI 配置 |
@@ -105,7 +106,7 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 | SCOPE-018 | EmbeddingProvider | P0 | OpenAI-compatible、mock/local、cache、trace |
 | SCOPE-019 | CanonicalEvent 事件模型 | P0 | SSE、CLI、local/jsonl、OTel adapter |
 | SCOPE-020 | Observability 转换层 | P0 | OTel 底座，local/jsonl 永久保留，Logfire 推荐 |
-| SCOPE-021 | Eval Gate 转换层与 trace/eval 闭环 | P0 | draft -> human review -> approved -> eval -> score sink |
+| SCOPE-021 | Eval Gate 转换层与 trace/eval 闭环 | P0 | draft -> human review -> approved -> eval -> score sink；四个示例 agent 完成后补齐 behavior tags、optimization/holdout split、baseline/compare 和 human acceptance gate |
 | SCOPE-022 | README 与深度文档 | P0 | 面向 app developer 和 scaffold maintainer 两类读者 |
 | SCOPE-023 | TDD 测试结构与质量门禁 | P0 | unit、contract、integration、eval、smoke |
 | SCOPE-024 | GitHub Actions + GitLab CI | P0 | 两边跑同一命令集，包含 fake model eval 和 service smoke |
@@ -264,6 +265,9 @@ run failed、score 低于阈值、人工标记或 CLI 执行 `agent-harness eval
 
 **完成状态：**
 至少一个 failed/low-score trace 可生成 draft，经人工确认后被 eval runner 消费，并产出 score sink 记录。
+
+**后续实验路径：**
+四个 P0 示例 agent 提供真实行为分布后，系统必须把 approved eval cases 进一步组织成可优化的数据集：按行为标签分桶，拆分 optimization / holdout，先跑 baseline，再比较候选 harness 版本。候选 harness 只有在目标标签分数提升、关键回归受控、holdout 未明显退化且人工 review 通过后，才能被接受为下一版 harness。
 
 ### FLOW-005: 核心包发布自动化
 
@@ -918,6 +922,7 @@ OTel 是底座协议，不是业务边界；Logfire/Phoenix/Langfuse 必须走�
 - P0 支持从低分 trace / failed run 半自动生成 eval case。
 - P0 Trace 转 Eval Case 必须人工确认后入库。
 - P0 支持把 eval score 写回本地 JSONL 和可配置观测 provider。
+- P0 示例 agent 完成后，eval 数据集必须支持 behavior tags、optimization / holdout split、baseline run、candidate harness run、regression report 和人工 acceptance gate。
 - P1 支持满足规则后自动入库，默认关闭。
 
 **流程：**
@@ -929,6 +934,11 @@ Runtime Trace
   -> EvalCaseDraft
   -> Human Review Queue
   -> Eval Dataset
+  -> Tagged Optimization / Holdout Sets
+  -> Baseline Experiment
+  -> Candidate Harness Experiment
+  -> Regression / Holdout Review
+  -> Human Acceptance Gate
   -> Eval Runner
   -> ScoreSink
   -> Observability Provider
@@ -939,12 +949,18 @@ Runtime Trace
 - MUST `make eval` 只跑 approved cases。
 - MUST approved dataset 写入默认 require_approval。
 - MUST draft 到 approved 的过程检查 secret/隐私脱敏。
+- MUST eval case 支持行为标签；标签至少能覆盖 tool selection、retrieval quality、follow-up quality、policy/approval、context/trust boundary 这类可独立优化的行为类别。
+- MUST optimization / holdout 拆分按标签可追踪；优化只能看 optimization set，holdout 用于验收候选 harness 的泛化。
+- MUST baseline 和 candidate harness 运行都记录 harness version、agent id、dataset split、score summary、regression summary、local/provider evidence ref。
+- MUST harness 变更接受需要人工 review；系统不得自动把候选 harness 写成 accepted production harness。
 - SHOULD P1 接入 Logfire Hosted Datasets、Phoenix dataset/eval workflow、Langfuse annotation/dataset/score。
 
 **验收标准：**
 - [ ] AC-043: Given failed run trace, when 执行 `agent-harness eval draft`, then 生成 draft case。
 - [ ] AC-044: Given draft case, when 人工 approve, then case 进入 approved dataset 并写 audit log。
 - [ ] AC-045: Given approved dataset, when `make eval`, then 产出 eval result 和 score sink 记录。
+- [ ] AC-045A: Given approved cases with behavior tags, when 创建 experiment split, then optimization / holdout sets 按标签可追踪且不会把 draft case 纳入评分。
+- [ ] AC-045B: Given baseline harness 和 candidate harness, when 执行 experiment compare, then 输出 per-tag score delta、holdout result、regression summary 和人工 acceptance 所需证据。
 
 ### REQ-017: 示例 agent
 

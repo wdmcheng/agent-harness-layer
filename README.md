@@ -2,7 +2,7 @@
 
 Agent Harness Layer is a Python scaffold and core package for enterprise backend agent applications. It provides the repository shape, package boundary, verification commands, and future extension points needed to build agent services with backend engineering discipline.
 
-The current scaffold proves the workspace, package boundary, template shell, quality commands, compliance entrypoints, typed configuration, identity context, DTO/error/trust payloads, import-boundary declarations, storage/runtime seams, and a side-effect-free doctor command. Real policy providers, tools, retrieval, observability adapters, eval gates, CI release automation, and full service-profile deployment behavior remain later changes.
+The current scaffold proves the workspace, package boundary, template shell, quality commands, compliance entrypoints, typed configuration, identity context, DTO/error/trust payloads, import-boundary declarations, storage/runtime seams, policy/HITL, tool execution, retrieval, observability adapters, and the base trace-to-eval gate. Service-app examples, eval experiment hill-climbing, CI release automation, and full service-profile deployment behavior remain later changes.
 
 ## Quick Start
 
@@ -67,7 +67,7 @@ Maintain the package boundary first:
 - `app/*` must not contain business agent logic.
 - Vendor SDKs and capability libraries such as Pydantic AI, Pydantic AI Harness, DBOS, Logfire, Phoenix, and Langfuse must stay behind future adapters or controlled integration modules.
 - Template app code should import settings, identity, trust, and DTO types from `agent_harness.*` instead of reading YAML or provider SDKs directly.
-- `eval-cases/approved` will be written only by a future approval flow.
+- `eval-cases/approved` is written only by the approval flow; automatic trace detectors may create drafts, but must not write approved cases directly.
 - Future run records must carry tenant, agent, run, and trace correlation fields once those subsystems exist.
 
 Run `make quality` before committing. It checks formatting, linting, type checking, and import boundaries.
@@ -95,7 +95,7 @@ Deep documentation is introduced incrementally:
 - `docs/architecture/README.md` contains architecture diagram sources, PNG previews, and deployment boundary notes.
 - `docs/extension-guide.md` is reserved for extension guidance.
 - `docs/adapter-contracts.md` is reserved for adapter contracts.
-- `docs/eval-observability-loop.md` is reserved for trace-to-eval guidance.
+- `docs/eval-observability-loop.md` records the current trace-to-eval foundation and the planned Phase 12.5 eval experiment / harness acceptance loop.
 - `docs/security-policy.md` is reserved for security and HITL policy.
 - `docs/release-process.md` is reserved for release automation.
 - `docs/adr/` is reserved for architecture decisions.
