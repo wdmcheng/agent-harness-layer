@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+import shutil
+import subprocess
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -50,6 +52,7 @@ def test_template_layout_contains_committable_maintenance_content() -> None:
         "scripts/bootstrap.py",
         "scripts/smoke_service.py",
         "docker-compose.yml",
+        ".gitignore",
         ".env.example",
         "Makefile",
         "README.md",
@@ -58,6 +61,51 @@ def test_template_layout_contains_committable_maintenance_content() -> None:
 
     missing = [relative for relative in required if not (TEMPLATE / relative).exists()]
     assert missing == []
+
+
+def test_copied_template_ignores_local_runtime_and_secret_state(tmp_path: Path) -> None:
+    """复制为独立项目后仍应阻止密钥、虚拟环境和运行证据被误提交。"""
+
+    copied = tmp_path / "service-app"
+    shutil.copytree(TEMPLATE, copied)
+    subprocess.run(["git", "init", "-q"], cwd=copied, check=True)
+    ignored_paths = {
+        ".env",
+        ".env.local",
+        ".venv/state",
+        ".agent-harness/state",
+        "__pycache__/module.pyc",
+        ".pytest_cache/state",
+        ".ruff_cache/state",
+        "dist/service_app.whl",
+        "build/state",
+    }
+    result = subprocess.run(
+        ["git", "-c", "core.excludesFile=/dev/null", "check-ignore", "--stdin"],
+        cwd=copied,
+        input="\n".join(sorted(ignored_paths)),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    ignored = set(result.stdout.splitlines())
+
+    assert ignored == ignored_paths
+    assert (
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.excludesFile=/dev/null",
+                "check-ignore",
+                "-q",
+                ".env.example",
+            ],
+            cwd=copied,
+            check=False,
+        ).returncode
+        == 1
+    )
 
 
 def test_template_typer_cli_exposes_only_app_specific_serve(monkeypatch: Any) -> None:

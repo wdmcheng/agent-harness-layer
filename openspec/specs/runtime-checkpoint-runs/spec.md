@@ -1,7 +1,8 @@
 # runtime-checkpoint-runs Specification
 
 ## Purpose
-TBD - created by archiving change runtime-checkpoint-runs. Update Purpose after archive.
+定义 provider-neutral run lifecycle、idempotency、checkpoint/resume 与持久化事件边界的长期契约，确保 run 在重复提交、非法状态转换和进程重启场景下保持确定性，并让 API、CLI 和 worker 共用同一 runtime seam；service profile 的 DBOS 集成只能留在受控 adapter 边界，不得泄漏到 runtime core 或业务 agent。
+
 ## Requirements
 ### Requirement: RunOrchestrator 管理 run lifecycle
 package SHALL 暴露 provider-neutral `RunOrchestrator`，负责创建、取消、恢复 run，并通过 repository/UoW 和 EventBus 记录 lifecycle。

@@ -23,7 +23,7 @@
 | 当前 Phase | Phase 12 联合实现审查门禁 | 多变更联合契约审查已 PASS；上轮实现审查的 HIGH/MEDIUM findings 已修复并重跑完整组合门禁，当前只等待 fresh Stage 1/2 review。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-11 已完成本地收口流程。 |
 | 当前 OpenSpec change | Phase 12：`service-app-template-surface`（11/11）、`p0-example-agent-flows`（26/26）、`agent-scaffold-cli`（16/16）；依赖 changes：retrieval/observability/eval ready-to-archive | 三个 change tasks 全部完成；冻结待审，不自动 archive。 |
-| 当前验证基线 | 冻结候审快照通过 | 全量 `208 passed / 2 conditional skipped`，真实 PostgreSQL 两项 `2 passed`；quality、local/service/copy smoke、四示例 eval、build、license、pre-commit、三个 change strict validate 与全量 `19/19` 均通过。 |
+| 当前验证基线 | 冻结候审快照通过 | 全量 `210 passed / 2 conditional skipped`，真实 PostgreSQL 两项 `2 passed`；quality、local/service/copy smoke、四示例 eval、build、license、pre-commit、三个 change strict validate 与全量 `19/19` 均通过。 |
 | 当前阻塞项 | fresh code-reviewer Stage 1/2 | 未取得本次冻结快照的 Stage 1/2 PASS 前不得写 `clean`、提交或宣称 Phase 12 完成。 |
 | 当前建议下一步 | 派 fresh code-reviewer | 从 Stage 1 开始联合审查三个 change、上游真相源、完整实现与历史 findings；PASS 后只写 clean、按 change 分离本地提交并停在 ready-to-archive。 |
 
@@ -534,7 +534,7 @@ Phase 1 Monorepo / quality spine
 - 既有 approval 错误码、rollback fail-closed、context evidence、代码体量和 evidence pending 补偿均已修复；raw claimed owner 硬退出后的超时接管/fencing 与非 identifier custom root cache 隔离已新增跨公开 route、SQLite/PostgreSQL 和双 root 回归合同，组合门禁通过但仍未写 `clean`，等待 fresh Stage 1/2 review。
 
 **冻结验证证据**：
-- `uv run pytest -ra`：`208 passed / 2 skipped`；两个 skipped 均要求 `AGENT_HARNESS_TEST_POSTGRES_DSN`。
+- `uv run pytest -ra`：`210 passed / 2 skipped`；两个 skipped 均要求 `AGENT_HARNESS_TEST_POSTGRES_DSN`。
 - 注入真实 PostgreSQL DSN 后，repository service adapter 与 approval arbitration/lease fencing/unique claim 两项合同 `2 passed`。
 - `make quality`、`make smoke-local`、`make smoke-service`、workspace 外 `smoke_template_copy.py --service`、`make eval`、`make build`、`make license-check`、`pre-commit --all-files` 全部通过；四示例 eval 为 11/11 approved cases通过、1 个 draft按设计跳过。
 - 三个 change 各自 `openspec validate <change> --type change --strict` 通过，`openspec validate --all --strict` 为 `19 passed / 0 failed`。

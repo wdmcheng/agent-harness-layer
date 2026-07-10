@@ -76,6 +76,17 @@ def test_runtime_public_seams_expose_checkpoint_dtos() -> None:
     assert CheckpointStore is not None
 
 
+def test_runtime_main_spec_has_durable_purpose() -> None:
+    """归档后的 runtime 主规格必须说明长期用途，不能保留生成器占位文本。"""
+
+    spec = (ROOT / "openspec/specs/runtime-checkpoint-runs/spec.md").read_text(encoding="utf-8")
+    purpose = spec.split("## Purpose", 1)[1].split("## Requirements", 1)[0]
+
+    assert "TBD - created by archiving change" not in purpose
+    for marker in ("run lifecycle", "idempotency", "checkpoint", "API、CLI 和 worker"):
+        assert marker in purpose
+
+
 async def build_orchestrator(tmp_path: Path) -> tuple[RunOrchestrator, SQLAlchemyStorage, Path]:
     """构造带 SQLite storage 和 local event sink 的测试 runtime。"""
 

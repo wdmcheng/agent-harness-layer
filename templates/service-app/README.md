@@ -108,6 +108,7 @@ templates/service-app/
 ├── docs/                    # app-specific 维护说明入口
 ├── scripts/                 # 独立 bootstrap 与 service smoke
 ├── docker-compose.yml
+├── .gitignore               # 忽略本地密钥、虚拟环境、数据库、trace 与构建产物
 ├── .env.example
 ├── Makefile
 └── pyproject.toml
@@ -120,6 +121,7 @@ templates/service-app/
 - `app/*` 只负责协议入口、依赖装配和响应转换，不写业务 agent 逻辑。
 - 使用 `make cli ARGS='<核心命令>'` 或 `agent-harness` 执行 agents、run、approvals、eval 和 policy 管理。
 - eval detector 只能写 `eval-cases/drafts`；`eval-cases/approved` 必须经过人工审核、policy 和 audit seam。
+- `.env`、`.venv` 和 `.agent-harness` 只属于本机运行状态；模板自身的 `.gitignore` 会阻止它们在复制为独立项目后被误提交，`.env.example` 仍应保留在版本库。
 - 所有运行记录必须保留 `tenant_id`、`agent_id`、`run_id`；delegation 必须经过 registry 和 policy。
 
 ## For Scaffold Maintainers

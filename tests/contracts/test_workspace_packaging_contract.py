@@ -67,6 +67,7 @@ def test_service_app_shell_layout_exists() -> None:
         "eval-cases/approved",
         "tests",
         "docs",
+        ".gitignore",
         ".env.example",
         "Makefile",
         "README.md",
