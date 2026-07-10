@@ -3,6 +3,13 @@
 from agent_harness.evals.cases import EvalCaseFactory as EvalCaseFactory
 from agent_harness.evals.cases import EvalDraftDetector as EvalDraftDetector
 from agent_harness.evals.cases import EvalTraceSource as EvalTraceSource
+from agent_harness.evals.dataset_models import BehaviorTag as BehaviorTag
+from agent_harness.evals.dataset_models import DatasetSplitPlan as DatasetSplitPlan
+from agent_harness.evals.dataset_models import DatasetSplitRequest as DatasetSplitRequest
+from agent_harness.evals.dataset_models import RegressionPolicy as RegressionPolicy
+from agent_harness.evals.datasets import DatasetSplitService as DatasetSplitService
+from agent_harness.evals.errors import DatasetSplitError as DatasetSplitError
+from agent_harness.evals.errors import EvalExperimentError as EvalExperimentError
 from agent_harness.evals.review_queue import ReviewDatasetAdapter as ReviewDatasetAdapter
 from agent_harness.evals.runner import ApprovedCaseExecutor as ApprovedCaseExecutor
 from agent_harness.evals.runner import EvalRunner as EvalRunner
@@ -15,6 +22,13 @@ __all__ = [
     "EvalCaseFactory",
     "EvalDraftDetector",
     "EvalTraceSource",
+    "BehaviorTag",
+    "DatasetSplitPlan",
+    "DatasetSplitRequest",
+    "DatasetSplitService",
+    "RegressionPolicy",
+    "DatasetSplitError",
+    "EvalExperimentError",
     "ReviewDatasetAdapter",
     "EvalRunner",
     "EvalRunResult",

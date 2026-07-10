@@ -1,7 +1,7 @@
 ## 1. 标签与 Split 公共 Seam
 
-- [ ] 1.1 先通过 `agent_harness.evals` 公共模块测试锁定 behavior tag 规范化、approved/secret/tenant 合格性和稳定错误，再实现 tag 查询、过滤与 fail-closed eligibility。
-- [ ] 1.2 先通过公共 split service 测试锁定 `deterministic_multilabel_v1`、0.8/0.2 默认值、ratio 范围/求和、regression policy 字段与非法/跨归属 ref、regression 预留、确定性多标签 optimization/holdout 分配、非空门禁和可复现 membership，再实现 `datasets.py` DTO/service。
+- [x] 1.1 先通过 `agent_harness.evals` 公共模块测试锁定 behavior tag 规范化、approved/secret/tenant 合格性和稳定错误，再实现 tag 查询、过滤与 fail-closed eligibility。
+- [x] 1.2 先通过公共 split service 测试锁定 `deterministic_multilabel_v1`、0.8/0.2 默认值、ratio 范围/求和、regression policy 字段与非法/跨归属 ref、regression 预留、确定性多标签 optimization/holdout 分配、非空门禁和可复现 membership，再实现 `datasets.py` DTO/service。
 
 ## 2. Phase 12.5 持久化基础
 
