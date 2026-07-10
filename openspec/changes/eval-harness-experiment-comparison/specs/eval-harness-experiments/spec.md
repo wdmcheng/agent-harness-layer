@@ -1,0 +1,60 @@
+## ADDED Requirements
+
+### Requirement: Harness version 完整描述行为输入
+系统 SHALL 为 baseline 和 candidate 建立不可变 `harness_version`，覆盖 prompt/instruction、tool description、agent config、retrieval config、policy defaults、model profile/adapter settings。每类输入 MUST 记录规范化 checksum、脱敏 diff summary 或 evidence ref；相同规范化 manifest MUST 产生相同 version id，缺少必需类别、包含 secret 或不可序列化 provider object MUST 被拒绝。
+
+#### Scenario: 相同 manifest 产生相同版本
+- **WHEN** 两次构建包含相同规范化 harness 输入但 mapping/list 原始顺序不同
+- **THEN** 系统产生相同 `harness_version` id，并保留相同的输入 checksum 与 evidence refs
+
+#### Scenario: Secret 不进入 harness metadata
+- **WHEN** prompt、tool description 或 config metadata 包含 secret fixture
+- **THEN** 系统拒绝创建 harness version 或只接受已有脱敏 artifact ref，公共 manifest、错误和 local/provider evidence 均不包含原始 secret
+
+### Requirement: Baseline 与 candidate 在同一 split 上运行
+系统 SHALL 在同一 tenant、agent、dataset split、evaluator profile 和 metric 集合上执行 baseline/candidate experiment。experiment MUST 记录 `experiment_id`、request/trace 关联、split id、baseline 和可选 candidate harness version、eval run refs、per-case/per-tag score summary、regression summary、local/provider evidence refs 和状态。省略 candidate 时只产生不可变 baseline snapshot，不支持在原 experiment 上后补；需要 comparison 时调用方 MUST 新建同时携带 baseline/candidate 的 experiment。comparison 前 candidate MUST 存在且完成。
+
+#### Scenario: Baseline 与 candidate 使用相同 case membership
+- **WHEN** experiment 对同一 split 运行 baseline 和 candidate
+- **THEN** 两个 run 消费完全相同的 optimization、holdout、regression case ids 和 evaluator profile，draft 或 split 外 case 不参与评分
+
+#### Scenario: Candidate 缺失时不能比较
+- **WHEN** experiment 只有 completed baseline、没有 candidate harness 或 candidate run
+- **THEN** comparison 返回稳定 candidate-missing 状态，不伪造 delta、recommendation 或 acceptance evidence；该 baseline snapshot 保持只读，调用方必须新建带 candidate 的 experiment 才能比较
+
+#### Scenario: Eval 执行失败保留已有 evidence
+- **WHEN** candidate evaluator 在部分 cases 后失败
+- **THEN** experiment 记录 failed/degraded 状态、已完成 case refs 和脱敏错误摘要，baseline 与已落盘 local evidence 不被删除
+
+### Requirement: Comparison 输出按标签、holdout 与 regression 的可复核差异
+系统 SHALL 基于同一 experiment 的 baseline/candidate results 生成 comparison。结果 MUST 包含每个请求标签的 baseline score、candidate score、delta，整体 holdout delta、regressions、new failures、fixed failures、regression subset 结果、`acceptance_recommendation` 和非空 `recommendation_reason_codes`。recommendation MUST 为 `accept`、`reject` 或 `needs_review`；reason codes MUST 只使用以下封闭字面值：`target_tag_improved`、`named_failure_fixed`、`no_target_improvement`、`holdout_within_threshold`、`holdout_regression_exceeded`、`critical_regression_passed`、`critical_regression_failed`、`new_failures_present`、`local_evidence_incomplete`、`comparison_incomplete`。它只供人工 review，不构成 acceptance side effect。
+
+#### Scenario: 目标标签改善且门禁通过时建议接受
+- **WHEN** candidate 的目标标签分数提升或修复命名 failure mode，holdout 未超过允许退化阈值，且关键 regression 全部通过
+- **THEN** comparison 返回 `acceptance_recommendation="accept"`、`recommendation_reason_codes` 和对应 score/evidence refs，但不创建 accepted harness record
+
+#### Scenario: Holdout 明显退化时拒绝建议
+- **WHEN** candidate 的 optimization 总分上升但 holdout delta 超过 regression policy 允许阈值
+- **THEN** comparison 返回 `acceptance_recommendation="reject"` 和稳定 holdout/regression reason codes，列出 holdout regressions/new failures，且不得以总分上涨覆盖该结论
+
+#### Scenario: 本地 Evidence 不完整时需要人工复核
+- **WHEN** 任一请求标签缺少 baseline/candidate score、关键 regression 没有结果或必需 local evidence refs 不完整
+- **THEN** comparison 返回 `needs_review`、local-evidence-incomplete reason code 或稳定 incomplete-evidence error，不产生可接受结论；provider refs 在存在脱敏 degraded status 时允许缺失且不得单独阻塞 local-first recommendation
+
+### Requirement: Experiment evidence local-first 并安全降级 provider
+系统 SHALL 在 provider fan-out 前持久化本地 experiment run 和 comparison evidence。provider failure MUST 只追加脱敏 degraded status，不得删除或隐藏 local evidence、experiment record 或 comparison。公共/provider payload MUST 不包含 secret、完整 case/trace payload、provider raw response、绝对路径或 provider SDK object。
+
+#### Scenario: Provider failure 不丢 comparison
+- **WHEN** Logfire、Phoenix、Langfuse 或 OTel adapter 写入 comparison 时失败
+- **THEN** 调用返回 completed-with-degradation 摘要与 local evidence refs，comparison 内容仍可读取，错误消息已脱敏
+
+#### Scenario: 大 comparison payload 使用 evidence ref
+- **WHEN** per-case failure diff 超过 inline 阈值
+- **THEN** 公共 comparison 只返回聚合、截断摘要和 artifact/evidence ref，完整 payload 不进入 API DTO 或 provider payload
+
+### Requirement: Experiment 与 comparison 严格 tenant 隔离
+experiment service SHALL 只读取请求 tenant 可见的 split、cases、runs、comparison 和 evidence；agent/dataset/split 归属不匹配 MUST fail closed。不存在与跨 tenant 资源 MUST 使用相同不可见语义，避免泄漏资源标识和计数。
+
+#### Scenario: 跨 tenant experiment 不可读取
+- **WHEN** tenant A 读取或比较 tenant B 的 experiment id
+- **THEN** 系统返回资源不可见错误，且不暴露 tenant B 的 harness version、score、case count 或 evidence refs

@@ -80,4 +80,4 @@ Phase 12.5 的控制文档是：
 - `API-Contract.md` EVL-004
 - `DEV-PLAN.md` Phase 12.5
 
-本阶段的 OpenSpec work 应使用聚焦 change，例如 `eval-experiment-hillclimb-loop`。不要把 Phase 13 API/worker split 或 Phase 15 release automation 塞进同一个 change。
+本阶段按 `openspec/changes/phase-12-5-change-matrix.md` 拆为三个聚焦 change：`eval-dataset-split-foundation` -> `eval-harness-experiment-comparison` -> `eval-experiment-api-acceptance`。三个 change 共享 schema、接口和验收，必须各自严格校验/审查并完成联合审查后按 DAG 实现；不要混入 Phase 13 API/worker split 或 Phase 15 release automation。

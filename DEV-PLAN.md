@@ -11,7 +11,7 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-12 changes 已归档并同步为主规格，`openspec list --json` 当前无 active change。Phase 9-12 的归档由提交 `45d87bf` 完成。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-12 changes 已归档并同步为主规格，Phase 12.5 当前有 `eval-dataset-split-foundation`、`eval-harness-experiment-comparison`、`eval-experiment-api-acceptance` 三个 active changes。Phase 9-12 的归档由提交 `45d87bf` 完成。
 - 代码状态: Phase 1-12 已完成实现、本地验证、fresh code-reviewer Stage 1/2 审查、本地提交和 OpenSpec 归档。Phase 12 的模板、四示例、approval continuation 与 scaffold 分别由 `b77a028`、`698e2d4`、`ae4bba3` 交付，审查备注由 `72e3fdf` 收口。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
@@ -19,20 +19,20 @@
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1-12 已完成；Phase 12.5、Phase 13-15 未开始。 |
-| 当前 Phase | Phase 12.5 待启动 | Phase 12 已提供四个可运行示例 Agent 及 eval/trace evidence，满足 Phase 12.5 的进入条件；下一步是按 OpenSpec-first 建立 eval experiment / harness comparison 增量契约。 |
+| 总体状态 | 进行中 | Phase 1-12 已完成；Phase 12.5 已进入 OpenSpec-first 契约与实现阶段，Phase 13-15 未开始。 |
+| 当前 Phase | Phase 12.5 契约门禁 | Phase 12 已满足进入条件；三个关联 change 已创建并完成 artifacts，最终联合契约审查 PASS 后按依赖 DAG 进入实现。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12 | Phase 12 本地提交为 `b77a028`、`698e2d4`、`ae4bba3`、`72e3fdf`，归档提交为 `45d87bf`。 |
-| 当前 OpenSpec change | 无 | Phase 9-12 changes 已于 2026-07-10 归档并同步主规格；`openspec list --json` 返回空列表。 |
+| 当前 OpenSpec change | 3 个 Phase 12.5 active changes | `eval-dataset-split-foundation` -> `eval-harness-experiment-comparison` -> `eval-experiment-api-acceptance`；关系矩阵见 `openspec/changes/phase-12-5-change-matrix.md`。 |
 | 当前验证基线 | Phase 12 收口验证通过 | 全量 `210 passed / 2 conditional skipped`，真实 PostgreSQL 两项 `2 passed`；quality、local/service/copy smoke、四示例 eval、build、license、pre-commit 均通过。归档后的主规格严格校验以当前 `openspec validate --all --strict` 结果为准。 |
-| 当前阻塞项 | 无 | Phase 12 没有遗留阻塞项；Phase 12.5 尚未创建 OpenSpec change，属于下一阶段工作而非阻塞。 |
-| 当前建议下一步 | 启动 Phase 12.5 | 创建或选定聚焦的 eval experiment / harness comparison change，完成严格校验和变更契约审查后再实现；不得混入 Phase 13 的 API/worker split。 |
+| 当前阻塞项 | 无外部阻塞 | 实现前置条件是三个 change 分别严格校验/独立审查 PASS，并完成多变更联合 Stage 1/2 PASS；门禁未过不得编码。 |
+| 当前建议下一步 | 完成契约门禁后按 DAG 实现 | 先交付 tagged dataset split 与 `0009` persistence，再交付 experiment/comparison，最后交付 EVL-004 API/CLI 与人工 acceptance；不得混入 Phase 13。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 为 Phase 12.5 创建或选定聚焦 OpenSpec change，把四个示例 Agent 的真实行为分布接入 eval tags、optimization / holdout split、baseline/compare 和人工 acceptance gate。
-- 在 Phase 12.5 变更契约严格校验和 code-reviewer 审查 PASS 前不进入实现；与 Product Spec、API Contract 或本计划冲突时先请用户决定。
+- 对三个 Phase 12.5 change 完成严格校验、独立 code-reviewer 审查和多变更联合 Stage 1/2 PASS；任何契约修订都重置相应审查。
+- 门禁通过后按 `eval-dataset-split-foundation` -> `eval-harness-experiment-comparison` -> `eval-experiment-api-acceptance` 顺序实现和验证。
 - Phase 12.5 完成前不要跳到 Phase 13 的 service split，也不要把 Phase 15 release automation 混入同一个 change。
 
 ### 后续 Phase
@@ -573,7 +573,8 @@ Phase 1 Monorepo / quality spine
 - `API-Contract.md` - `EVL-004` experiment、comparison 和 accept endpoint 契约。
 - `packages/agent-harness/src/agent_harness/evals/datasets.py` - behavior tags、dataset split 和 regression subset model。
 - `packages/agent-harness/src/agent_harness/evals/experiments.py` - baseline/candidate experiment runner 和 comparison service。
-- `packages/agent-harness/src/agent_harness/evals/harness_versions.py` - harness version metadata、diff summary 和 accepted record。
+- `packages/agent-harness/src/agent_harness/evals/harness_versions.py` - harness version metadata、checksum 和 diff summary。
+- `packages/agent-harness/src/agent_harness/evals/acceptance.py` - 人工 review decision、policy/audit 绑定与 accepted production binding。
 - `packages/agent-harness/src/agent_harness/storage/migrations/versions/0009_eval_experiment_loop.py` - experiment、split、accepted harness schema；`0008` 已分配给 Phase 12 approval/tool execution claim。
 - `templates/service-app/app/api/routes/evals.py` - `EVL-004` API routes。
 - `packages/agent-harness/src/agent_harness/cli.py` - `agent-harness eval experiment ...` CLI。
