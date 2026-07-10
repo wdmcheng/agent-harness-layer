@@ -29,6 +29,11 @@ def _split_create() -> EvalDatasetSplitCreate:
         optimization_ratio=0.8,
         holdout_ratio=0.2,
         regression_policy={"case_ids": ["case-r"]},
+        case_tags={
+            "case-o": ["retrieval_quality"],
+            "case-h": ["retrieval_quality"],
+            "case-r": ["policy_approval"],
+        },
         optimization_case_ids=["case-o"],
         holdout_case_ids=["case-h"],
         regression_case_ids=["case-r"],
@@ -359,13 +364,14 @@ def test_0009_downgrade_is_empty_only_and_preserves_nonempty_evidence(
             insert into eval_dataset_splits (
                 id, tenant_id, agent_id, dataset, request_id, tags_json, strategy,
                 optimization_ratio, holdout_ratio, regression_policy_json,
+                case_tags_json,
                 optimization_case_ids_json, holdout_case_ids_json,
                 regression_case_ids_json, optimization_case_count, holdout_case_count,
                 regression_case_count, tag_distribution_json, rejected_counts_json,
                 evidence_refs_json
             ) values (
                 'split-1', 'tenant-a', 'examples.basic', 'default', 'request-1', '[]',
-                'deterministic_multilabel_v1', 0.8, 0.2, '{}', '[]', '[]', '[]',
+                'deterministic_multilabel_v1', 0.8, 0.2, '{}', '{}', '[]', '[]', '[]',
                 0, 0, 0, '{}', '{}', '[]'
             )
             """

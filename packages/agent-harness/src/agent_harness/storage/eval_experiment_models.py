@@ -38,6 +38,9 @@ class EvalDatasetSplitModel(TimestampMixin, Base):
     regression_policy_json: Mapped[dict[str, Any]] = mapped_column(
         JSON, nullable=False, default=dict
     )
+    case_tags_json: Mapped[dict[str, list[str]]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
     optimization_case_ids_json: Mapped[list[str]] = mapped_column(
         JSON, nullable=False, default=list
     )

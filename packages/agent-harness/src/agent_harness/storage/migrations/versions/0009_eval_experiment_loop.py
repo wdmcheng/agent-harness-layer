@@ -40,6 +40,7 @@ def upgrade() -> None:
         sa.Column("optimization_ratio", sa.Float(), nullable=False),
         sa.Column("holdout_ratio", sa.Float(), nullable=False),
         sa.Column("regression_policy_json", sa.JSON(), nullable=False),
+        sa.Column("case_tags_json", sa.JSON(), nullable=False),
         sa.Column("optimization_case_ids_json", sa.JSON(), nullable=False),
         sa.Column("holdout_case_ids_json", sa.JSON(), nullable=False),
         sa.Column("regression_case_ids_json", sa.JSON(), nullable=False),

@@ -173,6 +173,10 @@ async def eval_experiment_probe(dsn: str) -> str:
                     strategy="deterministic_multilabel_v1",
                     optimization_ratio=0.8,
                     holdout_ratio=0.2,
+                    case_tags={
+                        f"case-opt-{suffix}": ["tool_selection"],
+                        f"case-holdout-{suffix}": ["tool_selection"],
+                    },
                     optimization_case_ids=[f"case-opt-{suffix}"],
                     holdout_case_ids=[f"case-holdout-{suffix}"],
                     regression_case_ids=[],

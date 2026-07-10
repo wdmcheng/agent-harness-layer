@@ -51,6 +51,7 @@ class EvalDatasetSplitCreate(HarnessDTO):
     optimization_ratio: float
     holdout_ratio: float
     regression_policy: dict[str, Any] = Field(default_factory=dict)
+    case_tags: dict[str, list[str]] = Field(default_factory=dict)
     optimization_case_ids: list[str]
     holdout_case_ids: list[str]
     regression_case_ids: list[str]
@@ -150,6 +151,7 @@ def _split_record(model: EvalDatasetSplitModel) -> EvalDatasetSplitRecord:
         optimization_ratio=model.optimization_ratio,
         holdout_ratio=model.holdout_ratio,
         regression_policy=model.regression_policy_json,
+        case_tags=model.case_tags_json,
         optimization_case_ids=model.optimization_case_ids_json,
         holdout_case_ids=model.holdout_case_ids_json,
         regression_case_ids=model.regression_case_ids_json,
@@ -236,6 +238,7 @@ class EvalDatasetSplitRepository:
             optimization_ratio=data.optimization_ratio,
             holdout_ratio=data.holdout_ratio,
             regression_policy_json=data.regression_policy,
+            case_tags_json=data.case_tags,
             optimization_case_ids_json=data.optimization_case_ids,
             holdout_case_ids_json=data.holdout_case_ids,
             regression_case_ids_json=data.regression_case_ids,
@@ -419,6 +422,7 @@ def _split_matches(model: EvalDatasetSplitModel, data: EvalDatasetSplitCreate) -
         and model.optimization_ratio == data.optimization_ratio
         and model.holdout_ratio == data.holdout_ratio
         and model.regression_policy_json == data.regression_policy
+        and model.case_tags_json == data.case_tags
         and model.optimization_case_ids_json == data.optimization_case_ids
         and model.holdout_case_ids_json == data.holdout_case_ids
         and model.regression_case_ids_json == data.regression_case_ids
