@@ -14,18 +14,18 @@ from agent_harness.approvals import ApprovalService
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
 from agent_harness.cli_access import register_access_commands
+from agent_harness.cli_eval import approve_eval_case, draft_eval_case
 from agent_harness.cli_shared import event_path, load_settings_or_exit, policy_engine
 from agent_harness.evals import (
-    EvalCaseFactory,
     EvalRunner,
-    EvalService,
-    EvalTraceSource,
     ScoreSink,
 )
 from agent_harness.events import EventBus, LocalJsonlEventSink
 from agent_harness.policy import InputGuardrail, PolicyCheck, PolicyDeniedError
 from agent_harness.registry import AgentRegistry, RegistryLoadError
 from agent_harness.runtime import RunOrchestrator
+from agent_harness.runtime.services import build_agent_execution_services
+from agent_harness.scaffold import ScaffoldError, scaffold_agent_package
 from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
 from agent_harness.storage.diagnostics import (
     eval_directory_status,
@@ -43,15 +43,33 @@ app = typer.Typer(no_args_is_help=True)
 agents_app = typer.Typer(no_args_is_help=True)
 tools_app = typer.Typer(no_args_is_help=True)
 eval_app = typer.Typer(no_args_is_help=True)
+scaffold_app = typer.Typer(no_args_is_help=True)
 app.add_typer(agents_app, name="agents")
 app.add_typer(tools_app, name="tools")
 app.add_typer(eval_app, name="eval")
+app.add_typer(scaffold_app, name="scaffold")
 register_access_commands(app)
 
 
 @app.callback()
 def cli_root() -> None:
     """开发者和维护者共用的本地命令集合。"""
+
+
+@scaffold_app.command("agent")
+def scaffold_agent(
+    agent_id: str,
+    agents_dir: Annotated[Path | None, typer.Option("--agents-dir")] = None,
+) -> None:
+    """原子生成一个离线、安全、可由当前 registry 加载的 Agent package。"""
+
+    try:
+        result = scaffold_agent_package(agent_id, agents_dir=agents_dir)
+    except ScaffoldError as exc:
+        hint = f" hint={exc.hint}" if exc.hint else ""
+        typer.echo(f"{exc.code}: {exc.message}{hint}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"created: {result.relative_path}")
 
 
 @app.command()
@@ -106,13 +124,14 @@ def run(
     idempotency_key: Annotated[str | None, typer.Option("--idempotency-key")] = None,
     prompt: Annotated[str | None, typer.Option("--prompt")] = None,
 ) -> None:
-    """运行内置 fake agent，验证 runtime、storage 和 event seam。"""
+    """通过 registry executor 运行 Agent，并保留 runtime、storage 与 event evidence。"""
 
     settings = load_settings_or_exit(profile, profiles_dir)
 
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
     try:
-        AgentRegistry.load_from_directory(agents_dir).get(agent_id)
+        registry = AgentRegistry.load_from_directory(agents_dir)
+        registry.get(agent_id)
     except RegistryLoadError as exc:
         for error in exc.error_details:
             field = f" field={error.field_path}" if error.field_path else ""
@@ -122,13 +141,35 @@ def run(
 
     run_migrations(resolved_dsn)
     resolved_events_path = event_path(settings, events_path)
-    artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
+    service_root = agents_dir.resolve().parent
+    configured_artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
+    artifact_root = (
+        Path(events_path).resolve().parent / "artifacts"
+        if events_path is not None
+        else (
+            configured_artifact_root
+            if configured_artifact_root.is_absolute()
+            else service_root / configured_artifact_root
+        )
+    )
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
     audit = AuditService(storage=storage)
     policy = policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
+    event_sink = LocalJsonlEventSink(resolved_events_path)
+    artifact_store = FileArtifactStore(artifact_root)
     event_bus = EventBus(
-        sink=LocalJsonlEventSink(resolved_events_path),
-        artifact_store=FileArtifactStore(artifact_root),
+        sink=event_sink,
+        artifact_store=artifact_store,
+    )
+    executor_services = build_agent_execution_services(
+        settings=settings,
+        storage=storage,
+        storage_dsn=resolved_dsn,
+        policy=policy,
+        audit=audit,
+        event_sink=event_sink,
+        artifact_store=artifact_store,
+        service_root=service_root,
     )
     orchestrator = RunOrchestrator(
         storage=storage,
@@ -136,6 +177,8 @@ def run(
         # payload_ref”的事件规则。
         event_bus=event_bus,
         identity=settings.identity.default,
+        executor_resolver=registry.resolve_executor,
+        executor_services=executor_services,
     )
     approval_service = ApprovalService(
         storage=storage,
@@ -338,43 +381,6 @@ def call_tool(
         raise typer.Exit(1)
 
 
-def _eval_service_from_cli(
-    *,
-    profile: str,
-    profiles_dir: Path | None,
-    storage_dsn: str | None,
-    dataset_dir: Path,
-    scores_path: Path,
-) -> tuple[Any, SQLAlchemyStorage, EvalService]:
-    settings = load_settings_or_exit(profile, profiles_dir)
-    resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
-    run_migrations(resolved_dsn)
-    storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
-    service = EvalService(
-        storage=storage,
-        factory=EvalCaseFactory(),
-        score_sink=ScoreSink(local_path=scores_path),
-        drafts_dir=dataset_dir / "drafts",
-        approved_dir=dataset_dir / "approved",
-    )
-    return settings, storage, service
-
-
-def _parse_eval_scores(score_items: list[str] | None) -> dict[str, float]:
-    scores: dict[str, float] = {}
-    for item in score_items or []:
-        metric, separator, value = item.partition("=")
-        if not metric or separator != "=":
-            typer.echo(f"eval.invalid_score: {item}", err=True)
-            raise typer.Exit(2)
-        try:
-            scores[metric] = float(value)
-        except ValueError as exc:
-            typer.echo(f"eval.invalid_score: {item}", err=True)
-            raise typer.Exit(2) from exc
-    return scores
-
-
 @eval_app.command("draft")
 def eval_draft(
     agent_id: str,
@@ -398,36 +404,22 @@ def eval_draft(
 ) -> None:
     """从 CLI 输入生成 repository-backed draft eval case，不写 approved dataset。"""
 
-    settings, storage, service = _eval_service_from_cli(
+    record = draft_eval_case(
+        agent_id=agent_id,
+        dataset_dir=dataset_dir,
         profile=profile,
         profiles_dir=profiles_dir,
         storage_dsn=storage_dsn,
-        dataset_dir=dataset_dir,
         scores_path=scores_path,
+        run_id=run_id,
+        trace_id=trace_id,
+        trigger=trigger,
+        prompt=prompt,
+        output=output,
+        expected=expected,
+        score=score,
+        score_threshold=score_threshold,
     )
-
-    async def _draft() -> Any:
-        try:
-            return await service.draft_from_trace(
-                EvalTraceSource(
-                    tenant_id=settings.identity.default.tenant_id,
-                    agent_id=agent_id,
-                    run_id=run_id,
-                    trace_id=trace_id,
-                    trigger=trigger,
-                    input={"prompt": prompt},
-                    output=None if output is None else {"answer": output},
-                    expected=None if expected is None else {"answer": expected},
-                    scores=_parse_eval_scores(score),
-                    source_refs=[],
-                    artifact_refs=[],
-                ),
-                score_threshold=score_threshold,
-            )
-        finally:
-            await storage.dispose()
-
-    record = asyncio.run(_draft())
     typer.echo(f"case_id: {record.case_id}")
     typer.echo("status: draft")
 
@@ -450,28 +442,17 @@ def eval_approve(
 ) -> None:
     """把 draft case 人工确认到 approved dataset，并写 repository/audit。"""
 
-    settings, storage, service = _eval_service_from_cli(
+    record = approve_eval_case(
+        case_id=case_id,
+        dataset_dir=dataset_dir,
         profile=profile,
         profiles_dir=profiles_dir,
         storage_dsn=storage_dsn,
-        dataset_dir=dataset_dir,
         scores_path=scores_path,
+        reviewer=reviewer,
+        reason=reason,
+        dataset=dataset,
     )
-    actor = settings.identity.default.model_copy(update={"user_id": reviewer})
-
-    async def _approve() -> Any:
-        try:
-            return await service.approve_case(
-                actor=actor,
-                case_id=case_id,
-                reason=reason,
-                dataset=dataset,
-            )
-        finally:
-            await storage.dispose()
-
-    result = asyncio.run(_approve())
-    record = result.case
     typer.echo(f"case_id: {record.case_id}")
     typer.echo("status: approved")
 

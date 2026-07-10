@@ -7,31 +7,32 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，版本为 2026-07-05 的 v1.0。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-10 的 v1.2。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1 的 `bootstrap-workspace-packaging`、Phase 2 的 `core-config-identity-contracts`、Phase 3 的 `storage-migration-uow`、Phase 4 的 `canonical-events-artifacts`、Phase 5 的 `runtime-checkpoint-runs`、Phase 6 的 `agent-registry-model-context`、Phase 7 的 `auth-policy-hitl-approvals`、Phase 8 的 `tool-execution-boundaries` 均已归档，并同步为主规格；Phase 9 的 `retrieval-rag-foundation`、Phase 10 的 `observability-provider-adapters` 和 Phase 11 的 `eval-gate-trace-loop` 当前为 active changes，均停在 ready-to-archive，不自动归档。
-- 代码状态: Phase 1-11 已完成实现和本地验证；Phase 11 已新增 EvalCaseFactory、draft/approved review queue、EvalRunner、ScoreSink、eval API/CLI、`make eval` 和 `0007_eval_gate_trace_loop` migration。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-8 changes 已归档并同步为主规格。Phase 9 的 `retrieval-rag-foundation`、Phase 10 的 `observability-provider-adapters` 和 Phase 11 的 `eval-gate-trace-loop` 仍为 active ready-to-archive changes；Phase 12 三个 active changes 的实现、验证和组合验收 tasks 已完成，冻结快照等待新的联合实现审查，不自动归档。
+- 代码状态: Phase 1-11 已完成实现和本地验证。Phase 12 上轮 fresh 联合实现审查 Stage 1 FAIL 的 HIGH/MEDIUM findings 已修复：raw `claimed` lease 具备超时接管与 fencing，非 identifier custom root module cache 已隔离；完整组合门禁重新通过，当前冻结快照等待 fresh Stage 1/2 联合实现审查。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1-11 已实现并通过本地验证；Phase 12、Phase 12.5、Phase 13-15 仍待实现。 |
-| 当前 Phase | Phase 11 完成实现与验证 | `eval-gate-trace-loop` 已完成 OpenSpec artifact review、合同测试、质量门禁、local/service smoke、`make eval`、build、license 和 pre-commit 验证；提交前 fresh code-reviewer gate 以本轮最终证据为准。 |
+| 总体状态 | 进行中 | Phase 1-11 已实现并通过本地验证；Phase 12 已完成 finding 修复和内部组合验证，等待 fresh 联合实现审查；Phase 12.5、Phase 13-15 未开始。 |
+| 当前 Phase | Phase 12 联合实现审查门禁 | 多变更联合契约审查已 PASS；上轮实现审查的 HIGH/MEDIUM findings 已修复并重跑完整组合门禁，当前只等待 fresh Stage 1/2 review。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-11 已完成本地收口流程。 |
-| 当前 OpenSpec change | `retrieval-rag-foundation` ready-to-archive；`observability-provider-adapters` ready-to-archive；`eval-gate-trace-loop` ready-to-archive | 三个 active changes 均已通过 strict validate 和本地验证；除非用户明确要求，不自动执行 `openspec archive`。 |
-| 当前验证基线 | 全量通过 | 本轮已通过 Phase 11 targeted tests（13 passed）、targeted regression tests（30 passed, 1 skipped）、`uv run pytest` / `make test`（120 passed, 1 skipped）、`make quality`、`uv run openspec validate eval-gate-trace-loop --type change --strict`、`uv run openspec validate --all --strict`（16 passed）、`uv run python scripts/smoke_local.py`、`make smoke-service`（PostgreSQL/Redis，`migration=0007_eval_gate_trace_loop`，retrieval result 带 citation/trust，PGroonga/pgvector 缺失按 optional 降级）、`make eval`（无 approved case 时返回 `no_approved_cases`）、`make build`、`make license-check`、`uv run pre-commit run --all-files`。 |
-| 当前阻塞项 | 无 | Phase 11 已完成实现与验证；active OpenSpec changes 停在 ready-to-archive。 |
-| 当前建议下一步 | 归档或进入 Phase 12 | 用户明确确认后可分别执行 `openspec archive retrieval-rag-foundation`、`openspec archive observability-provider-adapters` 和 / 或 `openspec archive eval-gate-trace-loop`；否则下一轮进入 Phase 12 Service App 模板与四个 P0 示例 Agent。Phase 12 完成后先进入 Phase 12.5 trace/eval 实验闭环，再推进 Phase 13-15。 |
+| 当前 OpenSpec change | Phase 12：`service-app-template-surface`（11/11）、`p0-example-agent-flows`（26/26）、`agent-scaffold-cli`（16/16）；依赖 changes：retrieval/observability/eval ready-to-archive | 三个 change tasks 全部完成；冻结待审，不自动 archive。 |
+| 当前验证基线 | 冻结候审快照通过 | 全量 `208 passed / 2 conditional skipped`，真实 PostgreSQL 两项 `2 passed`；quality、local/service/copy smoke、四示例 eval、build、license、pre-commit、三个 change strict validate 与全量 `19/19` 均通过。 |
+| 当前阻塞项 | fresh code-reviewer Stage 1/2 | 未取得本次冻结快照的 Stage 1/2 PASS 前不得写 `clean`、提交或宣称 Phase 12 完成。 |
+| 当前建议下一步 | 派 fresh code-reviewer | 从 Stage 1 开始联合审查三个 change、上游真相源、完整实现与历史 findings；PASS 后只写 clean、按 change 分离本地提交并停在 ready-to-archive。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 可选收口：用户明确确认后归档 `retrieval-rag-foundation`、`observability-provider-adapters` 和 / 或 `eval-gate-trace-loop`；否则下一轮进入 Phase 12 Service App 模板与四个 P0 示例 Agent。
+- 派 fresh code-reviewer 对冻结快照从 Stage 1/2 重新做联合实现审查，并显式复核全部历史 findings。
+- 审查 PASS 后只设置 clean-state、创建按 change 分离的本地提交并停在 ready-to-archive；不自动 archive、push或部署。
 - 顺序门禁：Phase 12 完成后不要直接进入 service split / release 收口，先执行 Phase 12.5，把四个示例 agent 产生的真实行为分布接入 eval tags、optimization / holdout split、baseline/compare 和人工 acceptance gate。
 
 ### 后续 Phase
@@ -44,7 +45,7 @@
 
 ### 尚未完成的关键验收
 
-- service app 示例、Better-Harness 式 eval experiment 闭环、service profile 分进程边界、深度文档和 release automation 尚未实现。
+- Better-Harness 式 eval experiment 闭环、service profile 分进程边界、深度文档和 release automation 尚未实现；它们分别属于 Phase 12.5、Phase 13-15，不混入 Phase 12。
 - GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
 - 深度文档、ADR、未来微服务拆分边界文档尚未完成。
 
@@ -61,7 +62,7 @@
 | Agent capability library | pydantic-ai-harness | 不作为 P0 必选依赖；按能力块引入时重新核验并锁版本 | 官方 capability library，用于 CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等可选能力；进入实现前必须走受控 integration boundary。 |
 | 数据校验 | Pydantic | `2.13.4` | 配置、DTO、API schema、CanonicalEvent 和 adapter contract 的统一 schema 基础。 |
 | HTTP API | FastAPI | `0.139.0` | 实现 `/api/v1/...`、OpenAPI、Swagger、Redoc 和 SSE endpoint。 |
-| ASGI Server | Uvicorn | `0.50.0` | service app 本地 API 入口；开发态使用 `uvicorn[standard]`，CI 可用基础安装。 |
+| ASGI Server | Uvicorn | `0.50.2` | service app 本地 API 入口；开发态使用 `uvicorn[standard]`，CI 可用基础安装。 |
 | CLI | Typer | `0.26.8` | 实现 `agent-harness doctor/run/eval/policy/scaffold/approvals`。 |
 | Durable execution | DBOS | `2.26.0` | service profile 默认 adapter；local profile 保留 SQLite-backed checkpoint。 |
 | ORM | SQLAlchemy | `2.0.51` | 采用 2.0 typed declarative、async session、Repository + Unit of Work。 |
@@ -485,6 +486,11 @@ Phase 1 Monorepo / quality spine
 
 ## Phase 12: Service App 模板与四个 P0 示例 Agent
 
+**Change 关系与当前门禁**：
+- 实施顺序固定为 `service-app-template-surface` → `p0-example-agent-flows` → `agent-scaffold-cli`；三者共享 API/CLI composition、模板文档和最终验收，不能独立开工。
+- 最新多变更联合契约审查 Stage 1/2 均 PASS（HIGH=0、MEDIUM=0、LOW=1）；LOW 仅为既有 runtime 主规格 Purpose 占位文本，不改变本轮行为契约，留作独立主规格卫生补丁。
+- 恢复实现前必须按下方规格到代码影响矩阵逐项审计 provisional diff；未满足最终 requirement/task 的代码必须修改或删除，不能因为已经存在而保留。
+
 **交付内容**：
 - 完成 `templates/service-app` 的 FastAPI、CLI、worker、configs、tests、docs、docker-compose 和 README。
 - 实现四个薄样例 agent：RAG assistant、ticket triage、repo analyst、dev assistant，分别验证 retrieval、结构化输出、file tool、shell/HITL。
@@ -492,13 +498,19 @@ Phase 1 Monorepo / quality spine
 
 **关键文件**：
 - `templates/service-app/app/main.py` - FastAPI app。
-- `templates/service-app/app/api/router.py` - `/api/v1` router。
+- `templates/service-app/app/api/routes/*.py` - 由唯一 `create_app` factory 注册的 `/api/v1` health、agents、runs、policies、approvals 和 eval routes；不新建第二套总 router。
 - `templates/service-app/app/api/routes/health.py` - health route。
 - `templates/service-app/app/api/routes/agents.py` - agents routes。
 - `templates/service-app/app/api/routes/runs.py` - run routes。
 - `templates/service-app/app/api/routes/policies.py` - policy check route。
+- `templates/service-app/app/api/routes/approvals.py` - approval list/read/resolve routes。
+- `templates/service-app/app/api/routes/evals.py` - eval routes。
 - `templates/service-app/app/cli/main.py` - Typer root CLI。
 - `templates/service-app/app/workers/runtime_worker.py` - worker entry。
+- `packages/agent-harness/src/agent_harness/runtime/executor.py` - provider-neutral `AgentExecutor`、typed result 和 `ApprovalGrant` seam。
+- `packages/agent-harness/src/agent_harness/storage/migrations/versions/0008_agent_execution_approval_claims.py` - approval private resolution 与 tool execution claim migration。
+- `packages/agent-harness/src/agent_harness/scaffold.py` - 安全、原子、可验证的 agent scaffold 实现。
+- `packages/agent-harness/src/agent_harness/cli.py` - run composition、approval/eval/policy 既有入口和新增 scaffold group。
 - `templates/service-app/agents/examples/rag_assistant/agent.py` - RAG assistant 示例。
 - `templates/service-app/agents/examples/ticket_triage/agent.py` - ticket triage 示例。
 - `templates/service-app/agents/examples/repo_analyst/agent.py` - repo analyst 示例。
@@ -510,7 +522,33 @@ Phase 1 Monorepo / quality spine
 - local profile 下 `make dev` 或 `agent-harness run <agent_id>` 至少一种入口可运行示例 agent。
 - OpenAPI schema 包含 Spec 列出的 P0 endpoints。
 - OpenAPI schema 与 `API-Contract.md` 中所有 P0 endpoint、schema、错误 envelope 和 request_id 规则完成全量漂移复扫。
+- 普通 checkpoint 可通过公开 `RUN-005` 恢复；approval-gated checkpoint 直接提交原始 resume token 必须返回 `409 run.invalid_transition`、不消费 token且 tool handler 计数为零，待批动作只能经 `APR-002` 私有 lease → `ApprovalGrant` → 内部 resume 执行。
+- Approval-gated run 进入 waiting 后必须能在进程重启、使用同一持久化 storage 重建 registry/executor resolver/orchestrator/approval service 的条件下，经 `APR-002` approve 恢复原 continuation；handler 恰好一次，结果真实持久化且 terminal event 唯一，公开 resume token 不参与执行。
+- `0008_agent_execution_approval_claims` 在 SQLite/PostgreSQL 上成为 latest migration，证明 approval 私有 resolution state、唯一 tool execution claim 与 service smoke；Phase 12.5 从 `0009` 开始，不复用 revision。
+- 生产回滚保留 `0008` schema，只在停止新 resolve、清理所有未完成私有状态后回滚 application code，并证明上一版本 repository/UoW 兼容额外 nullable 列；Alembic downgrade 仅允许相关 resolution/claim 数据全空的 disposable 环境，非空时必须拒绝。
+- 应用回滚 executor runtime 前必须 inventory 所有受管 `agents_dir`；存在仍依赖新 executor seam 的手工或 scaffold 生成 agent 时，preflight 列出 `agent_id` 并 fail-closed，必须保留 compatibility seam 或由操作者显式迁移/带审计隔离，禁止自动删除、改写和固定 fake fallback。
 - 四个示例 fake model eval 均能确定性通过，且示例不直接 import 厂商 SDK。
+
+**当前状态**：
+- 三个 OpenSpec change 的 planning artifacts、各自严格校验、全量严格校验和多变更联合契约审查均已通过；实现、验证和组合验收 tasks 全部完成并冻结。
+- 既有 approval 错误码、rollback fail-closed、context evidence、代码体量和 evidence pending 补偿均已修复；raw claimed owner 硬退出后的超时接管/fencing 与非 identifier custom root cache 隔离已新增跨公开 route、SQLite/PostgreSQL 和双 root 回归合同，组合门禁通过但仍未写 `clean`，等待 fresh Stage 1/2 review。
+
+**冻结验证证据**：
+- `uv run pytest -ra`：`208 passed / 2 skipped`；两个 skipped 均要求 `AGENT_HARNESS_TEST_POSTGRES_DSN`。
+- 注入真实 PostgreSQL DSN 后，repository service adapter 与 approval arbitration/lease fencing/unique claim 两项合同 `2 passed`。
+- `make quality`、`make smoke-local`、`make smoke-service`、workspace 外 `smoke_template_copy.py --service`、`make eval`、`make build`、`make license-check`、`pre-commit --all-files` 全部通过；四示例 eval 为 11/11 approved cases通过、1 个 draft按设计跳过。
+- 三个 change 各自 `openspec validate <change> --type change --strict` 通过，`openspec validate --all --strict` 为 `19 passed / 0 failed`。
+- 待派发审查：使用全新 `code-reviewer` 实例，从 Stage 1 开始读取三个 change、`Product-Spec.md`、`DEV-PLAN.md`、`API-Contract.md` 和完整 diff，显式复核全部历史 findings；Stage 1 PASS 后继续 Stage 2，任一 finding 触发修复、全门禁重跑和再次 fresh review。
+
+**规格到代码影响矩阵**：
+
+| 契约面 | 主要代码 surface | 恢复实现前的审计与验证 | 当前动作 |
+|---|---|---|---|
+| Service App 表面 | `templates/service-app/app/main.py`、health/CLI、pyproject、Makefile、scripts、README | OpenAPI/422、copy-out wheel-only、health、service smoke | 实现与组合重验通过；待 fresh review |
+| Executor / Registry | `runtime/executor.py`、registry、orchestrator、CLI/API composition、全部 agent config | resolver 整体拒绝、真实 output、无 fake fallback、public descriptor 不泄漏 | finding 修复与组合重验通过；待 fresh review |
+| Approval / Tool / `0008` | approval service、repository/UoW、models、migration、ToolRegistry、`RUN-005`/`APR-002` | 并发仲裁、重启恢复、handler 0/1 次、确定性 failed、needs-review、SQLite/PostgreSQL、forward-only 与受限 downgrade | finding 修复与组合重验通过；待 fresh review |
+| 四示例与 Eval | 四个示例目录、EvalRunner adapter、ScoreSink/TelemetryFacade、docs | 四示例 run/eval、approved-only、citation/workspace/HITL、local-first provider degrade | 实现与组合重验通过；待 fresh review |
+| Scaffold 与组合回滚 | scaffold module、核心 CLI、root discovery、README/tests、compatibility preflight | 原子发布、symlink/path 拒绝、生成后真实 run/eval、手工/生成 agent inventory、fail-closed rollback | finding 修复与组合重验通过；待 fresh review |
 
 ---
 
@@ -533,7 +571,7 @@ Phase 1 Monorepo / quality spine
 - `packages/agent-harness/src/agent_harness/evals/datasets.py` - behavior tags、dataset split 和 regression subset model。
 - `packages/agent-harness/src/agent_harness/evals/experiments.py` - baseline/candidate experiment runner 和 comparison service。
 - `packages/agent-harness/src/agent_harness/evals/harness_versions.py` - harness version metadata、diff summary 和 accepted record。
-- `packages/agent-harness/src/agent_harness/storage/migrations/versions/0008_eval_experiment_loop.py` - experiment、split、accepted harness schema。
+- `packages/agent-harness/src/agent_harness/storage/migrations/versions/0009_eval_experiment_loop.py` - experiment、split、accepted harness schema；`0008` 已分配给 Phase 12 approval/tool execution claim。
 - `templates/service-app/app/api/routes/evals.py` - `EVL-004` API routes。
 - `packages/agent-harness/src/agent_harness/cli.py` - `agent-harness eval experiment ...` CLI。
 - `docs/eval-observability-loop.md` - trace -> eval -> experiment -> harness acceptance 操作指南。
@@ -646,12 +684,12 @@ Phase 1 Monorepo / quality spine
 | `embedding_cache` | Phase 6 | embedding 输入 hash、provider、vector ref、cache metadata。 |
 | `api_keys` | Phase 7 | API Key / Bearer Token 本地认证材料的 hash 和权限范围。 |
 | `policy_rules` | Phase 7 | YAML/DB policy provider 的规则落库。 |
-| `approvals` | Phase 7 | HITL approval required / approve / deny 记录。 |
+| `approvals` | Phase 7 / Phase 12 | HITL approval required / approve / deny 记录；Phase 12 增加不进入 public DTO/OpenAPI 的 private resolution lease/state。 |
 | `audit_logs` | Phase 7 | policy decision、approval、tool、eval dataset 写入审计。 |
 | `guardrail_checks` | Phase 7 | input/tool/retrieval guardrail 检查摘要、decision、source_ref 和 artifact_ref；Phase 4 先以 CanonicalEvent/local evidence 表达。 |
 | `context_assemblies` | Phase 6 | context input refs、token budget、trust summary、truncation summary 和 output_ref。 |
 | `workspaces` | Phase 8 | per-run 或 per-agent workspace 根路径和 policy 引用。 |
-| `tool_invocations` | Phase 8 | tool name、args_ref、result_ref、status、duration。 |
+| `tool_invocations` | Phase 8 / Phase 12 | tool name、args_ref、result_ref、status、duration；Phase 12 增加 nullable unique `approval_id`、arguments hash、execution state/result ref，作为 approved continuation 的持久化单次执行 claim。 |
 | `retrieval_documents` | Phase 9 | RAG 示例和 local/service retrieval 的文档 metadata。 |
 | `retrieval_chunks` | Phase 9 | chunk 文本 ref、BM25/vector metadata、citation ref。 |
 | `eval_cases` | Phase 11 | draft / approved eval case，关联 trace 和 agent。 |
@@ -667,23 +705,23 @@ Phase 1 Monorepo / quality spine
 | Product-Spec 条目 | 覆盖 Phase |
 |---|---|
 | REQ-001 Monorepo / uv workspace | Phase 1 |
-| REQ-002 核心包与上游隔离 | Phase 2, Phase 6, Phase 10 |
+| REQ-002 核心包与上游隔离 | Phase 2, Phase 6, Phase 10, Phase 12 |
 | REQ-003 后端服务型模板 | Phase 1, Phase 12 |
-| REQ-004 配置系统 | Phase 2 |
-| REQ-005 存储、迁移与事务边界 | Phase 3 |
-| REQ-006 Durable runtime、checkpoint、resume | Phase 5, Phase 13 |
+| REQ-004 配置系统 | Phase 2, Phase 12 |
+| REQ-005 存储、迁移与事务边界 | Phase 3, Phase 12 |
+| REQ-006 Durable runtime、checkpoint、resume | Phase 5, Phase 12, Phase 13 |
 | REQ-007 多 agent registry 与 delegation | Phase 6 |
 | REQ-008 API、CLI 与管理面 | Phase 5, Phase 7, Phase 11, Phase 12 |
 | REQ-009 租户、身份与认证 | Phase 2, Phase 7 |
-| REQ-010 PolicyEngine、权限拦截、InputGuardrail 与 HITL | Phase 2, Phase 4, Phase 7 |
-| REQ-011 工具系统、Shell、File、MCP | Phase 8 |
+| REQ-010 PolicyEngine、权限拦截、InputGuardrail 与 HITL | Phase 2, Phase 4, Phase 7, Phase 12 |
+| REQ-011 工具系统、Shell、File、MCP | Phase 8, Phase 12 |
 | REQ-012 模型、预算、上下文组装与 embedding | Phase 2, Phase 4, Phase 6 |
 | REQ-013 Retrieval 与 RAG | Phase 6, Phase 9, Phase 12 |
 | REQ-014 CanonicalEvent 与流式输出 | Phase 4, Phase 5 |
 | REQ-015 Observability 转换层 | Phase 4, Phase 10 |
 | REQ-016 Eval Gate 与 trace/eval 闭环 | Phase 10, Phase 11, Phase 12.5 |
 | REQ-017 示例 agent | Phase 12 |
-| REQ-018 README 与文档体系 | Phase 1, Phase 14 |
+| REQ-018 README 与文档体系 | Phase 1, Phase 12, Phase 14 |
 | REQ-019 TDD、测试与质量门禁 | Phase 1, all phases |
 | REQ-020 CI/CD 与 Release Automation | Phase 15 |
 | REQ-021 开源合规与许可证 | Phase 1, Phase 14, Phase 15 |
