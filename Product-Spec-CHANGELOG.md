@@ -1,5 +1,10 @@
 # 变更记录
 
+## [v1.3] - 2026-07-10
+### 状态同步
+- 根据 Phase 12 三个归档 change、最终测试/审查证据与提交历史，勾选已完成的模板运行、OpenAPI、approval/tool、context/retrieval、trace/eval、四示例、README 和 vendor boundary 验收项；未修改需求语义。
+- Phase 12.5 的 experiment/holdout/harness acceptance、Phase 13 的分进程，以及 Phase 14-15 的深度文档、CI 与 release 验收继续保持未完成。
+
 ## [v1.2] - 2026-07-10
 ### 调整
 - 同步 Phase 12 `AgentExecutor` 契约：手工新增 agent 与 scaffold 生成路径都必须在 `agent.py` 暴露公共 protocol 入口，并在 `config.yaml` 声明 package-local executor reference。

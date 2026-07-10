@@ -7,38 +7,38 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-10 的 v1.2。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-10 的 v1.3。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-8 changes 已归档并同步为主规格。Phase 9 的 `retrieval-rag-foundation`、Phase 10 的 `observability-provider-adapters` 和 Phase 11 的 `eval-gate-trace-loop` 仍为 active ready-to-archive changes；Phase 12 三个 active changes 的实现、验证和组合验收 tasks 已完成，冻结快照等待新的联合实现审查，不自动归档。
-- 代码状态: Phase 1-11 已完成实现和本地验证。Phase 12 上轮 fresh 联合实现审查 Stage 1 FAIL 的 HIGH/MEDIUM findings 已修复：raw `claimed` lease 具备超时接管与 fencing，非 identifier custom root module cache 已隔离；完整组合门禁重新通过，当前冻结快照等待 fresh Stage 1/2 联合实现审查。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-12 changes 已归档并同步为主规格，`openspec list --json` 当前无 active change。Phase 9-12 的归档由提交 `45d87bf` 完成。
+- 代码状态: Phase 1-12 已完成实现、本地验证、fresh code-reviewer Stage 1/2 审查、本地提交和 OpenSpec 归档。Phase 12 的模板、四示例、approval continuation 与 scaffold 分别由 `b77a028`、`698e2d4`、`ae4bba3` 交付，审查备注由 `72e3fdf` 收口。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1-11 已实现并通过本地验证；Phase 12 已完成 finding 修复和内部组合验证，等待 fresh 联合实现审查；Phase 12.5、Phase 13-15 未开始。 |
-| 当前 Phase | Phase 12 联合实现审查门禁 | 多变更联合契约审查已 PASS；上轮实现审查的 HIGH/MEDIUM findings 已修复并重跑完整组合门禁，当前只等待 fresh Stage 1/2 review。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11 | Phase 1 实现提交 `c08191b`，安装修复提交 `4ec5c40`，归档提交 `87cf84b`；Phase 2 实现提交 `07fa8da`。Phase 3-11 已完成本地收口流程。 |
-| 当前 OpenSpec change | Phase 12：`service-app-template-surface`（11/11）、`p0-example-agent-flows`（26/26）、`agent-scaffold-cli`（16/16）；依赖 changes：retrieval/observability/eval ready-to-archive | 三个 change tasks 全部完成；冻结待审，不自动 archive。 |
-| 当前验证基线 | 冻结候审快照通过 | 全量 `210 passed / 2 conditional skipped`，真实 PostgreSQL 两项 `2 passed`；quality、local/service/copy smoke、四示例 eval、build、license、pre-commit、三个 change strict validate 与全量 `19/19` 均通过。 |
-| 当前阻塞项 | fresh code-reviewer Stage 1/2 | 未取得本次冻结快照的 Stage 1/2 PASS 前不得写 `clean`、提交或宣称 Phase 12 完成。 |
-| 当前建议下一步 | 派 fresh code-reviewer | 从 Stage 1 开始联合审查三个 change、上游真相源、完整实现与历史 findings；PASS 后只写 clean、按 change 分离本地提交并停在 ready-to-archive。 |
+| 总体状态 | 进行中 | Phase 1-12 已完成；Phase 12.5、Phase 13-15 未开始。 |
+| 当前 Phase | Phase 12.5 待启动 | Phase 12 已提供四个可运行示例 Agent 及 eval/trace evidence，满足 Phase 12.5 的进入条件；下一步是按 OpenSpec-first 建立 eval experiment / harness comparison 增量契约。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12 | Phase 12 本地提交为 `b77a028`、`698e2d4`、`ae4bba3`、`72e3fdf`，归档提交为 `45d87bf`。 |
+| 当前 OpenSpec change | 无 | Phase 9-12 changes 已于 2026-07-10 归档并同步主规格；`openspec list --json` 返回空列表。 |
+| 当前验证基线 | Phase 12 收口验证通过 | 全量 `210 passed / 2 conditional skipped`，真实 PostgreSQL 两项 `2 passed`；quality、local/service/copy smoke、四示例 eval、build、license、pre-commit 均通过。归档后的主规格严格校验以当前 `openspec validate --all --strict` 结果为准。 |
+| 当前阻塞项 | 无 | Phase 12 没有遗留阻塞项；Phase 12.5 尚未创建 OpenSpec change，属于下一阶段工作而非阻塞。 |
+| 当前建议下一步 | 启动 Phase 12.5 | 创建或选定聚焦的 eval experiment / harness comparison change，完成严格校验和变更契约审查后再实现；不得混入 Phase 13 的 API/worker split。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 派 fresh code-reviewer 对冻结快照从 Stage 1/2 重新做联合实现审查，并显式复核全部历史 findings。
-- 审查 PASS 后只设置 clean-state、创建按 change 分离的本地提交并停在 ready-to-archive；不自动 archive、push或部署。
-- 顺序门禁：Phase 12 完成后不要直接进入 service split / release 收口，先执行 Phase 12.5，把四个示例 agent 产生的真实行为分布接入 eval tags、optimization / holdout split、baseline/compare 和人工 acceptance gate。
+- 为 Phase 12.5 创建或选定聚焦 OpenSpec change，把四个示例 Agent 的真实行为分布接入 eval tags、optimization / holdout split、baseline/compare 和人工 acceptance gate。
+- 在 Phase 12.5 变更契约严格校验和 code-reviewer 审查 PASS 前不进入实现；与 Product Spec、API Contract 或本计划冲突时先请用户决定。
+- Phase 12.5 完成前不要跳到 Phase 13 的 service split，也不要把 Phase 15 release automation 混入同一个 change。
 
 ### 后续 Phase
 
-- Phase 12: Service App 模板与四个 P0 示例 Agent。
-- Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环。
+- Phase 12: Service App 模板与四个 P0 示例 Agent，已完成并归档。
+- Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环，下一阶段。
 - Phase 13: Service Profile、API/Worker 分进程与未来拆分边界。
 - Phase 14: 深度文档、ADR 与维护者指南。
 - Phase 15: CI/CD、Release Automation 与合规收口。
@@ -420,6 +420,9 @@ Phase 1 Monorepo / quality spine
 - RAG 示例回答带 citation 或明确说明未找到出处。
 - 检索 chunk 注入上下文前保留 citation/source_ref/trust_level；prompt injection 文本只能作为引用内容，不能覆盖系统策略。
 
+**完成状态**：
+- `retrieval-rag-foundation` 已通过实现、验证与 fresh code-reviewer Stage 1/2，由 `3c18297` 提交，并随 `45d87bf` 归档及同步到主规格。
+
 ---
 
 ## Phase 10: Observability Provider Adapters 与脱敏
@@ -448,7 +451,7 @@ Phase 1 Monorepo / quality spine
 **完成状态**：
 - 已通过 `observability-provider-adapters` OpenSpec artifact review PASS、strict validate、Phase 10 targeted contract tests、全量质量/测试/smoke/build/license/pre-commit 验证和 fresh code-reviewer Stage 1/2 PASS。
 - 已新增 `agent-harness[observability]` optional extra，锁定 Logfire/Phoenix/Langfuse 当前版本；因 Logfire 4.37.0 约束 `opentelemetry-sdk<1.43.0`，OTel SDK/exporter 在该 extra 内锁为可解析的 1.42.1。
-- 不自动归档；`observability-provider-adapters` 停在 ready-to-archive。
+- `observability-provider-adapters` 已由提交 `45d87bf` 归档并同步到主规格。
 
 ---
 
@@ -479,17 +482,17 @@ Phase 1 Monorepo / quality spine
 - `API-Contract.md` 中 eval draft、approved dataset 和 eval run endpoint 已扩展为完整条目，局部 OpenAPI drift test 覆盖人工确认、secret 脱敏错误和 score sink 降级语义。
 
 **当前状态**：
-- `eval-gate-trace-loop` OpenSpec change 已完成实现与本地验证，停在 ready-to-archive；除非用户明确要求，不执行 `openspec archive`。
+- `eval-gate-trace-loop` 已完成实现、本地验证，并由提交 `45d87bf` 归档及同步到主规格。
 - `make eval` 已接入根 Makefile 和 service template；无 approved case 时返回 `no_approved_cases`，不会把 draft 纳入评分。
 
 ---
 
 ## Phase 12: Service App 模板与四个 P0 示例 Agent
 
-**Change 关系与当前门禁**：
+**Change 关系与完成状态**：
 - 实施顺序固定为 `service-app-template-surface` → `p0-example-agent-flows` → `agent-scaffold-cli`；三者共享 API/CLI composition、模板文档和最终验收，不能独立开工。
-- 最新多变更联合契约审查 Stage 1/2 均 PASS（HIGH=0、MEDIUM=0、LOW=1）；LOW 仅为既有 runtime 主规格 Purpose 占位文本，不改变本轮行为契约，留作独立主规格卫生补丁。
-- 恢复实现前必须按下方规格到代码影响矩阵逐项审计 provisional diff；未满足最终 requirement/task 的代码必须修改或删除，不能因为已经存在而保留。
+- 三个 change 的 tasks 分别为 `11/11`、`26/26`、`16/16`，实现与组合验收全部完成；最终 fresh code-reviewer Stage 1/2 PASS，审查备注也已在 `72e3fdf` 收口。
+- 三个 change 及 Phase 9-11 changes 已由 `45d87bf` 统一归档，主规格完成同步，当前无 active change。
 
 **交付内容**：
 - 完成 `templates/service-app` 的 FastAPI、CLI、worker、configs、tests、docs、docker-compose 和 README。
@@ -529,26 +532,26 @@ Phase 1 Monorepo / quality spine
 - 应用回滚 executor runtime 前必须 inventory 所有受管 `agents_dir`；存在仍依赖新 executor seam 的手工或 scaffold 生成 agent 时，preflight 列出 `agent_id` 并 fail-closed，必须保留 compatibility seam 或由操作者显式迁移/带审计隔离，禁止自动删除、改写和固定 fake fallback。
 - 四个示例 fake model eval 均能确定性通过，且示例不直接 import 厂商 SDK。
 
-**当前状态**：
-- 三个 OpenSpec change 的 planning artifacts、各自严格校验、全量严格校验和多变更联合契约审查均已通过；实现、验证和组合验收 tasks 全部完成并冻结。
-- 既有 approval 错误码、rollback fail-closed、context evidence、代码体量和 evidence pending 补偿均已修复；raw claimed owner 硬退出后的超时接管/fencing 与非 identifier custom root cache 隔离已新增跨公开 route、SQLite/PostgreSQL 和双 root 回归合同，组合门禁通过但仍未写 `clean`，等待 fresh Stage 1/2 review。
+**完成与归档状态**：
+- `b77a028` 交付 Service App 模板表面，`698e2d4` 交付四示例与 approval execution，`ae4bba3` 交付安全 scaffold，`72e3fdf` 关闭最终审查备注。
+- 实现、组合验证与最终 fresh code-reviewer Stage 1/2 均已通过；三个 change 随 `45d87bf` 归档并同步到长期主规格，Phase 12 已完成。
 
-**冻结验证证据**：
+**收口验证证据**：
 - `uv run pytest -ra`：`210 passed / 2 skipped`；两个 skipped 均要求 `AGENT_HARNESS_TEST_POSTGRES_DSN`。
 - 注入真实 PostgreSQL DSN 后，repository service adapter 与 approval arbitration/lease fencing/unique claim 两项合同 `2 passed`。
 - `make quality`、`make smoke-local`、`make smoke-service`、workspace 外 `smoke_template_copy.py --service`、`make eval`、`make build`、`make license-check`、`pre-commit --all-files` 全部通过；四示例 eval 为 11/11 approved cases通过、1 个 draft按设计跳过。
-- 三个 change 各自 `openspec validate <change> --type change --strict` 通过，`openspec validate --all --strict` 为 `19 passed / 0 failed`。
-- 待派发审查：使用全新 `code-reviewer` 实例，从 Stage 1 开始读取三个 change、`Product-Spec.md`、`DEV-PLAN.md`、`API-Contract.md` 和完整 diff，显式复核全部历史 findings；Stage 1 PASS 后继续 Stage 2，任一 finding 触发修复、全门禁重跑和再次 fresh review。
+- 归档前三个 change 各自 `openspec validate <change> --type change --strict` 通过；归档后不存在 active change，长期主规格以当前 `openspec validate --all --strict` 结果为准。
+- 最终 fresh code-reviewer Stage 1/2 PASS；后续审查备注修复再次通过 fresh review 后由 `72e3fdf` 提交。
 
 **规格到代码影响矩阵**：
 
-| 契约面 | 主要代码 surface | 恢复实现前的审计与验证 | 当前动作 |
+| 契约面 | 主要代码 surface | 收口审计与验证 | 完成证据 |
 |---|---|---|---|
-| Service App 表面 | `templates/service-app/app/main.py`、health/CLI、pyproject、Makefile、scripts、README | OpenAPI/422、copy-out wheel-only、health、service smoke | 实现与组合重验通过；待 fresh review |
-| Executor / Registry | `runtime/executor.py`、registry、orchestrator、CLI/API composition、全部 agent config | resolver 整体拒绝、真实 output、无 fake fallback、public descriptor 不泄漏 | finding 修复与组合重验通过；待 fresh review |
-| Approval / Tool / `0008` | approval service、repository/UoW、models、migration、ToolRegistry、`RUN-005`/`APR-002` | 并发仲裁、重启恢复、handler 0/1 次、确定性 failed、needs-review、SQLite/PostgreSQL、forward-only 与受限 downgrade | finding 修复与组合重验通过；待 fresh review |
-| 四示例与 Eval | 四个示例目录、EvalRunner adapter、ScoreSink/TelemetryFacade、docs | 四示例 run/eval、approved-only、citation/workspace/HITL、local-first provider degrade | 实现与组合重验通过；待 fresh review |
-| Scaffold 与组合回滚 | scaffold module、核心 CLI、root discovery、README/tests、compatibility preflight | 原子发布、symlink/path 拒绝、生成后真实 run/eval、手工/生成 agent inventory、fail-closed rollback | finding 修复与组合重验通过；待 fresh review |
+| Service App 表面 | `templates/service-app/app/main.py`、health/CLI、pyproject、Makefile、scripts、README | OpenAPI/422、copy-out wheel-only、health、service smoke | 通过；`b77a028` |
+| Executor / Registry | `runtime/executor.py`、registry、orchestrator、CLI/API composition、全部 agent config | resolver 整体拒绝、真实 output、无 fake fallback、public descriptor 不泄漏 | 通过；`698e2d4` |
+| Approval / Tool / `0008` | approval service、repository/UoW、models、migration、ToolRegistry、`RUN-005`/`APR-002` | 并发仲裁、重启恢复、handler 0/1 次、确定性 failed、needs-review、SQLite/PostgreSQL、forward-only 与受限 downgrade | 通过；`698e2d4` |
+| 四示例与 Eval | 四个示例目录、EvalRunner adapter、ScoreSink/TelemetryFacade、docs | 四示例 run/eval、approved-only、citation/workspace/HITL、local-first provider degrade | 通过；`698e2d4` |
+| Scaffold 与组合回滚 | scaffold module、核心 CLI、root discovery、README/tests、compatibility preflight | 原子发布、symlink/path 拒绝、生成后真实 run/eval、手工/生成 agent inventory、fail-closed rollback | 通过；`ae4bba3`，归档 `45d87bf` |
 
 ---
 

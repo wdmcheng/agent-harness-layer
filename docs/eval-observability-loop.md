@@ -20,7 +20,7 @@ failed / low-score trace
 
 ## Phase 12.5 计划闭环
 
-Phase 12 必须先交付四个可运行的 P0 示例 agent。它们给 eval 系统提供真实行为分布。之后 Phase 12.5 再把基础链路升级成实验闭环：
+Phase 12 已交付四个可运行的 P0 示例 Agent，并为 eval 系统提供了真实行为分布。Phase 12.5 是当前下一阶段，负责把基础链路升级成实验闭环：
 
 ```text
 approved eval cases

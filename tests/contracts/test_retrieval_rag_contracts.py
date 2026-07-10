@@ -11,15 +11,28 @@ from tests.contracts.auth_policy_hitl_contract_helpers import sqlite_dsn
 from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
 ROOT = Path(__file__).resolve().parents[2]
-CHANGE = ROOT / "openspec" / "changes" / "retrieval-rag-foundation"
+
+
+def retrieval_change_dir() -> Path:
+    """返回当前或唯一归档的 change，保持归档前后使用同一契约证据。"""
+
+    changes = ROOT / "openspec" / "changes"
+    active = changes / "retrieval-rag-foundation"
+    if active.is_dir():
+        return active
+
+    archived = sorted((changes / "archive").glob("*-retrieval-rag-foundation"))
+    assert len(archived) == 1, "expected exactly one archived retrieval-rag-foundation change"
+    return archived[0]
 
 
 def test_openspec_declares_retrieval_rag_scope() -> None:
     """OpenSpec delta 必须覆盖 retrieval/RAG 行为，且明确不新增 HTTP route。"""
 
-    proposal = (CHANGE / "proposal.md").read_text(encoding="utf-8")
-    spec = (CHANGE / "specs" / "retrieval-rag" / "spec.md").read_text(encoding="utf-8")
-    tasks = (CHANGE / "tasks.md").read_text(encoding="utf-8")
+    change = retrieval_change_dir()
+    proposal = (change / "proposal.md").read_text(encoding="utf-8")
+    spec = (change / "specs" / "retrieval-rag" / "spec.md").read_text(encoding="utf-8")
+    tasks = (change / "tasks.md").read_text(encoding="utf-8")
 
     for marker in [
         "RetrievalProvider",

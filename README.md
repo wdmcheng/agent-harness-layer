@@ -2,7 +2,7 @@
 
 Agent Harness Layer is a Python scaffold and core package for enterprise backend agent applications. It provides the repository shape, package boundary, verification commands, and future extension points needed to build agent services with backend engineering discipline.
 
-The current scaffold proves the workspace, package boundary, template shell, quality commands, compliance entrypoints, typed configuration, identity context, DTO/error/trust payloads, import-boundary declarations, storage/runtime seams, policy/HITL, tool execution, retrieval, observability adapters, and the base trace-to-eval gate. Service-app examples, eval experiment hill-climbing, CI release automation, and full service-profile deployment behavior remain later changes.
+The current scaffold proves the workspace and package boundary, a copyable FastAPI/CLI/worker service app, typed configuration and identity, durable run and approval continuation, policy-controlled tools, retrieval, observability adapters, the base trace-to-eval gate, four runnable example agents, and a safe agent scaffold command. Eval experiment hill-climbing, physical API/worker process separation, deep maintainer documentation, and CI/release automation remain later phases.
 
 ## Quick Start
 
@@ -11,7 +11,11 @@ uv sync
 make quality
 make test
 make smoke-local
+make eval
+# Requires Docker Compose, PostgreSQL, and Redis:
+make smoke-service
 uv run agent-harness doctor --profile local
+uv run agent-harness agents list
 make build
 make license-check
 ```
@@ -39,25 +43,27 @@ project/
 ```
 
 - `packages/agent-harness` is the buildable core package. It exposes public configuration, identity, DTO, error, trust, and boundary contracts. It must not depend on `templates/*` or `examples/*`.
-- `templates/service-app` is the backend service application template. It depends on `agent-harness` through the package boundary.
-- `examples` is reserved for future thin example material that validates extension points.
+- `templates/service-app` is the backend service application template. It depends on `agent-harness` through the package boundary and contains the runnable P0 examples under `agents/examples`.
+- The root `examples` directory remains reserved for package-level examples; the maintained service-app examples live with the template they exercise.
 - `docs` is reserved for architecture, extension, adapter, security, eval/observability, release, and ADR documentation.
 - `scripts` contains local quality, boundary, smoke, and compliance checks.
 - `openspec` contains change contracts. It does not replace `Product-Spec.md` or `DEV-PLAN.md`.
 
 ## For Agent App Developers
 
-Start from `templates/service-app`. Its current shell reserves:
+Start from `templates/service-app`. It currently provides:
 
-- `app/api` for future API entrypoints
-- `app/cli` for future CLI entrypoints
-- `app/workers` for future worker entrypoints
-- `agents/examples` for future example agents
+- `app/api` routes for health, agents, runs, policies, approvals, and eval operations
+- `app/cli` with the app-specific Uvicorn `serve` entrypoint
+- `app/workers` with a runtime worker that shares the core composition seam
+- `agents/examples` with RAG assistant, ticket triage, repo analyst, and dev assistant flows
 - `configs/profiles/local.yaml` for local profile defaults
-- `configs/profiles/service.yaml` for typed service-profile defaults that do not start external services by themselves
-- `eval-cases/drafts` and `eval-cases/approved` for future eval data flow
+- `configs/profiles/service.yaml` plus Docker Compose smoke coverage for PostgreSQL and Redis
+- `eval-cases/drafts` and `eval-cases/approved` for the human-reviewed trace-to-eval flow
 
 The application entrypoint packages are not business agent directories. Agent logic belongs under agent-specific directories in `agents/*`.
+
+The template Makefile exposes `run-rag`, `run-ticket`, `run-repo`, `run-dev`, `eval`, `smoke-local`, and `smoke-service`. Use `agent-harness scaffold agent <agent_id>` from a copied service-app root to generate a validated, no-tool-permission Agent package; review its draft eval case before moving it into the approved dataset.
 
 ## For Scaffold Maintainers
 
@@ -65,10 +71,10 @@ Maintain the package boundary first:
 
 - `agent_harness/*` must not depend on concrete template or example code.
 - `app/*` must not contain business agent logic.
-- Vendor SDKs and capability libraries such as Pydantic AI, Pydantic AI Harness, DBOS, Logfire, Phoenix, and Langfuse must stay behind future adapters or controlled integration modules.
+- Vendor SDKs and capability libraries such as Pydantic AI, Pydantic AI Harness, DBOS, Logfire, Phoenix, and Langfuse must stay behind adapters or controlled integration modules.
 - Template app code should import settings, identity, trust, and DTO types from `agent_harness.*` instead of reading YAML or provider SDKs directly.
 - `eval-cases/approved` is written only by the approval flow; automatic trace detectors may create drafts, but must not write approved cases directly.
-- Future run records must carry tenant, agent, run, and trace correlation fields once those subsystems exist.
+- Run, approval, tool, trace, and eval evidence must retain the applicable tenant, agent, run, request, and trace correlation fields.
 
 Run `make quality` before committing. It checks formatting, linting, type checking, and import boundaries.
 
@@ -76,12 +82,12 @@ Run `uv run agent-harness doctor --profile local` to verify the selected profile
 
 ## P0 Deployment Boundaries
 
-P0 keeps the service-app profile deployable as a backend template without pretending it is already a distributed system. The current local profile is single-process. The typed service profile records the future API process and runtime worker split, shared storage/queue settings, and provider-neutral boundaries.
+P0 keeps the service-app profile deployable as a backend template without pretending it is already a distributed system. The local profile is single-process; the current service smoke proves PostgreSQL, Redis, migrations, repository/UoW, approval claims, and worker startup. Physical API/worker process separation remains Phase 13, while the DTO, event, storage, queue, and provider-neutral boundaries are already enforced.
 
 Future split paths are:
 
 - Access/API gateway: owns HTTP/CLI entrypoints, auth injection, request/response schemas, and input guardrails.
-- Runtime worker: owns run lifecycle, checkpoint/resume, and HITL continuation once policy support exists.
+- Runtime worker: owns run lifecycle, checkpoint/resume, and HITL continuation when deployed as a separate process.
 - Model gateway and tool gateway: own provider/tool SDK imports behind adapter boundaries.
 - Storage service: owns repositories, migrations, and transaction boundaries.
 - Event/observability pipeline: owns CanonicalEvent, trace, audit, eval, and provider adapters.

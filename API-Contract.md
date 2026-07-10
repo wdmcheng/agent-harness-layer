@@ -147,7 +147,7 @@
 - `message` 面向开发者和 API 使用方，可直接展示在 CLI/OpenAPI 调试场景。
 - `field_path` 和 `hint` 可选，主要用于配置、schema、认证或 validation diagnostics。
 - 错误 envelope 不得包含 secret、token、cookie、provider 原始响应或完整大 payload。
-- 当前 tests 已覆盖 404/500 走 `ApiErrorEnvelope`；Service App 基础表面已经完成一次所有适用 operation 的 422 `ApiErrorEnvelope` 检查。Executor、approval continuation 和 scaffold 全部合入后仍必须执行最终组合复扫，基础表面的首轮通过不得替代最终结论。
+- 当前 tests 已覆盖 404/500 走 `ApiErrorEnvelope`；Service App 基础表面及 Executor、approval continuation、scaffold 合入后的最终组合复扫均已覆盖所有适用 operation 的 422 `ApiErrorEnvelope`。
 
 ### 4.6 通用状态码
 

@@ -376,7 +376,7 @@ project/
 - SHOULD 记录 fork/patch overlay 的触发条件：关键 bug 上游未修、企业内必需能力上游不收、安全/合规必须控制源码。
 
 **验收标准：**
-- [ ] AC-004: Given `agents/examples/*`, when 静态扫描 import, then 不出现直接 import `pydantic_ai`、`logfire`、`dbos`、`langfuse`、`phoenix`。
+- [x] AC-004: Given `agents/examples/*`, when 静态扫描 import, then 不出现直接 import `pydantic_ai`、`logfire`、`dbos`、`langfuse`、`phoenix`。
 - [ ] AC-005: Given 上游 adapter 被 fake adapter 替换, when 运行 unit/contract tests, then 核心接口测试仍可通过。
 
 ### REQ-003: 后端服务型模板
@@ -420,8 +420,8 @@ templates/service-app/
 - MUST README 面向 app developer 和 scaffold maintainer 两类读者。
 
 **验收标准：**
-- [ ] AC-006: Given 模板目录, when 执行 `make dev` with local profile, then FastAPI/CLI 至少一种入口可运行示例 agent。
-- [ ] AC-007: Given 模板目录, when 执行 `make smoke-service`, then Docker Compose PostgreSQL/Redis service smoke 通过。
+- [x] AC-006: Given 模板目录, when 执行 `make dev` with local profile, then FastAPI/CLI 至少一种入口可运行示例 agent。
+- [x] AC-007: Given 模板目录, when 执行 `make smoke-service`, then Docker Compose PostgreSQL/Redis service smoke 通过。
 
 ### REQ-004: 配置系统
 
@@ -598,7 +598,7 @@ agent-harness scaffold agent <agent_id>
 - MUST 破坏性 API 变更进入 `/api/v2`。
 
 **验收标准：**
-- [ ] AC-017: Given OpenAPI schema, when 运行 schema 测试, then P0 endpoints 均存在。
+- [x] AC-017: Given OpenAPI schema, when 运行 schema 测试, then P0 endpoints 均存在。
 - [ ] AC-018: Given CLI, when 执行 `agent-harness doctor`, then 输出 profile、storage、queue、observability、eval 目录状态。
 
 ### REQ-009: 租户、身份与认证
@@ -683,9 +683,9 @@ auth_method: str
 - MUST guardrail 检查结果写入 trace/audit；阻断时不得创建不可恢复的半截 run。
 
 **验收标准：**
-- [ ] AC-021: Given shell tool 默认策略, when agent 请求执行 shell, then 返回 `approval.required`。
-- [ ] AC-022: Given 审批通过, when resume run, then 原 tool call 继续执行且 audit log 记录审批人和结果。
-- [ ] AC-023: Given 策略为 deny, when 执行动作, then 动作不执行且 audit log 记录拒绝。
+- [x] AC-021: Given shell tool 默认策略, when agent 请求执行 shell, then 返回 `approval.required`。
+- [x] AC-022: Given 审批通过, when resume run, then 原 tool call 继续执行且 audit log 记录审批人和结果。
+- [x] AC-023: Given 策略为 deny, when 执行动作, then 动作不执行且 audit log 记录拒绝。
 - [ ] AC-024: Given 输入包含明显 prompt injection 或越权指令, when 创建 run, then guardrail 记录检查结果并按策略 allow / deny / require_approval。
 
 ### REQ-011: 工具系统、Shell、File 和 MCP
@@ -735,9 +735,9 @@ auth_method: str
 - MUST tool/MCP output 不得直接拼进 prompt；必须通过 Context Assembly 带 source、artifact_ref、trust_level 和 token budget。
 
 **验收标准：**
-- [ ] AC-025: Given workspace 外路径, when FileTool read, then 默认拒绝或要求审批。
+- [x] AC-025: Given workspace 外路径, when FileTool read, then 默认拒绝或要求审批。
 - [ ] AC-026: Given MCP tool 未在 allowlist, when agent 调用, then policy 拒绝。
-- [ ] AC-027: Given shell 输出超过上限, when tool 完成, then stdout/stderr 被截断且 artifact_ref 可用。
+- [x] AC-027: Given shell 输出超过上限, when tool 完成, then stdout/stderr 被截断且 artifact_ref 可用。
 - [ ] AC-028: Given MCP tool output 包含指令型文本, when 写入上下文, then 系统保留来源和 untrusted 标记，并经过注入检测或截断。
 
 ### REQ-012: 模型、预算、上下文组装与 embedding
@@ -764,10 +764,10 @@ auth_method: str
 - SHOULD 支持 cheap/flagship/local model routing。
 
 **验收标准：**
-- [ ] AC-029: Given fake model provider, when 运行 tests/eval, then 不需要真实 API key。
+- [x] AC-029: Given fake model provider, when 运行 tests/eval, then 不需要真实 API key。
 - [ ] AC-030: Given 预算阈值, when 模型调用预计超阈值, then 产生 policy decision 或可追踪 fallback。
 - [ ] AC-031: Given 重复 embedding 输入, when 第二次调用, then 命中 cache 或记录 cache miss 原因。
-- [ ] AC-032: Given 历史、检索和 tool output 同时进入上下文, when 组装 prompt, then 输出 context assembly trace，包含来源、可信级别、token 预算和截断记录。
+- [x] AC-032: Given 历史、检索和 tool output 同时进入上下文, when 组装 prompt, then 输出 context assembly trace，包含来源、可信级别、token 预算和截断记录。
 
 ### REQ-013: Retrieval 与 RAG
 
@@ -794,10 +794,10 @@ auth_method: str
 - SHOULD OpenSearch/Elasticsearch/Vespa 放 P1/P2。
 
 **验收标准：**
-- [ ] AC-033: Given local profile, when RAG 示例检索, then 不依赖 PostgreSQL 扩展也能返回结果。
+- [x] AC-033: Given local profile, when RAG 示例检索, then 不依赖 PostgreSQL 扩展也能返回结果。
 - [ ] AC-034: Given service profile 且 PGroonga 未安装, when doctor, then 输出降级提示而不是启动崩溃。
 - [ ] AC-035: Given hybrid retrieval adapter, when 提供 BM25/vector 结果, then 可执行 RRF 合并。
-- [ ] AC-036: Given 检索结果包含 prompt injection 文本, when 注入上下文, then 作为 untrusted citation 内容处理，不得覆盖 system / policy / developer 指令。
+- [x] AC-036: Given 检索结果包含 prompt injection 文本, when 注入上下文, then 作为 untrusted citation 内容处理，不得覆盖 system / policy / developer 指令。
 
 ### REQ-014: CanonicalEvent 与流式输出
 
@@ -911,7 +911,7 @@ OTel 是底座协议，不是业务边界；Logfire/Phoenix/Langfuse 必须走�
 - SHOULD 外部 provider 失败时本地证据不丢。
 
 **验收标准：**
-- [ ] AC-041: Given 未配置任何 SaaS provider, when 运行 agent, then local/jsonl 仍产出 trace。
+- [x] AC-041: Given 未配置任何 SaaS provider, when 运行 agent, then local/jsonl 仍产出 trace。
 - [ ] AC-042: Given 配置 Logfire adapter, when 运行 agent, then provider adapter contract test 通过且业务代码无 Logfire import。
 
 ### REQ-016: Eval Gate 与 trace/eval 闭环
@@ -962,9 +962,9 @@ Runtime Trace
 - SHOULD P1 接入 Logfire Hosted Datasets、Phoenix dataset/eval workflow、Langfuse annotation/dataset/score。
 
 **验收标准：**
-- [ ] AC-043: Given failed run trace, when 执行 `agent-harness eval draft`, then 生成 draft case。
-- [ ] AC-044: Given draft case, when 人工 approve, then case 进入 approved dataset 并写 audit log。
-- [ ] AC-045: Given approved dataset, when `make eval`, then 产出 eval result 和 score sink 记录。
+- [x] AC-043: Given failed run trace, when 执行 `agent-harness eval draft`, then 生成 draft case。
+- [x] AC-044: Given draft case, when 人工 approve, then case 进入 approved dataset 并写 audit log。
+- [x] AC-045: Given approved dataset, when `make eval`, then 产出 eval result 和 score sink 记录。
 - [ ] AC-045A: Given approved cases with behavior tags, when 创建 experiment split, then optimization / holdout sets 按标签可追踪且不会把 draft case 纳入评分。
 - [ ] AC-045B: Given baseline harness 和 candidate harness, when 执行 experiment compare, then 输出 per-tag score delta、holdout result、regression summary 和人工 acceptance 所需证据。
 
@@ -988,8 +988,8 @@ Runtime Trace
 - MUST 示例覆盖不同能力块，避免四个样例都只是 prompt demo。
 
 **验收标准：**
-- [ ] AC-046: Given P0 示例 agent, when `agent-harness agents list`, then 四个示例均可见。
-- [ ] AC-047: Given 每个示例, when 执行对应 eval, then fake model 下可跑通确定性测试。
+- [x] AC-046: Given P0 示例 agent, when `agent-harness agents list`, then 四个示例均可见。
+- [x] AC-047: Given 每个示例, when 执行对应 eval, then fake model 下可跑通确定性测试。
 
 ### REQ-018: README 与文档体系
 
@@ -1028,7 +1028,7 @@ README 是入口，深度文档解释架构和维护边界。
 - 多 agent delegation 必须走 registry 和 policy。
 
 **验收标准：**
-- [ ] AC-048: Given README, when 新开发者阅读 Project Structure, then 能知道每个目录职责和禁止跨边界规则。
+- [x] AC-048: Given README, when 新开发者阅读 Project Structure, then 能知道每个目录职责和禁止跨边界规则。
 - [ ] AC-049: Given scaffold maintainer, when 阅读 docs, then 能找到 adapter contract、release process、安全策略和 ADR。
 
 ### REQ-019: TDD、测试与质量门禁
@@ -1084,9 +1084,9 @@ make quality
 ```
 
 **验收标准：**
-- [ ] AC-050: Given 新能力块任务, when 开发开始, then 先存在失败测试或 contract test。
+- [x] AC-050: Given 新能力块任务, when 开发开始, then 先存在失败测试或 contract test。
 - [ ] AC-051: Given `make quality`, when CI 执行, then ruff、pyright、unit/contract tests 均通过。
-- [ ] AC-052: Given `make eval`, when 未配置真实模型 key, then fake model eval 可通过。
+- [x] AC-052: Given `make eval`, when 未配置真实模型 key, then fake model eval 可通过。
 
 ### REQ-020: CI/CD 与 Release Automation
 
@@ -1198,7 +1198,7 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 **验收标准：**
 - [ ] AC-059: Given README / architecture docs, when 新维护者阅读部署边界章节, then 能指出 API、runtime worker、model/tool gateway、storage、event pipeline 的当前形态和未来拆分路径。
 - [ ] AC-060: Given service profile, when 分别启动 API 进程和 worker 进程并提交 run, then run 可被 worker 执行并通过共享 storage/queue 产出事件。
-- [ ] AC-061: Given 业务 agent 代码, when 静态扫描 import, then 不直接 import 具体 model/tool/storage/observability vendor SDK 或直接操作 ORM session。
+- [x] AC-061: Given 业务 agent 代码, when 静态扫描 import, then 不直接 import 具体 model/tool/storage/observability vendor SDK 或直接操作 ORM session。
 - [ ] AC-062: Given CanonicalEvent / DTO contract tests, when API、worker、tool/model adapter 交换数据, then 关联字段和 schema 校验保持一致。
 
 ### AI 能力规格
