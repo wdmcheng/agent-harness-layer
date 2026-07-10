@@ -6,7 +6,7 @@ from collections.abc import Callable
 from enum import StrEnum
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.identity import IdentityContext
@@ -48,6 +48,19 @@ class ToolRuntimeContext(HarnessDTO):
     run_id: str | None = None
     request_id: str | None = None
     trace_id: str | None = None
+    _approved_grant_id: str | None = PrivateAttr(default=None)
+
+    def authorize_approved_call(self, approval_id: str) -> ToolRuntimeContext:
+        """仅供 ToolRegistry 在 grant 全量校验后标记内部 approved handler。"""
+
+        self._approved_grant_id = approval_id
+        return self
+
+    @property
+    def approved_grant_id(self) -> str | None:
+        """返回 private grant marker；该值不进入 DTO、trace 或 API payload。"""
+
+        return self._approved_grant_id
 
 
 class ToolError(HarnessDTO):

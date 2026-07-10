@@ -1,0 +1,16 @@
+{
+  "case_id": "rag-no-source",
+  "agent_id": "examples.rag_assistant",
+  "payload": {
+    "input": {
+      "query": "unindexed roadmap item",
+      "collection": "eval-rag-empty"
+    },
+    "compare_fields": ["status", "citation_count", "trace_ref_present"],
+    "expected": {
+      "status": "no_source",
+      "citation_count": 0,
+      "trace_ref_present": true
+    }
+  }
+}

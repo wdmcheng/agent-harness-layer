@@ -160,16 +160,19 @@ def check_core_dependencies() -> list[str]:
 
 
 def check_template_dependency() -> list[str]:
-    """确认 template 通过声明式 package dependency 使用 core package。"""
+    """确认 template 声明版本依赖，workspace source 只由根项目注入。"""
 
     issues: list[str] = []
     template_pyproject = _load_pyproject(TEMPLATE_PACKAGE / "pyproject.toml")
     template_deps = _dependency_names(template_pyproject)
-    workspace_sources = _workspace_source_names(template_pyproject)
+    template_sources = _workspace_source_names(template_pyproject)
+    root_sources = _workspace_source_names(_load_pyproject(ROOT / "pyproject.toml"))
     if "agent-harness" not in template_deps:
         issues.append("Service-app template must depend on agent-harness.")
-    if "agent-harness" not in workspace_sources:
-        issues.append("Service-app template must resolve agent-harness from the workspace.")
+    if "agent-harness" in template_sources:
+        issues.append("Service-app template must not retain member-only workspace sources.")
+    if "agent-harness" not in root_sources:
+        issues.append("Workspace root must resolve agent-harness from the workspace.")
     return issues
 
 

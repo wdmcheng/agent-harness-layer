@@ -1,0 +1,14 @@
+{
+  "case_id": "repo-long-read",
+  "agent_id": "examples.repo_analyst",
+  "payload": {
+    "input": {"operation": "read", "path": "README.md"},
+    "compare_fields": ["status", "operation", "artifact_ref_present", "trace_ref_present"],
+    "expected": {
+      "status": "completed",
+      "operation": "read",
+      "artifact_ref_present": true,
+      "trace_ref_present": true
+    }
+  }
+}

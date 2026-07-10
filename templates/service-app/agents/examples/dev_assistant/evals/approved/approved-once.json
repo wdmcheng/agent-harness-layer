@@ -1,0 +1,17 @@
+{
+  "case_id": "dev-approved-once",
+  "agent_id": "examples.dev_assistant",
+  "payload": {
+    "input": {"operation": "shell", "command": "echo approved-once"},
+    "approval_decision": "approved",
+    "repeat_resolve": true,
+    "compare_fields": ["run_status", "approval_status", "claim_state", "repeat_conflict", "trace_ref_present"],
+    "expected": {
+      "run_status": "completed",
+      "approval_status": "approved",
+      "claim_state": "completed",
+      "repeat_conflict": true,
+      "trace_ref_present": true
+    }
+  }
+}

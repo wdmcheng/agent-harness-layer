@@ -1,0 +1,13 @@
+{
+  "case_id": "dev-waiting",
+  "agent_id": "examples.dev_assistant",
+  "payload": {
+    "input": {"operation": "shell", "command": "echo waiting"},
+    "compare_fields": ["run_status", "approval_status", "claim_state"],
+    "expected": {
+      "run_status": "waiting",
+      "approval_status": "waiting",
+      "claim_state": null
+    }
+  }
+}

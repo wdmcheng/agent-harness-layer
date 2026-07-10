@@ -6,6 +6,8 @@ name: Basic Example Agent
 description: Offline fake model smoke agent.
 input_schema: agents.examples.basic.schemas.Input
 output_schema: agents.examples.basic.schemas.Output
+# Runtime 只在整个 registry 校验通过后解析这个 module-local object。
+executor: agent:executor
 model:
   # 示例 agent 使用 fake model，保证模板安装后不需要真实 provider key。
   provider: fake

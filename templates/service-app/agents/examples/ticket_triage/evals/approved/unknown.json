@@ -1,0 +1,15 @@
+{
+  "case_id": "ticket-unknown",
+  "agent_id": "examples.ticket_triage",
+  "payload": {
+    "input": {"text": "Please take a look when convenient"},
+    "compare_fields": ["category", "priority", "route", "needs_review", "trace_ref_present"],
+    "expected": {
+      "category": "unknown",
+      "priority": "low",
+      "route": "manual-review",
+      "needs_review": true,
+      "trace_ref_present": true
+    }
+  }
+}

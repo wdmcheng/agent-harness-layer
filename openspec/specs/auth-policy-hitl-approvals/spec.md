@@ -1,7 +1,7 @@
 # auth-policy-hitl-approvals Specification
 
 ## Purpose
-定义 Phase 7 的 API 认证、PolicyEngine、InputGuardrail、HITL approval 和 audit evidence 契约，使 run 创建、agent list、policy check、approval 生命周期和默认危险动作策略在 API、CLI 与 runtime seam 中保持一致。
+定义 API 认证、PolicyEngine、InputGuardrail、HITL approval 和 audit evidence 的长期契约，使 run 创建、agent list、policy check、approval 生命周期和默认危险动作策略在 API、CLI 与 runtime seam 中保持一致。
 
 ## Requirements
 
@@ -22,7 +22,7 @@ service-app SHALL 支持 API Key / Bearer Token 认证，并在受保护 P0 API 
 
 #### Scenario: Agent list 按身份过滤
 - **WHEN** 已认证调用方请求 `GET /api/v1/agents`
-- **THEN** API 按 tenant/identity 可见性返回 Phase 6 public descriptor DTO，未授权或无权限时返回 401/403 `ApiErrorEnvelope`，且不暴露本地绝对路径、secret、callable 或 provider client
+- **THEN** API 按 tenant/identity 可见性返回 registry public descriptor DTO，未授权或无权限时返回 401/403 `ApiErrorEnvelope`，且不暴露本地绝对路径、secret、callable 或 provider client
 
 ### Requirement: PolicyEngine 输出 allow、deny 或 require_approval
 package SHALL 暴露 `PolicyEngine`，输入 actor、resource、action 和 context，输出稳定 `PolicyDecision`，其 decision MUST 为 `allow`、`deny` 或 `require_approval`。Policy provider SHALL 至少包含 YAML provider 和 DB provider interface；默认开发策略 SHALL 允许 default tenant 的常规操作，但危险动作默认可配置为 `require_approval` 或 `deny`。
@@ -100,12 +100,12 @@ service-app SHALL 提供 approval HTTP routes 和 CLI，支持按 run list/read 
 - **THEN** audit payload 和 error envelope 只保留脱敏摘要，不写入原始 secret
 
 ### Requirement: Auth、policy 和 approval endpoint 契约先于实现扩展
-`API-Contract.md` SHALL 在 route 实现前把 `APR-001`、`APR-002` 和 `POL-001` 扩展为完整 endpoint 条目，并更新 `AGT-001` 的 Phase 7 认证/可见性过滤要求；文档 MUST 明确认证、请求/响应 schema、幂等性、副作用、错误码、安全规则和验证要求。局部 OpenAPI drift tests MUST 覆盖 agents list、approval/policy 新增 paths、401/403、`ApiErrorEnvelope`、approval 状态冲突和 `request_id`。
+`API-Contract.md` SHALL 在 route 实现前把 `APR-001`、`APR-002` 和 `POL-001` 扩展为完整 endpoint 条目，并更新 `AGT-001` 的认证/可见性过滤要求；文档 MUST 明确认证、请求/响应 schema、幂等性、副作用、错误码、安全规则和验证要求。局部 OpenAPI drift tests MUST 覆盖 agents list、approval/policy paths、401/403、`ApiErrorEnvelope`、approval 状态冲突和 `request_id`。
 
-#### Scenario: OpenAPI 包含 Phase 7 endpoint
+#### Scenario: OpenAPI 包含认证、policy 与 approval endpoint
 - **WHEN** 生成 service-app OpenAPI schema
 - **THEN** `/api/v1/runs/{run_id}/approvals`、`/api/v1/runs/{run_id}/approvals/{approval_id}` 和 `/api/v1/policies/check` 存在预期 method、request/response schema 和错误 envelope
 
 #### Scenario: Contract tests 防止契约漂移
-- **WHEN** Phase 7 contract tests 运行
+- **WHEN** auth/policy/approval contract tests 运行
 - **THEN** tests 同时检查 `API-Contract.md` 条目、FastAPI route/OpenAPI schema、runtime behavior、agent list 可见性和 error envelope，不允许文档与运行时只改一边

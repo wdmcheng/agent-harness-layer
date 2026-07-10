@@ -1,0 +1,24 @@
+agent_id: examples.dev_assistant
+version: 0.1.0
+name: Dev Assistant Example
+description: File and shell tool example with policy, HITL approval, audit, and at-most-once resume.
+input_schema: agents.examples.dev_assistant.schemas.DevAssistantInput
+output_schema: agents.examples.dev_assistant.schemas.DevAssistantOutput
+executor: agent:executor
+model:
+  provider: fake
+  default_model: fake-dev-assistant
+  fallback_models: []
+budget:
+  max_tokens_per_run: 4096
+  max_cost_usd_per_run: null
+tool_allowlist:
+  - file.read_file
+  - file.write_file
+  - file.list_files
+  - file.search_files
+  - file.apply_patch
+  - file.delete_file
+  - shell.execute
+eval_dataset: agents/examples/dev_assistant/evals
+delegation_edges: []

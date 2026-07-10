@@ -1,7 +1,7 @@
 # tool-execution-boundaries Specification
 
 ## Purpose
-定义 Phase 8 工具执行边界的长期契约：ToolRegistry、Workspace FileTool、ShellTool、MCP client、输出信任元数据和工具调用 evidence 必须通过统一的 schema、policy、audit、artifact 与 workspace 规则收口。
+定义工具执行边界的长期契约：ToolRegistry、Workspace FileTool、ShellTool、MCP client、输出信任元数据和工具调用 evidence 必须通过统一的 schema、policy、audit、artifact 与 workspace 规则收口。
 
 ## Requirements
 ### Requirement: ToolRegistry 统一工具执行边界
@@ -80,7 +80,7 @@
 - **THEN** ContextAssembler input 包含 `source_ref`、`trust_level`、token estimate、truncation metadata 和 artifact_ref，而不是裸字符串拼接
 
 ### Requirement: Workspace 和 ToolInvocation evidence 可持久化
-系统 SHALL 在 Phase 8 持久化 `workspaces` 和 `tool_invocations` evidence。Workspace 记录 SHALL 包含 tenant、可选 run/agent 关联、workspace root 和 policy ref；ToolInvocation 记录 SHALL 包含 tenant、agent、可选 run、tool name、args_ref、result_ref、status、duration、trace/request metadata 和错误摘要。工具大参数和结果 MUST 通过 artifact/ref 关联，不直接塞入记录正文。
+系统 SHALL 持久化 `workspaces` 和 `tool_invocations` evidence。Workspace 记录 SHALL 包含 tenant、可选 run/agent 关联、workspace root 和 policy ref；ToolInvocation 记录 SHALL 包含 tenant、agent、可选 run、tool name、args_ref、result_ref、status、duration、trace/request metadata 和错误摘要。工具大参数和结果 MUST 通过 artifact/ref 关联，不直接塞入记录正文。
 
 #### Scenario: local migration 创建工具表
 - **WHEN** developer 使用 local profile 执行 migration
@@ -94,13 +94,13 @@
 - **WHEN** 工具 arguments、stdout、stderr、file content 或 MCP response 超过 inline 上限
 - **THEN** `tool_invocations` 只保存 `args_ref` / `result_ref` 和状态摘要，完整内容由 artifact store 按 ref 读取
 
-### Requirement: Phase 8 入口契约先于实现扩展
-`API-Contract.md` SHALL 在 Phase 8 实现前说明 tool/file/shell/MCP 的 CLI/runtime/module seam、认证与 policy 关系、输入/输出 DTO、错误码、安全规则和验证要求。若本 change 不新增 HTTP endpoint，文档 MUST 明确当前无新增 route，并用 contract tests 覆盖 CLI/runtime seam 与 OpenAPI 无漂移。
+### Requirement: 工具入口契约先于实现扩展
+`API-Contract.md` SHALL 在工具入口实现前说明 tool/file/shell/MCP 的 CLI/runtime/module seam、认证与 policy 关系、输入/输出 DTO、错误码、安全规则和验证要求。若当前能力不新增 HTTP endpoint，文档 MUST 明确无新增 route，并用 contract tests 覆盖 CLI/runtime seam 与 OpenAPI 无漂移。
 
-#### Scenario: API-Contract 包含 Phase 8 seam
+#### Scenario: API-Contract 包含工具执行 seam
 - **WHEN** 维护者阅读 `API-Contract.md`
 - **THEN** 能识别 `agent-harness tools list`、`agent-harness tools call` 或等价 runtime seam 如何映射 ToolRegistry、PolicyEngine、artifact store 和 ContextAssembler
 
 #### Scenario: Contract tests 防止工具契约漂移
-- **WHEN** Phase 8 contract tests 运行
+- **WHEN** tool execution contract tests 运行
 - **THEN** tests 同时检查 `API-Contract.md` 条目、CLI/runtime behavior、policy denial、artifact_ref、trust metadata 和未新增 HTTP route 的 OpenAPI 预期

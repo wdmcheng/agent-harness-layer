@@ -1,0 +1,17 @@
+agent_id: examples.ticket_triage
+version: 0.1.0
+name: Ticket Triage Example
+description: Offline structured ticket classification with explicit unknown review fallback.
+input_schema: agents.examples.ticket_triage.schemas.TicketTriageInput
+output_schema: agents.examples.ticket_triage.schemas.TicketTriageOutput
+executor: agent:executor
+model:
+  provider: fake
+  default_model: fake-ticket-triage
+  fallback_models: []
+budget:
+  max_tokens_per_run: 1024
+  max_cost_usd_per_run: null
+tool_allowlist: []
+eval_dataset: agents/examples/ticket_triage/evals
+delegation_edges: []

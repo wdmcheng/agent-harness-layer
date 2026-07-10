@@ -6,9 +6,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-import yaml
 from tests.contracts.auth_policy_hitl_contract_helpers import sqlite_dsn
 
+from agent_harness.evals import ReviewDatasetAdapter
 from agent_harness.storage import run_migrations
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -63,21 +63,25 @@ def test_doctor_cli_reports_local_retrieval_extensions_not_required(tmp_path: Pa
 
 
 def test_rag_assistant_example_config_and_eval_fixture_are_loadable() -> None:
-    """RAG 示例基础数据不声明完整示例产品流已完成。"""
+    """RAG config 指向真实 approved dataset，draft 不混入评分。"""
 
     from agent_harness.registry import AgentRegistry
 
     agents_dir = ROOT / "templates" / "service-app" / "agents"
     registry = AgentRegistry.load_from_directory(agents_dir)
     descriptor = registry.get("examples.rag_assistant")
-    eval_path = agents_dir / "examples" / "rag_assistant" / "evals" / "approved.yaml"
-    eval_data = yaml.safe_load(eval_path.read_text(encoding="utf-8"))
+    eval_root = agents_dir / "examples" / "rag_assistant" / "evals"
+    adapter = ReviewDatasetAdapter(
+        drafts_dir=eval_root / "drafts",
+        approved_dir=eval_root / "approved",
+    )
+    approved = adapter.load_approved(agent_id="examples.rag_assistant")
 
-    assert descriptor.eval_dataset == "agents/examples/rag_assistant/evals/approved.yaml"
+    assert descriptor.eval_dataset == "agents/examples/rag_assistant/evals"
     assert descriptor.tool_policy.allowed_tools == ["retrieval.query"]
-    assert {case["id"] for case in eval_data["cases"]} == {
+    assert {case["case_id"] for case in approved} == {
         "rag-citation-hit",
+        "rag-injection-boundary",
         "rag-no-source",
     }
-    assert eval_data["cases"][0]["expected"]["must_include_citation"] is True
-    assert eval_data["cases"][1]["expected"]["no_source_behavior"] == "state_no_source"
+    assert adapter.count_drafts(agent_id="examples.rag_assistant") == 1

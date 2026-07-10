@@ -21,6 +21,7 @@ from agent_harness.policy import (
 )
 from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator
+from agent_harness.runtime.services import build_agent_execution_services
 from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
 
 
@@ -48,6 +49,8 @@ def build_runtime_components(
     profiles_dir: Path | None = None,
     storage_dsn: str | None = None,
     events_path: Path | None = None,
+    workspace_root: Path | None = None,
+    artifact_root: Path | None = None,
 ) -> RuntimeComponents:
     """从 profile 构造 API/worker 共享的 runtime 组件。
 
@@ -63,16 +66,22 @@ def build_runtime_components(
     resolved_events_path = events_path or Path(
         settings.observability.path or ".agent-harness/traces.jsonl"
     )
-    artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
     service_root = (
         profiles_dir.parent.parent
         if profiles_dir is not None
         else Path.cwd() / "templates" / "service-app"
     )
+    configured_artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
+    resolved_artifact_root = artifact_root or (
+        configured_artifact_root
+        if configured_artifact_root.is_absolute()
+        else service_root / configured_artifact_root
+    )
     event_sink = LocalJsonlEventSink(resolved_events_path)
+    artifact_store = FileArtifactStore(resolved_artifact_root)
     event_bus = EventBus(
         sink=event_sink,
-        artifact_store=FileArtifactStore(artifact_root),
+        artifact_store=artifact_store,
     )
     audit = AuditService(storage=storage)
     if settings.policy.provider == "db":
@@ -106,10 +115,24 @@ def build_runtime_components(
         )
     elif settings.auth.required or settings.auth.provider == "api-key":
         auth_verifier = ApiKeyVerifier(storage=storage)
+    registry = AgentRegistry.load_from_directory(service_root / "agents")
+    executor_services = build_agent_execution_services(
+        settings=settings,
+        storage=storage,
+        storage_dsn=resolved_dsn,
+        policy=policy_engine,
+        audit=audit,
+        event_sink=event_sink,
+        artifact_store=artifact_store,
+        service_root=service_root,
+        workspace_root=workspace_root,
+    )
     orchestrator = RunOrchestrator(
         storage=storage,
         event_bus=event_bus,
         identity=settings.identity.default,
+        executor_resolver=registry.resolve_executor,
+        executor_services=executor_services,
     )
     input_guardrail = InputGuardrail(policy=policy_engine, audit=audit)
     approval_service = ApprovalService(
@@ -133,7 +156,7 @@ def build_runtime_components(
         storage=storage,
         event_sink=event_sink,
         orchestrator=orchestrator,
-        registry=AgentRegistry.load_from_directory(service_root / "agents"),
+        registry=registry,
         auth_verifier=auth_verifier,
         policy_engine=policy_engine,
         input_guardrail=input_guardrail,

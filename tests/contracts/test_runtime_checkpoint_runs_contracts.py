@@ -19,6 +19,10 @@ from starlette.requests import Request
 
 from agent_harness.events import CanonicalEventType, EventBus, LocalJsonlEventSink
 from agent_harness.runtime import (
+    AgentExecutionContext,
+    AgentExecutionRequest,
+    AgentExecutionResult,
+    ApprovalGrant,
     ApprovalWaitState,
     CheckpointStore,
     IdempotencyKey,
@@ -33,6 +37,27 @@ from app.main import create_app
 from app.workers.runtime_worker import run_once as worker_run_once
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+class FakeContractExecutor:
+    """Explicit fake used by legacy lifecycle tests; runtime has no fallback."""
+
+    async def run(
+        self,
+        request: AgentExecutionRequest,
+        context: AgentExecutionContext,
+    ) -> AgentExecutionResult:
+        del request, context
+        return AgentExecutionResult.completed({"result": "fake-ok"})
+
+    async def resume(
+        self,
+        request: AgentExecutionRequest,
+        context: AgentExecutionContext,
+        grant: ApprovalGrant,
+    ) -> AgentExecutionResult:
+        del request, context, grant
+        return AgentExecutionResult.completed({"resumed": True})
 
 
 def sqlite_dsn(path: Path) -> str:
@@ -62,7 +87,16 @@ async def build_orchestrator(tmp_path: Path) -> tuple[RunOrchestrator, SQLAlchem
     run_migrations(sqlite_dsn(db_path))
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(db_path))
     bus = EventBus(sink=LocalJsonlEventSink(events_path))
-    return RunOrchestrator(storage=storage, event_bus=bus), storage, events_path
+    executor = FakeContractExecutor()
+    return (
+        RunOrchestrator(
+            storage=storage,
+            event_bus=bus,
+            executor_resolver=lambda _agent_id: executor,
+        ),
+        storage,
+        events_path,
+    )
 
 
 @pytest.mark.asyncio
@@ -325,7 +359,7 @@ async def test_template_openapi_and_error_envelope_include_request_id(tmp_path: 
     assert cast(dict[str, Any], json.loads(internal_response.body)) == {
         "error": {
             "code": "api.internal_error",
-            "message": "boom",
+            "message": "internal server error",
             "request_id": "req-500",
         }
     }

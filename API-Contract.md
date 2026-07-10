@@ -147,7 +147,7 @@
 - `message` 面向开发者和 API 使用方，可直接展示在 CLI/OpenAPI 调试场景。
 - `field_path` 和 `hint` 可选，主要用于配置、schema、认证或 validation diagnostics。
 - 错误 envelope 不得包含 secret、token、cookie、provider 原始响应或完整大 payload。
-- 当前 tests 已覆盖 404/500 走 `ApiErrorEnvelope`；422 validation error 的 envelope 统一属于后续 API 完整化检查项。
+- 当前 tests 已覆盖 404/500 走 `ApiErrorEnvelope`；Service App 基础表面已经完成一次所有适用 operation 的 422 `ApiErrorEnvelope` 检查。Executor、approval continuation 和 scaffold 全部合入后仍必须执行最终组合复扫，基础表面的首轮通过不得替代最终结论。
 
 ### 4.6 通用状态码
 
@@ -462,8 +462,8 @@
 
 | 值 | 说明 |
 |---|---|
-| `waiting` | 等待人工审批。 |
-| `approved` | 已批准，runtime 可按关联 checkpoint resume。 |
+| `waiting` | 尚未完成公开 resolution：可能仍在等待人工决定，也可能 approve 已取得私有 lease 但 continuation 尚未得到持久化的确定性结果，或已进入不公开的 `needs_review`；这些私有状态不得进入 DTO/OpenAPI。 |
+| `approved` | 人工已允许原动作，且 continuation 已持久化 completed 或确定性 failed result，并让 run 进入对应 terminal；该状态不保证动作执行成功。 |
 | `denied` | 已拒绝，动作不得执行，run 按策略 failed 或 fallback。 |
 | `cancelled` | 审批被系统或用户取消。 |
 
@@ -575,7 +575,7 @@
 
 ### 5.19 `ToolCallRequest`
 
-Phase 8 CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP request body。
+CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP request body。
 
 ```json
 {
@@ -603,7 +603,7 @@ Phase 8 CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 H
 
 ### 5.20 `ToolCallResult`
 
-Phase 8 工具调用稳定结果 DTO；当前不作为 HTTP response body 直接暴露。
+工具调用稳定结果 DTO；当前不作为 HTTP response body 直接暴露。
 
 ```json
 {
@@ -653,7 +653,7 @@ Phase 8 工具调用稳定结果 DTO；当前不作为 HTTP response body 直接
 
 ### 5.21 Tool execution error codes
 
-Phase 8 工具 seam 必须使用稳定错误码，CLI、runtime 和未来 API route 都按这些 code 分支，不解析人类文案。
+工具 seam 必须使用稳定错误码，CLI、runtime 和未来 API route 都按这些 code 分支，不解析人类文案。
 
 | code | status | 触发场景 |
 |---|---|---|
@@ -666,6 +666,30 @@ Phase 8 工具 seam 必须使用稳定错误码，CLI、runtime 和未来 API ro
 | `tool.workspace_denied` | `denied` | workspace root 外路径或 `.agentignore` 命中导致 FileTool 拒绝。 |
 | `tool.allowlist_denied` | `denied` | shell command、MCP server 或 MCP tool 未在 allowlist 内。 |
 | `tool.execution_failed` | `failed` | 工具实现执行失败；错误摘要已脱敏，不包含 provider 原始异常或 secret。 |
+
+### 5.22 `HealthResponse`
+
+`GET /api/v1/health` 的公开只读响应。它只表达应用已启动及当前 profile 配置的 capability 摘要，不回显连接字符串，也不替代 `make smoke-service` 的真实依赖探测。
+
+```json
+{
+  "request_id": "req_123",
+  "status": "ok",
+  "profile": "local",
+  "storage": {"kind": "sqlite", "status": "configured"},
+  "queue": {"kind": "in-memory", "status": "configured"},
+  "observability": {"kind": "local-jsonl", "status": "configured"}
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `request_id` | string | Yes | 请求关联 ID；调用方未传 `X-Request-Id` 时由服务端生成。 |
+| `status` | `ok` / `degraded` | Yes | app liveness 与配置装配摘要；不代表 PostgreSQL/Redis/provider 已完成网络探测。 |
+| `profile` | string | Yes | 当前类型化 profile 名称，不得包含绝对路径。 |
+| `storage` | object | Yes | 仅包含 `kind` 与 `status`，不得包含 DSN、密码或本机路径。 |
+| `queue` | object | Yes | 仅包含 `kind` 与 `status`，不得包含 Redis URL、密码或 token。 |
+| `observability` | object | Yes | 仅包含 `kind` 与 `status`，不得包含 endpoint credential、token env 的值或 provider 原始对象。 |
 
 ## 6. Run API
 
@@ -774,9 +798,9 @@ Phase 8 工具 seam 必须使用稳定错误码，CLI、runtime 和未来 API ro
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `RUN-005` |
-| 状态 | 已实现 checkpoint resume seam；Phase 7 已接入 HITL approval resolve 与认证/审批能力。 |
-| 入口 / 调用方 | OpenAPI 调用方、HITL approval flow、future worker/API gateway。 |
-| 用途 | 使用 resume token 恢复 checkpointed run。 |
+| 状态 | 已实现。普通 checkpoint 可走公开 resume；approval-gated checkpoint 的公开请求在消费 token 或调用 handler 前稳定返回 `409 run.invalid_transition`，真实 continuation 只由 `APR-002` 的私有 lease → `ApprovalGrant` → runtime 内部 resume 执行链推进。 |
+| 入口 / 调用方 | OpenAPI 调用方、普通 checkpoint 恢复、future worker/API gateway。HITL approval flow 不得把本 endpoint 当作 approve 后的公开执行入口。 |
+| 用途 | 使用 resume token 恢复非 approval-gated 的 checkpointed run。approval-gated checkpoint 只能由 `APR-002` 先取得私有 resolution lease、生成绑定 `ApprovalGrant`，再通过 runtime 内部 resume seam 推进。 |
 | 方法 | `POST` |
 | 路径 | `/api/v1/runs/{run_id}/resume` |
 | 认证 | 已接入 `IdentityContext` dependency；认证 profile 启用 verifier 时需要有效 Bearer/API key，resume token 还必须属于 path run。 |
@@ -784,15 +808,15 @@ Phase 8 工具 seam 必须使用稳定错误码，CLI、runtime 和未来 API ro
 | Path 参数 | `run_id: string` |
 | URL 参数 | none |
 | 请求体 | `RunResumeRequest` |
-| 幂等性 | 非幂等；token 已消费或 run 已 terminal 时不得推进状态。 |
-| 副作用 | 解析 resume token、推进 run state、写后续 events；可能触发 worker/model/tool 后续动作。 |
+| 幂等性 | 非幂等；token 已消费或 run 已 terminal 时不得推进状态。approval-gated checkpoint 的公开请求必须在消费 token、推进 run 或调用 handler 前稳定拒绝。 |
+| 副作用 | 对普通 checkpoint 解析 resume token、推进 run state并写后续 events，可能触发已获授权的 worker/model 后续动作；对 approval-gated checkpoint 不得产生 run、event、tool handler、resolution 或 audit outcome 副作用，冲突审计除外。 |
 | 成功响应码 | `200` |
 | 响应头 | 当前只保证 `Content-Type: application/json`。 |
 | 响应体 | `RunCreateResponse` |
-| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 run.invalid_transition`、`422 validation_error`、`500 api.internal_error`。 |
-| 状态语义 | 成功后返回新的 run status；如果完成则返回 terminal event。 |
-| 安全规则 | `resume_token` 必须属于 path 中的 `run_id`；错误 URL 不得推进其他 run；token 还必须匹配 tenant/identity/approval context。 |
-| 验证要求 | contract tests 必须覆盖 token/run_id mismatch 先失败且不推进任一 run。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 run.invalid_transition`、`422 validation_error`、`500 api.internal_error`。公开请求命中 approval-gated checkpoint 时固定返回 `409 run.invalid_transition`，提示调用方改用 approval resolve 入口。 |
+| 状态语义 | 普通 checkpoint 成功后返回新的 run status；如果完成则返回 terminal event。approval-gated checkpoint 的公开请求始终不改变 run/approval 状态。 |
+| 安全规则 | `resume_token` 必须属于 path 中的 `run_id` 并匹配 tenant/identity；错误 URL 不得推进其他 run。原始 token 即使同时匹配 approval context，也不足以执行 approval-gated 动作；该动作只能由 `APR-002` 取得私有 lease 后生成的 `ApprovalGrant` 经内部 resume seam 推进。 |
+| 验证要求 | contract tests 必须覆盖 token/run_id mismatch 先失败且不推进任一 run，并覆盖 approval-gated checkpoint 直接调用公开 `RUN-005` 返回 `409 run.invalid_transition`、tool handler 执行计数为零、token 未消费且 run/approval 状态不变。 |
 
 ## 7. Agent Registry API
 
@@ -850,16 +874,39 @@ Phase 8 工具 seam 必须使用稳定错误码，CLI、runtime 和未来 API ro
 
 CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制表符摘要列：`approval_id`、`status`、`action`、`resource`、`reason`、`tenant_id`、`agent_id`、`run_id`、`trace_id`、`request_id`。
 
-单项读取使用 `GET /api/v1/runs/{run_id}/approvals/{approval_id}`，返回 `ApprovalRecord`，写入 approval read audit evidence，并复用同一认证、可见性、脱敏和 `ApiErrorEnvelope` 规则。
+### APR-001A 读取单项 run approval
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `APR-001A` |
+| 状态 | 已实现。 |
+| 入口 / 调用方 | OpenAPI 调用方、HITL approval detail、service-app；CLI 当前通过 `approvals list`/resolve seam 使用同一 repository，不单独增加 detail 命令。 |
+| 用途 | 按 `run_id` 与 `approval_id` 双重定位一条当前身份可见的脱敏 approval。 |
+| 方法 | `GET` |
+| 路径 | `/api/v1/runs/{run_id}/approvals/{approval_id}` |
+| 认证 | 必须注入 `IdentityContext`；当前身份必须有 approval read 权限且属于同一 tenant。 |
+| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`；认证启用时必填 `Authorization`。 |
+| Path 参数 | `run_id: string`、`approval_id: string`；二者归属必须一致。 |
+| URL 参数 | none |
+| 请求体 | none |
+| 幂等性 | 幂等读取；允许写一次 read audit evidence，不得改变 approval/run 状态。 |
+| 副作用 | 写 approval read audit evidence；不得 resolve approval、消费 resume token 或推进 run。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `ApprovalDetailResponse`，包含 `request_id` 与脱敏 `ApprovalPublicRecord`。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`422 validation_error`、`500 api.internal_error`。 |
+| 状态语义 | 返回记录的 `status` 表示 waiting/approved/denied/cancelled；404 不得泄漏跨 tenant 或跨 run approval 是否存在。 |
+| 安全规则 | 不返回 resume token、checkpoint state、原始危险 payload、secret、ORM model 或内部 approval resolution state。 |
+| 验证要求 | contract tests 必须覆盖 path/method、`ApprovalDetailResponse`、request_id、401/403/404/422 error envelope、跨 run/tenant 拒绝和 read audit evidence。 |
 
 ### APR-002 resolve approval
 
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `APR-002` |
-| 状态 | 已实现。 |
+| 状态 | 已实现。approve/deny 原子仲裁、带 owner timeout/fencing id 的私有 resolution lease、`ApprovalGrant`、进程重启与硬退出恢复、唯一 execution claim、确定性 failed 与 needs-review 分支均由 contract tests 固定。 |
 | 入口 / 调用方 | OpenAPI 调用方、HITL approval flow、CLI 等价入口 `agent-harness approvals approve <approval_id>` / `agent-harness approvals deny <approval_id>`、future Access/API gateway。 |
-| 用途 | 对 waiting approval 执行 approve 或 deny，并按策略 resume / fail / fallback run。 |
+| 用途 | 对 waiting approval 原子仲裁 approve 或 deny；approve 通过私有 lease 恢复原 continuation，deny 阻止目标动作并按策略 fail / fallback run。 |
 | 方法 | `POST` |
 | 路径 | `/api/v1/runs/{run_id}/approvals/{approval_id}` |
 | 认证 | 必须注入 `IdentityContext`；当前身份必须有审批权限。 |
@@ -867,15 +914,15 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | Path 参数 | `run_id: string`、`approval_id: string` |
 | URL 参数 | none |
 | 请求体 | `ApprovalResolveRequest` |
-| 幂等性 | 非幂等；已 resolved approval 再次 resolve 必须返回 409，不得重复推进 run 或 audit。 |
-| 副作用 | 更新 approval status、写 audit log、发布 `approval.resolved` event；approve 可通过 runtime resume seam 推进 run，deny 可让 run failed 或 fallback。 |
+| 幂等性 | public resolve 非幂等；已 resolved approval 再次 resolve 必须返回 `409 approval.invalid_transition`，不得重复推进 run、调用 tool handler或写第二个有效 resolution audit/event。若 private state 表明前一次调用只缺 terminal/resolution evidence，本次真实 API/CLI 调用可先使用同一 lease、既有 result 和稳定 event id 做内部补偿，再返回原 409；若前一次调用只提交 raw claimed lease 后进程硬退出，则本次真实调用只能在 owner timeout 到期且不存在 tool execution claim时原子换发 fencing id并继续。不得把这些恢复能力暴露成 public resolve 幂等成功。 |
+| 副作用 | approve/deny 先通过同一 repository 条件更新仲裁。deny 赢时 public status 原子变为 denied、目标动作不执行；approve 赢时只写 private lease，public status 继续 waiting，runtime 通过原 checkpoint/executor/tool continuation 执行一次。raw claimed lease 只有在超时且无 tool claim时可被接管；活跃 lease和已有 claim不可抢占。executor 在创建唯一 tool claim 的同一 UoW 内校验并续租当前 fencing id，旧 owner不得调用 handler。动作产生持久化确定性结果并使 run terminal 后，public status 才变为 approved并写唯一 `approval.resolved` event/audit。event sink 写入前失败或写入后确认丢失时，内部 private state 保留 evidence pending，后续真实 resolve 重试补齐而不重放 handler。 |
 | 成功响应码 | `200` |
 | 响应头 | 当前只保证 `Content-Type: application/json`。 |
 | 响应体 | `ApprovalResolveResponse` |
-| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 approval.invalid_transition` / `run.invalid_transition`、`422 validation_error`、`500 api.internal_error`。 |
-| 状态语义 | `approved` 表示原动作允许继续；`denied` 表示原动作不得执行。返回的 `run.status` 是 resolve 后 runtime 摘要。 |
-| 安全规则 | path 中的 `run_id` 必须与 approval 归属一致；错误 URL 不得推进其他 run。响应和 audit 不得泄漏 resume token、secret 或原始危险 payload。 |
-| 验证要求 | 认证/策略/HITL contract tests 必须覆盖 approve、deny、重复 resolve 409、跨 run resolve 拒绝、audit evidence、request_id 和 OpenAPI schema。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 approval.invalid_transition`、`409 approval.resolution_in_progress`、`409 approval.execution_needs_review`、`409 run.invalid_transition`、`422 validation_error`、`500 api.internal_error`。approve lease 已存在时，并发 deny/第二个 public resolve 使用 `approval.resolution_in_progress`；execution claim 状态不确定且无结果时使用 `approval.execution_needs_review`。 |
+| 状态语义 | `approved` 表示人工允许原动作执行，不保证动作执行成功；completed 或确定性 failed result 都会在 run 进入对应 terminal 后完成 approved resolution。`denied` 表示原动作不得执行。结果不确定时 public approval 保持 waiting，`run.status` 保持非伪造的 waiting/failed 摘要，private state 可进入 needs_review。 |
+| 安全规则 | path 中的 `run_id` 必须与 approval 归属一致；错误 URL 不得推进其他 run。response、OpenAPI、event 和 audit 不得泄漏 resume token、private lease/internal state、arguments 原文、secret 或原始危险 payload。仲裁失败方只允许写 conflict audit，不得发布第二个有效 resolution event。 |
+| 验证要求 | contract tests 必须覆盖 deny 先赢时 approve 无 lease且 handler 为零、approve lease 先赢时并发 deny 返回 in-progress 409且 public waiting不变、过期 raw claimed lease 由真实 APR-002 route 换发 fencing id并继续、未过期 lease与已有 claim不被抢占、旧 owner fencing失败、completed/确定性 failed 各自的 terminal与最终 approved、executing-without-result 的 needs-review 409、重复 public resolve 409、跨 run拒绝、单一 resolution/audit、request_id和 OpenAPI 不公开 private state；还必须用真实 APR-002 route 注入 approve/deny 的 `run.resumed`、terminal、`approval.resolved` sink 写前失败和写后确认丢失，证明重试仍返回既有 409但最终状态一致、handler 0/1 次、audit/terminal/resolution 各唯一。SQLite/PostgreSQL repository tests 均需覆盖 lease takeover、fencing 与 unique claim。 |
 
 ### POL-001 policy check
 
@@ -904,15 +951,15 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 ## 9. Tool Execution CLI / Runtime Seam
 
-Phase 8 不新增 HTTP route。工具执行先通过 CLI、runtime module seam 和未来 worker seam 暴露，避免在 tool 安全边界未稳定前公开远程执行 API。后续若新增 `/api/v1/tools` 或等价 route，必须先按第 3 节补完整 endpoint 条目和 OpenAPI drift tests。
+当前不新增工具执行 HTTP route。工具执行先通过 CLI、runtime module seam 和未来 worker seam 暴露，避免在 tool 安全边界未稳定前公开远程执行 API。后续若新增 `/api/v1/tools` 或等价 route，必须先按第 3 节补完整 endpoint 条目和 OpenAPI drift tests。
 
 ### 9.1 当前入口
 
 | Contract ID | 状态 | 入口 / 调用方 | 用途 |
 |---|---|---|---|
-| `TLS-001` | Phase 8 目标 | `agent-harness tools list`、runtime registry seam | 列出当前 actor/agent 可见的内置工具、FileTool、ShellTool 和 MCP discovery 工具摘要。 |
-| `TLS-002` | Phase 8 目标 | `agent-harness tools call`、runtime registry seam | 通过 `ToolRegistry` 执行一次受 policy 控制的工具调用，输出 `ToolCallResult`。 |
-| `TLS-003` | Phase 8 目标 | `agent_harness.tools.ToolRegistry` | 供 runtime、worker 和 template agent 通过 module seam 调用工具，不暴露 callable 或 vendor SDK object。 |
+| `TLS-001` | 目标能力 | `agent-harness tools list`、runtime registry seam | 列出当前 actor/agent 可见的内置工具、FileTool、ShellTool 和 MCP discovery 工具摘要。 |
+| `TLS-002` | 目标能力 | `agent-harness tools call`、runtime registry seam | 通过 `ToolRegistry` 执行一次受 policy 控制的工具调用，输出 `ToolCallResult`。 |
+| `TLS-003` | 目标能力 | `agent_harness.tools.ToolRegistry` | 供 runtime、worker 和 template agent 通过 module seam 调用工具，不暴露 callable 或 vendor SDK object。 |
 
 ### 9.2 行为契约
 
@@ -923,7 +970,7 @@ Phase 8 不新增 HTTP route。工具执行先通过 CLI、runtime module seam �
 | 响应 DTO | `ToolCallResult`；CLI 输出可用文本或 JSON，但字段语义不得偏离 DTO。 |
 | 幂等性 | 工具执行默认不幂等；调用方必须通过 run/trace/invocation id 关联审计。读文件和 list/search 是逻辑读操作，仍要记录 invocation evidence。 |
 | 副作用 | FileTool 可读写 workspace；ShellTool 可启动受控子进程；MCP client 可连接配置 server。所有副作用必须先通过 schema validation、allowlist 和 policy。 |
-| 持久化 | Phase 8 必须持久化 `workspaces` 和 `tool_invocations`，至少记录 workspace root/policy ref、tool name、args_ref、result_ref、status、duration、tenant/run/agent/trace。大参数和结果走 artifact/ref。 |
+| 持久化 | 工具执行边界必须持久化 `workspaces` 和 `tool_invocations`，至少记录 workspace root/policy ref、tool name、args_ref、result_ref、status、duration、tenant/run/agent/trace。大参数和结果走 artifact/ref。 |
 | 安全规则 | 空 `agent.tool_allowlist` 表示无工具权限；workspace 外访问默认 deny 或 require_approval；ShellTool 默认 disabled，显式启用后仍必须拒绝越过 workspace 的路径参数和 symlink target；MCP tool 未 allowlist 时 policy 拒绝；secret 不进 inline result、event、audit 或 error。 |
 | ContextAssembler | tool/MCP output 进入上下文前必须带 `source_ref`、`trust_level`、token/truncation metadata 和 artifact_ref，不允许裸字符串拼接。 |
 | stdout/stderr refs | ShellTool 的大 stdout/stderr 必须写入 artifact store，并在 `ToolCallResult.result.stdout_ref` / `ToolCallResult.result.stderr_ref` 中返回 artifact ref；`artifact_ref` 只用于整体结果或非流式 payload。 |
@@ -941,43 +988,188 @@ Phase 8 不新增 HTTP route。工具执行先通过 CLI、runtime module seam �
 
 ### EVL-001 draft eval case
 
-| 项目 | 契约 |
+#### EVL-001A 创建 draft eval case
+
+| 字段 | 内容 |
 |---|---|
-| Method / Path | `POST /api/v1/eval-cases/drafts`、`GET /api/v1/eval-cases/drafts` |
-| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval draft` / `agent-harness eval list --status draft`、trace/score detector seam。 |
-| 身份 / 权限 | 需要有效 HTTP Bearer；未认证必须返回 401 且不创建 eval case、approved dataset、eval run、score 或 audit side effect。 |
-| Request | draft create body 包含 `agent_id`、`run_id`、`trace_id`、`trigger`、`input`、可选 `output` / `expected` / `scores` / `score_threshold` / `source_refs` / `artifact_refs` / `metadata`。 |
-| Response | 返回 `request_id` 和脱敏 `EvalCaseRecord`；`status` 必须是 `draft`，不得返回完整大 payload 或原始 secret。 |
-| 错误语义 | secret / privacy 扫描失败返回 422 `ApiErrorEnvelope`，错误摘要必须脱敏；provider 状态不参与 draft 创建成败。 |
-| OpenAPI | operation 必须声明 `HTTPBearer` security，401/403/422/500 均返回 `ApiErrorEnvelope`。 |
+| Contract ID | `EVL-001A` |
+| 状态 | 已实现。 |
+| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval draft`、trace/score detector seam。 |
+| 用途 | 从 failed/low-score trace 或人工输入创建待审 draft，不写 approved dataset。 |
+| 方法 | `POST` |
+| 路径 | `/api/v1/eval-cases/drafts` |
+| 认证 | 需要有效 HTTP Bearer；actor/tenant 来自 `IdentityContext`，不得从 body 覆盖。 |
+| 请求头 | `Content-Type: application/json`、`Authorization: Bearer <token>`；可选 `X-Request-Id`。 |
+| Path 参数 | none |
+| URL 参数 | none |
+| 请求体 | `EvalDraftCreateRequest`：必填 `agent_id`；可选 `run_id`、`trace_id`、`trigger`、`input`、`output`、`expected`、`scores`、`score_threshold`、`source_refs`、`artifact_refs`、`metadata`。 |
+| 幂等性 | 默认非幂等；相同 body 可创建不同 draft，调用方需要自行用 trace/case ref 去重。 |
+| 副作用 | 写 draft eval case 和必要 audit/trace evidence；不得写 approved dataset、eval run 或 score。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `EvalCaseResponse`，包含 `request_id` 和脱敏 `EvalCaseRecord`，`status=draft`。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`422 validation_error` / secret-privacy scan failure、`500 api.internal_error`。 |
+| 状态语义 | `status=draft` 表示必须人工 review；provider 状态不参与 draft 创建成败。 |
+| 安全规则 | input/output/error 先脱敏；大 payload 只留 artifact/source refs；未认证时不得产生任何 case/audit/provider side effect。 |
+| 验证要求 | contract tests 覆盖 path/method、HTTPBearer、request/response schema、request_id、draft-only、secret 422、401/403/422/500 `ApiErrorEnvelope` 和无 approved side effect。 |
+
+#### EVL-001B 列出 draft eval cases
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `EVL-001B` |
+| 状态 | 已实现。 |
+| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval list --status draft`、人工 review queue。 |
+| 用途 | 列出当前 tenant 可见的 draft 摘要，可按 agent/dataset 过滤。 |
+| 方法 | `GET` |
+| 路径 | `/api/v1/eval-cases/drafts` |
+| 认证 | 需要有效 HTTP Bearer 和 eval read 权限；tenant 由 identity 固定。 |
+| 请求头 | `Authorization: Bearer <token>`；可选 `Accept`、`X-Request-Id`。 |
+| Path 参数 | none |
+| URL 参数 | `agent_id: string` 可选；`dataset: string` 可选。 |
+| 请求体 | none |
+| 幂等性 | 幂等读取。 |
+| 副作用 | 只允许写 read audit evidence，不得修改 case。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `EvalCaseListResponse`，包含 `request_id` 与 `cases`；空列表表示没有匹配 draft。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`422 validation_error`、`500 api.internal_error`。 |
+| 状态语义 | `cases=[]` 是成功空态，不等于 approved dataset 为空。 |
+| 安全规则 | 只返回当前 tenant 脱敏摘要；不得返回 provider 原始对象或完整大 payload。 |
+| 验证要求 | contract tests 覆盖 filters、空态、跨 tenant 隔离、request_id、HTTPBearer 和 401/403/422/500 error envelope。 |
 
 ### EVL-002 approve eval case
 
-| 项目 | 契约 |
+#### EVL-002A 人工 approve eval case
+
+| 字段 | 内容 |
 |---|---|
-| Method / Path | `POST /api/v1/eval-cases/{case_id}/approve`、`GET /api/v1/eval-cases/approved` |
-| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval approve <case_id>` / `agent-harness eval list --status approved`。 |
-| 身份 / 权限 | approved dataset 写入必须携带人工审核身份；默认走 policy/approval seam，不能由自动 detector 直接调用。 |
-| Request | approve body 包含 `reason`，可选 `dataset`；`case_id` 来自 URL 边界。 |
-| Response | 返回 `request_id` 和 approved `EvalCaseRecord`，包含 reviewer、reason、dataset、source refs、artifact refs 和 audit ref 摘要。 |
-| 副作用 | 成功时 case 进入 approved dataset 并写 audit log；audit payload、case payload 和 API 响应均必须先脱敏。 |
-| 回滚语义 | approved dataset 或 audit 写入失败时，draft 保持可审阅状态；不得留下半个 approved case。 |
+| Contract ID | `EVL-002A` |
+| 状态 | 已实现。 |
+| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval approve <case_id>`、人工 review flow。 |
+| 用途 | 把一条当前 tenant 的 draft 人工确认到指定 approved dataset。 |
+| 方法 | `POST` |
+| 路径 | `/api/v1/eval-cases/{case_id}/approve` |
+| 认证 | 需要有效 HTTP Bearer、人工 reviewer identity 和 `eval.case.approve` policy allow；自动 detector 不得调用。 |
+| 请求头 | `Content-Type: application/json`、`Authorization: Bearer <token>`；可选 `X-Request-Id`。 |
+| Path 参数 | `case_id: string`。 |
+| URL 参数 | none |
+| 请求体 | `EvalApproveRequest`：必填非空 `reason`，可选 `dataset`，默认 `default`。 |
+| 幂等性 | 非幂等；已 approved/invalid case 再 approve 返回冲突，不重复写 audit。 |
+| 副作用 | 原子更新 case status/dataset/reviewer/reason，并写 audit；不得留下半个 approved case。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `EvalCaseResponse`，包含 `request_id`、approved case 和 `audit_ref`。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 eval.invalid_transition`、`422 validation_error`、`500 api.internal_error`。 |
+| 状态语义 | 成功后 `case.status=approved`；失败时原 draft 保持可审阅。 |
+| 安全规则 | reviewer 来自 identity；reason/case/audit 均脱敏；不得自动批准 detector 生成的 case。 |
+| 验证要求 | contract tests 覆盖人工身份/policy、request_id/audit_ref、原子回滚、重复 approve、跨 tenant、HTTPBearer 和所有 error envelopes。 |
+
+#### EVL-002B 列出 approved eval cases
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `EVL-002B` |
+| 状态 | 已实现。 |
+| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval list --status approved`、eval runner。 |
+| 用途 | 列出当前 tenant 的 approved dataset 摘要。 |
+| 方法 | `GET` |
+| 路径 | `/api/v1/eval-cases/approved` |
+| 认证 | 需要有效 HTTP Bearer 和 eval read 权限。 |
+| 请求头 | `Authorization: Bearer <token>`；可选 `Accept`、`X-Request-Id`。 |
+| Path 参数 | none |
+| URL 参数 | `agent_id: string` 可选；`dataset: string` 可选。 |
+| 请求体 | none |
+| 幂等性 | 幂等读取。 |
+| 副作用 | 只允许 read audit evidence。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `EvalCaseListResponse`；`cases=[]` 表示成功空态。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`422 validation_error`、`500 api.internal_error`。 |
+| 状态语义 | 返回记录必须全部为 approved；draft 永不混入。 |
+| 安全规则 | tenant 过滤、脱敏与 artifact ref 规则同 EVL-001B。 |
+| 验证要求 | contract tests 覆盖 approved-only、filters、空态、tenant 隔离、request_id、HTTPBearer 和 error envelope。 |
 
 ### EVL-003 run eval and read scores
 
-| 项目 | 契约 |
+#### EVL-003A 创建并运行 approved eval
+
+| 字段 | 内容 |
 |---|---|
-| Method / Path | `POST /api/v1/evals/runs`、`GET /api/v1/evals/runs/{eval_run_id}`、`GET /api/v1/evals/runs/{eval_run_id}/scores` |
-| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval run` / `agent-harness eval scores`、`make eval`。 |
-| 身份 / 权限 | 需要有效 HTTP Bearer；未认证不得创建 eval run、score 或 provider write side effect。 |
-| Request | run create body 包含 `agent_id` 和可选 `dataset`；runner MUST 只读取 approved cases。 |
-| Response | 返回 `request_id`、`eval_run_id`、`status`、`case_count`、`score_summary`、local evidence refs 和 provider degraded status；不得暴露 provider 原始响应。 |
-| ScoreSink | score 先写 local/jsonl，再通过 `TelemetryFacade` 或 provider adapter contract 写回 provider；provider failure 只返回脱敏 degraded summary，不影响 local evidence。 |
-| Empty dataset | approved dataset 为空时稳定返回 no approved cases 摘要，不运行 draft case，不伪造 score。 |
+| Contract ID | `EVL-003A` |
+| 状态 | 已实现。 |
+| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval run`、`make eval`。 |
+| 用途 | 对指定 agent/dataset 的 approved cases 创建 eval run 并写 score evidence。 |
+| 方法 | `POST` |
+| 路径 | `/api/v1/evals/runs` |
+| 认证 | 需要有效 HTTP Bearer 和 eval run 权限；未认证不得创建 eval run/score/provider side effect。 |
+| 请求头 | `Content-Type: application/json`、`Authorization: Bearer <token>`；可选 `X-Request-Id`。 |
+| Path 参数 | none |
+| URL 参数 | none |
+| 请求体 | `EvalRunCreateRequest`：必填 `agent_id`，可选 `dataset`，默认 `default`。 |
+| 幂等性 | 当前非幂等；每次成功请求创建新的 `eval_run_id`。 |
+| 副作用 | 只读取 approved cases；写 eval run、score 和 local-first telemetry evidence，provider fan-out 可降级。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `EvalRunResponse`，含 `request_id`、`eval_run_id`、status、case_count、score_summary、local_refs、provider_statuses。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`422 validation_error`、`500 api.internal_error`。 |
+| 状态语义 | approved 为空返回 `no_approved_cases` 和 case_count=0；不得执行 draft 或伪造 score。 |
+| 安全规则 | score 先写脱敏 local evidence，再 fan-out；provider failure 只产生 degraded status，不删除 local refs。 |
+| 验证要求 | contract tests 覆盖 approved-only、draft skip、empty dataset、local-first/provider degrade、request_id、HTTPBearer 和 401/403/422/500 error envelopes。 |
+
+#### EVL-003B 读取 eval run
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `EVL-003B` |
+| 状态 | 已实现。 |
+| 入口 / 调用方 | OpenAPI 调用方、service-app、eval 调试工具。 |
+| 用途 | 按 `eval_run_id` 读取当前 tenant 的 eval run 摘要。 |
+| 方法 | `GET` |
+| 路径 | `/api/v1/evals/runs/{eval_run_id}` |
+| 认证 | 需要有效 HTTP Bearer 和同 tenant 可见性。 |
+| 请求头 | `Authorization: Bearer <token>`；可选 `Accept`、`X-Request-Id`。 |
+| Path 参数 | `eval_run_id: string`。 |
+| URL 参数 | none |
+| 请求体 | none |
+| 幂等性 | 幂等读取。 |
+| 副作用 | none；允许 read audit evidence。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `EvalRunResponse`，不得包含 provider client/raw response。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`422 validation_error`、`500 api.internal_error`。 |
+| 状态语义 | `status`/case_count/score_summary/provider_statuses 共同表达 running/completed/degraded/no_approved_cases。 |
+| 安全规则 | 跨 tenant 返回 404/403，不泄漏 run 是否存在；provider error 只返回脱敏摘要。 |
+| 验证要求 | contract tests 覆盖 response schema、request_id、local refs、跨 tenant、404、HTTPBearer 和 error envelope。 |
+
+#### EVL-003C 读取 eval scores
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `EVL-003C` |
+| 状态 | 已实现。 |
+| 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval scores`、人工 eval review。 |
+| 用途 | 读取当前 tenant 可见 eval run 的 score evidence。 |
+| 方法 | `GET` |
+| 路径 | `/api/v1/evals/runs/{eval_run_id}/scores` |
+| 认证 | 需要有效 HTTP Bearer 和同 tenant 可见性。 |
+| 请求头 | `Authorization: Bearer <token>`；可选 `Accept`、`X-Request-Id`。 |
+| Path 参数 | `eval_run_id: string`。 |
+| URL 参数 | none |
+| 请求体 | none |
+| 幂等性 | 幂等读取。 |
+| 副作用 | none；允许 read audit evidence。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `EvalScoresResponse`，含 `request_id` 和脱敏 `scores`；空数组表示尚无 score。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`422 validation_error`、`500 api.internal_error`。 |
+| 状态语义 | `scores=[]` 是成功空态；不得据此推断其他 tenant 的 run。 |
+| 安全规则 | 不返回 provider raw response、secret 或完整大 payload；只返回 score DTO 与 refs。 |
+| 验证要求 | contract tests 覆盖 response schema、空态、request_id、tenant 隔离、404、HTTPBearer 和 error envelope。 |
 
 ### EVL-004 eval experiment and harness comparison
 
-本条目是 Phase 12 之后的 trace/eval 升级契约。它不改变 Phase 11 已实现的 draft / approve / run 基础链路；开工前必须先补 contract tests，再实现 route、CLI 和 storage schema。
+本条目是基础 draft / approve / run 链路之上的 trace/eval 升级契约，不改变已实现的人工审核基础语义；开工前必须先补 contract tests，再实现 route、CLI 和 storage schema。
 
 | 项目 | 契约 |
 |---|---|
@@ -992,13 +1184,32 @@ Phase 8 不新增 HTTP route。工具执行先通过 CLI、runtime module seam �
 | 错误语义 | 标签不存在、split 后 holdout 为空、candidate harness 缺失、provider 写入失败或 comparison evidence 不完整时返回稳定 `ApiErrorEnvelope` 或 degraded summary；provider failure 不得删除 local evidence。 |
 | OpenAPI | operation 必须声明 `HTTPBearer` security，401/403/409/422/500 均返回 `ApiErrorEnvelope`；accept endpoint 必须在 schema 中暴露人工 reviewer / policy decision / audit ref 字段。 |
 
-## 11. 保留 API 索引
+## 11. Health API
 
-这些路径来自 `Product-Spec.md` 的当前版本 API 列表。它们不是当前已实现能力；对应计划项开工前必须先把本节扩展成第 3 节规定的完整 endpoint 条目，再写 route。
+### HLT-001 读取应用 health/capability 摘要
 
-| Contract ID | 状态 | 计划归属 | 路径 | 契约门禁 |
-|---|---|---:|---|---|
-| `HLT-001` | 规划中 | Service App / Service Profile | `/api/v1/health` | 必须定义 local/service profile health 字段、storage/queue/observability 状态和公开性。 |
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `HLT-001` |
+| 状态 | 已实现。 |
+| 入口 / 调用方 | 公开 OpenAPI 调用方、service-app local/dev 启动探针、Docker Compose liveness；真实 service dependency 验证仍使用 `make smoke-service`。 |
+| 用途 | 证明 FastAPI app 已启动，并返回当前 profile 的脱敏 storage/queue/observability capability 摘要。 |
+| 方法 | `GET` |
+| 路径 | `/api/v1/health` |
+| 认证 | 无需凭据；这是公开只读 liveness/capability endpoint。不得因公开而扩大其他 `/api/v1` route 的认证范围。 |
+| 请求头 | 可选 `Accept: application/json`、`X-Request-Id`。 |
+| Path 参数 | none |
+| URL 参数 | none |
+| 请求体 | none |
+| 幂等性 | 幂等读取。 |
+| 副作用 | none；不得写库、探测外部 provider、创建 run/audit 或修改配置。 |
+| 成功响应码 | `200` |
+| 响应头 | 当前只保证 `Content-Type: application/json`。 |
+| 响应体 | `HealthResponse`。 |
+| 错误响应码 | app 已启动后的 route/dependency 异常返回 `500 api.internal_error`，公开 message 使用固定安全摘要，不返回 DSN/token/绝对路径。无效 profile 在 FastAPI app 创建前直接导致启动失败，因此不存在可请求的 health endpoint，也不得伪装成 HTTP 500。 |
+| 状态语义 | `status=ok` 表示 app 与类型化 profile 装配成功；`degraded` 仅表示 capability 配置降级，不代表实时 network probe 失败。profile 装配失败属于进程启动门禁，不属于运行中 health 状态。 |
+| 安全规则 | response 只允许 kind/status/profile/request_id；禁止 DSN、Redis URL、password、token、endpoint credential、token env value、本机绝对路径和 provider 原始对象。 |
+| 验证要求 | contract tests 覆盖公开访问、X-Request-Id 透传、local/service summary、secret/绝对路径不泄漏、`HealthResponse` OpenAPI schema、500 `ApiErrorEnvelope`；service readiness 另由 PostgreSQL/Redis smoke 证明。 |
 
 ## 12. 入口 / 调用方映射
 
@@ -1013,7 +1224,7 @@ Phase 8 不新增 HTTP route。工具执行先通过 CLI、runtime module seam �
 | OpenAPI 调用方 | `AGT-001`、`RUN-001` 到 `RUN-005`，后续保留 API | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
 | service-app FastAPI | `AGT-001`、`RUN-001` 到 `RUN-005` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
 | runtime worker | 内部 worker seam；不直接新增 HTTP route | worker 必须通过 runtime components，不直接操作 ORM/DBOS/provider SDK。 |
-| HITL approval flow | `RUN-005` + `APR-*` | approval/resume 必须关联 checkpoint、audit、tenant、run、identity。 |
+| HITL approval flow | `APR-001` / `APR-002` + runtime 内部 resume seam | approval continuation 必须关联 checkpoint、audit、tenant、identity、agent、run、action/resource 和 arguments hash；公开 `RUN-005` 只服务普通 checkpoint，不能执行 approval-gated 动作。 |
 | Eval review / experiment flow | `EVL-*` | draft 到 approved 必须人工确认，secret/隐私脱敏是写入门禁；experiment accept 必须有人审、policy/audit 和回归证据。 |
 | future API/worker split | 所有 HTTP API + worker seam | 拆分后数据只走 DTO、CanonicalEvent、repository/provider/facade，不传进程内可变对象；queue message header 必须携带 `request_id` 和 `idempotency_key`。 |
 
@@ -1076,4 +1287,5 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] Tool execution 开工前补全 tools CLI/runtime/module seam、无新增 HTTP route 和 contract tests 目标。
 - [x] Eval Gate 开工前补全 eval endpoint 条目和 contract tests。
 - [x] Trace/eval 升级开工前补全 eval experiment、harness comparison、acceptance gate endpoint 条目和 contract tests 目标。
-- [ ] Service App / Service Profile 收口时做全量 OpenAPI drift 复扫，并补齐 422 validation error envelope 统一验证。
+- [x] Service App 基础表面已完成首轮全量 OpenAPI drift 复扫，并统一验证所有适用 operation 的 422 `ApiErrorEnvelope`。
+- [x] Executor、approval continuation 和 scaffold 全部合入后，已针对更新后的 `APR-002`、完整 P0 CLI composition 和最终 OpenAPI 完成组合漂移复扫。

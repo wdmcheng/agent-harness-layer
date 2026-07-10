@@ -1,5 +1,12 @@
 """工具执行公共 seam。"""
 
+from agent_harness.tools.approved_execution import (
+    ApprovedToolExecutionUncertain as ApprovedToolExecutionUncertain,
+)
+from agent_harness.tools.approved_execution import (
+    ApprovedToolGrantError as ApprovedToolGrantError,
+)
+from agent_harness.tools.approved_execution import hash_tool_arguments as hash_tool_arguments
 from agent_harness.tools.file_tool import FileTool as FileTool
 from agent_harness.tools.mcp_tools import MCPTool as MCPTool
 from agent_harness.tools.mcp_tools import mcp_tools_from_client as mcp_tools_from_client
@@ -18,6 +25,8 @@ from agent_harness.tools.workspace import WorkspaceAccessError as WorkspaceAcces
 from agent_harness.tools.workspace import WorkspacePolicy as WorkspacePolicy
 
 _TOOL_EXPORTS = [
+    "ApprovedToolExecutionUncertain",
+    "ApprovedToolGrantError",
     "BuiltinTool",
     "FileTool",
     "MCPTool",
@@ -34,6 +43,7 @@ _TOOL_EXPORTS = [
     "WorkspacePolicy",
     "mcp_tools_from_client",
     "tool_status_for_error",
+    "hash_tool_arguments",
 ]
 
 __all__ = [*_TOOL_EXPORTS]  # pyright: ignore[reportUnsupportedDunderAll]

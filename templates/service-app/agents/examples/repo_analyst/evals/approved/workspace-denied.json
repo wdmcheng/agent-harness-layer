@@ -1,0 +1,14 @@
+{
+  "case_id": "repo-workspace-denied",
+  "agent_id": "examples.repo_analyst",
+  "payload": {
+    "input": {"operation": "read", "path": "../Product-Spec.md"},
+    "compare_fields": ["status", "operation", "error_code", "trace_ref_present"],
+    "expected": {
+      "status": "denied",
+      "operation": "read",
+      "error_code": "tool.workspace_denied",
+      "trace_ref_present": true
+    }
+  }
+}

@@ -13,7 +13,9 @@ from agent_harness.audit import AuditService
 from agent_harness.cli_shared import event_path, load_settings_or_exit, policy_engine
 from agent_harness.events import EventBus, LocalJsonlEventSink
 from agent_harness.policy import PolicyCheck
+from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator
+from agent_harness.runtime.services import build_agent_execution_services
 from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
 
 policy_app = typer.Typer(no_args_is_help=True)
@@ -140,6 +142,9 @@ def approve(
     profiles_dir: Annotated[Path | None, typer.Option("--profiles-dir")] = None,
     storage_dsn: Annotated[str | None, typer.Option("--storage-dsn")] = None,
     events_path: Annotated[Path | None, typer.Option("--events-path")] = None,
+    agents_dir: Annotated[Path, typer.Option("--agents-dir")] = Path(
+        "templates/service-app/agents"
+    ),
     comment: Annotated[str | None, typer.Option("--comment")] = None,
 ) -> None:
     """批准一个 waiting approval 并恢复对应 run。"""
@@ -151,6 +156,7 @@ def approve(
         profiles_dir=profiles_dir,
         storage_dsn=storage_dsn,
         events_path=events_path,
+        agents_dir=agents_dir,
         comment=comment,
     )
 
@@ -162,6 +168,9 @@ def deny(
     profiles_dir: Annotated[Path | None, typer.Option("--profiles-dir")] = None,
     storage_dsn: Annotated[str | None, typer.Option("--storage-dsn")] = None,
     events_path: Annotated[Path | None, typer.Option("--events-path")] = None,
+    agents_dir: Annotated[Path, typer.Option("--agents-dir")] = Path(
+        "templates/service-app/agents"
+    ),
     comment: Annotated[str | None, typer.Option("--comment")] = None,
 ) -> None:
     """拒绝一个 waiting approval 并让对应 run 失败。"""
@@ -173,6 +182,7 @@ def deny(
         profiles_dir=profiles_dir,
         storage_dsn=storage_dsn,
         events_path=events_path,
+        agents_dir=agents_dir,
         comment=comment,
     )
 
@@ -185,6 +195,7 @@ def resolve_approval(
     profiles_dir: Path | None,
     storage_dsn: str | None,
     events_path: Path | None,
+    agents_dir: Path,
     comment: str | None,
 ) -> None:
     """解析本地依赖后，通过 ApprovalService 完成 approve/deny。"""
@@ -194,17 +205,42 @@ def resolve_approval(
     run_migrations(resolved_dsn)
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
     resolved_events_path = event_path(settings, events_path)
-    artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
-    event_bus = EventBus(
-        sink=LocalJsonlEventSink(resolved_events_path),
-        artifact_store=FileArtifactStore(artifact_root),
+    service_root = agents_dir.resolve().parent
+    configured_artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
+    artifact_root = (
+        Path(events_path).resolve().parent / "artifacts"
+        if events_path is not None
+        else (
+            configured_artifact_root
+            if configured_artifact_root.is_absolute()
+            else service_root / configured_artifact_root
+        )
     )
+    event_sink = LocalJsonlEventSink(resolved_events_path)
+    artifact_store = FileArtifactStore(artifact_root)
+    event_bus = EventBus(
+        sink=event_sink,
+        artifact_store=artifact_store,
+    )
+    audit = AuditService(storage=storage)
+    policy = policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
+    registry = AgentRegistry.load_from_directory(agents_dir)
     orchestrator = RunOrchestrator(
         storage=storage,
         event_bus=event_bus,
         identity=settings.identity.default,
+        executor_resolver=registry.resolve_executor,
+        executor_services=build_agent_execution_services(
+            settings=settings,
+            storage=storage,
+            storage_dsn=resolved_dsn,
+            policy=policy,
+            audit=audit,
+            event_sink=event_sink,
+            artifact_store=artifact_store,
+            service_root=service_root,
+        ),
     )
-    audit = AuditService(storage=storage)
     service = ApprovalService(
         storage=storage,
         event_bus=event_bus,
@@ -221,7 +257,6 @@ def resolve_approval(
                 approval_id=approval_id,
                 audit_read=False,
             )
-            policy = policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
             await policy.require_allowed(
                 PolicyCheck(
                     actor=settings.identity.default,

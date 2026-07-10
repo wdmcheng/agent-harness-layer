@@ -18,7 +18,7 @@ async def run_once(
     events_path: Path | None = None,
     idempotency_key: str | None = None,
 ) -> str:
-    """执行一次内置 fake run，证明 worker shell 共用 RunOrchestrator seam。"""
+    """执行一次显式 basic executor run，证明 worker 共用 RunOrchestrator seam。"""
 
     components = build_runtime_components(
         profile=profile,
@@ -30,7 +30,7 @@ async def run_once(
         # 这里暂不拉真实队列；worker 先穿过同一 runtime seam，证明后续取任务
         # 逻辑可以复用 API/CLI 的 storage、event 和 idempotency 边界。
         result = await components.orchestrator.start_run(
-            agent_id="fake-agent",
+            agent_id="examples.basic",
             input={"source": "worker"},
             idempotency_key=idempotency_key or f"worker-{uuid4()}",
         )

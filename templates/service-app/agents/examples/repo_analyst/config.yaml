@@ -1,0 +1,20 @@
+agent_id: examples.repo_analyst
+version: 0.1.0
+name: Repo Analyst Example
+description: Workspace-safe file analysis with no shell visibility and artifact-backed long output.
+input_schema: agents.examples.repo_analyst.schemas.RepoAnalystInput
+output_schema: agents.examples.repo_analyst.schemas.RepoAnalystOutput
+executor: agent:executor
+model:
+  provider: fake
+  default_model: fake-repo-analyst
+  fallback_models: []
+budget:
+  max_tokens_per_run: 4096
+  max_cost_usd_per_run: null
+tool_allowlist:
+  - file.read_file
+  - file.search_files
+  - file.list_files
+eval_dataset: agents/examples/repo_analyst/evals
+delegation_edges: []

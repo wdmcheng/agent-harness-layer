@@ -1,7 +1,7 @@
 # agent-registry-model-context Specification
 
 ## Purpose
-定义 Phase 6 的 Agent Registry、模型路由、ContextAssembler 与 Embedding provider/cache 契约，使多 agent 发现、provider 边界、上下文组装和 embedding 复用有稳定 public seam。
+定义 Agent Registry、模型路由、ContextAssembler 与 Embedding provider/cache 的长期契约，使多 agent 发现、provider 边界、上下文组装和 embedding 复用有稳定 public seam。
 
 ## Requirements
 

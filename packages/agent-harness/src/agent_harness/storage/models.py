@@ -238,6 +238,7 @@ class ToolInvocationModel(TimestampMixin, Base):
     """一次工具调用的参数/result artifact 引用和状态摘要。"""
 
     __tablename__ = "tool_invocations"
+    __table_args__ = (UniqueConstraint("approval_id", name="uq_tool_invocations_approval_id"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
@@ -248,6 +249,9 @@ class ToolInvocationModel(TimestampMixin, Base):
     tool_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     args_ref: Mapped[str] = mapped_column(String(512), nullable=False)
     result_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    approval_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    arguments_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    execution_state: Mapped[str | None] = mapped_column(String(32), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -434,6 +438,14 @@ class ApprovalModel(TimestampMixin, Base):
     requested_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     resolved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolution_lease_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    resolution_state: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    resolution_claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    resolution_finalized_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)

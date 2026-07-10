@@ -11,13 +11,11 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, cast
 
-import httpx
 import pytest
 
 from agent_harness.contracts import ErrorDetail
 from agent_harness.events import LocalJsonlEventSink
 from agent_harness.runtime import RunOrchestrator
-from agent_harness.storage import SQLAlchemyStorage, run_migrations
 from app.main import create_app
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +30,7 @@ name: Basic Example Agent
 description: Offline fake model smoke agent.
 input_schema: agents.examples.basic.schemas.Input
 output_schema: agents.examples.basic.schemas.Output
+executor: executor:executor
 model:
   provider: fake
   default_model: fake-basic
@@ -49,7 +48,40 @@ delegation_edges:
 def _write_agent_config(root: Path, relative: str, content: str) -> None:
     path = root / relative / "config.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    namespace = root.resolve().name
+    schema_module = f"{namespace}.{relative.replace('/', '.')}.schemas"
+    rendered = content.replace(
+        "agents.examples.basic.schemas.Input",
+        f"{schema_module}.Input",
+    ).replace(
+        "agents.examples.basic.schemas.Output",
+        f"{schema_module}.Output",
+    )
+    path.write_text(rendered, encoding="utf-8")
+    (path.parent / "schemas.py").write_text(
+        """from agent_harness.contracts.dto import HarnessDTO
+
+class Input(HarnessDTO):
+    value: str = ""
+
+class Output(HarnessDTO):
+    result: str = "fixture-ok"
+""",
+        encoding="utf-8",
+    )
+    (path.parent / "executor.py").write_text(
+        """from agent_harness.runtime import AgentExecutionResult
+
+class Executor:
+    async def run(self, request, context):
+        return AgentExecutionResult.completed({"result": "fixture-ok"})
+    async def resume(self, request, context, grant):
+        return AgentExecutionResult.completed({"resumed": True})
+
+executor = Executor()
+""",
+        encoding="utf-8",
+    )
 
 
 def sqlite_dsn(path: Path) -> str:
@@ -537,125 +569,3 @@ def test_cli_run_rejects_unknown_agent_before_runtime(tmp_path: Path) -> None:
         result.stderr
     )
     assert "run_id:" not in result.stdout
-
-
-@pytest.mark.asyncio
-async def test_context_assembly_and_embedding_cache_are_persisted(tmp_path: Path) -> None:
-    from agent_harness.context import ContextAssembler, ContextFragment
-    from agent_harness.embeddings import EmbeddingRequest, LocalEmbeddingProvider
-
-    db_path = tmp_path / "context-embedding.db"
-    run_migrations(sqlite_dsn(db_path))
-    storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(db_path))
-    try:
-        async with storage.uow() as uow:
-            assembly = await ContextAssembler(uow.context_assemblies).assemble(
-                tenant_id="default",
-                run_id="run-context",
-                fragments=[
-                    ContextFragment(
-                        source_ref="history:1",
-                        trust_level="trusted",
-                        content="short history",
-                        token_estimate=2,
-                        kind="history",
-                    ),
-                    ContextFragment(
-                        source_ref="tool:1",
-                        trust_level="untrusted",
-                        content="tool output " * 20,
-                        token_estimate=40,
-                        kind="tool_output",
-                    ),
-                ],
-                token_budget=10,
-                output_ref="context://run-context/1",
-            )
-            first = await LocalEmbeddingProvider(
-                cache=uow.embedding_cache,
-                provider="local",
-                model="mock-small",
-            ).embed(EmbeddingRequest(input="repeat me"))
-            await uow.commit()
-
-        async with storage.uow() as uow:
-            stored = await uow.context_assemblies.get(assembly.id)
-            second = await LocalEmbeddingProvider(
-                cache=uow.embedding_cache,
-                provider="local",
-                model="mock-small",
-            ).embed(EmbeddingRequest(input="repeat me"))
-    finally:
-        await storage.dispose()
-
-    assert stored is not None
-    assert stored.token_budget == 10
-    assert stored.output_ref == "context://run-context/1"
-    assert stored.truncation_summary["truncated_count"] == 1
-    assert stored.truncation_summary["dropped_count"] == 1
-    assert stored.truncation_summary["fragment_count"] == 2
-    assert assembly.fragment_traces[0].source_ref == "history:1"
-    assert assembly.fragment_traces[0].status == "dropped"
-    assert assembly.fragment_traces[0].retained_tokens == 0
-    assert assembly.fragment_traces[1].source_ref == "tool:1"
-    assert assembly.fragment_traces[1].status == "truncated"
-    assert assembly.fragment_traces[1].trust_level == "untrusted"
-    assert assembly.fragment_traces[1].retained_tokens == 10
-    assert assembly.fallback_decision == "trimmed"
-    assert first.cache.hit is False
-    assert second.cache.hit is True
-    assert second.vector_ref == first.vector_ref
-
-
-@pytest.mark.asyncio
-async def test_openai_compatible_embedding_adapter_posts_and_reuses_cache(tmp_path: Path) -> None:
-    from agent_harness.adapters.models.openai_compatible_embeddings import (
-        OpenAICompatibleEmbeddingProvider,
-    )
-    from agent_harness.embeddings import EmbeddingRequest
-
-    calls: list[dict[str, Any]] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(
-            {
-                "url": str(request.url),
-                "authorization": request.headers.get("authorization"),
-                "body": json.loads(request.content),
-            }
-        )
-        return httpx.Response(200, json={"data": [{"embedding": [0.1, 0.2, 0.3]}]})
-
-    db_path = tmp_path / "openai-compatible-embedding.db"
-    run_migrations(sqlite_dsn(db_path))
-    storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(db_path))
-    try:
-        async with storage.uow() as uow:
-            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-                provider = OpenAICompatibleEmbeddingProvider(
-                    cache=uow.embedding_cache,
-                    base_url="https://embedding.example/v1",
-                    model="text-embedding-3-small",
-                    api_key="test-key",
-                    client=client,
-                )
-                first = await provider.embed(EmbeddingRequest(input="repeat me"))
-                second = await provider.embed(EmbeddingRequest(input="repeat me"))
-            await uow.commit()
-    finally:
-        await storage.dispose()
-
-    assert calls == [
-        {
-            "url": "https://embedding.example/v1/embeddings",
-            "authorization": "Bearer test-key",
-            "body": {"model": "text-embedding-3-small", "input": "repeat me"},
-        }
-    ]
-    assert first.provider == "openai-compatible"
-    assert first.model == "text-embedding-3-small"
-    assert first.vector == [0.1, 0.2, 0.3]
-    assert first.cache.hit is False
-    assert second.cache.hit is True
-    assert second.vector == []
-    assert second.vector_ref == first.vector_ref

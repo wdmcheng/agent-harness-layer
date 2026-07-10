@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from scripts.import_boundary_check import check_sqlalchemy_session_boundaries
 
-from agent_harness.storage import SQLAlchemyStorage, run_migrations
+from agent_harness.storage import SQLAlchemyStorage, ToolInvocationCreate, run_migrations
 from agent_harness.storage.repositories import CheckpointCreate, RunCreate, SessionCreate
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -62,7 +62,7 @@ def assert_core_schema(db_path: Path) -> None:
             "tool_invocations",
         } <= tables
         revision = connection.execute("select version_num from alembic_version").fetchone()
-        assert revision == ("0007_eval_gate_trace_loop",)
+        assert revision == ("0008_agent_execution_approval_claims",)
 
 
 def test_local_sqlite_migration_creates_core_schema(tmp_path: Path) -> None:
@@ -154,6 +154,40 @@ async def test_repository_contract_uses_uow_and_rolls_back(tmp_path: Path) -> No
         await storage.dispose()
 
 
+@pytest.mark.asyncio
+async def test_0008_keeps_previous_tool_repository_writes_compatible(tmp_path: Path) -> None:
+    """新增 nullable claim 列不能破坏上一版本不传这些字段的基础 UoW 写入。"""
+
+    db_path = tmp_path / "forward-compatible.db"
+    dsn = sqlite_dsn(db_path)
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    try:
+        async with storage.uow() as uow:
+            tenant = await uow.tenants.ensure("forward-compatible")
+            record = await uow.tool_invocations.create(
+                ToolInvocationCreate(
+                    tenant_id=tenant.id,
+                    agent_id="examples.previous",
+                    run_id=None,
+                    tool_name="file.read_file",
+                    args_ref="artifact://old-args",
+                    result_ref="artifact://old-result",
+                    status="completed",
+                )
+            )
+            await uow.commit()
+        async with storage.uow() as uow:
+            loaded = await uow.tool_invocations.get(record.id)
+    finally:
+        await storage.dispose()
+
+    assert loaded is not None
+    assert loaded.approval_id is None
+    assert loaded.arguments_hash is None
+    assert loaded.execution_state is None
+
+
 @pytest.mark.skipif(
     not os.environ.get("AGENT_HARNESS_TEST_POSTGRES_DSN"),
     reason="PostgreSQL contract runs only when service smoke provides a DSN.",
@@ -227,7 +261,7 @@ def test_doctor_cli_reports_local_storage_migration_and_eval_status(tmp_path: Pa
 
     assert result.returncode == 0, result.stderr
     assert "storage: sqlite" in result.stdout
-    assert "migration: 0007_eval_gate_trace_loop" in result.stdout
+    assert "migration: 0008_agent_execution_approval_claims" in result.stdout
     assert "redis: not required" in result.stdout
     assert "eval directory:" in result.stdout
 

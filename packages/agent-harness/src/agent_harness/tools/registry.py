@@ -3,21 +3,30 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, cast
+from typing import cast
 from uuid import uuid4
 
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
 from agent_harness.contracts.trust import GuardrailDecisionStatus
 from agent_harness.policy import PolicyCheck, PolicyEngine
+from agent_harness.runtime.executor import ApprovalGrant
 from agent_harness.security.redaction import redact_secrets
+from agent_harness.storage import SQLAlchemyStorage
+from agent_harness.tools.approved_execution import ApprovedToolExecutor
+from agent_harness.tools.execution_support import (
+    error_result,
+    invoke_handler,
+    redact_tool_result,
+    source_ref,
+    validate_arguments,
+)
 from agent_harness.tools.output_guard import guarded_tool_payload
 from agent_harness.tools.types import (
     BuiltinTool,
     ToolCallRequest,
     ToolCallResult,
     ToolDescriptor,
-    ToolError,
     ToolErrorCode,
     ToolExecutionError,
     ToolRuntimeContext,
@@ -38,6 +47,7 @@ class ToolRegistry:
         inline_result_bytes: int = 8192,
         agent_tool_allowlist: list[str] | None = None,
         enforce_agent_tool_allowlist: bool = False,
+        storage: SQLAlchemyStorage | None = None,
     ) -> None:
         self._tools = {tool.name: tool for tool in tools}
         self._policy = policy
@@ -46,6 +56,7 @@ class ToolRegistry:
         self._inline_result_bytes = inline_result_bytes
         self._agent_tool_allowlist = set(agent_tool_allowlist or [])
         self._enforce_agent_tool_allowlist = enforce_agent_tool_allowlist
+        self._storage = storage
 
     def list_tools(self) -> list[ToolDescriptor]:
         """返回按名称排序的工具描述，供 CLI 和 runtime allowlist 使用。"""
@@ -68,38 +79,38 @@ class ToolRegistry:
         context: ToolRuntimeContext,
     ) -> ToolCallResult:
         invocation_id = str(uuid4())
-        source_ref = _source_ref(request.tool_name, invocation_id, context.run_id)
+        result_source_ref = source_ref(request.tool_name, invocation_id, context.run_id)
         tool = self._tools.get(request.tool_name)
         if tool is None:
-            result = _error_result(
+            result = error_result(
                 request,
                 context,
                 invocation_id,
-                source_ref,
+                result_source_ref,
                 ToolErrorCode.NOT_FOUND,
                 f"tool not found: {request.tool_name}",
             )
             await self._record_audit(context, request.tool_name, invocation_id, result.status)
             return result
         if not self._is_agent_tool_allowed(request.tool_name):
-            result = _error_result(
+            result = error_result(
                 request,
                 context,
                 invocation_id,
-                source_ref,
+                result_source_ref,
                 ToolErrorCode.POLICY_DENIED,
                 f"tool is not allowlisted for agent: {request.tool_name}",
             )
             await self._record_audit(context, request.tool_name, invocation_id, result.status)
             return result
 
-        validation_error = _validate_arguments(tool.input_schema, request.arguments)
+        validation_error = validate_arguments(tool.input_schema, request.arguments)
         if validation_error is not None:
-            result = _error_result(
+            result = error_result(
                 request,
                 context,
                 invocation_id,
-                source_ref,
+                result_source_ref,
                 ToolErrorCode.SCHEMA_VALIDATION_FAILED,
                 validation_error.message,
                 field_path=validation_error.field_path,
@@ -110,15 +121,15 @@ class ToolRegistry:
 
         if tool.preflight is not None:
             try:
-                preflight_result = _invoke_handler(tool.preflight, request, context)
+                preflight_result = invoke_handler(tool.preflight, request, context)
                 if inspect.isawaitable(preflight_result):
                     preflight_result = await preflight_result
             except ToolExecutionError as exc:
-                preflight_result = _error_result(
+                preflight_result = error_result(
                     request,
                     context,
                     invocation_id,
-                    source_ref,
+                    result_source_ref,
                     exc.code,
                     exc.message,
                     field_path=exc.field_path,
@@ -152,11 +163,11 @@ class ToolRegistry:
         )
         policy_payload = policy.to_payload()
         if policy.decision == GuardrailDecisionStatus.DENY.value:
-            result = _error_result(
+            result = error_result(
                 request,
                 context,
                 invocation_id,
-                source_ref,
+                result_source_ref,
                 ToolErrorCode.POLICY_DENIED,
                 policy.reason,
                 policy=policy_payload,
@@ -164,11 +175,11 @@ class ToolRegistry:
             await self._record_audit(context, request.tool_name, invocation_id, result.status)
             return result
         if policy.decision == GuardrailDecisionStatus.REQUIRE_APPROVAL.value:
-            result = _error_result(
+            result = error_result(
                 request,
                 context,
                 invocation_id,
-                source_ref,
+                result_source_ref,
                 ToolErrorCode.APPROVAL_REQUIRED,
                 policy.reason,
                 policy=policy_payload,
@@ -177,10 +188,11 @@ class ToolRegistry:
             return result
 
         try:
-            raw_result = _invoke_handler(tool.handler, request, context)
+            raw_result = invoke_handler(tool.handler, request, context)
             if inspect.isawaitable(raw_result):
                 raw_result = await raw_result
             if isinstance(raw_result, ToolCallResult):
+                raw_result = redact_tool_result(raw_result)
                 result_status = raw_result.status
                 await self._record_audit(
                     context,
@@ -196,11 +208,11 @@ class ToolRegistry:
                 invocation_id,
                 tool_status_for_error(exc.code),
             )
-            return _error_result(
+            return error_result(
                 request,
                 context,
                 invocation_id,
-                source_ref,
+                result_source_ref,
                 exc.code,
                 exc.message,
                 field_path=exc.field_path,
@@ -209,11 +221,11 @@ class ToolRegistry:
             )
         except Exception as exc:  # noqa: BLE001 - adapter 异常必须转换为稳定错误码
             await self._record_audit(context, request.tool_name, invocation_id, "failed")
-            return _error_result(
+            return error_result(
                 request,
                 context,
                 invocation_id,
-                source_ref,
+                result_source_ref,
                 ToolErrorCode.EXECUTION_FAILED,
                 str(redact_secrets(str(exc))),
                 policy=policy_payload,
@@ -232,12 +244,36 @@ class ToolRegistry:
             status="completed",
             invocation_id=invocation_id,
             result=result,
-            source_ref=source_ref,
+            source_ref=result_source_ref,
             artifact_ref=artifact_ref,
             truncation=truncation,
             policy=policy_payload,
             request_id=context.request_id or request.request_id,
             trace_id=context.trace_id or request.trace_id,
+        )
+
+    async def call_approved(
+        self,
+        request: ToolCallRequest,
+        *,
+        context: ToolRuntimeContext,
+        grant: ApprovalGrant,
+    ) -> ToolCallResult:
+        """在持久化 at-most-once claim 后执行一次 approved action。"""
+
+        executor = ApprovedToolExecutor(
+            tools=self._tools,
+            storage=self._storage,
+            artifact_store=self._artifact_store,
+            audit=self._audit,
+            inline_result_bytes=self._inline_result_bytes,
+            agent_tool_allowlist=self._agent_tool_allowlist,
+            enforce_agent_tool_allowlist=self._enforce_agent_tool_allowlist,
+        )
+        return await executor.execute(
+            request,
+            context=context,
+            grant=grant,
         )
 
     async def _record_audit(
@@ -270,101 +306,3 @@ class ToolRegistry:
         if not self._enforce_agent_tool_allowlist:
             return True
         return tool_name in self._agent_tool_allowlist
-
-
-class _ValidationError:
-    def __init__(self, message: str, *, field_path: str | None, hint: str | None = None) -> None:
-        self.message = message
-        self.field_path = field_path
-        self.hint = hint
-
-
-def _validate_arguments(
-    schema: dict[str, Any], arguments: dict[str, Any]
-) -> _ValidationError | None:
-    if schema.get("type", "object") != "object":
-        return _ValidationError("tool input schema must be an object", field_path=None)
-
-    required = schema.get("required", [])
-    if isinstance(required, list):
-        required_fields = cast(list[object], required)
-        for field in required_fields:
-            if isinstance(field, str) and field not in arguments:
-                return _ValidationError(
-                    f"missing required argument: {field}",
-                    field_path=field,
-                    hint="provide all required tool arguments",
-                )
-
-    properties = schema.get("properties", {})
-    if not isinstance(properties, dict):
-        return None
-    property_specs = cast(dict[object, object], properties)
-    for field, spec in property_specs.items():
-        if field not in arguments or not isinstance(field, str) or not isinstance(spec, dict):
-            continue
-        typed_spec = cast(dict[str, Any], spec)
-        expected_type = typed_spec.get("type")
-        if expected_type is None:
-            continue
-        if not _matches_json_schema_type(arguments[field], expected_type):
-            return _ValidationError(
-                f"argument {field} must be {expected_type}",
-                field_path=field,
-                hint="match the tool input schema",
-            )
-    return None
-
-
-def _matches_json_schema_type(value: Any, expected_type: object) -> bool:
-    if expected_type == "string":
-        return isinstance(value, str)
-    if expected_type == "integer":
-        return isinstance(value, int) and not isinstance(value, bool)
-    if expected_type == "number":
-        return isinstance(value, int | float) and not isinstance(value, bool)
-    if expected_type == "boolean":
-        return isinstance(value, bool)
-    if expected_type == "object":
-        return isinstance(value, dict)
-    if expected_type == "array":
-        return isinstance(value, list)
-    return True
-
-
-def _error_result(
-    request: ToolCallRequest,
-    context: ToolRuntimeContext,
-    invocation_id: str,
-    source_ref: str,
-    code: ToolErrorCode,
-    message: str,
-    *,
-    field_path: str | None = None,
-    hint: str | None = None,
-    policy: dict[str, Any] | None = None,
-) -> ToolCallResult:
-    return ToolCallResult(
-        tool_name=request.tool_name,
-        status=tool_status_for_error(code),
-        invocation_id=invocation_id,
-        error=ToolError(code=code, message=message, field_path=field_path, hint=hint),
-        source_ref=source_ref,
-        policy=policy or {},
-        request_id=context.request_id or request.request_id,
-        trace_id=context.trace_id or request.trace_id,
-    )
-
-
-def _source_ref(tool_name: str, invocation_id: str, run_id: str | None) -> str:
-    run_part = run_id or "adhoc"
-    return f"tool://{tool_name}/{run_part}/{invocation_id}"
-
-
-def _invoke_handler(handler: Any, request: ToolCallRequest, context: ToolRuntimeContext) -> Any:
-    """兼容纯参数 handler 和需要完整 request/context 的内置工具。"""
-
-    signature = inspect.signature(handler)
-    if "context" in signature.parameters:
-        return handler(request, context=context)
-    return handler(request.arguments)

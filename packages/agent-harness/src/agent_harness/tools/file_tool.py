@@ -220,6 +220,11 @@ class FileTool:
         action: str,
         resource: str,
     ) -> ToolCallResult | None:
+        # grant 已由 ToolRegistry 对 approval/tenant/identity/run/action/resource/
+        # arguments hash 和持久化 lease 全量校验；这里不能再次返回
+        # require_approval，否则 approved continuation 永远无法执行真实文件动作。
+        if context.approved_grant_id is not None:
+            return None
         if self._policy is None:
             return _file_error(
                 request,

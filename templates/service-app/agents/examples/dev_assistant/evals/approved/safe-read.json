@@ -1,0 +1,15 @@
+{
+  "case_id": "dev-safe-read",
+  "agent_id": "examples.dev_assistant",
+  "payload": {
+    "input": {"operation": "read", "path": "README.md"},
+    "compare_fields": ["run_status", "status", "tool_name", "policy_decision", "trace_ref_present"],
+    "expected": {
+      "run_status": "completed",
+      "status": "completed",
+      "tool_name": "file.read_file",
+      "policy_decision": "allow",
+      "trace_ref_present": true
+    }
+  }
+}

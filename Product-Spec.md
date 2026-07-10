@@ -192,18 +192,20 @@ clone 仓库或复制 `templates/service-app`。
 `agent-harness scaffold agent <agent_id>` 或手动创建 `agents/<agent_id>/`。
 
 **主路径：**
-1. 开发者创建 `agent.py`、`tools.py`、`schemas.py`、`config.yaml`、`evals/`。
-2. `config.yaml` 声明 `agent_id`、模型策略、预算、工具白名单、eval dataset、delegation edge。
-3. `AgentRegistry` 加载并校验 descriptor。
+1. 开发者创建 `agent.py`、`tools.py`、`schemas.py`、`config.yaml`、`evals/`，并在 `agent.py` 暴露实现公共 `AgentExecutor` protocol 的入口。
+2. `config.yaml` 声明 `agent_id`、package-local executor reference、模型策略、预算、工具白名单、eval dataset、delegation edge。
+3. `AgentRegistry` 校验 descriptor、schema refs 和 executor reference；executor 只能解析到 config 所属 agent package 内的受控入口。
 4. 开发者通过 CLI 或 `/api/v1/agents/{agent_id}/runs` 运行 agent。
 5. 系统为 run 注入 tenant、identity、policy、budget、trace 和 event stream。
 
 **分支路径：**
 - agent config schema 不合法时 registry 拒绝加载。
+- executor 缺失、越过 agent package、module/callable 不存在或不符合 protocol 时 registry 整体拒绝加载，不回退到固定 fake output。
 - agent 未声明工具权限时 tool call 被 policy 拒绝或要求审批。
 
 **边界情况：**
 - `agents/*` 不允许直接 import 厂商 adapter。
+- executor reference 不允许使用绝对路径、越过所属 agent package，且不得进入 public descriptor/API/CLI payload。
 - 重复 `agent_id` 必须失败。
 - delegation edge 未声明时 agent 互调必须拒绝。
 
@@ -223,11 +225,14 @@ agent 运行中触发 shell、文件删除、workspace 外访问、外部网络/
 1. tool/runtime 调用 `PolicyEngine`。
 2. `PolicyEngine` 返回 `require_approval`。
 3. runtime 产生 `approval.required` 事件并创建 checkpoint。
-4. CLI 或 HTTP 客户端提交 approve/deny。
-5. 审批结果写 audit log，并通过 checkpoint resume run。
+4. CLI 或 HTTP 客户端提交 approve/deny；approve 原子取得不公开的 owner lease 和 fencing id，deny 与 approve 通过同一 repository 条件更新仲裁。
+5. runtime 通过绑定 approval/checkpoint 上下文的 grant 恢复原 continuation，并在调用危险动作前于同一事务校验当前 fencing id、创建唯一 execution claim。
+6. 确定性结果与 run terminal 持久化后再公开完成 approval resolution，并写唯一 audit/event evidence。
 
 **分支路径：**
 - deny 时 run 按策略失败或走 fallback。
+- 进程只提交 raw claimed lease 后硬退出时，后续真实 resolve 只有在 owner timeout 到期且尚无 execution claim时才能原子换发 fencing id并继续；活跃 owner、已有 claim和旧 fencing id不得被抢占或继续执行。
+- execution claim 已存在但缺少确定性结果时进入私有 needs-review，不自动重放外部副作用。
 - 审批超时策略 P1；P0 可保持等待或由用户取消。
 
 **边界情况：**
@@ -235,7 +240,7 @@ agent 运行中触发 shell、文件删除、workspace 外访问、外部网络/
 - 修改权限策略本身默认 `require_approval`。
 
 **完成状态：**
-危险动作不会绕过 policy，审批后 run 可恢复，审计链完整。
+危险动作不会绕过 policy；审批后 run 可跨进程重启恢复，raw lease owner 硬退出可在超时后安全接管，旧 owner 被 fencing，外部副作用通过唯一 claim 保持 at-most-once，审计链完整。
 
 ### FLOW-004: Trace 到 Eval 的闭环
 
@@ -429,13 +434,14 @@ templates/service-app/
 **行为：**
 - `.env` 放密钥、连接串、本机开关。
 - `configs/profiles/*.yaml` 放环境 profile、provider、storage、observability、policy 默认。
-- `agents/*/config.yaml` 放 agent 元数据、预算、工具白名单、eval dataset、delegation edge。
+- `agents/*/config.yaml` 放 agent 元数据、package-local executor reference、预算、工具白名单、eval dataset、delegation edge。
 - `agent_harness.config` 负责加载、合并、校验。
 
 **规则：**
 - MUST 所有配置有 Pydantic schema 校验。
 - MUST 业务 agent 不直接 `open("config.yaml")`。
 - MUST 配置校验错误包含字段路径和修复提示。
+- MUST 每个 agent config 显式声明受控 executor reference；缺失、越界或无效 executor 必须让 registry 整体失败，不得隐式 fallback。
 - SHOULD 配置加载边界为后续热更新保留 seam；P0 不要求 worker 运行中自动热重载，模型路由、预算和 provider 变更先走显式 reload / restart 路径。
 
 **验收标准：**
@@ -506,10 +512,10 @@ templates/service-app/
 - SHOULD 支持 idempotency key 防重复提交。
 
 **验收标准：**
-- [ ] AC-013: Given run 触发 approval, when 进程重启后 approve, then run 可从 checkpoint resume。
+- [x] AC-013: Given run 触发 approval, when 进程重启后 approve, then run 可从 checkpoint resume。
 - [x] AC-014: Given 同一 idempotency key 重复提交, when 创建 run, then 不产生重复 run。
 
-> Phase 5 已完成 checkpoint/resume seam 和 idempotency；`AC-013` 的 approval wait/approve 场景仍依赖 Phase 7 HITL approval 实现，不能仅凭 checkpoint resume 标记完成。
+> Checkpoint/resume 基础 seam、idempotency 与 `AC-013` 均已完成。contract tests 已证明 waiting checkpoint/approval 持久化后，使用同一 storage 重建 registry、executor resolver、orchestrator 和 approval service，再由 approval resolve 取得私有 lease、生成绑定 `ApprovalGrant` 并通过 runtime 内部 resume 恢复原 continuation；公开 resume token 仍不能代替该执行链。
 
 ### REQ-007: 多 agent registry 与受控 delegation
 

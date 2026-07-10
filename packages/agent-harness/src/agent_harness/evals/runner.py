@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol, cast
 from uuid import uuid4
 
 from pydantic import Field
@@ -11,6 +11,7 @@ from pydantic import Field
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.evals.review_queue import ReviewDatasetAdapter
 from agent_harness.evals.score_sink import ScoreSink
+from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage import EvalRunCreate, EvalScoreCreate
 
 
@@ -27,6 +28,12 @@ class EvalRunResult(HarnessDTO):
     provider_statuses: list[Any] = Field(default_factory=list)
     local_refs: list[str] = Field(default_factory=list)
     skipped_drafts: int = 0
+
+
+class ApprovedCaseExecutor(Protocol):
+    """可选 adapter：把 approved file case 交给真实 agent seam。"""
+
+    async def execute(self, case: dict[str, Any]) -> dict[str, Any]: ...
 
 
 class EvalRunner:
@@ -144,6 +151,7 @@ class EvalRunner:
         tenant_id: str = "default",
         agent_id: str,
         dataset: str = "default",
+        case_executor: ApprovedCaseExecutor | None = None,
     ) -> EvalRunResult:
         """CLI/Makefile 路径：只读 approved 目录，不需要 DB 或真实 provider。"""
 
@@ -165,9 +173,21 @@ class EvalRunner:
                 score_summary={"case_count": 0},
                 skipped_drafts=skipped_drafts,
             )
-        scored = [_score_case(case) for case in cases]
+        executed_cases: list[dict[str, Any]] = []
+        for case in cases:
+            if case_executor is None:
+                executed_cases.append(case)
+                continue
+            try:
+                output = await case_executor.execute(case)
+            except Exception as exc:  # noqa: BLE001 - 失败 case 需要计分，不能丢弃
+                output = {"error": str(redact_secrets(str(exc)))}
+            executed_cases.append(_case_with_output(case, output))
+        scored = [_score_case(case) for case in executed_cases]
         summary = _score_summary(scored)
         local_refs: list[str] = []
+        provider_statuses: list[Any] = []
+        provider_status_payloads: list[dict[str, object]] = []
         for case, scored_case in zip(cases, scored, strict=True):
             case_id = str(case.get("case_id") or case.get("id") or uuid4())
             sink_result = await self._score_sink.write_score(
@@ -184,9 +204,17 @@ class EvalRunner:
                     explanation=str(scored_case["explanation"]),
                 )
             )
+            provider_statuses.extend(sink_result.provider_statuses)
+            provider_status_payloads.extend(
+                status.to_payload() for status in sink_result.provider_statuses
+            )
             if sink_result.local_ref is not None and sink_result.local_ref not in local_refs:
                 local_refs.append(sink_result.local_ref)
-        final_summary = {**summary, "local_refs": local_refs}
+        final_summary = {
+            **summary,
+            "local_refs": local_refs,
+            "provider_statuses": provider_status_payloads,
+        }
         return EvalRunResult(
             eval_run_id=eval_run_id,
             tenant_id=tenant_id,
@@ -195,6 +223,7 @@ class EvalRunner:
             status="completed",
             case_count=len(scored),
             score_summary=final_summary,
+            provider_statuses=provider_statuses,
             local_refs=local_refs,
             skipped_drafts=skipped_drafts,
         )
@@ -226,3 +255,13 @@ def _score_summary(scores: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _optional_str(value: object) -> str | None:
     return None if value is None else str(value)
+
+
+def _case_with_output(case: dict[str, Any], output: dict[str, Any]) -> dict[str, Any]:
+    copied = dict(case)
+    raw_payload = copied.get("payload")
+    if isinstance(raw_payload, dict):
+        copied["payload"] = {**cast(dict[str, Any], raw_payload), "output": output}
+    else:
+        copied["output"] = output
+    return copied

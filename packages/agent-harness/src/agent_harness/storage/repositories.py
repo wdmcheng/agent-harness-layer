@@ -30,15 +30,6 @@ from agent_harness.storage.access_repositories import (
     ApprovalRepository as ApprovalRepository,
 )
 from agent_harness.storage.access_repositories import (
-    AuditLogCreate as AuditLogCreate,
-)
-from agent_harness.storage.access_repositories import (
-    AuditLogRecord as AuditLogRecord,
-)
-from agent_harness.storage.access_repositories import (
-    AuditLogRepository as AuditLogRepository,
-)
-from agent_harness.storage.access_repositories import (
     PolicyRuleCreate as PolicyRuleCreate,
 )
 from agent_harness.storage.access_repositories import (
@@ -46,6 +37,15 @@ from agent_harness.storage.access_repositories import (
 )
 from agent_harness.storage.access_repositories import (
     PolicyRuleRepository as PolicyRuleRepository,
+)
+from agent_harness.storage.audit_repositories import (
+    AuditLogCreate as AuditLogCreate,
+)
+from agent_harness.storage.audit_repositories import (
+    AuditLogRecord as AuditLogRecord,
+)
+from agent_harness.storage.audit_repositories import (
+    AuditLogRepository as AuditLogRepository,
 )
 from agent_harness.storage.models import (
     AgentRunModel,
@@ -416,6 +416,21 @@ class ContextAssemblyRepository:
     async def get(self, assembly_id: str) -> ContextAssemblyRecord | None:
         model = await self._session.get(ContextAssemblyModel, assembly_id)
         return None if model is None else _context_assembly_record(model)
+
+    async def update_output_ref(
+        self,
+        assembly_id: str,
+        *,
+        output_ref: str,
+    ) -> ContextAssemblyRecord:
+        """在同一 UoW 内把组装完成后的真实 artifact ref 固定到记录。"""
+
+        model = await self._session.get(ContextAssemblyModel, assembly_id)
+        if model is None:
+            raise LookupError(f"context assembly not found: {assembly_id}")
+        model.output_ref = output_ref
+        await self._session.flush()
+        return _context_assembly_record(model)
 
 
 class EmbeddingCacheRepository:

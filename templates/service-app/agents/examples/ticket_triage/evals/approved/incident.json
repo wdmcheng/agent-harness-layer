@@ -1,0 +1,15 @@
+{
+  "case_id": "ticket-incident",
+  "agent_id": "examples.ticket_triage",
+  "payload": {
+    "input": {"text": "Production outage: checkout is down"},
+    "compare_fields": ["category", "priority", "route", "needs_review", "trace_ref_present"],
+    "expected": {
+      "category": "incident",
+      "priority": "urgent",
+      "route": "oncall",
+      "needs_review": false,
+      "trace_ref_present": true
+    }
+  }
+}

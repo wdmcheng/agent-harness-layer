@@ -1,5 +1,14 @@
 # 变更记录
 
+## [v1.2] - 2026-07-10
+### 调整
+- 同步 Phase 12 `AgentExecutor` 契约：手工新增 agent 与 scaffold 生成路径都必须在 `agent.py` 暴露公共 protocol 入口，并在 `config.yaml` 声明 package-local executor reference。
+- 明确 executor 缺失、越过 agent package、module/callable 无效或不符合 protocol 时 registry 整体拒绝，不允许回退到固定 fake output。
+- 明确 executor reference 属于私有加载配置，不进入 public descriptor、API 或 CLI payload。
+- 细化 `AC-013` approval continuation：approval-gated run 进入 waiting 并持久化 checkpoint/approval 后，必须能在进程重启、使用同一持久化 storage 重建 registry、executor resolver、orchestrator 和 approval service 的条件下，经私有 lease、绑定 `ApprovalGrant` 与 runtime 内部 resume 恢复原 continuation；公开 resume token 不构成执行授权。
+- 明确公开 `RUN-005` 只恢复普通 checkpoint；approval-gated checkpoint 直接提交原始 token 必须在消费 token 或调用 handler 前返回稳定冲突，真实 approve 通过 `APR-002` 原子仲裁且仅在确定性结果和 run terminal 落库后公开为 approved。
+- 补全 approval owner 硬退出恢复：raw claimed lease 只有在可配置 timeout 到期且不存在 execution claim时才能由真实 resolve 重试换发 fencing id；活跃 lease、已有 claim与旧 owner均不得被并发抢占或继续执行。
+
 ## [v1.1] - 2026-07-06
 ### 调整
 - 同步最新架构图语义：补充 Agent Loop、HITL 回边、SSE/WS 流式回传、信任边界和 Prompt / 策略版本回溯要求。

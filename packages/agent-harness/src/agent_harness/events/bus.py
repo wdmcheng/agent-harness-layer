@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
+from uuid import uuid4
 
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.events.sinks.base import EventSink
@@ -47,10 +48,15 @@ class EventBus:
         trace_id: str | None = None,
         span_id: str | None = None,
         raw_event_ref: str | None = None,
+        event_id: str | None = None,
     ) -> CanonicalEvent:
-        """发布 CanonicalEvent，并在同一锁内分配 run 内递增 seq。"""
+        """发布 CanonicalEvent；带 event_id 时重试返回已写 evidence。"""
 
         async with self._lock:
+            if event_id is not None:
+                existing = await self.find_event(run_id=run_id, event_id=event_id)
+                if existing is not None:
+                    return existing
             # Terminal event 会关闭 run stream。先检查再分配 seq，避免被拒绝的
             # 重复 terminal 写入消耗序号，进而干扰 SSE resume 调用方。
             if terminal and await self._sink.has_terminal(run_id):
@@ -73,6 +79,7 @@ class EventBus:
                     event_payload = {"artifact": {"size_bytes": artifact.size_bytes}}
 
             event = CanonicalEvent(
+                event_id=event_id or str(uuid4()),
                 tenant_id=tenant_id,
                 run_id=run_id,
                 user_id=user_id,
@@ -92,3 +99,11 @@ class EventBus:
             )
             await self._sink.write(event)
             return event
+
+    async def find_event(self, *, run_id: str, event_id: str) -> CanonicalEvent | None:
+        """按稳定 event_id 查找已落 sink 的 evidence，供故障重试去重。"""
+
+        return next(
+            (event for event in await self._sink.read(run_id=run_id) if event.event_id == event_id),
+            None,
+        )

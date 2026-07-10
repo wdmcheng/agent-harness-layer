@@ -16,11 +16,18 @@ SECRET_KEY_MARKERS = (
     "token",
 )
 NON_SECRET_TOKEN_KEYS = {
+    "estimated_tokens",
     "input_tokens",
+    "max_tokens_per_run",
+    "original_tokens",
     "output_tokens",
+    "retained_tokens",
+    "token_budget",
     "token_count",
+    "token_estimate",
     "tokens",
     "total_tokens",
+    "used_tokens",
 }
 SECRET_VALUE_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{8,}"),

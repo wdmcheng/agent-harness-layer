@@ -1,0 +1,25 @@
+{
+  "case_id": "rag-citation-hit",
+  "agent_id": "examples.rag_assistant",
+  "payload": {
+    "input": {
+      "query": "Agent Harness citations",
+      "collection": "eval-rag-hit",
+      "documents": [
+        {
+          "document_id": "retrieval-guide",
+          "content": "Agent Harness retrieval answers must preserve citations.",
+          "source_ref": "docs://retrieval-guide",
+          "citation": "Retrieval Guide §1"
+        }
+      ]
+    },
+    "compare_fields": ["status", "citation_count", "trust_level", "trace_ref_present"],
+    "expected": {
+      "status": "completed",
+      "citation_count": 1,
+      "trust_level": "untrusted",
+      "trace_ref_present": true
+    }
+  }
+}

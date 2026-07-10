@@ -26,7 +26,7 @@ class AuditService:
     ) -> AuditLogRecord:
         """写入审计记录，并在入库前统一脱敏 payload。"""
 
-        audit_payload = _audit_payload(
+        create = build_audit_log(
             actor=actor,
             action=action,
             resource=resource,
@@ -34,17 +34,34 @@ class AuditService:
         )
         async with self._storage.uow() as uow:
             await uow.tenants.ensure(actor.tenant_id)
-            record = await uow.audit_logs.create(
-                AuditLogCreate(
-                    tenant_id=actor.tenant_id,
-                    actor_user_id=actor.user_id,
-                    action=action,
-                    resource=resource,
-                    payload=redact_secrets(audit_payload),
-                )
-            )
+            record = await uow.audit_logs.create(create)
             await uow.commit()
             return record
+
+
+def build_audit_log(
+    *,
+    actor: IdentityContext,
+    action: str,
+    resource: str | None,
+    payload: dict[str, Any],
+) -> AuditLogCreate:
+    """构造已脱敏的审计 DTO，供状态事务原子追加 evidence。"""
+
+    return AuditLogCreate(
+        tenant_id=actor.tenant_id,
+        actor_user_id=actor.user_id,
+        action=action,
+        resource=resource,
+        payload=redact_secrets(
+            _audit_payload(
+                actor=actor,
+                action=action,
+                resource=resource,
+                payload=payload,
+            )
+        ),
+    )
 
 
 def _audit_payload(
