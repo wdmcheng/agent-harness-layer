@@ -5,7 +5,7 @@
 
 ## 2. Phase 12.5 持久化基础
 
-- [ ] 2.1 先通过 SQLite migration/model contract 锁定 `eval_dataset_splits`、`eval_experiments`、`harness_acceptance_records` 的字段，尤其是 experiment 的 `(tenant_id, idempotency_key)` 唯一约束、request hash、evaluator profile、metric versions，以及 decision request hash、nullable accepted version、production binding 和 `0008 -> 0009` 链，再实现 ORM 与 `0009_eval_experiment_loop.py`。
+- [x] 2.1 先通过 SQLite migration/model contract 锁定 `eval_dataset_splits`、`eval_experiments`、`harness_acceptance_records` 的字段，尤其是 experiment 的 `(tenant_id, idempotency_key)` 唯一约束、request hash、evaluator profile、metric versions，以及 decision request hash、nullable accepted version、production binding 和 `0008 -> 0009` 链，再实现 ORM 与 `0009_eval_experiment_loop.py`。
 - [ ] 2.2 先通过 repository/UoW 集成测试锁定 split/experiment create/get/update、每个 experiment 唯一不可变 accepted/rejected decision、同 reviewer 同 body 幂等、跨 reviewer/decision/version 冲突、原子 audit、tenant isolation 和无完整 payload DTO，再实现独立 experiment repository 与 composition。
 
 ## 3. 集成与回归证据

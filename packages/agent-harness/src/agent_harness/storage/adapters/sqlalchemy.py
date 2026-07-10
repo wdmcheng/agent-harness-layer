@@ -12,6 +12,11 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from agent_harness.storage.eval_experiment_repositories import (
+    EvalDatasetSplitRepository,
+    EvalExperimentRepository,
+    HarnessAcceptanceRepository,
+)
 from agent_harness.storage.eval_repositories import (
     EvalCaseRepository,
     EvalRunRepository,
@@ -67,6 +72,9 @@ class SQLAlchemyUnitOfWork:
         self.eval_cases = EvalCaseRepository(self.session)
         self.eval_runs = EvalRunRepository(self.session)
         self.eval_scores = EvalScoreRepository(self.session)
+        self.eval_dataset_splits = EvalDatasetSplitRepository(self.session)
+        self.eval_experiments = EvalExperimentRepository(self.session)
+        self.harness_acceptance_records = HarnessAcceptanceRepository(self.session)
         self.workspaces = WorkspaceRepository(self.session)
         self.tool_invocations = ToolInvocationRepository(self.session)
         return self

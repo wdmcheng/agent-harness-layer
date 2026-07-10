@@ -8,12 +8,17 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
 
 from agent_harness.config import load_settings
 from agent_harness.storage import (
     ApprovalCreate,
+    EvalDatasetSplitCreate,
+    EvalExperimentCreate,
+    ExperimentStorageConflict,
+    HarnessAcceptanceCreate,
     SQLAlchemyStorage,
     ToolInvocationCreate,
     run_migrations,
@@ -76,6 +81,93 @@ async def repository_probe(dsn: str) -> str:
             )
             await uow.commit()
         return run.id
+    finally:
+        await storage.dispose()
+
+
+async def eval_experiment_probe(dsn: str) -> str:
+    """验证模板复制后仍可使用 Phase 12.5 PostgreSQL repositories。"""
+
+    suffix = str(uuid4())
+    split_id = f"split-smoke-{suffix}"
+    key = f"eval-smoke-{suffix}"
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    try:
+        async with storage.uow() as uow:
+            await uow.tenants.ensure("default")
+            await uow.eval_dataset_splits.create(
+                EvalDatasetSplitCreate(
+                    split_id=split_id,
+                    tenant_id="default",
+                    agent_id="examples.basic",
+                    dataset="service-smoke",
+                    request_id=f"request-{suffix}",
+                    tags=["tool_selection"],
+                    strategy="deterministic_multilabel_v1",
+                    optimization_ratio=0.8,
+                    holdout_ratio=0.2,
+                    optimization_case_ids=[f"case-opt-{suffix}"],
+                    holdout_case_ids=[f"case-holdout-{suffix}"],
+                    regression_case_ids=[],
+                )
+            )
+            create = EvalExperimentCreate(
+                tenant_id="default",
+                idempotency_key=key,
+                request_hash="a" * 64,
+                request_id=f"request-{suffix}",
+                agent_id="examples.basic",
+                dataset="service-smoke",
+                split_id=split_id,
+                evaluator_profile={"name": "service-smoke", "version": "1"},
+                metric_versions={"exact_match": "1"},
+                baseline_harness={"version_id": f"baseline-{suffix}"},
+                candidate_harness={"version_id": f"candidate-{suffix}"},
+            )
+            experiment = await uow.eval_experiments.create(create)
+            replay = await uow.eval_experiments.create(create)
+            if replay.experiment_id != experiment.experiment_id:
+                raise RuntimeError("eval experiment idempotent replay created another row")
+            await uow.eval_experiments.update_results(
+                tenant_id="default",
+                experiment_id=experiment.experiment_id,
+                status="completed",
+                baseline_run_ref=f"eval-run://{suffix}/baseline",
+                candidate_run_ref=f"eval-run://{suffix}/candidate",
+                score_summaries={"baseline": {"score": 0.5}, "candidate": {"score": 0.75}},
+                comparison={"acceptance_recommendation": "accept"},
+                local_refs=[f"artifact://service-smoke/{suffix}/comparison"],
+                provider_statuses=[],
+            )
+            decision = HarnessAcceptanceCreate(
+                tenant_id="default",
+                experiment_id=experiment.experiment_id,
+                decision_request_hash="b" * 64,
+                reviewer_id="service-template-smoke",
+                reason="PostgreSQL repository parity probe",
+                decision="accepted",
+                accepted_harness_version=f"candidate-{suffix}",
+                production_binding={"version_id": f"candidate-{suffix}"},
+                policy_decision={"decision": "allow"},
+                audit_ref=f"audit://service-smoke/{suffix}",
+                evidence_refs=[f"artifact://service-smoke/{suffix}/comparison"],
+            )
+            accepted = await uow.harness_acceptance_records.create(decision)
+            replayed_decision = await uow.harness_acceptance_records.create(decision)
+            if replayed_decision.acceptance_id != accepted.acceptance_id:
+                raise RuntimeError("eval acceptance replay created another row")
+            await uow.commit()
+        try:
+            async with storage.uow() as uow:
+                await uow.eval_experiments.create(
+                    create.model_copy(update={"request_hash": "c" * 64})
+                )
+        except ExperimentStorageConflict as exc:
+            if exc.code != "eval.experiment.idempotency_conflict":
+                raise
+        else:  # pragma: no cover - PostgreSQL parity failure only
+            raise RuntimeError("eval experiment idempotency conflict was not rejected")
+        return f"experiment={experiment.experiment_id} acceptance={accepted.acceptance_id}"
     finally:
         await storage.dispose()
 
@@ -192,22 +284,25 @@ def main() -> int:
     run_migrations(settings.storage.dsn)
     revision = migration_revision(settings)
     redis_ok, redis_message = redis_status(settings, timeout_seconds=2.0)
-    if revision != "0008_agent_execution_approval_claims":
+    if revision != "0009_eval_experiment_loop":
         raise RuntimeError(f"PostgreSQL migration is not at the expected head: {revision}")
     if not redis_ok:
         raise RuntimeError(f"Redis check failed: {redis_message}")
 
     repository_run = "(migrate-only)"
     approval_claim = "(migrate-only)"
+    eval_experiment = "(migrate-only)"
     worker_run = "(migrate-only)"
     if not args.migrate_only:
         repository_run = asyncio.run(repository_probe(settings.storage.dsn))
+        eval_experiment = asyncio.run(eval_experiment_probe(settings.storage.dsn))
         approval_claim = asyncio.run(approval_claim_probe(settings.storage.dsn, repository_run))
         worker_run = worker_probe(settings.storage.dsn)
 
     print(f"smoke-service: migration={revision}")
     print(f"smoke-service: redis={redis_message}")
     print(f"smoke-service: repository_run={repository_run}")
+    print(f"smoke-service: eval_experiment={eval_experiment}")
     print(f"smoke-service: approval_claim={approval_claim}")
     print(f"smoke-service: worker_run={worker_run}")
     print("smoke-service: ok")

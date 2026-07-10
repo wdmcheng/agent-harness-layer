@@ -3,6 +3,30 @@
 from __future__ import annotations
 
 from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage as SQLAlchemyStorage
+from agent_harness.storage.eval_experiment_repositories import (
+    EvalDatasetSplitCreate as EvalDatasetSplitCreate,
+)
+from agent_harness.storage.eval_experiment_repositories import (
+    EvalDatasetSplitRecord as EvalDatasetSplitRecord,
+)
+from agent_harness.storage.eval_experiment_repositories import (
+    EvalExperimentCreate as EvalExperimentCreate,
+)
+from agent_harness.storage.eval_experiment_repositories import (
+    EvalExperimentRecord as EvalExperimentRecord,
+)
+from agent_harness.storage.eval_experiment_repositories import (
+    ExperimentStorageConflict as ExperimentStorageConflict,
+)
+from agent_harness.storage.eval_experiment_repositories import (
+    ExperimentStorageNotFound as ExperimentStorageNotFound,
+)
+from agent_harness.storage.eval_experiment_repositories import (
+    HarnessAcceptanceCreate as HarnessAcceptanceCreate,
+)
+from agent_harness.storage.eval_experiment_repositories import (
+    HarnessAcceptanceRecord as HarnessAcceptanceRecord,
+)
 from agent_harness.storage.eval_repositories import EvalCaseCreate as EvalCaseCreate
 from agent_harness.storage.eval_repositories import EvalCaseRecord as EvalCaseRecord
 from agent_harness.storage.eval_repositories import EvalRunCreate as EvalRunCreate
@@ -100,6 +124,14 @@ _REPOSITORY_DTO_EXPORTS = [
     "EvalRunRecord",
     "EvalScoreCreate",
     "EvalScoreRecord",
+    "EvalDatasetSplitCreate",
+    "EvalDatasetSplitRecord",
+    "EvalExperimentCreate",
+    "EvalExperimentRecord",
+    "ExperimentStorageConflict",
+    "ExperimentStorageNotFound",
+    "HarnessAcceptanceCreate",
+    "HarnessAcceptanceRecord",
     "RetrievalChunkCreate",
     "RetrievalChunkRecord",
     "RetrievalDocumentCreate",

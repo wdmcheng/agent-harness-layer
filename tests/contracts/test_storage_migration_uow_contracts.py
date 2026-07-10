@@ -60,9 +60,12 @@ def assert_core_schema(db_path: Path) -> None:
             "approvals",
             "workspaces",
             "tool_invocations",
+            "eval_dataset_splits",
+            "eval_experiments",
+            "harness_acceptance_records",
         } <= tables
         revision = connection.execute("select version_num from alembic_version").fetchone()
-        assert revision == ("0008_agent_execution_approval_claims",)
+        assert revision == ("0009_eval_experiment_loop",)
 
 
 def test_local_sqlite_migration_creates_core_schema(tmp_path: Path) -> None:
@@ -261,7 +264,7 @@ def test_doctor_cli_reports_local_storage_migration_and_eval_status(tmp_path: Pa
 
     assert result.returncode == 0, result.stderr
     assert "storage: sqlite" in result.stdout
-    assert "migration: 0008_agent_execution_approval_claims" in result.stdout
+    assert "migration: 0009_eval_experiment_loop" in result.stdout
     assert "redis: not required" in result.stdout
     assert "eval directory:" in result.stdout
 
