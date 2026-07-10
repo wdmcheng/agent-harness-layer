@@ -18,7 +18,7 @@ test:
 	$(UV) run pytest
 
 eval:
-	$(UV) run python -m agent_harness.cli eval run
+	$(UV) run python templates/service-app/scripts/run_example_evals.py
 
 # local smoke 只证明离线 profile 和 CLI/template shell 可用，不替代 service smoke。
 smoke-local:

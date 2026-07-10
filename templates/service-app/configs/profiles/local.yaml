@@ -33,6 +33,27 @@ policy:
     - policy.modify
     - policy.update
     - input.prompt_injection
+tools:
+  workspace:
+    ignore_file: .agentignore
+    inline_result_bytes: 1024
+  # 示例显式启用有限只读命令；shell.execute 仍由 policy 默认要求人工审批。
+  shell:
+    enabled: true
+    allowlist:
+      - echo
+      - pwd
+      - git
+      - python
+      - python3
+    denylist:
+      - rm
+      - sudo
+      - curl
+      - wget
+    env_whitelist: []
+    timeout_seconds: 30
+    inline_output_bytes: 8192
 model:
   # fake provider 是离线 smoke 默认值，不需要真实模型 key。
   provider: fake

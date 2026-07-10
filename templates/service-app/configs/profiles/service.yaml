@@ -49,6 +49,27 @@ policy:
     - policy.modify
     - policy.update
     - input.prompt_injection
+tools:
+  workspace:
+    ignore_file: .agentignore
+    inline_result_bytes: 1024
+  # service 示例保持同一 allowlist；审批通过也不能越过命令和 workspace preflight。
+  shell:
+    enabled: true
+    allowlist:
+      - echo
+      - pwd
+      - git
+      - python
+      - python3
+    denylist:
+      - rm
+      - sudo
+      - curl
+      - wget
+    env_whitelist: []
+    timeout_seconds: 30
+    inline_output_bytes: 8192
 model:
   # 默认 fake provider 保证 service smoke 不依赖外部模型服务。
   provider: fake

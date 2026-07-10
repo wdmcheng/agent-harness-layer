@@ -77,18 +77,30 @@ def test_service_app_shell_layout_exists() -> None:
         assert (service_app / relative_path).exists()
 
 
-def test_service_app_depends_on_workspace_core_package() -> None:
-    # template 必须通过 package dependency 消费 core，不能靠相对源码 import 混过 smoke。
+def test_service_app_declares_core_dependency_without_member_only_workspace_source() -> None:
+    # template 必须声明版本依赖；workspace source 只由根项目注入，复制产物不能
+    # 保留 member-only workspace=true 而绕过 wheel-only smoke。
     pyproject = load_pyproject(ROOT / "templates" / "service-app" / "pyproject.toml")
     project = as_mapping(pyproject["project"])
     tool = as_mapping(pyproject["tool"])
-    uv_config = as_mapping(tool["uv"])
-    sources = as_mapping(uv_config["sources"])
 
     dependencies = project["dependencies"]
     assert isinstance(dependencies, list)
     assert "agent-harness==0.1.0" in dependencies
-    assert sources["agent-harness"] == {"workspace": True}
+    template_uv: Mapping[str, object] = (
+        as_mapping(tool["uv"]) if "uv" in tool else cast(Mapping[str, object], {})
+    )
+    template_sources: Mapping[str, object] = (
+        as_mapping(template_uv["sources"])
+        if "sources" in template_uv
+        else cast(Mapping[str, object], {})
+    )
+    assert "agent-harness" not in template_sources
+
+    root_pyproject = load_pyproject(ROOT / "pyproject.toml")
+    root_tool = as_mapping(root_pyproject["tool"])
+    root_uv = as_mapping(root_tool["uv"])
+    assert as_mapping(root_uv["sources"])["agent-harness"] == {"workspace": True}
 
 
 def test_service_app_declares_installable_package_boundary() -> None:

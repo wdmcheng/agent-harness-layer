@@ -10,9 +10,11 @@ from typing import cast
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from agent_harness.approvals import ApprovalService, ApprovalStateConflict
 from agent_harness.auth import AuthError, TokenVerifier
+from agent_harness.config import load_settings
 from agent_harness.contracts import ApiErrorEnvelope, ErrorDetail
 from agent_harness.evals import EvalService
 from agent_harness.events import EventSink
@@ -32,6 +34,8 @@ from app.api.routes.agents import get_agent_registry as get_agents_route_registr
 from app.api.routes.agents import router as agents_router
 from app.api.routes.approvals import router as approvals_router
 from app.api.routes.evals import router as evals_router
+from app.api.routes.health import get_health_summary, health_summary_from_settings
+from app.api.routes.health import router as health_router
 from app.api.routes.policies import router as policies_router
 from app.api.routes.runs import (
     get_agent_registry as get_runs_route_registry,
@@ -77,6 +81,8 @@ def create_app(
     启动则从 profile 构造 RuntimeComponents，并由 lifespan 统一释放 storage engine。
     """
 
+    settings = load_settings(profile=profile, profiles_dir=profiles_dir)
+    health_summary = health_summary_from_settings(settings)
     components: RuntimeComponents | None = None
     if orchestrator is None or event_sink is None:
         components = build_runtime_components(
@@ -108,6 +114,7 @@ def create_app(
     app.include_router(approvals_router)
     app.include_router(policies_router)
     app.include_router(evals_router)
+    app.include_router(health_router)
 
     async def http_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         http_exc = cast(HTTPException, exc)
@@ -194,15 +201,19 @@ def create_app(
 
     async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
         # 兜底 handler 是 API error envelope 的最后防线。具体异常可以在上面
-        # 细分状态码，但不能让内部 RuntimeError/ValueError 退回 FastAPI 默认 detail。
+        # 细分状态码，但不能让内部 RuntimeError/ValueError 退回 FastAPI 默认 detail，
+        # 更不能把尚未识别的 DSN、路径或 provider 异常文本放进公开响应。
         return api_error_response(
             request_id=request_id_from(request),
             code="api.internal_error",
-            message=str(exc),
+            message="internal server error",
             status_code=500,
         )
 
     app.add_exception_handler(HTTPException, http_exception_handler)
+    # Starlette 负责生成未知 route 的 404；同时注册基类才能让未定义
+    # `/api/v1/tools` 等路径也保持统一 envelope，而不是退回默认 detail。
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(AuthError, auth_error_handler)
     app.add_exception_handler(PolicyDeniedError, policy_denied_handler)
     app.add_exception_handler(ApprovalStateConflict, approval_conflict_handler)
@@ -221,6 +232,7 @@ def create_app(
     app.dependency_overrides[get_auth_verifier] = lambda: auth_verifier
     app.dependency_overrides[get_policy_engine] = lambda: policy_engine
     app.dependency_overrides[get_input_guardrail] = lambda: input_guardrail
+    app.dependency_overrides[get_health_summary] = lambda: health_summary
     if approval_service is not None:
         app.dependency_overrides[get_approval_service] = lambda: approval_service
         app.dependency_overrides[get_optional_approval_service] = lambda: approval_service

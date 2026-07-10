@@ -107,12 +107,30 @@ source = { editable = "templates/service-app" }
 dependencies = [
     { name = "agent-harness" },
     { name = "fastapi" },
+    { name = "typer" },
+    { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "agent-harness", editable = "packages/agent-harness" },
     { name = "fastapi", specifier = "==0.139.0" },
+    { name = "typer", specifier = "==0.26.8" },
+    { name = "uvicorn", specifier = "==0.50.2" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = "==1.1.411" },
+    { name = "pytest", specifier = "==9.1.1" },
+    { name = "ruff", specifier = "==0.15.20" },
 ]
 
 [[package]]

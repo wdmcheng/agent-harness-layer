@@ -71,14 +71,14 @@ def compose_env() -> dict[str, str]:
     # 镜像选择只属于本次运行环境。compose 文件保留计划默认值；脚本可以把
     # Docker Compose 指到本机已有镜像，从而满足“优先复用本地镜像”，同时不碰
     # PostgreSQL packaging 文件。
-    if "AGENT_HARNESS_POSTGRES_IMAGE" not in env and image_exists("postgres:18"):
-        env["AGENT_HARNESS_POSTGRES_IMAGE"] = "postgres:18"
+    if "SERVICE_APP_POSTGRES_IMAGE" not in env and image_exists("postgres:18"):
+        env["SERVICE_APP_POSTGRES_IMAGE"] = "postgres:18"
     if (
-        "AGENT_HARNESS_REDIS_IMAGE" not in env
+        "SERVICE_APP_REDIS_IMAGE" not in env
         and not image_exists("redis:7.2.4")
         and image_exists("redis:8")
     ):
-        env["AGENT_HARNESS_REDIS_IMAGE"] = "redis:8"
+        env["SERVICE_APP_REDIS_IMAGE"] = "redis:8"
     return env
 
 
@@ -355,8 +355,8 @@ def main() -> int:
     settings = load_settings(profile="service", profiles_dir=PROFILES)
     env = compose_env()
     # 记录实际使用的镜像名，最终输出要能让 reviewer 区分默认镜像和本机复用镜像。
-    postgres_image = env.get("AGENT_HARNESS_POSTGRES_IMAGE", "postgres:18")
-    redis_image = env.get("AGENT_HARNESS_REDIS_IMAGE", "redis:7.2.4")
+    postgres_image = env.get("SERVICE_APP_POSTGRES_IMAGE", "postgres:18")
+    redis_image = env.get("SERVICE_APP_REDIS_IMAGE", "redis:7.2.4")
 
     run_compose_up(env)
     assert settings.storage.dsn is not None
@@ -370,8 +370,11 @@ def main() -> int:
         format_retrieval_extension_status(status)
         for status in retrieval_extension_statuses(settings, settings.storage.dsn)
     )
-    if revision is None:
-        print("smoke-service: PostgreSQL migration revision missing", file=sys.stderr)
+    if revision != "0008_agent_execution_approval_claims":
+        print(
+            f"smoke-service: PostgreSQL migration head mismatch ({revision})",
+            file=sys.stderr,
+        )
         return 1
     if not redis_ok:
         print(f"smoke-service: Redis check failed: {redis_message}", file=sys.stderr)

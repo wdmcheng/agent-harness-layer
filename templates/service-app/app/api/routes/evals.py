@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import Field
+from pydantic import Field, StringConstraints
 
 from agent_harness.contracts import ApiErrorEnvelope
 from agent_harness.contracts.dto import HarnessDTO
@@ -46,7 +46,7 @@ class EvalDraftCreateRequest(HarnessDTO):
 class EvalApproveRequest(HarnessDTO):
     """EVL-002 approve 请求；case id 来自 URL 边界。"""
 
-    reason: str
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     dataset: str = "default"
 
 
@@ -166,7 +166,14 @@ async def list_draft_eval_cases(
     return EvalCaseListResponse(request_id=request_id_from(http_request), cases=cases)
 
 
-@router.post("/eval-cases/{case_id}/approve", response_model=EvalCaseResponse)
+@router.post(
+    "/eval-cases/{case_id}/approve",
+    response_model=EvalCaseResponse,
+    responses={
+        404: {"model": ApiErrorEnvelope},
+        409: {"model": ApiErrorEnvelope},
+    },
+)
 async def approve_eval_case(
     http_request: Request,
     case_id: str,
@@ -244,7 +251,11 @@ async def create_eval_run(
     )
 
 
-@router.get("/evals/runs/{eval_run_id}", response_model=EvalRunResponse)
+@router.get(
+    "/evals/runs/{eval_run_id}",
+    response_model=EvalRunResponse,
+    responses={404: {"model": ApiErrorEnvelope}},
+)
 async def get_eval_run(
     http_request: Request,
     eval_run_id: str,
@@ -267,7 +278,11 @@ async def get_eval_run(
     )
 
 
-@router.get("/evals/runs/{eval_run_id}/scores", response_model=EvalScoresResponse)
+@router.get(
+    "/evals/runs/{eval_run_id}/scores",
+    response_model=EvalScoresResponse,
+    responses={404: {"model": ApiErrorEnvelope}},
+)
 async def list_eval_scores(
     http_request: Request,
     eval_run_id: str,

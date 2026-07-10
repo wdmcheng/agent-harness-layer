@@ -1,4 +1,4 @@
-# Phase 8 工具执行默认配置。profile 可把这些字段合并到 `tools` 子树。
+# 工具执行默认配置。profile 可把这些字段合并到 `tools` 子树。
 workspace:
   ignore_file: ".agentignore"
   inline_result_bytes: 8192

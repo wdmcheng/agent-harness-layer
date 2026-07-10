@@ -4,15 +4,14 @@ services:
   postgres:
     # 默认镜像和端口可通过环境变量覆盖，便于本地复用镜像；compose 文件本身
     # 仍表达 service smoke 的 PostgreSQL 依赖。
-    image: ${AGENT_HARNESS_POSTGRES_IMAGE:-postgres:18}
-    container_name: agent-harness-postgres
+    image: ${SERVICE_APP_POSTGRES_IMAGE:-postgres:18}
     profiles: ["service"]
     environment:
       POSTGRES_DB: agent_harness
       POSTGRES_USER: agent_harness
       POSTGRES_PASSWORD: agent_harness
     ports:
-      - "${AGENT_HARNESS_POSTGRES_PORT:-55432}:5432"
+      - "${SERVICE_APP_POSTGRES_PORT:-55432}:5432"
     volumes:
       - agent_harness_postgres_data:/var/lib/postgresql
     healthcheck:
@@ -24,11 +23,14 @@ services:
   redis:
     # Redis 当前只验证 service profile 的 queue/diagnostics reachability。
     # 真正队列消费语义由 worker/runtime 合同测试和后续 service smoke 扩展覆盖。
-    image: ${AGENT_HARNESS_REDIS_IMAGE:-redis:7.2.4}
-    container_name: agent-harness-redis
+    image: ${SERVICE_APP_REDIS_IMAGE:-redis:7.2.4}
     profiles: ["service"]
     ports:
-      - "${AGENT_HARNESS_REDIS_PORT:-56379}:6379"
+      - "${SERVICE_APP_REDIS_PORT:-56379}:6379"
+    # service smoke 不验证 queue 持久化。使用 tmpfs 可避免 Compose 匿名卷在
+    # Redis 主版本切换后留下不兼容 RDB，保证每轮验证从干净队列状态开始。
+    tmpfs:
+      - /data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 2s

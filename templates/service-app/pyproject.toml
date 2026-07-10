@@ -6,15 +6,24 @@ requires-python = ">=3.12"
 dependencies = [
     "agent-harness==0.1.0",
     "fastapi==0.139.0",
+    "typer==0.26.8",
+    "uvicorn==0.50.2",
 ]
+
+[dependency-groups]
+dev = [
+    "pyright==1.1.411",
+    "pytest==9.1.1",
+    "ruff==0.15.20",
+]
+
+[project.scripts]
+# 这里只暴露 app-specific serve；agents/run/approvals/eval/policy 继续由核心 CLI 提供。
+agent-harness-service = "app.cli.main:main"
 
 [build-system]
 requires = ["hatchling==1.30.1"]
 build-backend = "hatchling.build"
-
-[tool.uv.sources]
-# 模板开发态必须引用 workspace 核心包；发布模板时再替换成版本化依赖。
-agent-harness = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 # service-app wheel 只包含模板 app 和示例 agent，不携带根仓库 tests/scripts。

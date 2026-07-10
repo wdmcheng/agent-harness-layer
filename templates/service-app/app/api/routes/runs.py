@@ -158,6 +158,7 @@ async def create_run_with_orchestrator(
         idempotency_key=request.idempotency_key,
         checkpoint_state=checkpoint_state,
         identity=identity,
+        request_id=request_id,
     )
     if identity is not None and guardrail_payload is not None:
         await orchestrator.record_guardrail_check(
