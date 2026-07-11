@@ -16,15 +16,23 @@ service-app SHALL 提供 `POST /api/v1/evals/experiments`、`GET /api/v1/evals/e
 - **THEN** 响应包含 request/experiment/status/agent/dataset/tags/subset counts、harness/eval run refs、local refs 和 provider degraded summary，不包含完整 case payload或 provider raw response
 
 ### Requirement: EVL-004 create 与 accept 保持持久化幂等
-create SHALL 要求非空、非纯空白 `Idempotency-Key` header，并以 tenant、key 和规范化 body hash 做持久化幂等；相同 key+body MUST 返回同一 `experiment_id`，相同 key+不同 body MUST 返回 409 `eval.experiment.idempotency_conflict`。每个 experiment SHALL 只有一条不可变 review decision；同一 reviewer 重试相同规范化 decision body MUST 返回同一 decision record，不得重复写 audit。其他 reviewer 或不同 decision/reason/version/followup ref MUST 返回 409 `eval.experiment.decision_conflict`。
+create SHALL 要求非空、非纯空白 `Idempotency-Key` header，并以 tenant、key 和规范化 body hash 做持久化幂等；相同 key+body MUST 返回同一 `experiment_id`，相同 key+不同 body MUST 返回 409 `eval.experiment.idempotency_conflict`。Split、experiment 和首个 execution claim MUST 在同一 transaction 提交；活跃执行的重放 MUST 不调用 evaluator/provider，无法证明副作用结果的续租失败、过期 claim、中断或 terminal 写失败 MUST 返回持久化 `needs_review` 且不得自动重跑。每个 experiment SHALL 只有一条不可变 review decision；同一 reviewer 重试相同规范化 decision body MUST 返回同一 decision record，不得重复写 audit。其他 reviewer 或不同 decision/reason/version/followup ref MUST 返回 409 `eval.experiment.decision_conflict`。
 
 #### Scenario: Create 安全重试
 - **WHEN** tenant 使用相同 `Idempotency-Key` 和语义相同 body 重试 create
 - **THEN** API 返回同一 experiment 与原始持久化结果，不新增第二个 experiment、eval run 或 provider call
 
+#### Scenario: 不确定执行的安全重试
+- **WHEN** tenant 在原 evaluator 仍运行、heartbeat 续租失败、claim 已过期、进程中断或 terminal 结果写失败后，以相同 key/body 重试 create
+- **THEN** API 返回同一 experiment 的 `running` 或持久化 `needs_review`，不自动重跑 evaluator/provider，不创建 orphan split，并保留人工排障所需的本地关联
+
 #### Scenario: Idempotency key body 冲突
 - **WHEN** tenant 使用已存在的 `Idempotency-Key` 提交不同 agent、dataset、split 或 harness body
 - **THEN** API 返回 409 `ApiErrorEnvelope`，现有 experiment 不变且没有新 side effect
+
+#### Scenario: 合法上界 evidence 的稳定读取
+- **WHEN** evaluator 返回单列表合法上界 refs，或 baseline/candidate 顶层与 per-case failure refs 合并后超过公共数量或大小上限
+- **THEN** create、read、comparison、幂等 replay 与 CLI 返回同一有界数据库真相引用，不持久化失败或随后无法通过公共 DTO 校验的 terminal 记录
 
 #### Scenario: Idempotency key 缺失或空白
 - **WHEN** create 请求缺少 `Idempotency-Key` header，或 header 为空/纯空白

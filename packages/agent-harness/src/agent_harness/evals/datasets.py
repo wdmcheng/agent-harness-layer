@@ -8,6 +8,8 @@ from typing import cast
 
 from agent_harness.evals.dataset_models import (
     BehaviorTag,
+    BehaviorTagQuery,
+    BehaviorTagQueryResult,
     DatasetSplitPlan,
     DatasetSplitRequest,
 )
@@ -19,6 +21,39 @@ from agent_harness.storage import EvalCaseRecord
 
 class DatasetSplitService:
     """先做安全/归属门禁，再生成确定性多标签 split。"""
+
+    def query_approved(
+        self,
+        query: BehaviorTagQuery,
+        cases: list[EvalCaseRecord],
+    ) -> BehaviorTagQueryResult:
+        """按权威 metadata 标签过滤 approved cases，并返回无 payload 汇总。"""
+
+        case_ids: list[str] = []
+        for case in cases:
+            if (
+                case.tenant_id != query.tenant_id
+                or case.agent_id != query.agent_id
+                or case.dataset != query.dataset
+            ):
+                raise DatasetSplitError(
+                    "eval.split.case_not_found",
+                    "eval case is not visible",
+                    status_code=404,
+                )
+            if case.status != "approved":
+                continue
+            if query.tag in _behavior_tags(case):
+                case_ids.append(case.case_id)
+        ordered_ids = sorted(set(case_ids))
+        return BehaviorTagQueryResult(
+            tenant_id=query.tenant_id,
+            agent_id=query.agent_id,
+            dataset=query.dataset,
+            tag=query.tag,
+            case_ids=ordered_ids,
+            case_count=len(ordered_ids),
+        )
 
     def build(
         self,
@@ -114,11 +149,7 @@ class DatasetSplitService:
         evidence_refs = _safe_evidence_refs(
             [
                 *request.evidence_refs,
-                *(
-                    ref
-                    for case in eligible
-                    for ref in [*case.source_refs, *case.artifact_refs]
-                ),
+                *(ref for case in eligible for ref in [*case.source_refs, *case.artifact_refs]),
             ]
         )
         return DatasetSplitPlan(

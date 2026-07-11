@@ -1,21 +1,18 @@
-"""Phase 12.5 eval experiment DTO 与 tenant-scoped repositories。"""
+"""Eval experiment DTO 与 tenant-scoped repositories。"""
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Literal, cast
+from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
-from pydantic import Field, model_validator
-from sqlalchemy import select
+from pydantic import Field
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_harness.contracts.dto import HarnessDTO
-from agent_harness.storage.eval_experiment_models import (
-    EvalDatasetSplitModel,
-    EvalExperimentModel,
-    HarnessAcceptanceModel,
-)
+from agent_harness.storage.eval_experiment_models import EvalDatasetSplitModel, EvalExperimentModel
 
 
 class ExperimentStorageConflict(RuntimeError):
@@ -34,40 +31,16 @@ class ExperimentStorageNotFound(LookupError):
         self.code = code
 
 
+class ExperimentStorageConcurrentConflict(RuntimeError):
+    """唯一约束并发 loser；application service 可在新 UoW 回读 winner。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
 def _empty_provider_statuses() -> list[dict[str, object]]:
     return []
-
-
-class EvalDatasetSplitCreate(HarnessDTO):
-    """写入可复现 split membership 的 provider-neutral 输入。"""
-
-    split_id: str
-    tenant_id: str
-    agent_id: str
-    dataset: str
-    request_id: str
-    tags: list[str]
-    strategy: str
-    optimization_ratio: float
-    holdout_ratio: float
-    regression_policy: dict[str, Any] = Field(default_factory=dict)
-    case_tags: dict[str, list[str]] = Field(default_factory=dict)
-    optimization_case_ids: list[str]
-    holdout_case_ids: list[str]
-    regression_case_ids: list[str]
-    tag_distribution: dict[str, Any] = Field(default_factory=dict)
-    rejected_counts: dict[str, int] = Field(default_factory=dict)
-    evidence_refs: list[str] = Field(default_factory=list)
-
-
-class EvalDatasetSplitRecord(EvalDatasetSplitCreate):
-    """不含完整 case payload 的持久化 split。"""
-
-    optimization_case_count: int
-    holdout_case_count: int
-    regression_case_count: int
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
 
 
 class EvalExperimentCreate(HarnessDTO):
@@ -98,72 +71,10 @@ class EvalExperimentRecord(EvalExperimentCreate):
     comparison: dict[str, Any] = Field(default_factory=dict)
     local_refs: list[str] = Field(default_factory=list)
     provider_statuses: list[dict[str, object]] = Field(default_factory=_empty_provider_statuses)
+    execution_claim_id: str | None = None
+    execution_claim_expires_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
-
-
-class HarnessAcceptanceCreate(HarnessDTO):
-    """人工 accepted/rejected review decision 的持久化输入。"""
-
-    tenant_id: str
-    experiment_id: str
-    decision_request_hash: str
-    reviewer_id: str
-    reason: str
-    decision: Literal["accepted", "rejected"]
-    accepted_harness_version: str | None = None
-    production_binding: dict[str, Any] | None = None
-    policy_decision: dict[str, Any]
-    audit_ref: str
-    evidence_refs: list[str] = Field(default_factory=list)
-    followup_issue_ref: str | None = None
-
-    @model_validator(mode="after")
-    def validate_binding(self) -> HarnessAcceptanceCreate:
-        if self.decision == "accepted" and (
-            self.accepted_harness_version is None or self.production_binding is None
-        ):
-            raise ValueError("accepted decision requires harness version and production binding")
-        if self.decision == "rejected" and (
-            self.accepted_harness_version is not None or self.production_binding is not None
-        ):
-            raise ValueError("rejected decision cannot create a production binding")
-        return self
-
-
-class HarnessAcceptanceRecord(HarnessAcceptanceCreate):
-    """每个 experiment 唯一且不可变的人工 decision。"""
-
-    acceptance_id: str
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-
-def _split_record(model: EvalDatasetSplitModel) -> EvalDatasetSplitRecord:
-    return EvalDatasetSplitRecord(
-        split_id=model.id,
-        tenant_id=model.tenant_id,
-        agent_id=model.agent_id,
-        dataset=model.dataset,
-        request_id=model.request_id,
-        tags=model.tags_json,
-        strategy=model.strategy,
-        optimization_ratio=model.optimization_ratio,
-        holdout_ratio=model.holdout_ratio,
-        regression_policy=model.regression_policy_json,
-        case_tags=model.case_tags_json,
-        optimization_case_ids=model.optimization_case_ids_json,
-        holdout_case_ids=model.holdout_case_ids_json,
-        regression_case_ids=model.regression_case_ids_json,
-        optimization_case_count=model.optimization_case_count,
-        holdout_case_count=model.holdout_case_count,
-        regression_case_count=model.regression_case_count,
-        tag_distribution=model.tag_distribution_json,
-        rejected_counts=model.rejected_counts_json,
-        evidence_refs=model.evidence_refs_json,
-        created_at=model.created_at,
-        updated_at=model.updated_at,
-    )
 
 
 def _experiment_record(model: EvalExperimentModel) -> EvalExperimentRecord:
@@ -187,77 +98,12 @@ def _experiment_record(model: EvalExperimentModel) -> EvalExperimentRecord:
         comparison=model.comparison_json,
         local_refs=model.local_refs_json,
         provider_statuses=model.provider_status_json,
+        execution_claim_id=model.execution_claim_id,
+        execution_claim_expires_at=model.execution_claim_expires_at,
         metadata=model.metadata_json,
         created_at=model.created_at,
         updated_at=model.updated_at,
     )
-
-
-def _acceptance_record(model: HarnessAcceptanceModel) -> HarnessAcceptanceRecord:
-    return HarnessAcceptanceRecord(
-        acceptance_id=model.id,
-        tenant_id=model.tenant_id,
-        experiment_id=model.experiment_id,
-        decision_request_hash=model.decision_request_hash,
-        reviewer_id=model.reviewer_id,
-        reason=model.reason,
-        decision=cast(Literal["accepted", "rejected"], model.decision),
-        accepted_harness_version=model.accepted_harness_version,
-        production_binding=model.production_binding_json,
-        policy_decision=model.policy_decision_json,
-        audit_ref=model.audit_ref,
-        evidence_refs=model.evidence_refs_json,
-        followup_issue_ref=model.followup_issue_ref,
-        created_at=model.created_at,
-        updated_at=model.updated_at,
-    )
-
-
-class EvalDatasetSplitRepository:
-    """split membership repository，不读取或返回 case payload。"""
-
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def create(self, data: EvalDatasetSplitCreate) -> EvalDatasetSplitRecord:
-        existing = await self._session.get(EvalDatasetSplitModel, data.split_id)
-        if existing is not None:
-            if not _split_matches(existing, data):
-                raise ExperimentStorageConflict(
-                    "eval.split.id_conflict", "split id was already used with other membership"
-                )
-            return _split_record(existing)
-        model = EvalDatasetSplitModel(
-            id=data.split_id,
-            tenant_id=data.tenant_id,
-            agent_id=data.agent_id,
-            dataset=data.dataset,
-            request_id=data.request_id,
-            tags_json=data.tags,
-            strategy=data.strategy,
-            optimization_ratio=data.optimization_ratio,
-            holdout_ratio=data.holdout_ratio,
-            regression_policy_json=data.regression_policy,
-            case_tags_json=data.case_tags,
-            optimization_case_ids_json=data.optimization_case_ids,
-            holdout_case_ids_json=data.holdout_case_ids,
-            regression_case_ids_json=data.regression_case_ids,
-            optimization_case_count=len(data.optimization_case_ids),
-            holdout_case_count=len(data.holdout_case_ids),
-            regression_case_count=len(data.regression_case_ids),
-            tag_distribution_json=data.tag_distribution,
-            rejected_counts_json=data.rejected_counts,
-            evidence_refs_json=data.evidence_refs,
-        )
-        self._session.add(model)
-        await self._session.flush()
-        return _split_record(model)
-
-    async def get(self, tenant_id: str, split_id: str) -> EvalDatasetSplitRecord | None:
-        model = await self._session.get(EvalDatasetSplitModel, split_id)
-        if model is None or model.tenant_id != tenant_id:
-            return None
-        return _split_record(model)
 
 
 class EvalExperimentRepository:
@@ -267,6 +113,14 @@ class EvalExperimentRepository:
         self._session = session
 
     async def create(self, data: EvalExperimentCreate) -> EvalExperimentRecord:
+        record, _created = await self.create_with_status(data)
+        return record
+
+    async def create_with_status(
+        self, data: EvalExperimentCreate
+    ) -> tuple[EvalExperimentRecord, bool]:
+        """创建 experiment，并把幂等 replay 与本次新建显式区分。"""
+
         result = await self._session.scalars(
             select(EvalExperimentModel).where(
                 EvalExperimentModel.tenant_id == data.tenant_id,
@@ -280,7 +134,7 @@ class EvalExperimentRepository:
                     "eval.experiment.idempotency_conflict",
                     "idempotency key was already used with another request",
                 )
-            return _experiment_record(existing)
+            return _experiment_record(existing), False
         split = await self._session.get(EvalDatasetSplitModel, data.split_id)
         if (
             split is None
@@ -313,14 +167,168 @@ class EvalExperimentRepository:
             metadata_json=data.metadata,
         )
         self._session.add(model)
-        await self._session.flush()
-        return _experiment_record(model)
+        try:
+            await self._session.flush()
+        except IntegrityError as exc:
+            raise ExperimentStorageConcurrentConflict(
+                "eval.experiment.idempotency_conflict",
+                "concurrent experiment create must be reconciled",
+            ) from exc
+        return _experiment_record(model), True
+
+    async def get_by_idempotency_key(
+        self, tenant_id: str, idempotency_key: str
+    ) -> EvalExperimentRecord | None:
+        """在执行 evaluator 前检查持久化幂等记录，避免 replay side effect。"""
+
+        result = await self._session.scalars(
+            select(EvalExperimentModel).where(
+                EvalExperimentModel.tenant_id == tenant_id,
+                EvalExperimentModel.idempotency_key == idempotency_key,
+            )
+        )
+        model = result.first()
+        return None if model is None else _experiment_record(model)
 
     async def get(self, tenant_id: str, experiment_id: str) -> EvalExperimentRecord | None:
         model = await self._session.get(EvalExperimentModel, experiment_id)
         if model is None or model.tenant_id != tenant_id:
             return None
         return _experiment_record(model)
+
+    async def claim_execution(
+        self,
+        *,
+        tenant_id: str,
+        experiment_id: str,
+        claim_id: str,
+        expires_at: datetime,
+    ) -> bool:
+        """只原子 claim 尚未开始执行的 created experiment。"""
+
+        claimed_id = await self._session.scalar(
+            update(EvalExperimentModel)
+            .where(
+                EvalExperimentModel.tenant_id == tenant_id,
+                EvalExperimentModel.id == experiment_id,
+                EvalExperimentModel.status == "created",
+            )
+            .values(
+                status="running",
+                execution_claim_id=claim_id,
+                execution_claim_expires_at=expires_at,
+            )
+            .returning(EvalExperimentModel.id)
+        )
+        return claimed_id is not None
+
+    async def renew_execution_claim(
+        self,
+        *,
+        tenant_id: str,
+        experiment_id: str,
+        claim_id: str,
+        expires_at: datetime,
+    ) -> bool:
+        renewed_id = await self._session.scalar(
+            update(EvalExperimentModel)
+            .where(
+                EvalExperimentModel.tenant_id == tenant_id,
+                EvalExperimentModel.id == experiment_id,
+                EvalExperimentModel.status == "running",
+                EvalExperimentModel.execution_claim_id == claim_id,
+                EvalExperimentModel.execution_claim_expires_at.is_not(None),
+                EvalExperimentModel.execution_claim_expires_at > datetime.now(tz=UTC),
+            )
+            .values(execution_claim_expires_at=expires_at)
+            .returning(EvalExperimentModel.id)
+        )
+        return renewed_id is not None
+
+    async def mark_execution_needs_review(
+        self,
+        *,
+        tenant_id: str,
+        experiment_id: str,
+        claim_id: str,
+        reason_code: str,
+    ) -> bool:
+        """当前 owner 无法证明执行结果时，fenced 地转入人工复核并禁止自动重跑。"""
+
+        marked_id = await self._session.scalar(
+            update(EvalExperimentModel)
+            .where(
+                EvalExperimentModel.tenant_id == tenant_id,
+                EvalExperimentModel.id == experiment_id,
+                EvalExperimentModel.status == "running",
+                EvalExperimentModel.execution_claim_id == claim_id,
+            )
+            .values(
+                status="needs_review",
+                score_summaries_json={"error": {"code": reason_code}},
+                execution_claim_id=None,
+                execution_claim_expires_at=None,
+            )
+            .returning(EvalExperimentModel.id)
+        )
+        return marked_id is not None
+
+    async def mark_expired_execution_needs_review(
+        self,
+        *,
+        tenant_id: str,
+        experiment_id: str,
+        now: datetime,
+    ) -> bool:
+        """过期 running 可能已经产生外部副作用，只能转人工复核而不能 takeover。"""
+
+        marked_id = await self._session.scalar(
+            update(EvalExperimentModel)
+            .where(
+                EvalExperimentModel.tenant_id == tenant_id,
+                EvalExperimentModel.id == experiment_id,
+                EvalExperimentModel.status == "running",
+                EvalExperimentModel.execution_claim_expires_at.is_not(None),
+                EvalExperimentModel.execution_claim_expires_at <= now,
+            )
+            .values(
+                status="needs_review",
+                score_summaries_json={
+                    "error": {"code": "eval.experiment.execution_outcome_uncertain"}
+                },
+                execution_claim_id=None,
+                execution_claim_expires_at=None,
+            )
+            .returning(EvalExperimentModel.id)
+        )
+        return marked_id is not None
+
+    async def mark_unclaimed_execution_needs_review(
+        self,
+        *,
+        tenant_id: str,
+        experiment_id: str,
+    ) -> bool:
+        """旧版可见 created 无法证明 evaluator 未启动，保守转人工复核。"""
+
+        marked_id = await self._session.scalar(
+            update(EvalExperimentModel)
+            .where(
+                EvalExperimentModel.tenant_id == tenant_id,
+                EvalExperimentModel.id == experiment_id,
+                EvalExperimentModel.status == "created",
+                EvalExperimentModel.execution_claim_id.is_(None),
+            )
+            .values(
+                status="needs_review",
+                score_summaries_json={
+                    "error": {"code": "eval.experiment.legacy_execution_outcome_uncertain"}
+                },
+                execution_claim_expires_at=None,
+            )
+            .returning(EvalExperimentModel.id)
+        )
+        return marked_id is not None
 
     async def update_results(
         self,
@@ -334,102 +342,83 @@ class EvalExperimentRepository:
         comparison: dict[str, Any],
         local_refs: list[str],
         provider_statuses: list[dict[str, object]],
+        execution_claim_id: str,
     ) -> EvalExperimentRecord:
+        updated_id = await self._session.scalar(
+            update(EvalExperimentModel)
+            .where(
+                EvalExperimentModel.tenant_id == tenant_id,
+                EvalExperimentModel.id == experiment_id,
+                EvalExperimentModel.status == "running",
+                EvalExperimentModel.execution_claim_id == execution_claim_id,
+                EvalExperimentModel.execution_claim_expires_at.is_not(None),
+                EvalExperimentModel.execution_claim_expires_at > datetime.now(tz=UTC),
+            )
+            .values(
+                status=status,
+                baseline_run_ref=baseline_run_ref,
+                candidate_run_ref=candidate_run_ref,
+                score_summaries_json=score_summaries,
+                comparison_json=comparison,
+                local_refs_json=local_refs,
+                provider_status_json=provider_statuses,
+                execution_claim_id=None,
+                execution_claim_expires_at=None,
+            )
+            .returning(EvalExperimentModel.id)
+        )
+        if updated_id is None:
+            await self._raise_result_update_conflict(tenant_id, experiment_id)
+        return await self._refreshed_record(experiment_id)
+
+    async def update_provider_results(
+        self,
+        *,
+        tenant_id: str,
+        experiment_id: str,
+        expected_status: str,
+        status: str,
+        comparison: dict[str, Any],
+        provider_statuses: list[dict[str, object]],
+    ) -> EvalExperimentRecord:
+        """本地终态提交后只允许追加一次 provider 摘要，不再改写 eval evidence。"""
+
+        updated_id = await self._session.scalar(
+            update(EvalExperimentModel)
+            .where(
+                EvalExperimentModel.tenant_id == tenant_id,
+                EvalExperimentModel.id == experiment_id,
+                EvalExperimentModel.status == expected_status,
+                EvalExperimentModel.execution_claim_id.is_(None),
+            )
+            .values(
+                status=status,
+                comparison_json=comparison,
+                provider_status_json=provider_statuses,
+            )
+            .returning(EvalExperimentModel.id)
+        )
+        if updated_id is None:
+            await self._raise_result_update_conflict(tenant_id, experiment_id)
+        return await self._refreshed_record(experiment_id)
+
+    async def _raise_result_update_conflict(self, tenant_id: str, experiment_id: str) -> None:
         model = await self._session.get(EvalExperimentModel, experiment_id)
         if model is None or model.tenant_id != tenant_id:
             raise ExperimentStorageNotFound(
                 "eval.experiment.not_found", "eval experiment is not visible"
             )
-        model.status = status
-        model.baseline_run_ref = baseline_run_ref
-        model.candidate_run_ref = candidate_run_ref
-        model.score_summaries_json = score_summaries
-        model.comparison_json = comparison
-        model.local_refs_json = local_refs
-        model.provider_status_json = provider_statuses
-        await self._session.flush()
-        # server-side updated_at 会在 UPDATE 后过期；refresh 避免 async ORM 在
-        # DTO 转换时触发隐式 IO 和 MissingGreenlet。
+        raise ExperimentStorageConflict(
+            "eval.experiment.execution_fenced",
+            "experiment execution claim is no longer owned by this worker",
+        )
+
+    async def _refreshed_record(self, experiment_id: str) -> EvalExperimentRecord:
+        model = await self._session.get(EvalExperimentModel, experiment_id)
+        if model is None:
+            raise AssertionError("updated experiment disappeared in the same transaction")
         await self._session.refresh(model)
         return _experiment_record(model)
-
-
-class HarnessAcceptanceRepository:
-    """同一 experiment 的 decision 只允许一次，完全相同请求可重放。"""
-
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def create(self, data: HarnessAcceptanceCreate) -> HarnessAcceptanceRecord:
-        result = await self._session.scalars(
-            select(HarnessAcceptanceModel).where(
-                HarnessAcceptanceModel.tenant_id == data.tenant_id,
-                HarnessAcceptanceModel.experiment_id == data.experiment_id,
-            )
-        )
-        existing = result.first()
-        if existing is not None:
-            if not _acceptance_matches(existing, data):
-                raise ExperimentStorageConflict(
-                    "eval.experiment.decision_conflict",
-                    "experiment already has another immutable review decision",
-                )
-            return _acceptance_record(existing)
-        experiment = await self._session.get(EvalExperimentModel, data.experiment_id)
-        if experiment is None or experiment.tenant_id != data.tenant_id:
-            raise ExperimentStorageNotFound(
-                "eval.experiment.not_found", "eval experiment is not visible"
-            )
-        model = HarnessAcceptanceModel(
-            id=str(uuid4()),
-            tenant_id=data.tenant_id,
-            experiment_id=data.experiment_id,
-            decision_request_hash=data.decision_request_hash,
-            reviewer_id=data.reviewer_id,
-            reason=data.reason,
-            decision=data.decision,
-            accepted_harness_version=data.accepted_harness_version,
-            production_binding_json=data.production_binding,
-            policy_decision_json=data.policy_decision,
-            audit_ref=data.audit_ref,
-            evidence_refs_json=data.evidence_refs,
-            followup_issue_ref=data.followup_issue_ref,
-        )
-        self._session.add(model)
-        await self._session.flush()
-        return _acceptance_record(model)
-
-    async def get_for_experiment(
-        self, tenant_id: str, experiment_id: str
-    ) -> HarnessAcceptanceRecord | None:
-        result = await self._session.scalars(
-            select(HarnessAcceptanceModel).where(
-                HarnessAcceptanceModel.tenant_id == tenant_id,
-                HarnessAcceptanceModel.experiment_id == experiment_id,
-            )
-        )
-        model = result.first()
-        return None if model is None else _acceptance_record(model)
-
-
-def _split_matches(model: EvalDatasetSplitModel, data: EvalDatasetSplitCreate) -> bool:
-    return (
-        model.tenant_id == data.tenant_id
-        and model.agent_id == data.agent_id
-        and model.dataset == data.dataset
-        and model.tags_json == data.tags
-        and model.strategy == data.strategy
-        and model.optimization_ratio == data.optimization_ratio
-        and model.holdout_ratio == data.holdout_ratio
-        and model.regression_policy_json == data.regression_policy
-        and model.case_tags_json == data.case_tags
-        and model.optimization_case_ids_json == data.optimization_case_ids
-        and model.holdout_case_ids_json == data.holdout_case_ids
-        and model.regression_case_ids_json == data.regression_case_ids
-        and model.tag_distribution_json == data.tag_distribution
-        and model.rejected_counts_json == data.rejected_counts
-        and model.evidence_refs_json == data.evidence_refs
-    )
 
 
 def _experiment_matches(model: EvalExperimentModel, data: EvalExperimentCreate) -> bool:
@@ -443,17 +432,4 @@ def _experiment_matches(model: EvalExperimentModel, data: EvalExperimentCreate) 
         and model.baseline_harness_json == data.baseline_harness
         and model.candidate_harness_json == data.candidate_harness
         and model.metadata_json == data.metadata
-    )
-
-
-def _acceptance_matches(
-    model: HarnessAcceptanceModel, data: HarnessAcceptanceCreate
-) -> bool:
-    return (
-        model.decision_request_hash == data.decision_request_hash
-        and model.reviewer_id == data.reviewer_id
-        and model.reason == data.reason
-        and model.decision == data.decision
-        and model.accepted_harness_version == data.accepted_harness_version
-        and model.followup_issue_ref == data.followup_issue_ref
     )

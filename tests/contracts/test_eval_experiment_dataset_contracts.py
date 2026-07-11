@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -91,6 +91,38 @@ def test_split_is_deterministic_disjoint_and_tracks_tag_distribution() -> None:
     assert first.tag_distribution["tool_selection"]["holdout"] >= 1
     assert first.regression_policy.critical_tags == [BehaviorTag.RETRIEVAL_QUALITY]
     assert first.regression_policy.max_holdout_regression == 0.05
+
+
+def test_approved_cases_can_be_queried_filtered_and_counted_by_behavior_tag() -> None:
+    from agent_harness.evals import BehaviorTag, BehaviorTagQuery, DatasetSplitService
+
+    result = DatasetSplitService().query_approved(
+        BehaviorTagQuery(
+            tenant_id="default",
+            agent_id="examples.basic",
+            dataset="default",
+            tag=BehaviorTag.RETRIEVAL_QUALITY,
+        ),
+        [
+            _case("retrieval-2", tags=["retrieval_quality"]),
+            _case("tool-only", tags=["tool_selection"]),
+            _case("retrieval-1", tags=["retrieval_quality", "tool_selection"]),
+            _case("retrieval-draft", tags=["retrieval_quality"], status="draft"),
+        ],
+    )
+
+    assert result.case_ids == ["retrieval-1", "retrieval-2"]
+    assert result.case_count == 2
+    assert result.tag == "retrieval_quality"
+    assert "payload" not in result.to_payload()
+
+    with pytest.raises(ValidationError) as invalid:
+        BehaviorTagQuery(
+            tenant_id="default",
+            agent_id="examples.basic",
+            tag=cast(Any, "unknown_behavior"),
+        )
+    assert invalid.value.errors()[0]["loc"] == ("tag",)
 
 
 def test_split_filters_drafts_and_unrequested_tags_without_scoring_them() -> None:
@@ -309,9 +341,7 @@ def test_invalid_critical_regression_ref_reports_its_actual_field() -> None:
 
     with pytest.raises(DatasetSplitError) as captured:
         DatasetSplitService().build(
-            _request(
-                regression_policy=RegressionPolicy(critical_case_ids=["missing-critical"])
-            ),
+            _request(regression_policy=RegressionPolicy(critical_case_ids=["missing-critical"])),
             [
                 _case("case-a", tags=["tool_selection"]),
                 _case("case-b", tags=["tool_selection"]),

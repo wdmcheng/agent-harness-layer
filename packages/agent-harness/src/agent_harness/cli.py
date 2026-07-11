@@ -15,6 +15,7 @@ from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
 from agent_harness.cli_access import register_access_commands
 from agent_harness.cli_eval import approve_eval_case, draft_eval_case
+from agent_harness.cli_eval_experiment import register_eval_experiment_commands
 from agent_harness.cli_shared import event_path, load_settings_or_exit, policy_engine
 from agent_harness.evals import (
     EvalRunner,
@@ -43,12 +44,15 @@ app = typer.Typer(no_args_is_help=True)
 agents_app = typer.Typer(no_args_is_help=True)
 tools_app = typer.Typer(no_args_is_help=True)
 eval_app = typer.Typer(no_args_is_help=True)
+eval_experiment_app = typer.Typer(no_args_is_help=True)
 scaffold_app = typer.Typer(no_args_is_help=True)
 app.add_typer(agents_app, name="agents")
 app.add_typer(tools_app, name="tools")
 app.add_typer(eval_app, name="eval")
+eval_app.add_typer(eval_experiment_app, name="experiment")
 app.add_typer(scaffold_app, name="scaffold")
 register_access_commands(app)
+register_eval_experiment_commands(eval_experiment_app)
 
 
 @app.callback()

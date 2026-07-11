@@ -14,7 +14,7 @@ eval-dataset-split-foundation
 
 | Change | 直接依赖 | 主要公共 seam | 主要文件所有权 | 共享验收 / 冲突控制 |
 |---|---|---|---|---|
-| `eval-dataset-split-foundation` | 无 | behavior tag、split DTO/service、Phase 12.5 repository/UoW | `evals/datasets.py`、Phase 12.5 ORM/repository/migration | 唯一创建 Phase 12.5 schema；不得实现 experiment scoring 或 API/CLI |
+| `eval-dataset-split-foundation` | 无 | behavior tag、split DTO/service、Phase 12.5 repository/UoW | `evals/datasets.py`、Phase 12.5 ORM/repository/migration | 统一拥有 0009 基础 schema、0010 claim 列与 0011 legacy 状态升级；不得改写已应用 revision，不得实现 experiment scoring 或 API/CLI |
 | `eval-harness-experiment-comparison` | `eval-dataset-split-foundation` | harness version、experiment runner、comparison DTO/service、local-first evidence | `evals/harness_versions.py`、`evals/experiments.py` | 只消费已校验 split；产生 acceptance recommendation，但不得代表人工接受 |
 | `eval-experiment-api-acceptance` | 前两个 change | EVL-004 HTTP/CLI、identity/policy/audit、idempotent acceptance | `evals/acceptance.py`、`app/api/routes/evals.py`、CLI composition、EVL-004 schemas/tests | 只能调用公共 experiment/repository seam；不得回改 experiment 算法、直接操作 ORM 或自动改写 harness 输入 |
 
@@ -25,6 +25,7 @@ eval-dataset-split-foundation
 - 只有 approved、无 secret、标签完整且同 tenant/agent/dataset 的 case 可以进入 split 和 experiment。
 - baseline/candidate 必须使用同一 split 和 evaluator profile；comparison 必须给出 per-tag、holdout、regression 与 failure diff evidence。
 - provider failure 必须保留本地 experiment/comparison evidence，不得泄漏 secret、provider 原始响应或完整大 payload。
+- Split、experiment 与首个 execution claim 必须原子提交；活跃重放不得重复 evaluator/provider，续租失败/异常、过期 claim、进程中断或 terminal 写失败等不确定执行必须 fenced 地转 `needs_review`，terminal 写入必须同时校验 owner 与未过期租约，不得自动重跑副作用。
 - accepted production binding 只能源于完整 comparison、人工 reviewer、policy allow 和 audit，且 version 必须与已比较 candidate 完全一致；rejected decision 使用同一不可变 review decision seam 但不得产生 production binding；任何 decision 都不得自动改写 prompt、tool description 或生产配置。
 - Phase 11 的 draft -> approve、`make eval` approved-only 和 no-approved-cases 语义必须无回归。
 

@@ -965,8 +965,8 @@ Runtime Trace
 - [x] AC-043: Given failed run trace, when 执行 `agent-harness eval draft`, then 生成 draft case。
 - [x] AC-044: Given draft case, when 人工 approve, then case 进入 approved dataset 并写 audit log。
 - [x] AC-045: Given approved dataset, when `make eval`, then 产出 eval result 和 score sink 记录。
-- [ ] AC-045A: Given approved cases with behavior tags, when 创建 experiment split, then optimization / holdout sets 按标签可追踪且不会把 draft case 纳入评分。
-- [ ] AC-045B: Given baseline harness 和 candidate harness, when 执行 experiment compare, then 输出 per-tag score delta、holdout result、regression summary 和人工 acceptance 所需证据。
+- [x] AC-045A: Given approved cases with behavior tags, when 创建 experiment split, then optimization / holdout sets 按标签可追踪且不会把 draft case 纳入评分。
+- [x] AC-045B: Given baseline harness 和 candidate harness, when 执行 experiment compare, then 输出 per-tag score delta、holdout result、regression summary 和人工 acceptance 所需证据。
 
 ### REQ-017: 示例 agent
 

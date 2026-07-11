@@ -48,7 +48,7 @@ class RegressionPolicy(HarnessDTO):
                 "eval.split.regression_refs_duplicate",
                 "regression case refs must be unique",
             )
-        return value
+        return sorted(value)
 
     @field_validator("critical_tags")
     @classmethod
@@ -106,10 +106,7 @@ class DatasetSplitRequest(HarnessDTO):
     @classmethod
     def validate_ratios(cls, value: float, info: ValidationInfo) -> float:
         optimization_ratio = info.data.get("optimization_ratio")
-        if (
-            isinstance(optimization_ratio, float)
-            and abs(optimization_ratio + value - 1.0) > 1e-9
-        ):
+        if isinstance(optimization_ratio, float) and abs(optimization_ratio + value - 1.0) > 1e-9:
             raise PydanticCustomError(
                 "eval.split.ratios_invalid",
                 "optimization_ratio and holdout_ratio must sum to 1",
@@ -140,3 +137,23 @@ class DatasetSplitPlan(HarnessDTO):
     tag_distribution: dict[str, dict[str, int]]
     rejected_counts: dict[str, int]
     evidence_refs: list[str]
+
+
+class BehaviorTagQuery(HarnessDTO):
+    """按单个封闭标签查询同一 tenant/agent/dataset 的 approved cases。"""
+
+    tenant_id: str = Field(min_length=1)
+    agent_id: str = Field(min_length=1)
+    dataset: str = Field(default="default", min_length=1)
+    tag: BehaviorTag
+
+
+class BehaviorTagQueryResult(HarnessDTO):
+    """不携带 case payload 的标签查询与准确汇总结果。"""
+
+    tenant_id: str
+    agent_id: str
+    dataset: str
+    tag: BehaviorTag
+    case_ids: list[str]
+    case_count: int = Field(ge=0)

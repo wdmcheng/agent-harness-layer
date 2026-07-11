@@ -32,8 +32,7 @@ def select_holdout(
         ),
     )
     case_masks = {
-        case_id: sum(tag_bits.get(tag, 0) for tag in case_tags[case_id])
-        for case_id in ordered_ids
+        case_id: sum(tag_bits.get(tag, 0) for tag in case_tags[case_id]) for case_id in ordered_ids
     }
     selected = _find_feasible_membership(
         ordered_ids=ordered_ids,
@@ -61,8 +60,7 @@ def select_holdout(
         for tag, count in tag_counts.items()
         if count >= 2
         and (
-            distribution[tag.value]["optimization"] == 0
-            or distribution[tag.value]["holdout"] == 0
+            distribution[tag.value]["optimization"] == 0 or distribution[tag.value]["holdout"] == 0
         )
     ]
     if missing:
@@ -109,9 +107,7 @@ def _find_feasible_membership(
             and optimization_mask == required_mask
         ):
             return {
-                case_id
-                for index, case_id in enumerate(ordered_ids)
-                if chosen_bits & (1 << index)
+                case_id for index, case_id in enumerate(ordered_ids) if chosen_bits & (1 << index)
             }
     return None
 

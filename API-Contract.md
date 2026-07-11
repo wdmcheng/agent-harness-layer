@@ -719,7 +719,7 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 |---|---|---:|---|
 | `request_id` | string | Yes | 当前 API 请求关联 ID。 |
 | `experiment_id` | string | Yes | 持久化 experiment ID。 |
-| `status` | string | Yes | `baseline_completed`、`completed`、`failed` 或稳定 degraded 状态。 |
+| `status` | enum | Yes | `running`、`baseline_completed`、`completed`、`failed`、`needs_review`、`baseline_completed_with_degradation`、`completed_with_degradation`。正常新建在原子 claim 后对外为 `running` 或终态；旧 0009 遗留的 `created` 结果不确定，0011 数据升级或重放时必须先转 `needs_review`，不得作为公共状态继续执行。 |
 | `agent_id` | string | Yes | experiment 目标 Agent。 |
 | `dataset` | string | Yes | approved dataset。 |
 | `tags` | string[] | Yes | 本次 experiment 请求标签。 |
@@ -773,6 +773,7 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 | `policy_decision` | object | Yes | 已脱敏 policy 结果与 matched rule 摘要。 |
 | `audit_ref` | string | Yes | 唯一 decision audit ref。 |
 | `evidence_refs` | string[] | Yes | comparison/holdout/regression evidence refs。 |
+| `followup_issue_ref` | string | No | rejected 或后续整改使用的安全逻辑引用。 |
 
 ## 6. Run API
 
@@ -1260,11 +1261,11 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 入口 / 调用方 | OpenAPI 调用方、CLI 等价入口 `agent-harness eval experiment create` / `show` / `compare` / `accept`、release gate 和 maintainer review flow。 |
 | 身份 / 权限 | 创建和读取 experiment 需要有效 HTTP Bearer；accept 必须携带人工 reviewer 身份，并通过 policy/approval seam。未认证或未授权不得创建 experiment、eval run、accepted harness record 或 audit side effect。 |
 | Request | create body 包含 `agent_id`、`dataset`、`tags`、`split_strategy`、`baseline_harness_version`、可选 `candidate_harness_version` / `optimization_ratio` / `holdout_ratio` / `regression_policy` / `metadata`。`tags` 必须来自 approved case metadata；draft case 不得参与 split。省略 candidate 时只创建不可变的 baseline snapshot，不支持在原 experiment 上后补；需要 comparison 时必须新建同时携带 baseline/candidate 的 experiment。 |
-| Response | create/read 返回 `request_id`、`experiment_id`、`status`、`agent_id`、`dataset`、`tags`、`optimization_case_count`、`holdout_case_count`、baseline/candidate eval run refs、local evidence refs 和 provider degraded summary。 |
+| Response | create/read 返回 `request_id`、`experiment_id`、`status`、`agent_id`、`dataset`、`tags`、`optimization_case_count`、`holdout_case_count`、baseline/candidate eval run refs、local evidence refs 和 provider degraded summary。单个 evaluator 列表合法但顶层或 per-case failure diff 派生合并后超过公共 100 项或 16 KiB 时，DTO 构造与 terminal 持久化前将公共 refs 压缩为 `db://eval-experiments/<id>` 真相引用；create/read/replay、comparison、CLI、provider payload 使用同一有界结果，完整 refs 留在本地 score summary。 |
 | Comparison | comparison response 返回 per-tag `baseline_score`、`candidate_score`、`delta`、`holdout_delta`、`regressions`、`new_failures`、`fixed_failures`、`acceptance_recommendation`、稳定 `recommendation_reason_codes` 和脱敏 evidence refs；不得返回 provider 原始响应或完整大 payload。 |
 | Accept | accept body 包含 `decision`、`reason`、可选 `followup_issue_ref`，`decision=accepted` 时必须包含 `accepted_harness_version`，rejected 时该字段必须为空。accepted version 必须等于该 experiment 已完成 comparison 的 candidate version；只有 policy 允许且全部门禁通过时，才可写 accepted production binding 和 audit log。rejected decision 只写不可变 review decision 与 audit，不产生 accepted production binding；任何 decision 都不得自动修改 prompt、tool description 或生产配置文件。 |
-| 幂等性 | create 必须支持必填 `Idempotency-Key`；相同 key 和相同 body 返回同一 `experiment_id`，同 key 不同 body 返回 409。每个 experiment 只允许一条不可变 review decision；同 reviewer、同规范化 decision body 重试返回同一 decision record，不得重复写 audit，其他 reviewer 或不同 decision/version 冲突返回 409。 |
-| 错误语义 | 标签不存在、split 后 holdout 为空、candidate harness 缺失、provider 写入失败或 comparison evidence 不完整时返回稳定 `ApiErrorEnvelope` 或 degraded summary；provider failure 不得删除 local evidence。 |
+| 幂等性 | create 必须支持必填 `Idempotency-Key`；相同 key 和相同 body 返回同一 `experiment_id`，同 key 不同 body 返回 409。Split、experiment 与首个私有 execution claim 原子提交；活跃 `running` 重放不得重复 evaluator/provider。heartbeat 续租失败/异常、claim 过期、进程中断或 evaluator 已执行但 terminal 结果无法持久化时转 `needs_review`；terminal 写入必须原子校验 owner 与未过期租约，后续重放只返回该状态，不自动重跑不确定副作用。每个 experiment 只允许一条不可变 review decision；同 reviewer、同规范化 decision body 重试返回同一 decision record，不得重复写 audit，其他 reviewer 或不同 decision/version 冲突返回 409。 |
+| 错误语义 | 标签不存在、split 后 holdout 为空、candidate harness 缺失、provider 写入失败或 comparison evidence 不完整时返回稳定 `ApiErrorEnvelope`、`needs_review` 或 degraded summary；provider failure 不得删除 local evidence。 |
 | OpenAPI | operation 必须声明 `HTTPBearer` security，并按 EVL-004A-D 各自的适用错误集合声明 `ApiErrorEnvelope`；create 的 `Idempotency-Key` header 必须标记 required；accept endpoint 必须在 schema 中暴露人工 reviewer / policy decision / audit ref 字段。 |
 
 #### EVL-004A 创建 eval experiment
@@ -1272,7 +1273,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `EVL-004A` |
-| 状态 | 规划中 |
+| 状态 | 已实现 |
 | 入口 / 调用方 | OpenAPI、`agent-harness eval experiment create`、maintainer experiment flow。 |
 | 用途 | 从 approved tagged cases 创建持久化 split，并同步执行 baseline 与可选 candidate experiment。 |
 | 方法 | `POST` |
@@ -1282,13 +1283,13 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | Path 参数 | none |
 | URL 参数 | none |
 | 请求体 | `EvalExperimentCreateRequest` |
-| 幂等性 | 同 tenant、key、规范化 body 返回同一 experiment；同 key 不同 body 返回 409。 |
-| 副作用 | 新请求写 split/experiment/eval evidence，可能调用 evaluator 与 provider；幂等 replay 不创建新 run 或 provider call。 |
+| 幂等性 | 同 tenant、key、规范化 body 返回同一 experiment；同 key 不同 body 返回 409。创建 split、experiment 和首个 execution claim 必须原子；active replay 只读返回 `running`，过期或结果不确定的执行 fenced 地转 `needs_review`，两者都不新增 evaluator/provider call。 |
+| 副作用 | 新请求写 split/experiment/eval evidence，可能调用 evaluator 与 provider；幂等 replay 不创建新 run 或 provider call。若 evaluator 已开始但 terminal 结果无法确认，不得自动重跑，必须保留 `needs_review` 供人工核查。 |
 | 成功响应码 | 新建返回 `201`；幂等 replay 返回 `200`。 |
 | 响应头 | 只保证 `Content-Type: application/json`；request correlation 以 body `request_id` 为准。 |
 | 响应体 | `EvalExperimentResponse` |
 | 错误响应码 | 401/403/404/409/422/500 `ApiErrorEnvelope`；未知标签、非法 split、空 holdout、幂等冲突使用稳定 error code。 |
-| 状态语义 | 有 candidate 且两个 run 完成时为 completed；省略 candidate 时为只读 baseline snapshot；partial failure 保留已有 local evidence。 |
+| 状态语义 | `running` 表示持有有效私有 claim 的活跃执行；有 candidate 且两个 run 完成时为 `completed`，省略 candidate 时为只读 baseline snapshot；确定性 evaluator failure 为 `failed` 并保留有界结构化错误摘要与已有 local evidence；claim 过期、进程中断或 terminal 写入失败等无法证明副作用结果的情况为 `needs_review`，不得自动 takeover/replay evaluator/provider。 |
 | 安全规则 | 只消费 approved、无 secret、标签完整且同 tenant/agent/dataset 的 case；不得内联完整 case/provider payload。 |
 | 验证要求 | route/side-effect、幂等、tenant、split、secret/provider degraded contract tests 与 OpenAPI drift。 |
 
@@ -1297,7 +1298,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `EVL-004B` |
-| 状态 | 规划中 |
+| 状态 | 已实现 |
 | 入口 / 调用方 | OpenAPI、`agent-harness eval experiment show`、maintainer review flow。 |
 | 用途 | 读取当前 tenant 可见的 experiment 状态、subset counts、harness/run refs 和 provider 摘要。 |
 | 方法 | `GET` |
@@ -1313,7 +1314,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 响应头 | 只保证 `Content-Type: application/json`；request correlation 以 body `request_id` 为准。 |
 | 响应体 | `EvalExperimentResponse` |
 | 错误响应码 | 401/403/404/500 `ApiErrorEnvelope`。 |
-| 状态语义 | 原样返回 persisted status；provider degraded 不隐藏 local refs。 |
+| 状态语义 | 原样返回 persisted status；`needs_review` 表示执行结果不确定且禁止自动重跑，provider degraded 不隐藏 local refs。 |
 | 安全规则 | 不泄漏其他 tenant 的存在性、version、score、case count 或 refs。 |
 | 验证要求 | read/cross-tenant/404/no-side-effect contract tests 与 OpenAPI drift。 |
 
@@ -1322,7 +1323,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `EVL-004C` |
-| 状态 | 规划中 |
+| 状态 | 已实现 |
 | 入口 / 调用方 | OpenAPI、`agent-harness eval experiment compare`、maintainer review flow。 |
 | 用途 | 读取已持久化的 per-tag、holdout、regression 与 failure diff evidence。 |
 | 方法 | `GET` |
@@ -1347,7 +1348,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `EVL-004D` |
-| 状态 | 规划中 |
+| 状态 | 已实现 |
 | 入口 / 调用方 | OpenAPI、`agent-harness eval experiment accept`、maintainer review flow。 |
 | 用途 | 在 comparison、candidate binding、policy 和人工 reviewer 门禁后记录唯一 decision。 |
 | 方法 | `POST` |

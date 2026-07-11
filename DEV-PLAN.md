@@ -19,33 +19,32 @@
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 进行中 | Phase 1-12 已完成；Phase 12.5 已进入 OpenSpec-first 契约与实现阶段，Phase 13-15 未开始。 |
-| 当前 Phase | Phase 12.5 契约门禁 | Phase 12 已满足进入条件；三个关联 change 已创建并完成 artifacts，最终联合契约审查 PASS 后按依赖 DAG 进入实现。 |
+| 总体状态 | Phase 12.5 ready-to-archive | Phase 1-12 已完成；Phase 12.5 实现、全量验证与 fresh code-reviewer Stage 1/2 联合审查均已完成，Phase 13-15 未开始。 |
+| 当前 Phase | Phase 12.5 ready-to-archive | Tagged split、`0009 -> 0010 -> 0011` 追加式 persistence、heartbeat 失效与过期租约 fencing、legacy `created` 收敛、`needs_review`、experiment/comparison、EVL-004 HTTP/CLI 和人工 acceptance 已实现并通过验证。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12 | Phase 12 本地提交为 `b77a028`、`698e2d4`、`ae4bba3`、`72e3fdf`，归档提交为 `45d87bf`。 |
 | 当前 OpenSpec change | 3 个 Phase 12.5 active changes | `eval-dataset-split-foundation` -> `eval-harness-experiment-comparison` -> `eval-experiment-api-acceptance`；关系矩阵见 `openspec/changes/phase-12-5-change-matrix.md`。 |
-| 当前验证基线 | Phase 12 收口验证通过 | 全量 `210 passed / 2 conditional skipped`，真实 PostgreSQL 两项 `2 passed`；quality、local/service/copy smoke、四示例 eval、build、license、pre-commit 均通过。归档后的主规格严格校验以当前 `openspec validate --all --strict` 结果为准。 |
-| 当前阻塞项 | 无外部阻塞 | 实现前置条件是三个 change 分别严格校验/独立审查 PASS，并完成多变更联合 Stage 1/2 PASS；门禁未过不得编码。 |
-| 当前建议下一步 | 完成契约门禁后按 DAG 实现 | 先交付 tagged dataset split 与 `0009` persistence，再交付 experiment/comparison，最后交付 EVL-004 API/CLI 与人工 acceptance；不得混入 Phase 13。 |
+| 当前验证基线 | 全量与 PostgreSQL 证据通过 | `281 passed, 3 skipped`；三个 DSN 条件 skip 已用真实 PostgreSQL 独立补跑 `3 passed`。quality、local/service smoke、四示例 eval、build、license、pre-commit、OpenSpec 21/21 strict 与 diff check 全通过。 |
+| 当前阻塞项 | 无 | fresh code-reviewer Stage 1/2 联合审查 PASS；当前只待本地提交，不自动进入归档、Phase 13、push 或发布。 |
+| 当前建议下一步 | 等待显式归档指令 | 完成本地提交后停在 ready-to-archive；只有用户明确要求时才归档三个 active changes。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 对三个 Phase 12.5 change 完成严格校验、独立 code-reviewer 审查和多变更联合 Stage 1/2 PASS；任何契约修订都重置相应审查。
-- 门禁通过后按 `eval-dataset-split-foundation` -> `eval-harness-experiment-comparison` -> `eval-experiment-api-acceptance` 顺序实现和验证。
-- Phase 12.5 完成前不要跳到 Phase 13 的 service split，也不要把 Phase 15 release automation 混入同一个 change。
+- 创建 Phase 12.5 本地提交并做最终 git/OpenSpec 状态审计，只停在 ready-to-archive。
+- 等待用户显式归档指令；不自动进入 Phase 13、不 push、不发布。
 
 ### 后续 Phase
 
 - Phase 12: Service App 模板与四个 P0 示例 Agent，已完成并归档。
-- Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环，下一阶段。
+- Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环，实现、验证与 fresh 联合审查完成，ready-to-archive。
 - Phase 13: Service Profile、API/Worker 分进程与未来拆分边界。
 - Phase 14: 深度文档、ADR 与维护者指南。
 - Phase 15: CI/CD、Release Automation 与合规收口。
 
 ### 尚未完成的关键验收
 
-- Better-Harness 式 eval experiment 闭环、service profile 分进程边界、深度文档和 release automation 尚未实现；它们分别属于 Phase 12.5、Phase 13-15，不混入 Phase 12。
+- Phase 12.5 闭环已通过全量验证与 fresh 联合审查；Phase 13 service profile 分进程边界、Phase 14 深度文档和 Phase 15 release automation 尚未实现。
 - GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
 - 深度文档、ADR、未来微服务拆分边界文档尚未完成。
 
@@ -573,13 +572,17 @@ Phase 1 Monorepo / quality spine
 - `API-Contract.md` - `EVL-004` experiment、comparison 和 accept endpoint 契约。
 - `packages/agent-harness/src/agent_harness/evals/datasets.py` - behavior tags、dataset split 和 regression subset model。
 - `packages/agent-harness/src/agent_harness/evals/experiments.py` - baseline/candidate experiment runner 和 comparison service。
+- `packages/agent-harness/src/agent_harness/evals/recorded_evaluator.py` - 模板默认 approved-case 本地确定性 evaluator adapter。
 - `packages/agent-harness/src/agent_harness/evals/harness_versions.py` - harness version metadata、checksum 和 diff summary。
 - `packages/agent-harness/src/agent_harness/evals/acceptance.py` - 人工 review decision、policy/audit 绑定与 accepted production binding。
-- `packages/agent-harness/src/agent_harness/storage/migrations/versions/0009_eval_experiment_loop.py` - experiment、split、accepted harness schema；`0008` 已分配给 Phase 12 approval/tool execution claim。
+- `packages/agent-harness/src/agent_harness/storage/migrations/versions/0009_eval_experiment_loop.py` - experiment、split、accepted harness 基础 schema；`0010_eval_experiment_execution_claims.py` 以增量 revision 增加私有 execution claim/lease；`0011_eval_experiment_legacy_created_review.py` 在不改写已应用 0010 的前提下把结果不确定的 legacy `created` 转 `needs_review`；`0008` 已分配给 Phase 12 approval/tool execution claim。
 - `templates/service-app/app/api/routes/evals.py` - `EVL-004` API routes。
 - `packages/agent-harness/src/agent_harness/cli.py` - `agent-harness eval experiment ...` CLI。
+- `packages/agent-harness/src/agent_harness/cli_eval_experiment.py` - CLI 与 HTTP 共用 service/policy/storage 的组合层。
 - `docs/eval-observability-loop.md` - trace -> eval -> experiment -> harness acceptance 操作指南。
-- `tests/contracts/test_eval_experiment_loop_contracts.py` - API/schema/policy/secret/regression contract tests。
+- `tests/contracts/test_eval_experiment_dataset_contracts.py`、`test_eval_experiment_storage_contracts.py`、`test_eval_experiment_migration_contracts.py`、`test_eval_experiment_postgresql_contracts.py` - split、repository、migration 与真实 PostgreSQL 合同测试。
+- `tests/contracts/test_eval_experiment_comparison_contracts.py`、`test_eval_experiment_evidence_boundaries_contracts.py`、`test_eval_experiment_recovery_contracts.py`、`test_eval_experiment_acceptance_contracts.py` - comparison、evidence 上界、claim 恢复与 policy/audit 合同测试。
+- `tests/contracts/test_eval_experiment_api_contracts.py`、`test_eval_experiment_api_acceptance_routes_contracts.py`、`test_eval_experiment_openapi_contracts.py`、`test_eval_experiment_cli_contracts.py` - HTTP、acceptance route、OpenAPI、CLI、secret/degraded 合同测试。
 
 **验收标准**：
 - approved cases 可按行为标签过滤，至少覆盖 tool selection、retrieval quality、follow-up quality、policy/approval、context/trust boundary。
@@ -589,6 +592,14 @@ Phase 1 Monorepo / quality spine
 - accept 操作必须走人工 reviewer、policy decision 和 audit log；系统不得自动修改 prompt、tool description 或生产配置。
 - 局部 OpenAPI drift tests 覆盖 `EVL-004` 的 create/read/comparison/accept endpoint、认证、422、409、provider degraded 和 idempotency 语义。
 - `make eval` 继续保持基础 approved dataset 跑法；新增 experiment 命令不能破坏 Phase 11 的无 approved case 降级语义。
+
+**2026-07-11 收口证据**：
+- `uv run pytest -ra`：`281 passed, 3 skipped in 53.65s`；三个 skip 均为显式 `AGENT_HARNESS_TEST_POSTGRES_DSN` 条件合同，heartbeat 续租返回失败/抛异常在租约仍有效时 fail closed、过期租约拒绝终态写入、真实 create 持久化 draft rejected count，以及顶层/per-case 合法上界 refs 合并后稳定压缩的合同均通过。
+- `AGENT_HARNESS_TEST_POSTGRES_DSN=postgresql+asyncpg://... uv run pytest <三个 PostgreSQL 合同>`：`3 passed in 1.30s`，分别覆盖 approval claim、通用 PostgreSQL repository adapter 和 Phase 12.5 migration/repository/downgrade。
+- `make smoke-service`：真实 PostgreSQL/Redis healthy；先证明已有 0009 volume 原地升级到 0010，后续以同一已应用 0010 volume 前滚到 `0011_eval_experiment_legacy_created_review`；repository、eval experiment/acceptance、context、embedding、retrieval 和 worker probes 全部通过。
+- `make quality`、`make smoke-local`、`make eval`、`make build`、`make license-check`、`uv run pre-commit run --all-files` 全通过；四示例 eval 共执行 11 个 approved cases，1 个 draft 被跳过，0 failures。
+- `uv run openspec validate --all --strict`：`21 passed, 0 failed`；`git diff --check` 无输出。
+- fresh code-reviewer 对三个 change 的单项与联合 Stage 1/2 均 PASS，HIGH/MEDIUM/LOW 均为 0；状态文档一致性修订纳入最终 fresh 审查范围，任何之后的受审 diff 都重置该门禁。
 
 ---
 

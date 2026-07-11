@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -16,16 +16,23 @@ from agent_harness.approvals import ApprovalService, ApprovalStateConflict
 from agent_harness.auth import AuthError, TokenVerifier
 from agent_harness.config import load_settings
 from agent_harness.contracts import ApiErrorEnvelope, ErrorDetail
-from agent_harness.evals import EvalService
+from agent_harness.evals import (
+    AcceptanceService,
+    EvalExperimentError,
+    EvalService,
+    ExperimentService,
+)
 from agent_harness.events import EventSink
 from agent_harness.policy import InputGuardrail, PolicyDeniedError, PolicyEngine
 from agent_harness.registry import RegistryLoadError
 from agent_harness.runtime import InvalidRunTransition, RunOrchestrator
 from agent_harness.security.redaction import redact_secrets
 from app.api.dependencies import (
+    get_acceptance_service,
     get_approval_service,
     get_auth_verifier,
     get_eval_service,
+    get_experiment_service,
     get_input_guardrail,
     get_optional_approval_service,
     get_policy_engine,
@@ -51,11 +58,19 @@ def api_error_response(
     code: str,
     message: str,
     status_code: int,
+    field_path: str | None = None,
+    hint: str | None = None,
 ) -> JSONResponse:
     """把内部结构化异常转换成统一 ApiErrorEnvelope。"""
 
     envelope = ApiErrorEnvelope(
-        error=ErrorDetail(code=code, message=str(redact_secrets(message)), request_id=request_id)
+        error=ErrorDetail(
+            code=code,
+            message=str(redact_secrets(message)),
+            request_id=request_id,
+            field_path=field_path,
+            hint=None if hint is None else str(redact_secrets(hint)),
+        )
     )
     return JSONResponse(status_code=status_code, content=envelope.to_payload())
 
@@ -74,6 +89,8 @@ def create_app(
     input_guardrail: InputGuardrail | None = None,
     approval_service: ApprovalService | None = None,
     eval_service: EvalService | None = None,
+    experiment_service: ExperimentService | None = None,
+    acceptance_service: AcceptanceService | None = None,
 ) -> FastAPI:
     """创建已注册 run routes 的 FastAPI app。
 
@@ -99,6 +116,8 @@ def create_app(
         input_guardrail = input_guardrail or components.input_guardrail
         approval_service = approval_service or components.approval_service
         eval_service = eval_service or components.eval_service
+        experiment_service = experiment_service or components.experiment_service
+        acceptance_service = acceptance_service or components.acceptance_service
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
@@ -173,11 +192,36 @@ def create_app(
         )
 
     async def validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        validation_exc = cast(RequestValidationError, exc)
+        errors = cast(list[dict[str, Any]], validation_exc.errors())
+        first_error: dict[str, Any] = errors[0] if errors else {}
+        raw_location = first_error.get("loc", ())
+        location = (
+            cast(list[object] | tuple[object, ...], raw_location)
+            if isinstance(raw_location, (list, tuple))
+            else ()
+        )
+        field_path = ".".join(str(part) for part in location) or None
+        raw_error_type = first_error.get("type")
+        error_type = raw_error_type if isinstance(raw_error_type, str) else None
         return api_error_response(
             request_id=request_id_from(request),
             code="validation_error",
             message="request validation failed",
             status_code=422,
+            field_path=field_path,
+            hint=None if error_type is None else f"validation type: {error_type}",
+        )
+
+    async def eval_experiment_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        eval_exc = cast(EvalExperimentError, exc)
+        return api_error_response(
+            request_id=request_id_from(request),
+            code=eval_exc.code,
+            message=str(eval_exc),
+            status_code=eval_exc.status_code,
+            field_path=eval_exc.field_path,
+            hint=eval_exc.hint,
         )
 
     async def registry_load_error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -218,6 +262,7 @@ def create_app(
     app.add_exception_handler(PolicyDeniedError, policy_denied_handler)
     app.add_exception_handler(ApprovalStateConflict, approval_conflict_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(EvalExperimentError, eval_experiment_error_handler)
     app.add_exception_handler(LookupError, lookup_error_handler)
     app.add_exception_handler(InvalidRunTransition, invalid_transition_handler)
     app.add_exception_handler(RegistryLoadError, registry_load_error_handler)
@@ -238,4 +283,61 @@ def create_app(
         app.dependency_overrides[get_optional_approval_service] = lambda: approval_service
     if eval_service is not None:
         app.dependency_overrides[get_eval_service] = lambda: eval_service
+    if experiment_service is not None:
+        app.dependency_overrides[get_experiment_service] = lambda: experiment_service
+    if acceptance_service is not None:
+        app.dependency_overrides[get_acceptance_service] = lambda: acceptance_service
+
+    generated_openapi = app.openapi
+
+    def evl_openapi() -> dict[str, Any]:
+        """移除 FastAPI 自动追加但不属于 EVL-004 的 GET 422 响应。"""
+
+        schema = generated_openapi()
+        paths = cast(dict[str, Any], schema["paths"])
+        expected = {
+            ("/api/v1/evals/experiments", "post"): {
+                "200",
+                "201",
+                "401",
+                "403",
+                "404",
+                "409",
+                "422",
+                "500",
+            },
+            ("/api/v1/evals/experiments/{experiment_id}", "get"): {
+                "200",
+                "401",
+                "403",
+                "404",
+                "500",
+            },
+            ("/api/v1/evals/experiments/{experiment_id}/comparison", "get"): {
+                "200",
+                "401",
+                "403",
+                "404",
+                "409",
+                "500",
+            },
+            ("/api/v1/evals/experiments/{experiment_id}/accept", "post"): {
+                "200",
+                "401",
+                "403",
+                "404",
+                "409",
+                "422",
+                "500",
+            },
+        }
+        for (path, method), allowed in expected.items():
+            operation = cast(dict[str, Any], paths[path][method])
+            responses = cast(dict[str, Any], operation["responses"])
+            operation["responses"] = {
+                status: payload for status, payload in responses.items() if status in allowed
+            }
+        return schema
+
+    app.openapi = evl_openapi
     return app

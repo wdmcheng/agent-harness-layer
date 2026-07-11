@@ -101,9 +101,7 @@ def _evaluation(
         case_results=[
             ExperimentCaseResult(
                 case_id=case_id,
-                subset=cast(
-                    Literal["optimization", "holdout", "regression"], subset
-                ),
+                subset=cast(Literal["optimization", "holdout", "regression"], subset),
                 tags=tags,
                 metric_scores={"exact_match": score},
                 passed=passed,
@@ -269,12 +267,10 @@ def test_large_failure_diff_is_truncated_to_local_evidence_ref() -> None:
     from agent_harness.evals import ExperimentComparisonBuilder, RegressionPolicy
 
     baseline_scores = {
-        f"case-{index}": ("holdout", ["tool_selection"], 1.0, True)
-        for index in range(6)
+        f"case-{index}": ("holdout", ["tool_selection"], 1.0, True) for index in range(6)
     }
     candidate_scores = {
-        f"case-{index}": ("holdout", ["tool_selection"], 0.0, False)
-        for index in range(6)
+        f"case-{index}": ("holdout", ["tool_selection"], 0.0, False) for index in range(6)
     }
     result = ExperimentComparisonBuilder(failure_inline_limit=2).build(
         experiment_id="experiment-large",
@@ -282,9 +278,7 @@ def test_large_failure_diff_is_truncated_to_local_evidence_ref() -> None:
         baseline=_evaluation("baseline", baseline_scores),
         candidate=_evaluation("candidate", candidate_scores),
         regression_policy=RegressionPolicy(max_holdout_regression=0.0),
-        authoritative_case_tags={
-            f"case-{index}": ["tool_selection"] for index in range(6)
-        },
+        authoritative_case_tags={f"case-{index}": ["tool_selection"] for index in range(6)},
     )
 
     assert len(result.new_failures) == 2

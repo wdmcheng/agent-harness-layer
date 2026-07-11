@@ -133,6 +133,30 @@ OPERATIONS = (
         "EvalScoresResponse",
         ("401", "403", "404", "422", "500"),
     ),
+    OperationContract(
+        "/api/v1/evals/experiments",
+        "post",
+        "EvalExperimentResponse",
+        ("401", "403", "404", "409", "422", "500"),
+    ),
+    OperationContract(
+        "/api/v1/evals/experiments/{experiment_id}",
+        "get",
+        "EvalExperimentResponse",
+        ("401", "403", "404", "500"),
+    ),
+    OperationContract(
+        "/api/v1/evals/experiments/{experiment_id}/comparison",
+        "get",
+        "EvalExperimentComparisonResponse",
+        ("401", "403", "404", "409", "500"),
+    ),
+    OperationContract(
+        "/api/v1/evals/experiments/{experiment_id}/accept",
+        "post",
+        "EvalExperimentAcceptanceResponse",
+        ("401", "403", "404", "409", "422", "500"),
+    ),
     OperationContract("/api/v1/health", "get", "HealthResponse", ("500",)),
 )
 
@@ -192,6 +216,10 @@ def test_api_contract_has_field_level_p0_baselines() -> None:
         "#### EVL-003A ",
         "#### EVL-003B ",
         "#### EVL-003C ",
+        "#### EVL-004A ",
+        "#### EVL-004B ",
+        "#### EVL-004C ",
+        "#### EVL-004D ",
     )
 
     for index, heading in enumerate(headings):
@@ -232,7 +260,6 @@ def test_p0_openapi_has_no_path_method_or_schema_drift(tmp_path: Path) -> None:
             assert {"HTTPBearer": []} in operation.get("security", [])
 
     assert "/api/v1/tools" not in paths
-    assert not any("experiments" in path for path in paths)
 
 
 @pytest.mark.parametrize(

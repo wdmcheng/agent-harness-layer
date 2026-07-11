@@ -16,6 +16,7 @@ import asyncio
 import os
 import subprocess
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -153,7 +154,7 @@ async def repository_probe(dsn: str) -> str:
 
 
 async def eval_experiment_probe(dsn: str) -> str:
-    """在 PostgreSQL 上证明三类 Phase 12.5 repository 与幂等约束。"""
+    """在 PostgreSQL 上证明 eval experiment repositories 与幂等约束。"""
 
     suffix = str(uuid4())
     split_id = f"split-smoke-{suffix}"
@@ -200,6 +201,14 @@ async def eval_experiment_probe(dsn: str) -> str:
             replay = await uow.eval_experiments.create(create)
             if replay.experiment_id != experiment.experiment_id:
                 raise RuntimeError("eval experiment idempotent replay created another row")
+            claimed = await uow.eval_experiments.claim_execution(
+                tenant_id="default",
+                experiment_id=experiment.experiment_id,
+                claim_id=suffix,
+                expires_at=datetime.now(tz=UTC) + timedelta(seconds=30),
+            )
+            if not claimed:
+                raise RuntimeError("eval experiment execution claim was not acquired")
             await uow.eval_experiments.update_results(
                 tenant_id="default",
                 experiment_id=experiment.experiment_id,
@@ -210,6 +219,7 @@ async def eval_experiment_probe(dsn: str) -> str:
                 comparison={"acceptance_recommendation": "accept"},
                 local_refs=[f"artifact://service-smoke/{suffix}/comparison"],
                 provider_statuses=[],
+                execution_claim_id=suffix,
             )
             decision = HarnessAcceptanceCreate(
                 tenant_id="default",
@@ -470,7 +480,7 @@ def main() -> int:
         format_retrieval_extension_status(status)
         for status in retrieval_extension_statuses(settings, settings.storage.dsn)
     )
-    if revision != "0009_eval_experiment_loop":
+    if revision != "0011_eval_experiment_legacy_created_review":
         print(
             f"smoke-service: PostgreSQL migration head mismatch ({revision})",
             file=sys.stderr,

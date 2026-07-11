@@ -13,6 +13,7 @@ from agent_harness.evals.experiment_models import (
     FailureDifference,
     PerTagComparison,
     RecommendationReasonCode,
+    bounded_public_evidence_refs,
 )
 
 REASON_CODE_ORDER: tuple[RecommendationReasonCode, ...] = (
@@ -113,6 +114,7 @@ class ExperimentComparisonBuilder:
         regressions: list[FailureDifference] = []
         new_failures: list[FailureDifference] = []
         fixed_failures: list[FailureDifference] = []
+        truth_ref = f"db://eval-experiments/{experiment_id}"
         for case_id in common_ids:
             baseline_case = baseline_by_id[case_id]
             candidate_case = candidate_by_id[case_id]
@@ -120,6 +122,7 @@ class ExperimentComparisonBuilder:
                 baseline_case,
                 candidate_case,
                 tags=authoritative_case_tags.get(case_id, []),
+                truth_ref=truth_ref,
             )
             if candidate_case.aggregate_score < baseline_case.aggregate_score:
                 regressions.append(difference)
@@ -144,9 +147,7 @@ class ExperimentComparisonBuilder:
             structurally_complete = False
         critical_passed = all(item.passed for item in critical_cases)
 
-        local_refs = sorted(
-            {*baseline.local_evidence_refs, *candidate.local_evidence_refs}
-        )
+        local_refs = sorted({*baseline.local_evidence_refs, *candidate.local_evidence_refs})
         local_complete = bool(baseline.local_evidence_refs and candidate.local_evidence_refs)
         reason_codes: list[RecommendationReasonCode] = []
         if not local_complete or not structurally_complete:
@@ -163,23 +164,17 @@ class ExperimentComparisonBuilder:
                 *regression_policy.case_ids,
                 *regression_policy.critical_case_ids,
             }
-            named_failures_fixed = any(
-                item.case_id in named_failure_ids for item in fixed_failures
-            )
+            named_failures_fixed = any(item.case_id in named_failure_ids for item in fixed_failures)
             if named_failures_fixed:
                 reason_codes.append("named_failure_fixed")
-            holdout_within_threshold = (
-                holdout_delta >= -regression_policy.max_holdout_regression
-            )
+            holdout_within_threshold = holdout_delta >= -regression_policy.max_holdout_regression
             reason_codes.append(
                 "holdout_within_threshold"
                 if holdout_within_threshold
                 else "holdout_regression_exceeded"
             )
             reason_codes.append(
-                "critical_regression_passed"
-                if critical_passed
-                else "critical_regression_failed"
+                "critical_regression_passed" if critical_passed else "critical_regression_failed"
             )
             if new_failures:
                 reason_codes.append("new_failures_present")
@@ -198,9 +193,7 @@ class ExperimentComparisonBuilder:
         failure_count = sum(len(items) for items in full_failure_payload.values())
         failure_details_ref: str | None = None
         if failure_count > self.failure_inline_limit:
-            encoded = json.dumps(
-                full_failure_payload, ensure_ascii=False, sort_keys=True
-            ).encode()
+            encoded = json.dumps(full_failure_payload, ensure_ascii=False, sort_keys=True).encode()
             checksum = hashlib.sha256(encoded).hexdigest()
             failure_details_ref = (
                 f"db://eval-experiments/{experiment_id}/failure-details/{checksum}"
@@ -225,7 +218,11 @@ class ExperimentComparisonBuilder:
             fixed_failures=fixed_failures,
             acceptance_recommendation=recommendation,
             recommendation_reason_codes=ordered_reasons,
-            local_evidence_refs=sorted(set(local_refs)),
+            local_evidence_refs=bounded_public_evidence_refs(
+                local_refs,
+                truth_ref=truth_ref,
+                field_path="comparison.local_evidence_refs",
+            ),
             failure_details_ref=failure_details_ref,
             failure_details=(
                 {}
@@ -251,6 +248,7 @@ def _failure_difference(
     candidate: ExperimentCaseResult,
     *,
     tags: list[str],
+    truth_ref: str,
 ) -> FailureDifference:
     return FailureDifference(
         case_id=baseline.case_id,
@@ -258,5 +256,9 @@ def _failure_difference(
         tags=sorted(set(tags)),
         baseline_score=baseline.aggregate_score,
         candidate_score=candidate.aggregate_score,
-        evidence_refs=sorted(set(baseline.evidence_refs).union(candidate.evidence_refs)),
+        evidence_refs=bounded_public_evidence_refs(
+            sorted(set(baseline.evidence_refs).union(candidate.evidence_refs)),
+            truth_ref=truth_ref,
+            field_path="comparison.failure_difference.evidence_refs",
+        ),
     )

@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage as SQLAlchemyStorage
-from agent_harness.storage.eval_experiment_repositories import (
+from agent_harness.storage.eval_acceptance_repositories import (
+    HarnessAcceptanceCreate as HarnessAcceptanceCreate,
+)
+from agent_harness.storage.eval_acceptance_repositories import (
+    HarnessAcceptanceRecord as HarnessAcceptanceRecord,
+)
+from agent_harness.storage.eval_dataset_split_repositories import (
     EvalDatasetSplitCreate as EvalDatasetSplitCreate,
 )
-from agent_harness.storage.eval_experiment_repositories import (
+from agent_harness.storage.eval_dataset_split_repositories import (
     EvalDatasetSplitRecord as EvalDatasetSplitRecord,
 )
 from agent_harness.storage.eval_experiment_repositories import (
@@ -16,16 +22,13 @@ from agent_harness.storage.eval_experiment_repositories import (
     EvalExperimentRecord as EvalExperimentRecord,
 )
 from agent_harness.storage.eval_experiment_repositories import (
+    ExperimentStorageConcurrentConflict as ExperimentStorageConcurrentConflict,
+)
+from agent_harness.storage.eval_experiment_repositories import (
     ExperimentStorageConflict as ExperimentStorageConflict,
 )
 from agent_harness.storage.eval_experiment_repositories import (
     ExperimentStorageNotFound as ExperimentStorageNotFound,
-)
-from agent_harness.storage.eval_experiment_repositories import (
-    HarnessAcceptanceCreate as HarnessAcceptanceCreate,
-)
-from agent_harness.storage.eval_experiment_repositories import (
-    HarnessAcceptanceRecord as HarnessAcceptanceRecord,
 )
 from agent_harness.storage.eval_repositories import EvalCaseCreate as EvalCaseCreate
 from agent_harness.storage.eval_repositories import EvalCaseRecord as EvalCaseRecord
@@ -129,6 +132,7 @@ _REPOSITORY_DTO_EXPORTS = [
     "EvalExperimentCreate",
     "EvalExperimentRecord",
     "ExperimentStorageConflict",
+    "ExperimentStorageConcurrentConflict",
     "ExperimentStorageNotFound",
     "HarnessAcceptanceCreate",
     "HarnessAcceptanceRecord",

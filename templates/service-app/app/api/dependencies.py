@@ -9,7 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from agent_harness.approvals import ApprovalService
 from agent_harness.auth import AuthError, TokenVerifier
-from agent_harness.evals import EvalService
+from agent_harness.evals import AcceptanceService, EvalService, ExperimentService
 from agent_harness.identity import IdentityContext
 from agent_harness.policy import InputGuardrail, PolicyEngine
 
@@ -50,6 +50,18 @@ def get_eval_service() -> EvalService:
     """返回 EvalService，未注入时让 eval route 显式失败。"""
 
     raise RuntimeError("EvalService dependency is not configured")
+
+
+def get_experiment_service() -> ExperimentService:
+    """返回 EVL-004 ExperimentService，未注入时显式失败。"""
+
+    raise RuntimeError("ExperimentService dependency is not configured")
+
+
+def get_acceptance_service() -> AcceptanceService:
+    """返回人工 harness decision service，未注入时显式失败。"""
+
+    raise RuntimeError("AcceptanceService dependency is not configured")
 
 
 async def current_identity(

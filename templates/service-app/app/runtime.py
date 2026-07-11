@@ -10,7 +10,14 @@ from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
 from agent_harness.auth import ApiKeyVerifier, StaticTokenVerifier, TokenVerifier
 from agent_harness.config import load_settings
-from agent_harness.evals import EvalCaseFactory, EvalService, ScoreSink
+from agent_harness.evals import (
+    AcceptanceService,
+    EvalCaseFactory,
+    EvalService,
+    ExperimentService,
+    RecordedApprovedCaseEvaluator,
+    ScoreSink,
+)
 from agent_harness.events import EventBus, EventSink, LocalJsonlEventSink
 from agent_harness.observability import TelemetryFacade
 from agent_harness.policy import (
@@ -38,6 +45,8 @@ class RuntimeComponents:
     input_guardrail: InputGuardrail
     approval_service: ApprovalService
     eval_service: EvalService
+    experiment_service: ExperimentService
+    acceptance_service: AcceptanceService
 
     async def close(self) -> None:
         await self.storage.dispose()
@@ -152,6 +161,15 @@ def build_runtime_components(
         approved_dir=service_root / "eval-cases" / "approved",
         audit=audit,
     )
+    experiment_service = ExperimentService(
+        storage=storage,
+        evaluator=RecordedApprovedCaseEvaluator(storage=storage),
+    )
+    acceptance_service = AcceptanceService(
+        storage=storage,
+        experiments=experiment_service,
+        policy=policy_engine,
+    )
     return RuntimeComponents(
         storage=storage,
         event_sink=event_sink,
@@ -162,4 +180,6 @@ def build_runtime_components(
         input_guardrail=input_guardrail,
         approval_service=approval_service,
         eval_service=eval_service,
+        experiment_service=experiment_service,
+        acceptance_service=acceptance_service,
     )
