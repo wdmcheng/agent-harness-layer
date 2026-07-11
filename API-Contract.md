@@ -800,7 +800,7 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 | 错误响应码 | `400 api.http_error`、`401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied` / `guardrail.denied`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`503 run.enqueue_unavailable`、`500 api.internal_error`。 |
 | 状态语义 | service 202 返回 `created`，且只有 Redis接受、repository保存 queued/message ref并发布唯一 `run.queued` 后才算成功；enqueue任一步失败返回503并保留可补投私有状态。同客户端 key重试复用原 run/operation/首次 request id；无客户端 key的新请求仍非幂等，但原 pending run由worker startup/pickup recovery补投。`completed/failed/cancelled` 表示 terminal；`waiting` 表示需要 approval 或 resume。私有 queue字段不进入响应/OpenAPI。 |
 | 安全规则 | API route 不得直接操作 ORM session、DBOS API 或 provider SDK；input 进入 runtime 前必须经过 `run.create` policy check 和 guardrail/trust 标注；无效 token 或缺少 `run.create` 权限不得创建 run。 |
-| 验证要求 | `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 必须检查 route table、OpenAPI path、helper 使用 `RunOrchestrator`、idempotency、request_id 和 error envelope；认证/策略/HITL contract tests 必须覆盖无效 token 和缺少 `run.create` 权限均不创建 run、guardrail deny 不创建半截 run、guardrail require_approval 进入 approval/checkpoint 等待。 |
+| 验证要求 | legacy route/OpenAPI 由 `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 锁定；service enqueue、身份 fencing 与 worker recovery 分别由 `test_split_runtime_execution_contracts.py`、`test_split_runtime_worker_recovery_contracts.py` 锁定；`make smoke-service` 必须在 workspace 外以真实 API key、PostgreSQL、Redis 和独立 worker证明 HTTP-to-worker、hard crash/reclaim、唯一 terminal 与重复提交同 run。认证/策略/HITL tests 必须覆盖无效 token 零 run/queue/audit、guardrail deny 和 require_approval。 |
 
 ### RUN-002 读取 run detail
 
@@ -1407,10 +1407,10 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | runtime / worker tool call | 等价于 `TLS-003` 的 module seam | runtime/worker 必须通过 `ToolRegistry`，不得直接调用 FileTool、ShellTool、MCP SDK、subprocess 或文件系统危险操作。 |
 | OpenAPI 调用方 | `AGT-001`、`RUN-001` 到 `RUN-005`，后续保留 API | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
 | service-app FastAPI | `AGT-001`、`RUN-001` 到 `RUN-005` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
-| runtime worker | 内部 worker seam；不直接新增 HTTP route | worker 必须通过 runtime components，不直接操作 ORM/DBOS/provider SDK。 |
+| runtime worker | 当前 service profile 独立进程；不暴露 HTTP 管理面 | worker 通过 runtime components消费 Redis queue，使用稳定 DBOS executor id并从 PostgreSQL恢复 execution identity/checkpoint；不直接泄漏 ORM/DBOS/provider对象。 |
 | HITL approval flow | `APR-001` / `APR-002` + runtime 内部 resume seam | approval continuation 必须关联 checkpoint、audit、tenant、identity、agent、run、action/resource 和 arguments hash；公开 `RUN-005` 只服务普通 checkpoint，不能执行 approval-gated 动作。 |
 | Eval review / experiment flow | `EVL-*` | draft 到 approved 必须人工确认，secret/隐私脱敏是写入门禁；experiment accept 必须有人审、policy/audit 和回归证据。 |
-| future API/worker split | 所有 HTTP API + worker seam | 拆分后数据只走 DTO、CanonicalEvent、repository/provider/facade，不传进程内可变对象；queue message header 必须携带 `request_id` 和 `idempotency_key`。 |
+| 当前 API/worker split | 所有 HTTP API + worker seam | API 与 worker 已物理分进程；数据只走 DTO、CanonicalEvent、repository/provider/facade，不传进程内可变对象；queue message必须携带 `request_id`、effective `idempotency_key`、`tenant_id`、`run_id`。下一步才是 tool/model gateway，再后是 observability/event pipeline；storage service仍待 repository contract 稳定。 |
 
 ## 13. 流式与事件契约
 

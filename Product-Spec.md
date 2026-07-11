@@ -1196,10 +1196,10 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - MUST 禁止为了图上好看提前引入分布式复杂度；边界优先，分布式实现后置。
 
 **验收标准：**
-- [ ] AC-059: Given README / architecture docs, when 新维护者阅读部署边界章节, then 能指出 API、runtime worker、model/tool gateway、storage、event pipeline 的当前形态和未来拆分路径。
-- [ ] AC-060: Given service profile, when 分别启动 API 进程和 worker 进程并提交 run, then run 可被 worker 执行并通过共享 storage/queue 产出事件。
+- [x] AC-059: Given README / architecture docs, when 新维护者阅读部署边界章节, then 能指出 API、runtime worker、model/tool gateway、storage、event pipeline 的当前形态和未来拆分路径。
+- [x] AC-060: Given service profile, when 分别启动 API 进程和 worker 进程并提交 run, then run 可被 worker 执行并通过共享 storage/queue 产出事件。
 - [x] AC-061: Given 业务 agent 代码, when 静态扫描 import, then 不直接 import 具体 model/tool/storage/observability vendor SDK 或直接操作 ORM session。
-- [ ] AC-062: Given CanonicalEvent / DTO contract tests, when API、worker、tool/model adapter 交换数据, then 关联字段和 schema 校验保持一致。
+- [x] AC-062: Given CanonicalEvent / DTO contract tests, when API、worker、tool/model adapter 交换数据, then 关联字段和 schema 校验保持一致。
 
 ### AI 能力规格
 
@@ -1334,7 +1334,7 @@ P0 完成条件：
 - [ ] Policy/HITL 对默认危险动作生效。
 - [x] CanonicalEvent terminal event 唯一性和 seq resume 测试通过。
 - [ ] README 和深度文档已覆盖目录边界、扩展方式、安全策略、release process。
-- [ ] README / architecture docs 已覆盖未来微服务拆分边界；service profile 可验证 API 与 worker 分进程协作。
+- [x] README / architecture docs 已覆盖未来微服务拆分边界；service profile 可验证 API 与 worker 分进程协作。
 - [ ] GitHub Actions 和 GitLab CI 都能跑等价质量门禁。
 - [ ] Release automation dry-run 能生成版本、tag、CHANGELOG 预览和 wheel/sdist artifacts。
 - [ ] Apache-2.0 LICENSE、NOTICE 和 license check 存在。

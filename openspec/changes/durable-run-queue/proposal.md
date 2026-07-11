@@ -36,5 +36,5 @@
 ## Impact
 
 - 核心包新增 `agent_harness.runtime.queue` 与 `agent_harness.adapters.queue.redis`，并从公共边界导出 DTO/protocol。
-- 核心依赖新增经官方资料核验的 `redis` Python client；Redis 镜像继续固定 7.2.4。
+- 核心依赖新增 `redis==8.0.1` Python client；Phase 13 Compose 与真实合同统一固定 Redis 8.0.1。
 - 测试新增 fake/contract 与真实 Redis 条件集成证据；不修改数据库 schema、HTTP API 或模板进程模型。

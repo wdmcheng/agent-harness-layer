@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 from typing import Any
 from uuid import uuid4
+from weakref import WeakKeyDictionary
 
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.events.sinks.base import EventSink, EventSinkTerminalConflict
@@ -30,7 +32,22 @@ class EventBus:
         self._sink = sink
         self._artifact_store = artifact_store
         self._inline_payload_bytes = inline_payload_bytes
-        self._lock = asyncio.Lock()
+        # DBOS recovery handler 与 worker consumer 可能位于同进程的不同 event loop。
+        # asyncio.Lock 只能绑定一个 loop；这里按 loop 隔离进程内协调，跨 loop/
+        # 跨进程的 seq、event_id 与 terminal 原子性继续由 PostgreSQL sink 保证。
+        self._loop_locks: WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock] = (
+            WeakKeyDictionary()
+        )
+        self._loop_locks_guard = threading.Lock()
+
+    def _lock_for_current_loop(self) -> asyncio.Lock:
+        loop = asyncio.get_running_loop()
+        with self._loop_locks_guard:
+            lock = self._loop_locks.get(loop)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._loop_locks[loop] = lock
+            return lock
 
     async def publish(
         self,
@@ -52,7 +69,7 @@ class EventBus:
     ) -> CanonicalEvent:
         """发布 CanonicalEvent；带 event_id 时重试返回已写 evidence。"""
 
-        async with self._lock:
+        async with self._lock_for_current_loop():
             if event_id is not None:
                 existing = await self.find_event(run_id=run_id, event_id=event_id)
                 if existing is not None:

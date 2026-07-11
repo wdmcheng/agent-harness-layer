@@ -1,6 +1,6 @@
 ## Context
 
-现有配置已有 Redis DSN，但核心包没有 queue protocol，service smoke 只执行 PING。Phase 13 三个 change 的依赖与所有权见 `../phase-13-change-matrix.md`。官方 Redis 文档确认 Streams consumer group 的 pending entry、`XACK` 和 Redis 6.2+ 的 `XAUTOCLAIM` 适合处理 worker 崩溃后的至少一次重投；当前固定 Redis 7.2.4 支持该语义。redis-py 8.0.1 官方元数据仍支持 Redis 7.2 与 Python 3.12-3.14。
+现有配置已有 Redis DSN，但核心包没有 queue protocol，service smoke 只执行 PING。Phase 13 三个 change 的依赖与所有权见 `../phase-13-change-matrix.md`。官方 Redis 文档确认 Streams consumer group 的 pending entry、`XACK` 和 Redis 6.2+ 的 `XAUTOCLAIM` 适合处理 worker 崩溃后的至少一次重投；最终 Compose、redis-py client 与真实合同统一固定 8.0.1。
 
 ## Goals / Non-Goals
 
@@ -19,7 +19,7 @@
 2. **message 只携带稳定关联 header 和 operation refs，不复制 run input/identity/grant payload。** worker 以 tenant/run/approval refs 从 PostgreSQL 读取权威状态，避免 Redis 中出现第二份敏感真相源。schema 只接受 Literal 1；未知版本不 ack，交给新版 worker reclaim。
 3. **去重身份按逻辑 operation，而不是只按 run。** 初始执行固定 `run:<run_id>:execute`；每次 approval resolution用 `run:<run_id>:approval:<approval_id>:lease:<lease_id>`。Redis namespace使用 tenant/operation；这样同一 operation重试稳定，同一 run的后续 continuation不会与初始执行冲突。initial effective key保留客户端 key或回退到 operation id，approval effective key固定为 operation id。
 4. **原子 Lua 完成 operation dedupe record 与 `XADD`。** dedupe key保存受保护字段 canonical hash、首次 payload与 stream id；同 operation相同受保护字段返回原 entry，不同受保护字段返回 conflict；不同 operation独立写 entry。备选 tenant/run单槽会阻断 approval continuation。
-5. **receipt 用 owner + delivery count fencing。** pickup/reclaim 后通过 `XPENDING` 取得当前 consumer 与 delivery count；ack Lua 先核对两者再 `XACK`。仅用 stream id 的普通 `XACK` 会允许旧 worker 在 ownership 转移后误确认，不能暴露为公共 seam。
+5. **receipt 用 owner + delivery count fencing。** 新 pickup 由 `XREADGROUP ... ">"` 直接绑定当前 consumer，首次 delivery count 固定为 1；不做易受并发 reclaim 影响的后置 `XPENDING` owner 查询。reclaim 从原子 claim 结果取得新 owner 与 delivery count；ack Lua 再原子核对 PEL owner/delivery count 后 `XACK`。仅用 stream id 的普通 `XACK` 会允许旧 worker在 ownership 转移后误确认，不能暴露为公共 seam。
 6. **至少一次 delivery，执行确定性收口后才 ack。** worker 中断留下 PEL entry，由 `XAUTOCLAIM` 恢复；adapter 不把 pickup 当成功。端到端不重复由 run transition、effective key 与 DBOS workflow id 共同控制。
 7. **fake 保持协议级语义但不冒充 service 证据。** fake 使用可注入 monotonic clock 模拟 idle lease，真实 Redis contract 用独立 stream/group 前缀并在测试后清理。
 
@@ -34,7 +34,7 @@
 
 - 公共 DTO JSON round-trip 与非法字段 validation。
 - `RunQueue` contract suite：execute/approval operation identity、缺省/客户端 effective key、request-id retry、version/kind validation、enqueue/pickup/fenced ack、同 operation冲突、跨 operation独立与 lease reclaim。
-- 真实 Redis 7.2.4：consumer group 单次分配、pending reclaim、ack 后不可见和资源清理。
+- 真实 Redis 8.0.1：consumer group 单次分配、pending reclaim、ack 后不可见和资源清理。
 
 ## Risks / Trade-offs
 

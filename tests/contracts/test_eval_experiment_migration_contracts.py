@@ -207,7 +207,7 @@ def test_0009_downgrade_is_empty_only_and_preserves_nonempty_evidence(
 
     with pytest.raises(RuntimeError, match="0011 downgrade refused"):
         command.downgrade(alembic_config(used_dsn), "0008_agent_execution_approval_claims")
-    # 0012 没有 Phase 13 evidence 时可先安全回退；随后 0011 在 eval evidence 处拒绝。
+    # 0012 没有 durable execution evidence 时可先安全回退；随后 0011 在 eval evidence 处拒绝。
     assert get_current_revision(used_dsn) == "0011_eval_experiment_legacy_created_review"
     with sqlite3.connect(used_db) as connection:
         assert connection.execute("select count(*) from eval_dataset_splits").fetchone() == (1,)

@@ -1,0 +1,10 @@
+.agent-harness/*
+!.agent-harness/agent_harness-*.whl
+.env
+.git
+.pytest_cache
+.ruff_cache
+.venv
+__pycache__
+eval-results
+tests

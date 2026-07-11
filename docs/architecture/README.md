@@ -11,6 +11,13 @@
 | 运行链路与信任边界图（Agent Harness Layer） | `agent-harness-runtime-trust-boundaries.drawio` / `agent-harness-runtime-trust-boundaries.excalidraw` | `agent-harness-runtime-trust-boundaries.png` | 运行级链路图，说明 CLI/API、RunOrchestrator、storage/checkpoint、EventBus/artifact 和不可信输入边界。 |
 | 部署边界图（Agent Harness Layer） | `agent-harness-deployment-boundaries.drawio` / `agent-harness-deployment-boundaries.excalidraw` | `agent-harness-deployment-boundaries.png` | 部署级边界图，说明 local/service profile、API/worker/PostgreSQL/Redis 协作和未来拆分路径。 |
 
+## 当前部署边界
+
+- local profile 仍是单进程 SQLite/in-memory/local JSONL 开发形态。
+- service profile 当前由 PostgreSQL、Redis、migration、FastAPI API 和 runtime worker 组成；API 只认证、校验并排队，worker 持有稳定 DBOS executor id并负责 run/checkpoint/approval continuation。
+- API 与 worker 只交换 queue DTO、repository DTO 和 `CanonicalEvent` refs；`source_ref`、`trust_level`、context trace、guardrail/audit、tenant/run/request/trace correlation 必须跨边界保留。
+- 未来物理拆分顺序固定为 runtime worker（已拆）→ tool/model gateway → observability/event pipeline；storage service 仅在 repository contract 稳定后再拆。图中的紫色虚线仍表示未来边界，不代表当前 Compose 服务。
+
 ## 维护规则
 
 - `.drawio` 是首要可编辑源；`.excalidraw` 用于协作编辑；`.png` 只做审阅预览。

@@ -15,6 +15,7 @@ from agent_harness.config.schemas import HarnessSettings
 from agent_harness.contracts.errors import ApiErrorEnvelope, ErrorDetail, HarnessError
 
 ENV_PREFIX = "AGENT_HARNESS_"
+TEST_ENV_PREFIX = "AGENT_HARNESS_TEST_"
 
 
 class SettingsLoadError(HarnessError):
@@ -172,7 +173,9 @@ def _env_values_to_nested(values: Mapping[str, str]) -> dict[str, Any]:
 
     nested: dict[str, Any] = {}
     for raw_key, raw_value in values.items():
-        if not raw_key.startswith(ENV_PREFIX):
+        # 合同测试的外部服务 DSN 与产品配置共享品牌前缀，但不是 HarnessSettings。
+        # 在统一转换 seam 排除它，避免 `.env` 与进程环境两条路径行为分叉。
+        if not raw_key.startswith(ENV_PREFIX) or raw_key.startswith(TEST_ENV_PREFIX):
             continue
         key = raw_key.removeprefix(ENV_PREFIX)
         if key in {"CONFIG"}:

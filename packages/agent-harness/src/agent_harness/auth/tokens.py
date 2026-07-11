@@ -61,7 +61,9 @@ class ApiKeyVerifier:
         return IdentityContext(
             tenant_id=record.tenant_id,
             user_id=record.user_id,
-            session_id=f"api-key-{record.id}",
+            # ApiKey record id 本身已是稳定 UUID；直接复用可保持 session FK 的
+            # VARCHAR(36) 合同，auth_method 已足以标识身份来源。
+            session_id=record.id,
             roles=record.roles,
             permissions=record.permissions,
             auth_method="api-key",

@@ -1,4 +1,4 @@
-"""Phase 13 service runtime 的 migration 与私有 storage 边界合同。"""
+"""Service runtime durable execution 的 migration 与私有 storage 边界合同。"""
 
 from __future__ import annotations
 

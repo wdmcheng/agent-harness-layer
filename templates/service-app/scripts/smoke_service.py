@@ -1,328 +1,499 @@
-"""验证复制后的 service profile PostgreSQL、Redis、repository 与 worker seam。"""
+"""以隔离 Compose project 验证真实 HTTP、Redis、DBOS、PostgreSQL 与审批恢复。"""
 
 from __future__ import annotations
 
-import argparse
-import asyncio
+import json
 import os
-import subprocess
-import sys
-from datetime import UTC, datetime, timedelta
+import secrets
+import shutil
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
+from typing import Any, cast
 from uuid import uuid4
 
-from sqlalchemy.exc import IntegrityError
-
-from agent_harness.config import load_settings
-from agent_harness.storage import (
-    ApprovalCreate,
-    EvalDatasetSplitCreate,
-    EvalExperimentCreate,
-    ExperimentStorageConflict,
-    HarnessAcceptanceCreate,
-    SQLAlchemyStorage,
-    ToolInvocationCreate,
-    run_migrations,
+from service_smoke_support import (
+    assert_stale_receipt,
+    cleanup_credential_at_boundary,
+    cleanup_project,
+    compose,
+    failure_diagnostic,
+    first_stream_message,
+    free_port,
+    inspect_run,
+    last_json_line,
+    parse_args,
+    postgres_counts,
+    postgres_terminal_evidence,
+    prepare_core_wheel,
+    preserve_postgres_volume,
+    reclaim_receipts_match,
+    redis_json,
+    run,
+    stream_length,
 )
-from agent_harness.storage.access_repositories import ApprovalResolutionRepositoryConflict
-from agent_harness.storage.diagnostics import migration_revision, redis_status
-from agent_harness.storage.repositories import RunCreate, SessionCreate
 
 APP_ROOT = Path(__file__).resolve().parents[1]
-COMPOSE_FILE = APP_ROOT / "docker-compose.yml"
-PROFILES = APP_ROOT / "configs" / "profiles"
-PROJECT_NAME = os.environ.get("SERVICE_APP_COMPOSE_PROJECT", "agent-harness-service-app")
+STREAM = "agent-harness:service:runs:stream"
+GROUP = "agent-harness-workers"
 
 
-def run_compose_up() -> None:
-    """只管理本模板 compose project，并等待 PostgreSQL/Redis healthcheck。"""
-
-    subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(COMPOSE_FILE),
-            "-p",
-            PROJECT_NAME,
-            "--profile",
-            "service",
-            "up",
-            "-d",
-            "--wait",
-        ],
-        cwd=APP_ROOT,
-        env=os.environ.copy(),
-        check=True,
+def _request(
+    base_url: str,
+    method: str,
+    path: str,
+    *,
+    token: str | None = None,
+    body: dict[str, object] | None = None,
+    request_id: str | None = None,
+) -> tuple[int, dict[str, Any]]:
+    headers = {"Content-Type": "application/json"}
+    if token is not None:
+        headers["Authorization"] = f"Bearer {token}"
+    if request_id is not None:
+        headers["X-Request-Id"] = request_id
+    payload = None if body is None else json.dumps(body).encode()
+    request = urllib.request.Request(
+        f"{base_url}{path}",
+        data=payload,
+        headers=headers,
+        method=method,
     )
-
-
-async def repository_probe(dsn: str) -> str:
-    """穿过真实 PostgreSQL repository/UoW 创建 run，而非只检查端口。"""
-
-    storage = SQLAlchemyStorage.from_dsn(dsn)
     try:
-        async with storage.uow() as uow:
-            tenant = await uow.tenants.ensure("default")
-            session = await uow.sessions.create(
-                SessionCreate(
-                    tenant_id=tenant.id,
-                    user_id="service-template-smoke",
-                    agent_id="examples.basic",
-                )
-            )
-            run = await uow.runs.create(
-                RunCreate(
-                    tenant_id=tenant.id,
-                    session_id=session.id,
-                    agent_id="examples.basic",
-                    idempotency_key=None,
-                    input={"smoke": "service-template"},
-                )
-            )
-            await uow.commit()
-        return run.id
-    finally:
-        await storage.dispose()
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, cast(dict[str, Any], json.loads(response.read()))
+    except urllib.error.HTTPError as exc:
+        return exc.code, cast(dict[str, Any], json.loads(exc.read()))
 
 
-async def eval_experiment_probe(dsn: str) -> str:
-    """验证模板复制后仍可使用 eval experiment PostgreSQL repositories。"""
-
-    suffix = str(uuid4())
-    split_id = f"split-smoke-{suffix}"
-    key = f"eval-smoke-{suffix}"
-    storage = SQLAlchemyStorage.from_dsn(dsn)
-    try:
-        async with storage.uow() as uow:
-            await uow.tenants.ensure("default")
-            await uow.eval_dataset_splits.create(
-                EvalDatasetSplitCreate(
-                    split_id=split_id,
-                    tenant_id="default",
-                    agent_id="examples.basic",
-                    dataset="service-smoke",
-                    request_id=f"request-{suffix}",
-                    tags=["tool_selection"],
-                    strategy="deterministic_multilabel_v1",
-                    optimization_ratio=0.8,
-                    holdout_ratio=0.2,
-                    case_tags={
-                        f"case-opt-{suffix}": ["tool_selection"],
-                        f"case-holdout-{suffix}": ["tool_selection"],
-                    },
-                    optimization_case_ids=[f"case-opt-{suffix}"],
-                    holdout_case_ids=[f"case-holdout-{suffix}"],
-                    regression_case_ids=[],
-                )
-            )
-            create = EvalExperimentCreate(
-                tenant_id="default",
-                idempotency_key=key,
-                request_hash="a" * 64,
-                request_id=f"request-{suffix}",
-                agent_id="examples.basic",
-                dataset="service-smoke",
-                split_id=split_id,
-                evaluator_profile={"name": "service-smoke", "version": "1"},
-                metric_versions={"exact_match": "1"},
-                baseline_harness={"version_id": f"baseline-{suffix}"},
-                candidate_harness={"version_id": f"candidate-{suffix}"},
-            )
-            experiment = await uow.eval_experiments.create(create)
-            replay = await uow.eval_experiments.create(create)
-            if replay.experiment_id != experiment.experiment_id:
-                raise RuntimeError("eval experiment idempotent replay created another row")
-            claim_id = suffix
-            claimed = await uow.eval_experiments.claim_execution(
-                tenant_id="default",
-                experiment_id=experiment.experiment_id,
-                claim_id=claim_id,
-                expires_at=datetime.now(tz=UTC) + timedelta(seconds=30),
-            )
-            if not claimed:
-                raise RuntimeError("eval experiment execution claim was not acquired")
-            await uow.eval_experiments.update_results(
-                tenant_id="default",
-                experiment_id=experiment.experiment_id,
-                status="completed",
-                baseline_run_ref=f"eval-run://{suffix}/baseline",
-                candidate_run_ref=f"eval-run://{suffix}/candidate",
-                score_summaries={"baseline": {"score": 0.5}, "candidate": {"score": 0.75}},
-                comparison={"acceptance_recommendation": "accept"},
-                local_refs=[f"artifact://service-smoke/{suffix}/comparison"],
-                provider_statuses=[],
-                execution_claim_id=claim_id,
-            )
-            decision = HarnessAcceptanceCreate(
-                tenant_id="default",
-                experiment_id=experiment.experiment_id,
-                decision_request_hash="b" * 64,
-                reviewer_id="service-template-smoke",
-                reason="PostgreSQL repository parity probe",
-                decision="accepted",
-                accepted_harness_version=f"candidate-{suffix}",
-                production_binding={"version_id": f"candidate-{suffix}"},
-                policy_decision={"decision": "allow"},
-                audit_ref=f"audit://service-smoke/{suffix}",
-                evidence_refs=[f"artifact://service-smoke/{suffix}/comparison"],
-            )
-            accepted = await uow.harness_acceptance_records.create(decision)
-            replayed_decision = await uow.harness_acceptance_records.create(decision)
-            if replayed_decision.acceptance_id != accepted.acceptance_id:
-                raise RuntimeError("eval acceptance replay created another row")
-            await uow.commit()
+def _wait_for(
+    description: str,
+    predicate: Any,
+    *,
+    timeout_seconds: float = 45,
+) -> Any:
+    deadline = time.monotonic() + timeout_seconds
+    last: object = None
+    while time.monotonic() < deadline:
         try:
-            async with storage.uow() as uow:
-                await uow.eval_experiments.create(
-                    create.model_copy(update={"request_hash": "c" * 64})
-                )
-        except ExperimentStorageConflict as exc:
-            if exc.code != "eval.experiment.idempotency_conflict":
-                raise
-        else:  # pragma: no cover - PostgreSQL parity failure only
-            raise RuntimeError("eval experiment idempotency conflict was not rejected")
-        return f"experiment={experiment.experiment_id} acceptance={accepted.acceptance_id}"
-    finally:
-        await storage.dispose()
+            last = predicate()
+            if last:
+                return last
+        except (OSError, RuntimeError, urllib.error.URLError, json.JSONDecodeError) as exc:
+            last = exc
+        time.sleep(0.25)
+    raise RuntimeError(f"timeout waiting for {description}: {last}")
 
 
-async def approval_claim_probe(dsn: str, run_id: str) -> str:
-    """证明 PostgreSQL 条件仲裁和 nullable unique approval claim 真正生效。"""
+def _stream_length(env: dict[str, str]) -> int:
+    return stream_length(env, STREAM)
 
-    storage = SQLAlchemyStorage.from_dsn(dsn)
+
+def _first_message(env: dict[str, str]) -> tuple[str, dict[str, Any]]:
+    return first_stream_message(env, STREAM)
+
+
+def _wait_run_status(
+    base_url: str,
+    token: str,
+    run_id: str,
+    status: str,
+) -> dict[str, Any]:
+    latest: dict[str, Any] = {}
+
+    def poll() -> dict[str, Any] | None:
+        nonlocal latest
+        code, payload = _request(base_url, "GET", f"/api/v1/runs/{run_id}", token=token)
+        latest = payload
+        return payload if code == 200 and payload.get("status") == status else None
+
     try:
-        async with storage.uow() as uow:
-            approval = await uow.approvals.create(
-                ApprovalCreate(
-                    tenant_id="default",
-                    run_id=run_id,
-                    agent_id="examples.basic",
-                    action="shell.execute",
-                    resource="shell:workspace",
-                    reason="service smoke approval claim",
-                    requested_by="service-template-smoke",
-                    metadata={"arguments_hash": "0" * 64},
-                )
-            )
-            await uow.commit()
-        async with storage.uow() as uow:
-            lease = await uow.approvals.claim_resolution(
-                approval_id=approval.approval_id,
-                run_id=run_id,
-                tenant_id="default",
-            )
-            await uow.commit()
-        try:
-            async with storage.uow() as uow:
-                await uow.approvals.deny_waiting(
-                    approval_id=approval.approval_id,
-                    run_id=run_id,
-                    tenant_id="default",
-                    resolved_by="service-template-smoke",
-                )
-        except ApprovalResolutionRepositoryConflict as exc:
-            if exc.code != "approval.resolution_in_progress":
-                raise
-        else:  # pragma: no cover - PostgreSQL 条件更新失效时才会进入
-            raise RuntimeError("approval deny unexpectedly bypassed the claimed lease")
-
-        claim = ToolInvocationCreate(
-            tenant_id="default",
-            agent_id="examples.basic",
-            run_id=run_id,
-            tool_name="shell.execute",
-            args_ref="artifact://service-smoke-args",
-            approval_id=approval.approval_id,
-            arguments_hash="0" * 64,
-            execution_state="executing",
-            status="executing",
-            metadata={"lease_id": lease.lease_id},
+        return cast(
+            dict[str, Any],
+            _wait_for(f"run {run_id} status={status}", poll, timeout_seconds=60),
         )
-        async with storage.uow() as uow:
-            await uow.tool_invocations.create(claim)
-            await uow.commit()
-        try:
-            async with storage.uow() as uow:
-                await uow.tool_invocations.create(claim)
-                await uow.commit()
-        except IntegrityError:
-            pass
-        else:  # pragma: no cover - unique 约束失效时才会进入
-            raise RuntimeError("duplicate approval tool claim was not rejected")
-        return f"approval={approval.approval_id} lease={lease.lease_id} unique=ok"
-    finally:
-        await storage.dispose()
+    except RuntimeError as exc:
+        marker = Path(os.environ.get("SERVICE_APP_SMOKE_DIR", "")) / "recovery-handler.json"
+        marker_payload = marker.read_text(encoding="utf-8") if marker.exists() else "missing"
+        raise RuntimeError(
+            f"run status timeout: latest={latest} recovery_handler={marker_payload}"
+        ) from exc
 
 
-def worker_probe(dsn: str) -> str:
-    """用模板自身 worker 入口执行一次 service run。"""
+def _approval_id(base_url: str, token: str, run_id: str) -> str:
+    def poll() -> str | None:
+        code, payload = _request(
+            base_url,
+            "GET",
+            f"/api/v1/runs/{run_id}/approvals",
+            token=token,
+        )
+        approvals = payload.get("approvals", [])
+        return approvals[0]["approval_id"] if code == 200 and approvals else None
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "app.workers.runtime_worker",
-            "--once",
-            "--profile",
-            "service",
-            "--profiles-dir",
-            str(PROFILES),
-            "--storage-dsn",
-            dsn,
-            "--events-path",
-            str(APP_ROOT / ".agent-harness" / "service-worker-events.jsonl"),
-        ],
-        cwd=APP_ROOT,
-        text=True,
-        capture_output=True,
-        check=True,
+    return cast(str, _wait_for(f"approval for {run_id}", poll))
+
+
+def _submit(
+    base_url: str,
+    token: str,
+    *,
+    agent_id: str,
+    input_payload: dict[str, object],
+    idempotency_key: str,
+    request_id: str,
+) -> dict[str, Any]:
+    code, payload = _request(
+        base_url,
+        "POST",
+        f"/api/v1/agents/{agent_id}/runs",
+        token=token,
+        request_id=request_id,
+        body={"input": input_payload, "idempotency_key": idempotency_key},
     )
-    return result.stdout.strip().removeprefix("runtime-worker: run_id=")
+    if code != 202 or payload.get("status") != "created":
+        raise RuntimeError(f"RUN-001 enqueue failed: status={code} body={payload}")
+    return payload
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--migrate-only", action="store_true")
-    return parser.parse_args()
+def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, object]:
+    base_url = f"http://127.0.0.1:{env['SERVICE_APP_API_PORT']}"
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "image-build"
+    compose(env, "build", "migration")
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "redis-readiness"
+    compose(env, "up", "-d", "--wait", "postgres", "redis")
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "migration"
+    compose(env, "run", "--rm", "migration")
+
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "credential-bootstrap"
+    bootstrap_env = {**env, "SERVICE_APP_BOOTSTRAP_TOKEN": token}
+    last_json_line(
+        compose(
+            bootstrap_env,
+            "run",
+            "--rm",
+            "-e",
+            "SERVICE_APP_BOOTSTRAP_TOKEN",
+            "-e",
+            "SERVICE_APP_BOOTSTRAP_TENANT",
+            "migration",
+            "python",
+            "scripts/service_admin.py",
+            "bootstrap",
+        )
+    )
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "api-readiness"
+    compose(env, "up", "-d", "--wait", "api")
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "api-auth"
+    if env.get("SERVICE_APP_SMOKE_FAIL_AFTER_BOOTSTRAP") == "1":
+        raise RuntimeError("deterministic smoke failure after credential bootstrap")
+
+    before_counts = postgres_counts(env)
+    before_stream = _stream_length(env)
+    missing_status, _ = _request(
+        base_url,
+        "POST",
+        "/api/v1/agents/examples.basic/runs",
+        body={"input": {}},
+    )
+    invalid_status, _ = _request(
+        base_url,
+        "POST",
+        "/api/v1/agents/examples.basic/runs",
+        token="invalid-service-smoke-token",
+        body={"input": {}},
+    )
+    if (missing_status, invalid_status) != (401, 401):
+        raise RuntimeError("service verifier did not reject missing/invalid credential")
+    if postgres_counts(env) != before_counts or _stream_length(env) != before_stream:
+        raise RuntimeError("rejected credential created run, audit, or queue side effects")
+
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "pickup-reclaim"
+    request_id = f"request-{uuid4()}"
+    idempotency_key = f"smoke-{uuid4()}"
+    submitted = _submit(
+        base_url,
+        token,
+        agent_id="examples.basic",
+        input_payload={"source_ref": "source://compose-smoke", "trust_level": "trusted"},
+        idempotency_key=idempotency_key,
+        request_id=request_id,
+    )
+    run_id = cast(str, submitted["run_id"])
+    message_id, message = _first_message(env)
+    expected = {
+        "request_id": request_id,
+        "idempotency_key": idempotency_key,
+        "tenant_id": tenant_id,
+        "run_id": run_id,
+    }
+    if any(message.get(key) != value for key, value in expected.items()):
+        raise RuntimeError(f"Redis queue correlation mismatch: {message}")
+
+    worker_a = f"{env['SERVICE_APP_COMPOSE_PROJECT']}-worker-a"
+    compose(
+        env,
+        "run",
+        "-d",
+        "--name",
+        worker_a,
+        "--no-deps",
+        "-e",
+        "SERVICE_APP_SMOKE_CRASH_AFTER_OWNER=1",
+        "-e",
+        "SERVICE_APP_READY_FILE=",
+        "-e",
+        "SERVICE_APP_SMOKE_CRASH_MARKER=/smoke/crash-owner.json",
+        "-e",
+        "SERVICE_APP_SMOKE_RECEIPT_MARKER=/smoke/worker-a-receipt.json",
+        "-e",
+        "SERVICE_APP_SMOKE_RECLAIM_RELEASE=",
+        "worker",
+    )
+
+    def crashed() -> bool:
+        result = run(
+            ["docker", "inspect", "-f", "{{.State.Status}}|{{.State.ExitCode}}", worker_a],
+            env=env,
+            check=False,
+        )
+        return result.stdout.strip() == "exited|23"
+
+    _wait_for("worker A hard crash", crashed)
+    marker = json.loads((Path(env["SERVICE_APP_SMOKE_DIR"]) / "crash-owner.json").read_text())
+    worker_a_receipt = json.loads(
+        (Path(env["SERVICE_APP_SMOKE_DIR"]) / "worker-a-receipt.json").read_text()
+    )
+    crashed_state = inspect_run(env, run_id)
+    if crashed_state["status"] != "running" or crashed_state["owner_id"] != marker["owner_id"]:
+        raise RuntimeError("worker A exited before application owner was durable")
+    execution_expected = {**expected, "message_id": message_id}
+    if any(crashed_state.get(key) != value for key, value in execution_expected.items()):
+        raise RuntimeError("PostgreSQL execution correlation mismatch after worker A crash")
+    pending = cast(list[list[object]], redis_json(env, "XPENDING", STREAM, GROUP, "-", "+", "10"))
+    if (
+        not pending
+        or pending[0][0] != worker_a_receipt["message_id"]
+        or pending[0][1] != worker_a_receipt["consumer_id"]
+        or int(cast(int, pending[0][3])) != worker_a_receipt["delivery_count"]
+    ):
+        raise RuntimeError(f"worker A did not leave the original fenced receipt pending: {pending}")
+
+    time.sleep(float(env["SERVICE_APP_RECLAIM_IDLE_SECONDS"]) + 0.25)
+    compose(env, "up", "-d", "--wait", "worker")
+    worker_b_receipt_path = Path(env["SERVICE_APP_SMOKE_DIR"]) / "worker-b-receipt.json"
+    _wait_for("worker B reclaim receipt", worker_b_receipt_path.exists)
+    worker_b_receipt = json.loads(worker_b_receipt_path.read_text(encoding="utf-8"))
+    if not reclaim_receipts_match(message_id, worker_a_receipt, worker_b_receipt):
+        raise RuntimeError(f"worker B reclaim receipt mismatch: {worker_b_receipt}")
+    reclaimed_pending = cast(
+        list[list[object]], redis_json(env, "XPENDING", STREAM, GROUP, "-", "+", "10")
+    )
+    if (
+        not reclaimed_pending
+        or reclaimed_pending[0][1] != worker_b_receipt["consumer_id"]
+        or int(cast(int, reclaimed_pending[0][3])) != worker_b_receipt["delivery_count"]
+    ):
+        raise RuntimeError("worker B reclaim ownership was not pending during fencing check")
+    if not assert_stale_receipt(
+        env,
+        stream=worker_a_receipt["stream"],
+        group=worker_a_receipt["group"],
+        message_id=worker_a_receipt["message_id"],
+        consumer_id=worker_a_receipt["consumer_id"],
+        delivery_count=worker_a_receipt["delivery_count"],
+    ):
+        raise RuntimeError("worker A stale receipt was not rejected")
+    (Path(env["SERVICE_APP_SMOKE_DIR"]) / "reclaim-release").touch()
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "dbos-event"
+    _wait_run_status(base_url, token, run_id, "completed")
+    completed = inspect_run(env, run_id)
+    postgres_evidence = postgres_terminal_evidence(
+        execution_expected,
+        completed,
+        workflow_id=marker["workflow_id"],
+    )
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "idempotency-replay"
+    replay = _submit(
+        base_url,
+        token,
+        agent_id="examples.basic",
+        input_payload={"source_ref": "source://compose-smoke", "trust_level": "trusted"},
+        idempotency_key=idempotency_key,
+        request_id=f"retry-{uuid4()}",
+    )
+    if replay["run_id"] != run_id:
+        raise RuntimeError("idempotent HTTP retry created another run")
+
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "checkpoint-approval"
+    approval_submit = _submit(
+        base_url,
+        token,
+        agent_id="examples.dev_assistant",
+        input_payload={
+            "operation": "write",
+            "path": "approved.txt",
+            "content": "approved-once",
+        },
+        idempotency_key=f"approval-{uuid4()}",
+        request_id=f"approval-submit-{uuid4()}",
+    )
+    approval_run = cast(str, approval_submit["run_id"])
+    _wait_run_status(base_url, token, approval_run, "waiting")
+    approval_id = _approval_id(base_url, token, approval_run)
+    compose(env, "stop", "worker", "redis")
+    approve_status, _ = _request(
+        base_url,
+        "POST",
+        f"/api/v1/runs/{approval_run}/approvals/{approval_id}",
+        token=token,
+        body={"decision": "approved", "comment": "reviewed sk-secret-value"},
+    )
+    if approve_status != 503:
+        raise RuntimeError(f"approval enqueue outage must return 503, got {approve_status}")
+    compose(env, "start", "redis")
+    _wait_for(
+        "Redis restart", lambda: compose(env, "exec", "-T", "redis", "redis-cli", "PING") == "PONG"
+    )
+    compose(env, "up", "-d", "--wait", "worker")
+    _wait_run_status(base_url, token, approval_run, "completed")
+    approval_state = inspect_run(env, approval_run)
+    if (
+        approval_state["checkpoint_id"] is None
+        or approval_state["approvals"][0]["status"] != "approved"
+    ):
+        raise RuntimeError("approval continuation did not use shared checkpoint/evidence")
+    approved_path = Path(env["SERVICE_APP_SMOKE_DIR"]) / "workspace" / "approved.txt"
+    if approved_path.read_text(encoding="utf-8") != "approved-once":
+        raise RuntimeError("approved tool side effect was missing or duplicated")
+
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "checkpoint-deny"
+    deny_submit = _submit(
+        base_url,
+        token,
+        agent_id="examples.dev_assistant",
+        input_payload={"operation": "write", "path": "denied.txt", "content": "never"},
+        idempotency_key=f"deny-{uuid4()}",
+        request_id=f"deny-submit-{uuid4()}",
+    )
+    deny_run = cast(str, deny_submit["run_id"])
+    _wait_run_status(base_url, token, deny_run, "waiting")
+    deny_id = _approval_id(base_url, token, deny_run)
+    stream_before_deny = _stream_length(env)
+    deny_status, _ = _request(
+        base_url,
+        "POST",
+        f"/api/v1/runs/{deny_run}/approvals/{deny_id}",
+        token=token,
+        body={"decision": "denied", "comment": "deny smoke"},
+    )
+    if deny_status != 200:
+        raise RuntimeError(f"deny must close synchronously, got {deny_status}")
+    _wait_run_status(base_url, token, deny_run, "failed")
+    if _stream_length(env) != stream_before_deny:
+        raise RuntimeError("deny created a continuation queue operation")
+    if (Path(env["SERVICE_APP_SMOKE_DIR"]) / "workspace" / "denied.txt").exists():
+        raise RuntimeError("deny executed the protected tool handler")
+
+    return {
+        "migration": "0012_service_runtime_execution_context",
+        "auth": {"missing": 401, "invalid": 401, "side_effects": 0},
+        "queue": {
+            **expected,
+            "message_id": message_id,
+            "delivery_count": worker_b_receipt["delivery_count"],
+            "stale_receipt_rejected": True,
+        },
+        "dbos": {
+            "executor_id": marker["executor_id"],
+            "owner_id": marker["owner_id"],
+            "workflow_id": marker["workflow_id"],
+            "hard_crash_exit": 23,
+        },
+        "run": {"run_id": run_id, "status": "completed", "terminal_count": 1},
+        "postgresql": postgres_evidence,
+        "approval": {
+            "run_id": approval_run,
+            "checkpoint_id": approval_state["checkpoint_id"],
+            "status": "approved",
+            "enqueue_recovery": "ok",
+        },
+        "deny": {"run_id": deny_run, "status": "failed", "continuations": 0},
+    }
 
 
 def main() -> int:
-    """输出 reviewer 可复核的依赖、migration 与行为证据。"""
-
     args = parse_args()
-    settings = load_settings(profile="service", profiles_dir=PROFILES)
-    if settings.storage.dsn is None:
-        raise RuntimeError("service profile requires storage.dsn")
-
-    run_compose_up()
-    run_migrations(settings.storage.dsn)
-    revision = migration_revision(settings)
-    redis_ok, redis_message = redis_status(settings, timeout_seconds=2.0)
-    if revision != "0012_service_runtime_execution_context":
-        raise RuntimeError(f"PostgreSQL migration is not at the expected head: {revision}")
-    if not redis_ok:
-        raise RuntimeError(f"Redis check failed: {redis_message}")
-
-    repository_run = "(migrate-only)"
-    approval_claim = "(migrate-only)"
-    eval_experiment = "(migrate-only)"
-    worker_run = "(migrate-only)"
-    if not args.migrate_only:
-        repository_run = asyncio.run(repository_probe(settings.storage.dsn))
-        eval_experiment = asyncio.run(eval_experiment_probe(settings.storage.dsn))
-        approval_claim = asyncio.run(approval_claim_probe(settings.storage.dsn, repository_run))
-        worker_run = worker_probe(settings.storage.dsn)
-
-    print(f"smoke-service: migration={revision}")
-    print(f"smoke-service: redis={redis_message}")
-    print(f"smoke-service: repository_run={repository_run}")
-    print(f"smoke-service: eval_experiment={eval_experiment}")
-    print(f"smoke-service: approval_claim={approval_claim}")
-    print(f"smoke-service: worker_run={worker_run}")
-    print("smoke-service: ok")
-    return 0
+    prepare_core_wheel()
+    project = os.environ.get("SERVICE_APP_COMPOSE_PROJECT") or f"agent-harness-{uuid4().hex[:10]}"
+    smoke_dir = APP_ROOT / ".agent-harness" / project
+    smoke_dir.mkdir(parents=True, exist_ok=True)
+    (smoke_dir / "workspace").mkdir(exist_ok=True)
+    (smoke_dir / "artifacts").mkdir(exist_ok=True)
+    token = secrets.token_urlsafe(32)
+    tenant_id = f"smoke-{uuid4()}"
+    env = {
+        **os.environ,
+        "SERVICE_APP_COMPOSE_PROJECT": project,
+        "SERVICE_APP_API_PORT": str(free_port()),
+        "SERVICE_APP_SMOKE_DIR": str(smoke_dir),
+        "SERVICE_APP_BOOTSTRAP_TENANT": tenant_id,
+        "SERVICE_APP_RECLAIM_IDLE_SECONDS": os.environ.get("SERVICE_APP_RECLAIM_IDLE_SECONDS", "1"),
+        "SERVICE_APP_IMAGE": f"agent-harness-service-app:{project}",
+        "SERVICE_APP_SMOKE_BOUNDARY": "startup",
+    }
+    os.environ["SERVICE_APP_SMOKE_DIR"] = str(smoke_dir)
+    keep_data = os.environ.get("SERVICE_APP_KEEP_DATA") == "1"
+    credential_cleanup_confirmed = args.migrate_only
+    worker_a = f"{project}-worker-a"
+    try:
+        if args.migrate_only:
+            env["SERVICE_APP_SMOKE_BOUNDARY"] = "image-build"
+            compose(env, "build", "migration")
+            env["SERVICE_APP_SMOKE_BOUNDARY"] = "postgres-readiness"
+            compose(env, "up", "-d", "--wait", "postgres")
+            env["SERVICE_APP_SMOKE_BOUNDARY"] = "migration"
+            compose(env, "run", "--rm", "migration")
+            evidence: dict[str, object] = {"migration": "0012_service_runtime_execution_context"}
+        else:
+            evidence = _run_smoke(env, token, tenant_id)
+            if not cleanup_credential_at_boundary(env, token):
+                raise RuntimeError("service smoke credential cleanup did not delete one record")
+            credential_cleanup_confirmed = True
+            evidence["credential_cleanup"] = {"deleted": 1}
+        print("smoke-service: " + json.dumps(evidence, ensure_ascii=False, sort_keys=True))
+        print("smoke-service: ok")
+        return 0
+    except Exception:
+        compose(env, "logs", "--no-color", "--tail", "120", "api", "worker", check=False)
+        diagnostic = failure_diagnostic(env["SERVICE_APP_SMOKE_BOUNDARY"], env)
+        raise RuntimeError(diagnostic) from None
+    finally:
+        if not args.migrate_only and not credential_cleanup_confirmed:
+            cleanup_retry = cleanup_credential_at_boundary(env, token, check=False)
+            credential_cleanup_confirmed = cleanup_retry
+        preserve_volume = preserve_postgres_volume(
+            keep_data,
+            credential_cleanup_confirmed=credential_cleanup_confirmed,
+        )
+        run(["docker", "rm", "-f", worker_a], env=env, check=False)
+        cleanup_project(env, preserve_volume=preserve_volume)
+        shutil.rmtree(smoke_dir, ignore_errors=True)
+        for wheel in (APP_ROOT / ".agent-harness").glob("agent_harness-*.whl"):
+            wheel.unlink(missing_ok=True)
+        if preserve_volume:
+            volume = f"{project}_agent_harness_postgres_data"
+            inspected = run(["docker", "volume", "inspect", volume], env=env, check=False)
+            if inspected.returncode == 0:
+                print(f"smoke-service: kept volume={volume}")
+                print(f"smoke-service: cleanup=docker volume rm {volume}")
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        exit_code = main()
+    except Exception as exc:
+        print(str(exc))
+        exit_code = 1
+    raise SystemExit(exit_code)

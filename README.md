@@ -2,7 +2,7 @@
 
 Agent Harness Layer is a Python scaffold and core package for enterprise backend agent applications. It provides the repository shape, package boundary, verification commands, and future extension points needed to build agent services with backend engineering discipline.
 
-The current scaffold proves the workspace and package boundary, a copyable FastAPI/CLI/worker service app, typed configuration and identity, durable run and approval continuation, policy-controlled tools, retrieval, observability adapters, the base trace-to-eval gate, four runnable example agents, and a safe agent scaffold command. Eval experiment hill-climbing, physical API/worker process separation, deep maintainer documentation, and CI/release automation remain later phases.
+The current scaffold proves the workspace and package boundary, a copyable FastAPI/CLI/worker service app, typed configuration and identity, durable run and approval continuation, policy-controlled tools, retrieval, observability adapters, the base trace-to-eval gate, four runnable example agents, a safe agent scaffold command, and a Compose service profile with physically separate API and runtime-worker processes. Deep maintainer documentation and CI/release automation remain later phases.
 
 ## Quick Start
 
@@ -58,7 +58,7 @@ Start from `templates/service-app`. It currently provides:
 - `app/workers` with a runtime worker that shares the core composition seam
 - `agents/examples` with RAG assistant, ticket triage, repo analyst, and dev assistant flows
 - `configs/profiles/local.yaml` for local profile defaults
-- `configs/profiles/service.yaml` plus Docker Compose smoke coverage for PostgreSQL and Redis
+- `configs/profiles/service.yaml` plus a wheel-only Docker Compose image for PostgreSQL, Redis, migration, API, and runtime worker
 - `eval-cases/drafts` and `eval-cases/approved` for the human-reviewed trace-to-eval flow
 
 The application entrypoint packages are not business agent directories. Agent logic belongs under agent-specific directories in `agents/*`.
@@ -82,15 +82,16 @@ Run `uv run agent-harness doctor --profile local` to verify the selected profile
 
 ## P0 Deployment Boundaries
 
-P0 keeps the service-app profile deployable as a backend template without pretending it is already a distributed system. The local profile is single-process; the current service smoke proves PostgreSQL, Redis, migrations, repository/UoW, approval claims, and worker startup. Physical API/worker process separation remains Phase 13, while the DTO, event, storage, queue, and provider-neutral boundaries are already enforced.
+P0 keeps the service-app profile deployable as a backend template without pretending every logical boundary is already a microservice. The local profile is single-process. The service profile now runs PostgreSQL, Redis, migration, FastAPI, and the runtime worker as separate Compose services. `make smoke-service` copies the template outside the workspace, installs only the built core wheel, then proves authenticated HTTP enqueue, Redis receipt fencing and reclaim, DBOS hard-crash recovery, shared PostgreSQL checkpoint/event evidence, approval continuation, deny-without-continuation, and scoped cleanup.
 
 Future split paths are:
 
 - Access/API gateway: owns HTTP/CLI entrypoints, auth injection, request/response schemas, and input guardrails.
-- Runtime worker: owns run lifecycle, checkpoint/resume, and HITL continuation when deployed as a separate process.
+- Runtime worker: currently owns run lifecycle, checkpoint/resume, DBOS recovery, and HITL continuation as a separate service-profile process.
 - Model gateway and tool gateway: own provider/tool SDK imports behind adapter boundaries.
-- Storage service: owns repositories, migrations, and transaction boundaries.
-- Event/observability pipeline: owns CanonicalEvent, trace, audit, eval, and provider adapters.
+- Model/tool gateways are the next physical split after the worker; they retain provider/tool SDK imports behind adapters.
+- Event/observability pipeline is split after those gateways and owns CanonicalEvent fan-out, trace, audit, eval, and provider adapters.
+- Storage service remains a future boundary until repository contracts are stable; PostgreSQL is currently shared directly through repository/UoW interfaces.
 
 Cross-boundary data should move through Pydantic DTOs, context refs, identity/permission context, provider facades, repository interfaces, or later CanonicalEvent contracts. Do not pass raw ORM sessions, provider SDK objects, or mutable process globals across these boundaries.
 

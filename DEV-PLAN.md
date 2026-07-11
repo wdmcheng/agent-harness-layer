@@ -7,46 +7,46 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-10 的 v1.3。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-11 的 v1.4。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-12.5 changes 均已归档并同步为主规格，当前无 active change。Phase 9-12 的归档由提交 `45d87bf` 完成，Phase 12.5 的三个 change 于 2026-07-11 按依赖顺序归档。
-- 代码状态: Phase 1-12.5 已完成实现、本地验证、fresh code-reviewer Stage 1/2 审查、本地提交和 OpenSpec 归档。Phase 12 的模板、四示例、approval continuation 与 scaffold 分别由 `b77a028`、`698e2d4`、`ae4bba3` 交付，审查备注由 `72e3fdf` 收口；Phase 12.5 实现提交为 `87f4d7f`、`df182a6`、`ec5ce53`、`fc639b6`、`adec693`。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-12.5 changes 均已归档并同步为主规格。Phase 13 的 `durable-run-queue`、`split-api-worker-runtime`、`service-profile-deployment-proof` 已按依赖顺序完成，当前处于 ready-to-archive，未自动归档。
+- 代码状态: Phase 1-13 已完成实现与全量验证。Phase 13 durable queue 与 split runtime 的本地提交为 `869084e`、`9460080`；部署证明补齐 wheel-only Compose、真实 HTTP→worker crash/reclaim、DBOS/checkpoint/approval、资源清理、ADR 与架构图。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | Phase 12.5 已完成并归档 | Phase 1-12.5 已完成；Phase 13-15 未开始。 |
-| 当前 Phase | Phase 13 未开始 | Phase 12.5 的 tagged split、experiment/comparison、EVL-004 HTTP/CLI 和人工 acceptance 已实现、验证、提交并归档；当前未开始后续开发。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5 | Phase 12.5 实现提交为 `87f4d7f`、`df182a6`、`ec5ce53`、`fc639b6`、`adec693`；三个 change 于 2026-07-11 归档。 |
-| 当前 OpenSpec change | 无 | `openspec list --json` 返回空列表；Phase 12.5 的三份 main specs 已同步并通过 strict validation。 |
-| 当前验证基线 | 全量与 PostgreSQL 证据通过 | `281 passed, 3 skipped`；三个 DSN 条件 skip 已用真实 PostgreSQL 独立补跑 `3 passed`。quality、local/service smoke、四示例 eval、build、license、pre-commit、OpenSpec 21/21 strict 与 diff check 全通过。 |
-| 当前阻塞项 | 无 | Phase 12.5 已归档；未自动进入 Phase 13、push 或发布。 |
-| 当前建议下一步 | 等待 Phase 13 指令 | 如需继续，先为 Service Profile、API/Worker 分进程与未来拆分边界创建新的聚焦 OpenSpec change。 |
+| 总体状态 | Phase 13 已完成，待用户决定归档 | Phase 1-13 已完成；Phase 14-15 未开始。 |
+| 当前 Phase | Phase 13 ready-to-archive | Durable Redis queue、API/worker 分进程、DBOS/PostgreSQL shared state 与可复制四服务部署证明均已闭环。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 按 queue → split runtime → deployment proof 顺序完成；未越权归档。 |
+| 当前 OpenSpec change | 3 个 complete | `openspec list --json` 显示三个 Phase 13 change tasks 全部完成；严格校验通过后保持 active，等待显式 archive 指令。 |
+| 当前验证基线 | 全量与真实服务证据通过 | 离线基线 `325 passed, 13 skipped`；注入隔离 PostgreSQL/Redis 后 `338 passed, 0 skipped`。quality、local/service smoke、四示例 eval、build、license、pre-commit、OpenSpec strict 与 diff check 全通过。 |
+| 当前阻塞项 | 无 | 未自动 archive、push、release 或进入 Phase 14。 |
+| 当前建议下一步 | 用户决定归档或启动 Phase 14 | 归档需显式指令；Phase 14 继续深度文档、ADR 与维护者指南。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 提交 Phase 12.5 main specs 同步与 OpenSpec 归档移动，并完成最终 Git/OpenSpec 状态审计。
-- 等待用户决定是否启动 Phase 13；不自动创建 change、不 push、不发布。
+- 等待用户决定是否按依赖顺序归档 Phase 13 三个 change；不自动 archive、push 或发布。
+- 如继续开发，Phase 14 先创建聚焦 change，再补深度文档与维护者指南。
 
 ### 后续 Phase
 
 - Phase 12: Service App 模板与四个 P0 示例 Agent，已完成并归档。
 - Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环，已实现、验证、提交并归档。
-- Phase 13: Service Profile、API/Worker 分进程与未来拆分边界。
+- Phase 13: Service Profile、API/Worker 分进程与未来拆分边界，已实现、验证并 ready-to-archive。
 - Phase 14: 深度文档、ADR 与维护者指南。
 - Phase 15: CI/CD、Release Automation 与合规收口。
 
 ### 尚未完成的关键验收
 
-- Phase 12.5 闭环已通过全量验证与 fresh 联合审查；Phase 13 service profile 分进程边界、Phase 14 深度文档和 Phase 15 release automation 尚未实现。
+- Phase 13 已通过真实服务与全量验证；Phase 14 深度文档和 Phase 15 release automation 尚未实现。
 - GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
-- 深度文档、ADR、未来微服务拆分边界文档尚未完成。
+- Phase 14 的扩展指南、安全策略、维护者手册与 release 深度文档尚未完成。
 
 ## 技术栈决策
 
@@ -69,8 +69,8 @@
 | PostgreSQL driver | asyncpg | `0.31.0` | service profile async driver；repository contract tests 以 async 路径为准。 |
 | SQLite async bridge | aiosqlite | `0.22.1` | local profile 和 CI 使用 SQLite async adapter。 |
 | Service database | PostgreSQL | `18.4` | 官网 2026-05-14 最新稳定补丁线；Docker Compose 可先固定 `postgres:18.4`。 |
-| Queue / cache | Redis server | `7.2.4` for Docker Compose | Redis 8.8 已是当前 GA，但 Redis 8 许可证为 RSALv2/SSPLv1/AGPLv3 三选一；为 Apache-2.0 项目降低合规风险，P0 service profile 默认容器固定 Redis 7.2.4。 |
-| Redis client | redis-py | `8.0.1` | 最新客户端支持 Redis 7.2 到 8.8；P0 只使用兼容 7.2 的基础能力。 |
+| Queue / cache | Redis server | `8.0.1` for Docker Compose | Phase 13 与 redis-py 锁定版本对齐，并已通过 license check 与真实 Streams/XAUTOCLAIM smoke；Phase 15 发布前重新核验镜像与许可证材料。 |
+| Redis client | redis-py | `8.0.1` | Durable queue 只依赖 Redis Streams consumer group、claim/ack 与幂等状态 seam。 |
 | Observability 底座 | OpenTelemetry Python | `1.43.0` current；Phase 10 `observability` extra 锁 `1.42.1` SDK/exporter | 2026-07-09 通过 PyPI 核验 current 为 1.43.0；Logfire 4.37.0 当前要求 `opentelemetry-sdk<1.43.0`，因此 provider extra 先锁可解析的 1.42.1 SDK/exporter 组合，OTel API/SDK 仍作为 provider adapter 前的统一协议。 |
 | 推荐观测 provider | Logfire | `4.37.0` | 推荐 adapter；业务代码不直接 import。 |
 | 可选观测 provider | Arize Phoenix | `17.21.0` | 2026-07-09 通过 PyPI 重新核验；可选 adapter contract，覆盖 trace/dataset/eval/feedback 工作流。 |
@@ -629,6 +629,14 @@ Phase 1 Monorepo / quality spine
 - API/worker/model/tool gateway 拆分后仍保留 source_ref、trust_level、context assembly trace 和 guardrail/audit 关联字段。
 - 文档能让维护者指出 API、runtime worker、model/tool gateway、storage、event pipeline 的当前形态和未来拆分路径。
 
+**完成状态**：
+- 三个聚焦 OpenSpec change 已按 queue → split runtime → deployment proof 的依赖顺序实现，任务全部完成并保持 ready-to-archive；未自动归档。
+- Compose 以 PostgreSQL、Redis、migration、API、worker 协作；API 与 worker 共享 storage/queue/DBOS/PostgreSQL event 配置，镜像只安装已构建 core wheel，不读取仓库源码。
+- `make smoke-service` 已在 workspace 外复制模板中证明真实认证、RUN-001 四字段、worker A hard crash、worker B `XAUTOCLAIM`/同 DBOS workflow 恢复、唯一 terminal、approval enqueue 补投/checkpoint continuation、deny 零 continuation 与临时 credential 清理。
+- 默认 smoke 不留随机 Compose container/volume；`SERVICE_APP_KEEP_DATA=1` 只保留指定 PostgreSQL volume，数据库复核临时 credential 为 0 后可用输出的精确命令删除。
+- 架构 `.drawio`/`.excalidraw`/PNG、根/模板 README、API contract 与 `docs/adr/0001-p0-service-boundaries.md` 已同步；Phase 14/15 仍明确为待实现。
+- 验证证据：Phase 13 聚焦合同 `54 passed`、真实 PostgreSQL/Redis/DBOS 集成 `12 passed`、离线全量 `325 passed, 13 skipped`、真实服务全量 `338 passed, 0 skipped`；quality、smoke-local、smoke-service、eval、build、license、pre-commit、OpenSpec strict 与 diff check 全通过。
+
 ---
 
 ## Phase 14: 深度文档、ADR 与维护者指南
@@ -648,7 +656,7 @@ Phase 1 Monorepo / quality spine
 - `docs/security-policy.md` - auth、policy、approval、workspace、secret redaction。
 - `docs/release-process.md` - SemVer、tag、CHANGELOG、private publish、artifact。
 - `docs/adr/0002-vendor-adapter-isolation.md` - 上游隔离决策。
-- `docs/adr/0003-redis-7-2-for-p0-license-risk.md` - Redis 版本和 license 风险决策。
+- `docs/adr/0003-redis-runtime-license-policy.md` - Redis runtime pin 与 license review 决策。
 
 **验收标准**：
 - 新开发者阅读 README 后能运行 local profile、理解目录职责和禁止跨边界规则。
@@ -765,10 +773,10 @@ Phase 1 Monorepo / quality spine
 |------|----------|------------|----------|----------------------|
 | Pydantic AI 2.5.0 刚发布，上游 API 和包边界可能变化。 | 核心 runtime、registry、model adapter 和业务 agent import 边界。 | Phase 2、Phase 6、Phase 10 | 已缓解 | Phase 2 已定义 `agent_harness` 公共契约和 vendor import 边界；Phase 6 已锁定 `pydantic-ai==2.5.0`，并把 `Agent.run_sync()` 调用隔离在 `agent_harness.adapters.models.pydantic_ai`。 |
 | Pydantic AI Harness 是独立可选 capability library，过早设为必选会扩大依赖面。 | CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等未来 capability integration。 | Phase 8、Phase 10、Phase 14 | 未处理 | P0 不直接依赖 `pydantic-ai-harness`；只有具体能力块需要时才新增 adapter/integration seam、锁定版本并扩展 import boundary 检查。 |
-| DBOS 2.26.0 是关键 service runtime 依赖，过早耦合会污染领域模型。 | Durable runtime、checkpoint、worker lifecycle。 | Phase 5、Phase 13 | 未处理 | 通过 `DBOSRuntimeAdapter` 隔离；验收时证明内部 run/checkpoint model 不依赖 DBOS 类型。 |
-| Redis 8.8 许可证变化影响 Apache-2.0 合规判断。 | Docker Compose service profile、queue/cache adapter、发布合规。 | Phase 13、Phase 15 | 已缓解 | P0 Docker Compose 固定 Redis 7.2.4；后续升级必须走 ADR 和 license review。 |
+| DBOS 2.26.0 是关键 service runtime 依赖，过早耦合会污染领域模型。 | Durable runtime、checkpoint、worker lifecycle。 | Phase 5、Phase 13 | 已缓解 | Phase 13 通过 `DBOSRuntimeAdapter`、稳定 executor/workflow identity 与 shared checkpoint 隔离；内部 run/checkpoint DTO 不依赖 DBOS 类型。 |
+| Redis runtime 版本与许可证变化影响 Apache-2.0 发布合规判断。 | Docker Compose service profile、queue/cache adapter、发布合规。 | Phase 13、Phase 15 | 已缓解 | Phase 13 Compose 与 client 固定 `8.0.1` 并通过 license check；后续升级与发布仍必须走 ADR、NOTICE 与 license review。 |
 | PGroonga 和 pgvector 是 optional adapter，可能拖累 local profile 或 CI。 | Retrieval、embedding cache、service profile smoke。 | Phase 9、Phase 13 | 已缓解 | Phase 9 已把 PGroonga/pgvector 作为 optional capability probe；local profile 不硬依赖扩展，service smoke 输出缺失降级提示并继续走 PostgreSQL native FTS fallback。 |
-| P0 只做可拆边界，不做完整微服务；如果 API/worker/storage/tool 边界不清，后续会重构。 | API、runtime worker、model/tool gateway、storage、event/observability。 | Phase 2、Phase 4、Phase 5、Phase 13、Phase 14 | 部分缓解 | Phase 2 已通过 typed service profile、DTO/context/identity contracts 和 README 部署边界说明建立接口基础；Phase 13 做 API/worker 分进程 smoke。 |
+| P0 只做可拆边界，不做完整微服务；如果 API/worker/storage/tool 边界不清，后续会重构。 | API、runtime worker、model/tool gateway、storage、event/observability。 | Phase 2、Phase 4、Phase 5、Phase 13、Phase 14 | 已缓解 | Phase 13 已物理拆分 API/worker并用 DTO、CanonicalEvent、repository/provider seam 固定当前所有权；tool/model、event pipeline、storage 仍按文档顺序保留为未来边界。 |
 | Phoenix、Langfuse、Logfire 的 dataset/score/workflow 能力差异大。 | Observability adapter、Eval Gate、score sink。 | Phase 10、Phase 11 | 未处理 | P0 先做 provider-neutral contract 和 local/jsonl fallback；复杂 provider-native workflow 放 P1。 |
 | Eval 只用已知 case 做优化会过拟合，尤其是示例 agent 数量少时。 | Eval experiment、harness prompt/tool description/config 变更、release gate。 | Phase 12.5、Phase 15 | 部分缓解 | Phase 12.5 已按 behavior tags 拆分 optimization / holdout、保留 regression subset，并用人工 review 拦截无意义或过拟合的 harness 变更；Phase 15 仍需把这些证据接入 release gate，并持续扩充生产分布 case。 |
 | Prompt injection / tool output injection 如果后补，会污染所有 agent 和 eval 证据。 | Access input、MCP、tools、retrieval、context assembly、audit。 | Phase 2、Phase 4、Phase 6、Phase 8、Phase 9 | 已缓解 | Phase 2 已定义 trust marker/source_ref/context ref 和 guardrail decision DTO；Phase 6 已在 ContextAssembler 保留 per-fragment source/trust/token/truncation trace；Phase 8 已处理 tool/MCP output；Phase 9 已让 retrieval chunk 进入 context 前保留 citation/source_ref/trust_level，prompt injection 文本只作为 untrusted citation 内容。 |

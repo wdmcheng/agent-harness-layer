@@ -1,5 +1,10 @@
 # 变更记录
 
+## [v1.4] - 2026-07-11
+### 状态同步
+- 根据 Phase 13 三个 active change、真实 PostgreSQL/Redis/DBOS/Compose 证据与 fresh review 结果，勾选 AC-059、AC-060、AC-062 及分进程部署边界完成项；仅同步验收状态，不修改需求语义。
+- Phase 14 深度维护文档与 Phase 15 CI/release automation 验收继续保持未完成；三个 Phase 13 change 保持 active，等待用户决定是否归档。
+
 ## [v1.3] - 2026-07-10
 ### 状态同步
 - 根据 Phase 12 三个归档 change、最终测试/审查证据与提交历史，勾选已完成的模板运行、OpenAPI、approval/tool、context/retrieval、trace/eval、四示例、README 和 vendor boundary 验收项；未修改需求语义。

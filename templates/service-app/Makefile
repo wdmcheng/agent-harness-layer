@@ -90,8 +90,8 @@ smoke-local: bootstrap
 migrate-service: bootstrap
 	cd "$(APP_ROOT)" && $(UV) run python scripts/smoke_service.py --migrate-only
 
-smoke-service: bootstrap
-	cd "$(APP_ROOT)" && $(UV) run python scripts/smoke_service.py
+smoke-service:
+	@cd "$(APP_ROOT)" && $(PYTHON) scripts/smoke_service.py
 
 eval: bootstrap
 	cd "$(APP_ROOT)" && $(UV) run python scripts/run_example_evals.py \

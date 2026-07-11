@@ -7,7 +7,7 @@ from typing import Any, cast
 from uuid import uuid4
 
 from pydantic import Field
-from sqlalchemy import exists, select, update
+from sqlalchemy import delete, exists, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -117,6 +117,17 @@ class ApiKeyRepository:
         )
         model = result.first()
         return None if model is None else _api_key_record(model)
+
+    async def delete_by_hash(self, token_hash: str) -> bool:
+        """删除精确匹配的临时 credential，不接收或记录明文 token。"""
+
+        result = cast(
+            CursorResult[Any],
+            await self._session.execute(
+                delete(ApiKeyModel).where(ApiKeyModel.token_hash == token_hash)
+            ),
+        )
+        return result.rowcount == 1
 
 
 class PolicyRuleRepository:

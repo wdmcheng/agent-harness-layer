@@ -1,524 +1,84 @@
-"""运行基于 Docker Compose PostgreSQL 和 Redis 的 service profile smoke。
-
-这个脚本是 storage/runtime service profile 的证据入口，不是单纯的“能起容器”：
-它必须证明 PostgreSQL migration revision、Redis reachability，以及 repository
-adapter 真能穿过 PostgreSQL 写入 run。SQLite smoke 不能替代这个脚本的证据。
-
-脚本只管理本项目 `agent-harness-layer` compose project 和 `agent-harness-*`
-容器。它不会读取或修改 wiki-brain；若本机已有可复用镜像，只通过 compose env
-覆盖镜像名，不改 Dockerfile 或外部项目。
-"""
+"""在 workspace 外复制模板，用已构建 wheel 运行四服务 Compose smoke。"""
 
 from __future__ import annotations
 
 import argparse
-import asyncio
 import os
+import shutil
 import subprocess
 import sys
-from datetime import UTC, datetime, timedelta
+import tempfile
 from pathlib import Path
-from uuid import uuid4
-
-from agent_harness.config import load_settings
-from agent_harness.context import ContextAssembler, ContextFragment
-from agent_harness.embeddings import EmbeddingRequest, LocalEmbeddingProvider
-from agent_harness.retrieval import (
-    PostgreSQLRetrievalProvider,
-    RetrievalChunk,
-    RetrievalDocument,
-    RetrievalIndexRequest,
-    RetrievalQueryRequest,
-)
-from agent_harness.storage import (
-    EvalDatasetSplitCreate,
-    EvalExperimentCreate,
-    ExperimentStorageConflict,
-    HarnessAcceptanceCreate,
-    SQLAlchemyStorage,
-    run_migrations,
-)
-from agent_harness.storage.diagnostics import (
-    format_retrieval_extension_status,
-    migration_revision,
-    redis_status,
-    retrieval_extension_statuses,
-)
-from agent_harness.storage.repositories import RunCreate, SessionCreate
 
 ROOT = Path(__file__).resolve().parents[1]
-SERVICE_APP = ROOT / "templates" / "service-app"
-COMPOSE_FILE = SERVICE_APP / "docker-compose.yml"
-PROFILES = SERVICE_APP / "configs" / "profiles"
-PROJECT_NAME = "agent-harness-layer"
-
-
-def image_exists(image: str) -> bool:
-    """检查本机镜像是否存在，用于实现“优先复用本地已有镜像”的运行策略。"""
-
-    result = subprocess.run(
-        ["docker", "image", "inspect", image],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    return result.returncode == 0
-
-
-def compose_env() -> dict[str, str]:
-    """构造 compose 环境变量。
-
-    compose 文件默认保持计划里的 Redis 7.2.4；但用户要求优先复用本地镜像，
-    所以 smoke 运行时如果没有 `redis:7.2.4` 但已有 `redis:8`，只在本次
-    smoke 的环境变量里覆盖。这样既保留默认合规线，又让本地验证不因为缺少
-    非核心镜像而阻塞。
-    """
-
-    env = os.environ.copy()
-    # 镜像选择只属于本次运行环境。compose 文件保留计划默认值；脚本可以把
-    # Docker Compose 指到本机已有镜像，从而满足“优先复用本地镜像”，同时不碰
-    # PostgreSQL packaging 文件。
-    if "SERVICE_APP_POSTGRES_IMAGE" not in env and image_exists("postgres:18"):
-        env["SERVICE_APP_POSTGRES_IMAGE"] = "postgres:18"
-    if (
-        "SERVICE_APP_REDIS_IMAGE" not in env
-        and not image_exists("redis:7.2.4")
-        and image_exists("redis:8")
-    ):
-        env["SERVICE_APP_REDIS_IMAGE"] = "redis:8"
-    return env
-
-
-def run_compose_up(env: dict[str, str]) -> None:
-    """启动 service profile 依赖，并等待 healthcheck。
-
-    `--wait` 让失败停在容器健康状态，而不是后续 migration 抛一个更模糊的
-    connection error。PostgreSQL 18 的 volume 布局已在 compose 中按官方镜像
-    要求挂载到 `/var/lib/postgresql`。
-    """
-
-    subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(COMPOSE_FILE),
-            "-p",
-            PROJECT_NAME,
-            "--profile",
-            "service",
-            "up",
-            "-d",
-            "--wait",
-        ],
-        cwd=ROOT,
-        env=env,
-        check=True,
-    )
-
-
-async def repository_probe(dsn: str) -> str:
-    """穿过 PostgreSQL repository/UoW 写入一条 run，返回 run id 作为证据。
-
-    这一步避免 service smoke 只证明“migration 能跑”。如果 repository adapter、
-    asyncpg driver、事务提交或 idempotency unique constraint 有问题，这里会失败。
-    """
-
-    storage = SQLAlchemyStorage.from_dsn(dsn)
-    try:
-        async with storage.uow() as uow:
-            # probe 使用和 runtime 一样的 tenant -> session -> run 路径。
-            # 手写 INSERT 会绕过 repository mapping、idempotency 查询和显式事务语义。
-            tenant = await uow.tenants.ensure("default")
-            session = await uow.sessions.create(
-                SessionCreate(
-                    tenant_id=tenant.id,
-                    user_id="service-smoke",
-                    agent_id="fake-agent",
-                )
-            )
-            run = await uow.runs.create(
-                RunCreate(
-                    tenant_id=tenant.id,
-                    session_id=session.id,
-                    agent_id="fake-agent",
-                    idempotency_key="service-smoke",
-                    input={"smoke": "service"},
-                )
-            )
-            await uow.commit()
-        return run.id
-    finally:
-        await storage.dispose()
-
-
-async def eval_experiment_probe(dsn: str) -> str:
-    """在 PostgreSQL 上证明 eval experiment repositories 与幂等约束。"""
-
-    suffix = str(uuid4())
-    split_id = f"split-smoke-{suffix}"
-    idempotency_key = f"eval-smoke-{suffix}"
-    storage = SQLAlchemyStorage.from_dsn(dsn)
-    try:
-        async with storage.uow() as uow:
-            await uow.tenants.ensure("default")
-            await uow.eval_dataset_splits.create(
-                EvalDatasetSplitCreate(
-                    split_id=split_id,
-                    tenant_id="default",
-                    agent_id="fake-agent",
-                    dataset="service-smoke",
-                    request_id=f"request-{suffix}",
-                    tags=["tool_selection"],
-                    strategy="deterministic_multilabel_v1",
-                    optimization_ratio=0.8,
-                    holdout_ratio=0.2,
-                    case_tags={
-                        f"case-opt-{suffix}": ["tool_selection"],
-                        f"case-holdout-{suffix}": ["tool_selection"],
-                    },
-                    optimization_case_ids=[f"case-opt-{suffix}"],
-                    holdout_case_ids=[f"case-holdout-{suffix}"],
-                    regression_case_ids=[],
-                    evidence_refs=[f"artifact://service-smoke/{suffix}/split"],
-                )
-            )
-            create = EvalExperimentCreate(
-                tenant_id="default",
-                idempotency_key=idempotency_key,
-                request_hash="a" * 64,
-                request_id=f"request-{suffix}",
-                agent_id="fake-agent",
-                dataset="service-smoke",
-                split_id=split_id,
-                evaluator_profile={"name": "service-smoke", "version": "1"},
-                metric_versions={"exact_match": "1"},
-                baseline_harness={"version_id": f"baseline-{suffix}"},
-                candidate_harness={"version_id": f"candidate-{suffix}"},
-            )
-            experiment = await uow.eval_experiments.create(create)
-            replay = await uow.eval_experiments.create(create)
-            if replay.experiment_id != experiment.experiment_id:
-                raise RuntimeError("eval experiment idempotent replay created another row")
-            claimed = await uow.eval_experiments.claim_execution(
-                tenant_id="default",
-                experiment_id=experiment.experiment_id,
-                claim_id=suffix,
-                expires_at=datetime.now(tz=UTC) + timedelta(seconds=30),
-            )
-            if not claimed:
-                raise RuntimeError("eval experiment execution claim was not acquired")
-            await uow.eval_experiments.update_results(
-                tenant_id="default",
-                experiment_id=experiment.experiment_id,
-                status="completed",
-                baseline_run_ref=f"eval-run://{suffix}/baseline",
-                candidate_run_ref=f"eval-run://{suffix}/candidate",
-                score_summaries={"baseline": {"score": 0.5}, "candidate": {"score": 0.75}},
-                comparison={"acceptance_recommendation": "accept"},
-                local_refs=[f"artifact://service-smoke/{suffix}/comparison"],
-                provider_statuses=[],
-                execution_claim_id=suffix,
-            )
-            decision = HarnessAcceptanceCreate(
-                tenant_id="default",
-                experiment_id=experiment.experiment_id,
-                decision_request_hash="b" * 64,
-                reviewer_id="service-smoke",
-                reason="PostgreSQL repository parity probe",
-                decision="accepted",
-                accepted_harness_version=f"candidate-{suffix}",
-                production_binding={"version_id": f"candidate-{suffix}"},
-                policy_decision={"decision": "allow"},
-                audit_ref=f"audit://service-smoke/{suffix}",
-                evidence_refs=[f"artifact://service-smoke/{suffix}/comparison"],
-            )
-            accepted = await uow.harness_acceptance_records.create(decision)
-            replayed_decision = await uow.harness_acceptance_records.create(decision)
-            if replayed_decision.acceptance_id != accepted.acceptance_id:
-                raise RuntimeError("eval acceptance replay created another row")
-            await uow.commit()
-
-        try:
-            async with storage.uow() as uow:
-                await uow.eval_experiments.create(
-                    create.model_copy(update={"request_hash": "c" * 64})
-                )
-        except ExperimentStorageConflict as exc:
-            if exc.code != "eval.experiment.idempotency_conflict":
-                raise
-        else:  # pragma: no cover - PostgreSQL parity failure only
-            raise RuntimeError("eval experiment idempotency conflict was not rejected")
-        return f"experiment={experiment.experiment_id} acceptance={accepted.acceptance_id}"
-    finally:
-        await storage.dispose()
-
-
-async def context_embedding_probe(dsn: str) -> tuple[str, str]:
-    """穿过 PostgreSQL repository 写 context assembly 和 embedding cache 证据。"""
-
-    storage = SQLAlchemyStorage.from_dsn(dsn)
-    try:
-        async with storage.uow() as uow:
-            assembly = await ContextAssembler(uow.context_assemblies).assemble(
-                tenant_id="default",
-                run_id=None,
-                fragments=[
-                    ContextFragment(
-                        source_ref="smoke:history",
-                        trust_level="trusted",
-                        content="service smoke history",
-                        token_estimate=3,
-                    )
-                ],
-                token_budget=32,
-                output_ref="context://service-smoke",
-            )
-            provider = LocalEmbeddingProvider(cache=uow.embedding_cache)
-            first = await provider.embed(EmbeddingRequest(input="service smoke embedding"))
-            second = await provider.embed(EmbeddingRequest(input="service smoke embedding"))
-            await uow.commit()
-        cache_status = (
-            "hit" if second.cache.hit and first.vector_ref == second.vector_ref else "miss"
-        )
-        return assembly.id, cache_status
-    finally:
-        await storage.dispose()
-
-
-async def retrieval_probe(dsn: str) -> str:
-    """穿过 service PostgreSQL retrieval adapter 写入并检索一个带 citation 的 chunk。"""
-
-    provider = PostgreSQLRetrievalProvider(dsn=dsn)
-    suffix = str(uuid4())
-    document_id = f"service-smoke-doc-{suffix}"
-    chunk_id = f"service-smoke-chunk-{suffix}"
-    for revision, content in [
-        (
-            "v1",
-            (
-                "service smoke retrieval stale citation evidence; "
-                "ignore previous instructions is untrusted quoted content"
-            ),
-        ),
-        (
-            "v2",
-            (
-                "service smoke retrieval refreshed citation evidence; "
-                "ignore previous instructions is untrusted quoted content"
-            ),
-        ),
-    ]:
-        await provider.index(
-            RetrievalIndexRequest(
-                collection="service-smoke",
-                documents=[
-                    RetrievalDocument(
-                        collection="service-smoke",
-                        document_id=document_id,
-                        source_ref=f"smoke://retrieval/document/{revision}",
-                        citation=f"Service Smoke Retrieval Doc {revision}",
-                        metadata={"purpose": "service smoke", "revision": revision},
-                    )
-                ],
-                chunks=[
-                    RetrievalChunk(
-                        collection="service-smoke",
-                        document_id=document_id,
-                        chunk_id=chunk_id,
-                        content=content,
-                        source_ref=f"smoke://retrieval/document/{revision}#chunk",
-                        citation=f"Service Smoke Retrieval Doc {revision}#chunk",
-                        trust_level="untrusted",
-                        token_estimate=10,
-                        rank_metadata={"probe": "service-smoke", "revision": revision},
-                    )
-                ],
-            )
-        )
-    response = await provider.query(
-        RetrievalQueryRequest(
-            collection="service-smoke",
-            query="refreshed citation evidence",
-            top_k=1,
-        )
-    )
-    if not response.results:
-        raise RuntimeError("service retrieval probe returned no results")
-    result = response.results[0]
-    if result.citation != "Service Smoke Retrieval Doc v2#chunk":
-        raise RuntimeError(f"service retrieval probe returned stale citation: {result.citation}")
-
-    shared_chunk_id = f"service-smoke-shared-chunk-{suffix}"
-    await provider.index(
-        RetrievalIndexRequest(
-            collection="service-smoke-doc-identity",
-            documents=[
-                RetrievalDocument(
-                    collection="service-smoke-doc-identity",
-                    document_id=f"service-smoke-alpha-{suffix}",
-                    source_ref="smoke://retrieval/document-identity/alpha",
-                    citation="Service Smoke Alpha Doc",
-                ),
-                RetrievalDocument(
-                    collection="service-smoke-doc-identity",
-                    document_id=f"service-smoke-beta-{suffix}",
-                    source_ref="smoke://retrieval/document-identity/beta",
-                    citation="Service Smoke Beta Doc",
-                ),
-            ],
-            chunks=[
-                RetrievalChunk(
-                    collection="service-smoke-doc-identity",
-                    document_id=f"service-smoke-alpha-{suffix}",
-                    chunk_id=shared_chunk_id,
-                    content="service smoke alpha identity evidence",
-                    source_ref="smoke://retrieval/document-identity/alpha#chunk",
-                    citation="Service Smoke Alpha Doc#chunk",
-                    trust_level="untrusted",
-                ),
-                RetrievalChunk(
-                    collection="service-smoke-doc-identity",
-                    document_id=f"service-smoke-beta-{suffix}",
-                    chunk_id=shared_chunk_id,
-                    content="service smoke beta identity evidence",
-                    source_ref="smoke://retrieval/document-identity/beta#chunk",
-                    citation="Service Smoke Beta Doc#chunk",
-                    trust_level="untrusted",
-                ),
-            ],
-        )
-    )
-    alpha = await provider.query(
-        RetrievalQueryRequest(
-            collection="service-smoke-doc-identity",
-            query="alpha identity evidence",
-            top_k=1,
-        )
-    )
-    beta = await provider.query(
-        RetrievalQueryRequest(
-            collection="service-smoke-doc-identity",
-            query="beta identity evidence",
-            top_k=1,
-        )
-    )
-    if not alpha.results or alpha.results[0].citation != "Service Smoke Alpha Doc#chunk":
-        raise RuntimeError("service retrieval probe lost alpha document chunk identity")
-    if not beta.results or beta.results[0].citation != "Service Smoke Beta Doc#chunk":
-        raise RuntimeError("service retrieval probe lost beta document chunk identity")
-    return f"{result.chunk_id} citation={result.citation} trust={result.trust_level}"
-
-
-def run_worker_probe(dsn: str) -> str:
-    """运行一次 service worker shell，返回 worker 创建的 run id。"""
-
-    env = os.environ.copy()
-    existing_pythonpath = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = (
-        str(SERVICE_APP)
-        if not existing_pythonpath
-        else f"{SERVICE_APP}{os.pathsep}{existing_pythonpath}"
-    )
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "app.workers.runtime_worker",
-            "--once",
-            "--profile",
-            "service",
-            "--profiles-dir",
-            str(PROFILES),
-            "--storage-dsn",
-            dsn,
-            "--events-path",
-            str(ROOT / ".agent-harness" / "service-worker-events.jsonl"),
-        ],
-        cwd=ROOT,
-        env=env,
-        text=True,
-        capture_output=True,
-        check=True,
-    )
-    # worker 输出保持一行，方便 CI 日志和 reviewer 直接定位 worker seam 证据。
-    return result.stdout.strip().removeprefix("runtime-worker: run_id=")
+TEMPLATE = ROOT / "templates" / "service-app"
 
 
 def parse_args() -> argparse.Namespace:
-    """保留 migrate-only 模式，供只想验证 schema 或 CI 拆步时使用。"""
-
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--migrate-only",
-        action="store_true",
-        help="Start service dependencies and run PostgreSQL migration without repository probe.",
-    )
+    parser.add_argument("--migrate-only", action="store_true")
     return parser.parse_args()
 
 
-def main() -> int:
-    """运行 service smoke，并输出可被 reviewer 复核的证据行。"""
-
-    args = parse_args()
-    settings = load_settings(profile="service", profiles_dir=PROFILES)
-    env = compose_env()
-    # 记录实际使用的镜像名，最终输出要能让 reviewer 区分默认镜像和本机复用镜像。
-    postgres_image = env.get("SERVICE_APP_POSTGRES_IMAGE", "postgres:18")
-    redis_image = env.get("SERVICE_APP_REDIS_IMAGE", "redis:7.2.4")
-
-    run_compose_up(env)
-    assert settings.storage.dsn is not None
-    # migration、Redis、repository 检查分别输出证据行。这样失败点可诊断，
-    # 也避免把容器 healthcheck 绿灯误当成完整 service smoke 通过。
-    # service profile 的 migration 必须连真实 PostgreSQL；不能用 SQLite revision 代替。
-    run_migrations(settings.storage.dsn)
-    revision = migration_revision(settings)
-    redis_ok, redis_message = redis_status(settings, timeout_seconds=2.0)
-    retrieval_extensions = ", ".join(
-        format_retrieval_extension_status(status)
-        for status in retrieval_extension_statuses(settings, settings.storage.dsn)
+def _build_core_wheel() -> Path:
+    subprocess.run(
+        ["uv", "build", "--package", "agent-harness", "--clear"],
+        cwd=ROOT,
+        check=True,
     )
-    if revision != "0012_service_runtime_execution_context":
-        print(
-            f"smoke-service: PostgreSQL migration head mismatch ({revision})",
-            file=sys.stderr,
-        )
-        return 1
-    if not redis_ok:
-        print(f"smoke-service: Redis check failed: {redis_message}", file=sys.stderr)
-        return 1
+    wheels = sorted((ROOT / "dist").glob("agent_harness-*.whl"))
+    if len(wheels) != 1:
+        raise RuntimeError(f"expected one core wheel, found {len(wheels)}")
+    return wheels[0]
 
-    run_id = "(migrate-only)"
-    worker_run_id = "(migrate-only)"
-    context_assembly_id = "(migrate-only)"
-    embedding_cache = "(migrate-only)"
-    retrieval_result = "(migrate-only)"
-    eval_experiment = "(migrate-only)"
-    if not args.migrate_only:
-        # repository probe 是 PostgreSQL storage adapter 的最小行为证明。
-        run_id = asyncio.run(repository_probe(settings.storage.dsn))
-        eval_experiment = asyncio.run(eval_experiment_probe(settings.storage.dsn))
-        context_assembly_id, embedding_cache = asyncio.run(
-            context_embedding_probe(settings.storage.dsn)
-        )
-        retrieval_result = asyncio.run(retrieval_probe(settings.storage.dsn))
-        # worker probe 证明 runtime worker shell 不是孤立占位，而是共用 runtime seam。
-        worker_run_id = run_worker_probe(settings.storage.dsn)
 
-    print(f"smoke-service: postgres image={postgres_image} container=agent-harness-postgres")
-    print(f"smoke-service: redis image={redis_image} container=agent-harness-redis")
-    print(f"smoke-service: migration={revision}")
-    print(f"smoke-service: redis={redis_message}")
-    print(f"smoke-service: repository_run={run_id}")
-    print(f"smoke-service: eval_experiment={eval_experiment}")
-    print(f"smoke-service: context_assembly={context_assembly_id}")
-    print(f"smoke-service: embedding_cache={embedding_cache}")
-    print(f"smoke-service: retrieval_result={retrieval_result}")
-    print(f"smoke-service: retrieval_extensions={retrieval_extensions}")
-    print(f"smoke-service: worker_run={worker_run_id}")
-    print("smoke-service: ok")
+def _run_copied_smoke(command: list[str], copied: Path, wheel_target: Path) -> None:
+    """中断时等待子 smoke 完成 finally，避免临时目录先于 Compose cleanup 消失。"""
+
+    process = subprocess.Popen(
+        command,
+        cwd=copied,
+        env={**os.environ, "AGENT_HARNESS_SOURCE": str(wheel_target)},
+    )
+    try:
+        return_code = process.wait()
+    except KeyboardInterrupt:
+        try:
+            process.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            process.terminate()
+            process.wait(timeout=10)
+        raise
+    if return_code != 0:
+        raise subprocess.CalledProcessError(return_code, command)
+
+
+def main() -> int:
+    args = parse_args()
+    wheel = _build_core_wheel()
+    with tempfile.TemporaryDirectory(prefix="agent-harness-service-smoke-") as temp:
+        copied = Path(temp) / "service-app"
+        shutil.copytree(
+            TEMPLATE,
+            copied,
+            ignore=shutil.ignore_patterns(
+                ".agent-harness",
+                ".venv",
+                ".ruff_cache",
+                "__pycache__",
+            ),
+        )
+        wheel_target = copied / ".agent-harness" / wheel.name
+        wheel_target.parent.mkdir(parents=True)
+        shutil.copy2(wheel, wheel_target)
+        command = ["make", "smoke-service", f"PYTHON={sys.executable}"]
+        if args.migrate_only:
+            command = [sys.executable, "scripts/smoke_service.py", "--migrate-only"]
+        try:
+            _run_copied_smoke(command, copied, wheel_target)
+        except subprocess.CalledProcessError:
+            return 1
+    print("smoke-service-root: workspace-outside=ok wheel-only=ok")
     return 0
 
 

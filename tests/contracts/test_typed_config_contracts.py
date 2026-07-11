@@ -137,6 +137,22 @@ identity:
     assert settings.auth.dev_bearer_token is None
 
 
+def test_test_only_dsn_env_does_not_enter_product_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """真实 service 合同的 DSN 注入不能污染所有 AGENT_HARNESS 配置调用方。"""
+
+    monkeypatch.setenv(
+        "AGENT_HARNESS_TEST_POSTGRES_DSN",
+        "postgresql+asyncpg://test:test@127.0.0.1:55433/test",
+    )
+
+    settings = load_settings(profile="local", profiles_dir=PROFILES)
+
+    assert settings.profile == "local"
+    assert settings.storage.kind == "sqlite"
+
+
 def test_config_errors_include_field_path_and_hint(tmp_path: Path) -> None:
     # 错误路径测试锁 operator-facing diagnostics，避免泄漏原始 Pydantic/YAML trace。
     profile_path = tmp_path / "broken.yaml"

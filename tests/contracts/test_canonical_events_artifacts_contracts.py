@@ -7,6 +7,7 @@ per-run seq、terminal 唯一性、payload_ref、redaction、OTel 映射和 SSE 
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -15,6 +16,7 @@ import pytest
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.contracts import GuardrailDecision, SourceRef, TrustLevel
 from agent_harness.events import (
+    CanonicalEvent,
     CanonicalEventType,
     EventBus,
     LocalJsonlEventSink,
@@ -25,6 +27,54 @@ from agent_harness.security.guardrails import guardrail_event_payload
 from app.api.sse import format_sse_event
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_event_bus_coordinates_each_event_loop_without_cross_loop_lock_binding() -> None:
+    """同一 service EventBus 经 DBOS loop 和 worker loop 连续竞争时都可发布。"""
+
+    class YieldingSink:
+        def __init__(self) -> None:
+            self.events: list[CanonicalEvent] = []
+
+        async def write(self, event: CanonicalEvent) -> CanonicalEvent:
+            await asyncio.sleep(0)
+            self.events.append(event)
+            return event
+
+        async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
+            return [
+                event for event in self.events if event.run_id == run_id and event.seq > after_seq
+            ]
+
+        async def latest_seq(self, run_id: str) -> int:
+            return max(
+                (event.seq for event in self.events if event.run_id == run_id),
+                default=0,
+            )
+
+        async def has_terminal(self, run_id: str) -> bool:
+            return any(event.run_id == run_id and event.terminal for event in self.events)
+
+    sink = YieldingSink()
+    bus = EventBus(sink=sink)
+
+    async def burst(prefix: str) -> None:
+        await asyncio.gather(
+            *(
+                bus.publish(
+                    tenant_id="tenant-loop",
+                    run_id="run-loop",
+                    event_type=CanonicalEventType.RUN_STARTED,
+                    event_id=f"{prefix}-{index}",
+                )
+                for index in range(2)
+            )
+        )
+
+    asyncio.run(burst("dbos"))
+    asyncio.run(burst("worker"))
+
+    assert [event.seq for event in sink.events] == [1, 2, 3, 4]
 
 
 def test_canonical_event_type_catalog_contains_product_spec_p0_events() -> None:

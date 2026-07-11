@@ -67,7 +67,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """存在 Phase 13 durable execution/event evidence 时拒绝破坏性降级。"""
+    """存在 service runtime durable execution/event evidence 时拒绝破坏性降级。"""
 
     connection = op.get_bind()
     counts = [

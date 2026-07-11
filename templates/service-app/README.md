@@ -4,7 +4,7 @@
 
 这是 Agent Harness Layer 的可复制后端应用模板。它把 FastAPI、app-specific Typer 入口、worker、local/service profiles、Docker Compose、eval 目录和测试装配在一起；runtime、policy、approval、eval 与 storage 业务能力仍来自 `agent_harness` 公共 seam。
 
-模板包含 `examples.basic` smoke fixture，以及 RAG assistant、ticket triage、repo analyst、dev assistant 四个 P0 薄样例；不包含 eval experiment，也不提前实施 API/worker 物理拆分。
+模板包含 `examples.basic` smoke fixture，以及 RAG assistant、ticket triage、repo analyst、dev assistant 四个 P0 薄样例；service profile 已把 API 与 runtime worker 拆成独立进程，但 tool/model gateway、event pipeline 和 storage service 仍是未来边界。
 
 ## Quick Start
 
@@ -89,7 +89,15 @@ service profile 的真实依赖验证使用：
 make smoke-service
 ```
 
-它验证 Docker Compose PostgreSQL/Redis、migration、repository/UoW 和 queue reachability；health 只做进程与配置摘要，不能替代 service smoke。
+它先构建核心 wheel，再把模板复制到 workspace 外，以单一 wheel-only 镜像启动 PostgreSQL、Redis、migration、API 和 worker。验证内容包括真实 API-key 认证与 401 零副作用、HTTP RUN-001 到 Redis 四字段、DBOS owner 落库后的 worker 硬退出与 `XAUTOCLAIM` 恢复、唯一 terminal、shared checkpoint、approval enqueue failure 补投、approve continuation、deny 零 continuation，以及默认删除本轮 container/network/volume/credential。health 只做进程与配置摘要，不能替代 service smoke。
+
+如需保留本轮 PostgreSQL volume 诊断：
+
+```bash
+SERVICE_APP_KEEP_DATA=1 make smoke-service
+```
+
+脚本仍会停止并删除本轮 container/network、临时 credential、Redis namespace 和 workspace 文件，只保留命名 volume，并输出精确的 `docker volume rm` 清理命令。明文 token 不进入 profile、镜像、日志或 artifact。
 
 ## Project Structure
 
@@ -107,6 +115,7 @@ templates/service-app/
 ├── tests/                   # 复制模板后可直接运行的公开 seam 测试
 ├── docs/                    # app-specific 维护说明入口
 ├── scripts/                 # 独立 bootstrap 与 service smoke
+├── Dockerfile               # API/worker 共用的 wheel-only 镜像
 ├── docker-compose.yml
 ├── .gitignore               # 忽略本地密钥、虚拟环境、数据库、trace 与构建产物
 ├── .env.example
