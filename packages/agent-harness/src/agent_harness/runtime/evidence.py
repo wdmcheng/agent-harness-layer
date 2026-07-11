@@ -21,6 +21,9 @@ async def publish_terminal_evidence(
     identity: IdentityContext,
     output: dict[str, Any] | None = None,
     error: dict[str, Any] | None = None,
+    request_id: str | None = None,
+    trace_id: str | None = None,
+    correlation: dict[str, Any] | None = None,
 ) -> CanonicalEvent:
     """以 run 级稳定 key 发布 terminal event，允许 sink ack 丢失后重试。"""
 
@@ -34,6 +37,8 @@ async def publish_terminal_evidence(
         payload["output"] = output
     if error is not None and error.get("reason") is not None:
         payload["reason"] = error["reason"]
+    if correlation:
+        payload.update(correlation)
     return await event_bus.publish(
         tenant_id=identity.tenant_id,
         run_id=run_id,
@@ -41,6 +46,8 @@ async def publish_terminal_evidence(
         user_id=identity.user_id,
         event_type=event_type,
         payload=payload,
+        request_id=request_id,
+        trace_id=trace_id,
         terminal=True,
         visibility="public",
         event_id=f"run-terminal:{run_id}",
@@ -55,6 +62,9 @@ async def persist_failed_execution(
     agent_id: str,
     reason: str,
     identity: IdentityContext,
+    request_id: str | None = None,
+    trace_id: str | None = None,
+    correlation: dict[str, Any] | None = None,
 ) -> RunResult:
     """先持久化确定性失败，再用稳定 event id 发布可补偿证据。"""
 
@@ -70,6 +80,9 @@ async def persist_failed_execution(
         status=RunStatus.FAILED,
         identity=identity,
         error=error,
+        request_id=request_id,
+        trace_id=trace_id,
+        correlation=correlation,
     )
     return RunResult(
         run_id=run_id,

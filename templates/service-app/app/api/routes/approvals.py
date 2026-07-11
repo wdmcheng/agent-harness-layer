@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 
 from agent_harness.approvals import ApprovalResolveResult, ApprovalService
 from agent_harness.contracts import ApiErrorEnvelope
@@ -23,6 +23,7 @@ ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     409: {"model": ApiErrorEnvelope},
     422: {"model": ApiErrorEnvelope},
     500: {"model": ApiErrorEnvelope},
+    503: {"model": ApiErrorEnvelope},
 }
 
 router = APIRouter(prefix="/api/v1", tags=["approvals"], responses=ERROR_RESPONSES)
@@ -121,9 +122,14 @@ async def get_approval(
     )
 
 
-@router.post("/runs/{run_id}/approvals/{approval_id}", response_model=ApprovalResolveResponse)
+@router.post(
+    "/runs/{run_id}/approvals/{approval_id}",
+    response_model=ApprovalResolveResponse,
+    responses={202: {"model": ApprovalResolveResponse}},
+)
 async def resolve_approval(
     http_request: Request,
+    response: Response,
     run_id: str,
     approval_id: str,
     request: ApprovalResolveRequest,
@@ -158,6 +164,12 @@ async def resolve_approval(
             request_id=request_id,
             comment=request.comment,
         )
+    if (
+        approvals.uses_queue
+        and request.decision == "approved"
+        and result.approval.status == "waiting"
+    ):
+        response.status_code = 202
     return ApprovalResolveResponse(
         request_id=request_id,
         approval=_public_approval(result.approval),

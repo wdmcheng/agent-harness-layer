@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.contracts.approval_evidence_contract_helpers import fail_once_on_event
 from tests.contracts.test_p0_approval_execution_contracts import build_approval_flow
 
 from agent_harness.approvals import ApprovalStateConflict
-from agent_harness.events import CanonicalEvent, CanonicalEventType
+from agent_harness.events import CanonicalEventType
 from agent_harness.runtime import RunStatus
 from agent_harness.storage import AuditLogCreate
 from agent_harness.storage.audit_repositories import AuditLogRepository
@@ -18,28 +18,6 @@ from app.main import create_app
 
 ROOT = Path(__file__).resolve().parents[2]
 PROFILES = ROOT / "templates" / "service-app" / "configs" / "profiles"
-
-
-def _fail_once_on_event(
-    *,
-    event_type: CanonicalEventType,
-    mode: str,
-    original_write: Callable[[CanonicalEvent], Awaitable[None]],
-) -> Callable[[CanonicalEvent], Awaitable[None]]:
-    failed = False
-
-    async def write(event: CanonicalEvent) -> None:
-        nonlocal failed
-        should_fail = not failed and event.event_type == event_type
-        if should_fail and mode == "before":
-            failed = True
-            raise OSError(f"{event_type.value} sink unavailable")
-        await original_write(event)
-        if should_fail and mode == "after":
-            failed = True
-            raise OSError(f"{event_type.value} sink acknowledgement lost")
-
-    return write
 
 
 @pytest.mark.parametrize("mode", ["before", "after"])
@@ -69,7 +47,7 @@ async def test_terminal_event_failure_keeps_claim_recoverable_without_replaying_
     monkeypatch.setattr(
         sink,
         "write",
-        _fail_once_on_event(
+        fail_once_on_event(
             event_type=CanonicalEventType.RUN_COMPLETED,
             mode=mode,
             original_write=original_write,
@@ -134,7 +112,7 @@ async def test_pre_executor_event_failure_retries_without_duplicate_handler(
     monkeypatch.setattr(
         sink,
         "write",
-        _fail_once_on_event(
+        fail_once_on_event(
             event_type=CanonicalEventType.RUN_RESUMED,
             mode=mode,
             original_write=sink.write,
@@ -201,7 +179,7 @@ async def test_resolution_event_failure_is_idempotently_reconciled(
     monkeypatch.setattr(
         sink,
         "write",
-        _fail_once_on_event(
+        fail_once_on_event(
             event_type=CanonicalEventType.APPROVAL_RESOLVED,
             mode=mode,
             original_write=original_write,
@@ -330,7 +308,7 @@ async def test_public_resolve_retry_reconciles_pending_evidence_before_returning
     monkeypatch.setattr(
         sink,
         "write",
-        _fail_once_on_event(
+        fail_once_on_event(
             event_type=failure_type,
             mode=mode,
             original_write=sink.write,

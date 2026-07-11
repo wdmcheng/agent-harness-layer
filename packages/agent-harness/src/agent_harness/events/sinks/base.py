@@ -7,6 +7,10 @@ from typing import Protocol
 from agent_harness.events.types import CanonicalEvent
 
 
+class EventSinkTerminalConflict(RuntimeError):
+    """数据库级唯一约束拒绝同一 run 的第二个 terminal。"""
+
+
 class EventSink(Protocol):
     """EventBus 需要的最小持久化 seam。
 
@@ -15,8 +19,8 @@ class EventSink(Protocol):
     越容易证明同一套排序和 terminal-event 语义。
     """
 
-    async def write(self, event: CanonicalEvent) -> None:
-        """持久化一个 CanonicalEvent。"""
+    async def write(self, event: CanonicalEvent) -> CanonicalEvent:
+        """持久化并返回 sink 实际分配 seq 的 CanonicalEvent。"""
         ...
 
     async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:

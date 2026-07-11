@@ -12,7 +12,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from agent_harness.approvals import ApprovalService, ApprovalStateConflict
+from agent_harness.approvals import (
+    ApprovalEnqueueUnavailable,
+    ApprovalService,
+    ApprovalStateConflict,
+)
 from agent_harness.auth import AuthError, TokenVerifier
 from agent_harness.config import load_settings
 from agent_harness.contracts import ApiErrorEnvelope, ErrorDetail
@@ -25,7 +29,7 @@ from agent_harness.evals import (
 from agent_harness.events import EventSink
 from agent_harness.policy import InputGuardrail, PolicyDeniedError, PolicyEngine
 from agent_harness.registry import RegistryLoadError
-from agent_harness.runtime import InvalidRunTransition, RunOrchestrator
+from agent_harness.runtime import InvalidRunTransition, RunEnqueueUnavailable, RunOrchestrator
 from agent_harness.security.redaction import redact_secrets
 from app.api.dependencies import (
     get_acceptance_service,
@@ -164,6 +168,14 @@ def create_app(
             status_code=409,
         )
 
+    async def run_enqueue_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        return api_error_response(
+            request_id=request_id_from(request),
+            code="run.enqueue_unavailable",
+            message="run queue is temporarily unavailable",
+            status_code=503,
+        )
+
     async def auth_error_handler(request: Request, exc: Exception) -> JSONResponse:
         auth_exc = cast(AuthError, exc)
         return api_error_response(
@@ -189,6 +201,14 @@ def create_app(
             code=approval_exc.code,
             message=str(approval_exc),
             status_code=approval_exc.status_code,
+        )
+
+    async def approval_enqueue_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        return api_error_response(
+            request_id=request_id_from(request),
+            code="approval.enqueue_unavailable",
+            message="approval queue is temporarily unavailable",
+            status_code=503,
         )
 
     async def validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -261,10 +281,12 @@ def create_app(
     app.add_exception_handler(AuthError, auth_error_handler)
     app.add_exception_handler(PolicyDeniedError, policy_denied_handler)
     app.add_exception_handler(ApprovalStateConflict, approval_conflict_handler)
+    app.add_exception_handler(ApprovalEnqueueUnavailable, approval_enqueue_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(EvalExperimentError, eval_experiment_error_handler)
     app.add_exception_handler(LookupError, lookup_error_handler)
     app.add_exception_handler(InvalidRunTransition, invalid_transition_handler)
+    app.add_exception_handler(RunEnqueueUnavailable, run_enqueue_error_handler)
     app.add_exception_handler(RegistryLoadError, registry_load_error_handler)
     app.add_exception_handler(Exception, internal_error_handler)
 

@@ -299,7 +299,7 @@ def main() -> int:
     run_migrations(settings.storage.dsn)
     revision = migration_revision(settings)
     redis_ok, redis_message = redis_status(settings, timeout_seconds=2.0)
-    if revision != "0011_eval_experiment_legacy_created_review":
+    if revision != "0012_service_runtime_execution_context":
         raise RuntimeError(f"PostgreSQL migration is not at the expected head: {revision}")
     if not redis_ok:
         raise RuntimeError(f"Redis check failed: {redis_message}")

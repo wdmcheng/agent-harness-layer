@@ -8,7 +8,7 @@ from typing import Any
 from uuid import uuid4
 
 from agent_harness.artifacts import FileArtifactStore
-from agent_harness.events.sinks.base import EventSink
+from agent_harness.events.sinks.base import EventSink, EventSinkTerminalConflict
 from agent_harness.events.types import CanonicalEvent, CanonicalEventType
 from agent_harness.security.redaction import redact_secrets
 
@@ -97,8 +97,10 @@ class EventBus:
                 trace_id=trace_id,
                 span_id=span_id,
             )
-            await self._sink.write(event)
-            return event
+            try:
+                return await self._sink.write(event)
+            except EventSinkTerminalConflict as exc:
+                raise TerminalEventError(f"run already has terminal event: {run_id}") from exc
 
     async def find_event(self, *, run_id: str, event_id: str) -> CanonicalEvent | None:
         """按稳定 event_id 查找已落 sink 的 evidence，供故障重试去重。"""

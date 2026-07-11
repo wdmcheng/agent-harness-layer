@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import Field
 
 from agent_harness.approvals import ApprovalService
@@ -38,6 +38,7 @@ ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     409: {"model": ApiErrorEnvelope},
     422: {"model": ApiErrorEnvelope},
     500: {"model": ApiErrorEnvelope},
+    503: {"model": ApiErrorEnvelope},
 }
 
 router = APIRouter(prefix="/api/v1", tags=["runs"], responses=ERROR_RESPONSES)
@@ -123,6 +124,7 @@ async def create_run_with_orchestrator(
     input_guardrail: InputGuardrail | None = None,
     approval_service: ApprovalService | None = None,
     request_id: str = "local",
+    trace_id: str | None = None,
 ) -> RunCreateResponse:
     """API 和测试共用的 run create 适配逻辑。"""
 
@@ -152,13 +154,15 @@ async def create_run_with_orchestrator(
                 "policy": guardrail_payload,
             }
 
-    result = await orchestrator.start_run(
+    run_method = orchestrator.submit_run if orchestrator.uses_queue else orchestrator.start_run
+    result = await run_method(
         agent_id=request.agent_id,
         input=request.input,
         idempotency_key=request.idempotency_key,
         checkpoint_state=checkpoint_state,
         identity=identity,
         request_id=request_id,
+        trace_id=trace_id,
     )
     if identity is not None and guardrail_payload is not None:
         await orchestrator.record_guardrail_check(
@@ -166,6 +170,8 @@ async def create_run_with_orchestrator(
             agent_id=request.agent_id,
             identity=identity,
             payload=guardrail_payload,
+            request_id=request_id,
+            trace_id=trace_id,
         )
     if (
         identity is not None
@@ -182,6 +188,7 @@ async def create_run_with_orchestrator(
             reason=checkpoint_state["reason"],
             resume_token=result.resume_token,
             request_id=request_id,
+            trace_id=trace_id,
         )
     return RunCreateResponse(
         request_id=request_id,
@@ -209,9 +216,14 @@ async def get_run_with_orchestrator(
     )
 
 
-@router.post("/agents/{agent_id}/runs", response_model=RunCreateResponse)
+@router.post(
+    "/agents/{agent_id}/runs",
+    response_model=RunCreateResponse,
+    responses={202: {"model": RunCreateResponse}},
+)
 async def create_agent_run(
     http_request: Request,
+    response: Response,
     agent_id: str,
     request: AgentRunCreateRequest,
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
@@ -224,7 +236,7 @@ async def create_agent_run(
     """创建 agent-scoped run，agent_id 来自稳定 URL 边界。"""
 
     registry.get(agent_id)
-    return await create_run_with_orchestrator(
+    result = await create_run_with_orchestrator(
         RunCreateRequest(
             agent_id=agent_id,
             input=request.input,
@@ -236,7 +248,11 @@ async def create_agent_run(
         input_guardrail=input_guardrail,
         approval_service=approval_service,
         request_id=request_id_from(http_request),
+        trace_id=http_request.headers.get("x-trace-id"),
     )
+    if orchestrator.uses_queue and result.status == RunStatus.CREATED:
+        response.status_code = 202
+    return result
 
 
 @router.get("/runs/{run_id}", response_model=RunCreateResponse)
@@ -289,9 +305,14 @@ async def cancel_run(
 ) -> RunCreateResponse:
     """取消尚未 terminal 的 run。"""
 
-    result = await orchestrator.cancel_run(run_id, identity=identity)
+    request_id = request_id_from(http_request)
+    result = await orchestrator.cancel_run(
+        run_id,
+        identity=identity,
+        request_id=request_id,
+    )
     return RunCreateResponse(
-        request_id=request_id_from(http_request),
+        request_id=request_id,
         run_id=result.run_id,
         status=result.status,
         terminal_event=result.terminal_event,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from agent_harness.adapters.queue import RedisRunQueue
 from agent_harness.approvals import ApprovalService
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
@@ -18,7 +19,7 @@ from agent_harness.evals import (
     RecordedApprovedCaseEvaluator,
     ScoreSink,
 )
-from agent_harness.events import EventBus, EventSink, LocalJsonlEventSink
+from agent_harness.events import EventBus, EventSink, LocalJsonlEventSink, PostgreSQLEventSink
 from agent_harness.observability import TelemetryFacade
 from agent_harness.policy import (
     DatabasePolicyProvider,
@@ -27,7 +28,7 @@ from agent_harness.policy import (
     YamlPolicyProvider,
 )
 from agent_harness.registry import AgentRegistry
-from agent_harness.runtime import RunOrchestrator
+from agent_harness.runtime import RunOrchestrator, RunQueue
 from agent_harness.runtime.services import build_agent_execution_services
 from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
 
@@ -47,8 +48,11 @@ class RuntimeComponents:
     eval_service: EvalService
     experiment_service: ExperimentService
     acceptance_service: AcceptanceService
+    queue: RunQueue | None = None
 
     async def close(self) -> None:
+        if self.queue is not None:
+            await self.queue.close()
         await self.storage.dispose()
 
 
@@ -71,7 +75,10 @@ def build_runtime_components(
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
     run_migrations(resolved_dsn)
 
-    storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
+    storage = SQLAlchemyStorage.from_dsn(
+        resolved_dsn,
+        cross_event_loop=profile == "service",
+    )
     resolved_events_path = events_path or Path(
         settings.observability.path or ".agent-harness/traces.jsonl"
     )
@@ -86,7 +93,15 @@ def build_runtime_components(
         if configured_artifact_root.is_absolute()
         else service_root / configured_artifact_root
     )
-    event_sink = LocalJsonlEventSink(resolved_events_path)
+    service_mode = profile == "service"
+    event_sink: EventSink = (
+        PostgreSQLEventSink(storage) if service_mode else LocalJsonlEventSink(resolved_events_path)
+    )
+    queue: RunQueue | None = None
+    if service_mode:
+        if settings.queue.kind != "redis" or settings.queue.dsn is None:
+            raise ValueError("service profile requires a Redis queue DSN")
+        queue = RedisRunQueue.from_dsn(settings.queue.dsn)
     artifact_store = FileArtifactStore(resolved_artifact_root)
     event_bus = EventBus(
         sink=event_sink,
@@ -142,6 +157,7 @@ def build_runtime_components(
         identity=settings.identity.default,
         executor_resolver=registry.resolve_executor,
         executor_services=executor_services,
+        queue=queue,
     )
     input_guardrail = InputGuardrail(policy=policy_engine, audit=audit)
     approval_service = ApprovalService(
@@ -149,6 +165,7 @@ def build_runtime_components(
         event_bus=event_bus,
         orchestrator=orchestrator,
         audit=audit,
+        queue=queue,
     )
     eval_service = EvalService(
         storage=storage,
@@ -182,4 +199,5 @@ def build_runtime_components(
         eval_service=eval_service,
         experiment_service=experiment_service,
         acceptance_service=acceptance_service,
+        queue=queue,
     )

@@ -15,10 +15,11 @@ class LocalJsonlEventSink(EventSink):
     def __init__(self, path: Path) -> None:
         self.path = path
 
-    async def write(self, event: CanonicalEvent) -> None:
+    async def write(self, event: CanonicalEvent) -> CanonicalEvent:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as file:
             file.write(json.dumps(event.to_payload(), ensure_ascii=False) + "\n")
+        return event
 
     async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
         events: list[CanonicalEvent] = []

@@ -16,13 +16,14 @@ from typing import Any, cast
 import pytest
 from fastapi.routing import APIRoute
 from starlette.requests import Request
+from tests.contracts.runtime_contract_helpers import FakeContractExecutor, sqlite_dsn
 
-from agent_harness.events import CanonicalEventType, EventBus, LocalJsonlEventSink
+from agent_harness.events import (
+    CanonicalEventType,
+    EventBus,
+    LocalJsonlEventSink,
+)
 from agent_harness.runtime import (
-    AgentExecutionContext,
-    AgentExecutionRequest,
-    AgentExecutionResult,
-    ApprovalGrant,
     ApprovalWaitState,
     CheckpointStore,
     IdempotencyKey,
@@ -37,34 +38,6 @@ from app.main import create_app
 from app.workers.runtime_worker import run_once as worker_run_once
 
 ROOT = Path(__file__).resolve().parents[2]
-
-
-class FakeContractExecutor:
-    """Explicit fake used by legacy lifecycle tests; runtime has no fallback."""
-
-    async def run(
-        self,
-        request: AgentExecutionRequest,
-        context: AgentExecutionContext,
-    ) -> AgentExecutionResult:
-        del request, context
-        return AgentExecutionResult.completed({"result": "fake-ok"})
-
-    async def resume(
-        self,
-        request: AgentExecutionRequest,
-        context: AgentExecutionContext,
-        grant: ApprovalGrant,
-    ) -> AgentExecutionResult:
-        del request, context, grant
-        return AgentExecutionResult.completed({"resumed": True})
-
-
-def sqlite_dsn(path: Path) -> str:
-    """生成 runtime 合同测试专用 SQLite DSN。"""
-
-    # 每个 runtime 测试使用自己的数据库和事件文件，避免 idempotency/checkpoint 串数据。
-    return f"sqlite+aiosqlite:///{path}"
 
 
 def test_runtime_public_seams_expose_checkpoint_dtos() -> None:

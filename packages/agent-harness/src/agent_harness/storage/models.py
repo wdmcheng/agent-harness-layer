@@ -91,6 +91,14 @@ class AgentRunModel(TimestampMixin, Base):
     input_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     output_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     error_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    execution_context_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    queue_operation_id: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
+    queue_request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    queue_effective_idempotency_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    queue_enqueue_state: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    queue_message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    execution_owner_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    execution_workflow_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -281,7 +289,7 @@ class CanonicalEventModel(Base):
     __tablename__ = "canonical_events"
     __table_args__ = (UniqueConstraint("run_id", "seq", name="uq_canonical_events_run_seq"),)
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
     run_id: Mapped[str] = mapped_column(String(36), ForeignKey("agent_runs.id"), index=True)
     agent_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -293,6 +301,7 @@ class CanonicalEventModel(Base):
     payload_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    envelope_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -446,6 +455,20 @@ class ApprovalModel(TimestampMixin, Base):
     resolution_finalized_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    resolution_operation_id: Mapped[str | None] = mapped_column(
+        String(512), nullable=True, index=True
+    )
+    resolution_request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    resolution_reviewer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    resolution_decision: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    resolution_request_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    resolution_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolution_enqueue_state: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, index=True
+    )
+    resolution_message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    resolution_workflow_owner_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    resolution_workflow_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
     trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)

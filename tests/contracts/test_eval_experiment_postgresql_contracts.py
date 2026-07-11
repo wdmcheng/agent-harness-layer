@@ -103,7 +103,7 @@ async def test_phase_12_5_postgresql_repository_and_downgrade_contract() -> None
             )
         assert (
             await asyncio.to_thread(get_current_revision, dsn)
-            == "0011_eval_experiment_legacy_created_review"
+            == "0012_service_runtime_execution_context"
         )
         storage = SQLAlchemyStorage.from_dsn(dsn)
         async with storage.uow() as uow:

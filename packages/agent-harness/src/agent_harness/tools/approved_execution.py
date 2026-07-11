@@ -128,7 +128,7 @@ class ApprovedToolExecutor:
             raise ApprovedToolGrantError(f"approval grant persistence mismatch: {mismatch}")
         async with self._storage.uow() as uow:
             existing = await uow.tool_invocations.get_by_approval_id(grant.approval_id)
-        if lease.state not in {"claimed", "recovery_pending"}:
+        if lease.state not in {"claimed", "execution_owned", "recovery_pending"}:
             if (
                 existing
                 and existing.result_ref

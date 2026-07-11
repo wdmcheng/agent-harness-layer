@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from agent_harness.storage.eval_acceptance_repositories import HarnessAcceptanceRepository
 from agent_harness.storage.eval_dataset_split_repositories import EvalDatasetSplitRepository
@@ -105,17 +106,22 @@ class SQLAlchemyUnitOfWork:
 class SQLAlchemyStorage:
     """基于 SQLAlchemy async engine 的 Repository/UoW factory。"""
 
-    def __init__(self, dsn: str) -> None:
+    def __init__(self, dsn: str, *, cross_event_loop: bool = False) -> None:
         self.dsn = normalize_async_dsn(dsn)
-        self.engine: AsyncEngine = create_async_engine(self.dsn)
+        # DBOS async durable step运行在独立event loop；NullPool避免把asyncpg
+        # connection/Future跨loop复用。local/API-only路径继续用默认连接池。
+        self.engine: AsyncEngine = create_async_engine(
+            self.dsn,
+            **({"poolclass": NullPool} if cross_event_loop else {}),
+        )
         self._session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
             self.engine,
             expire_on_commit=False,
         )
 
     @classmethod
-    def from_dsn(cls, dsn: str) -> SQLAlchemyStorage:
-        return cls(dsn)
+    def from_dsn(cls, dsn: str, *, cross_event_loop: bool = False) -> SQLAlchemyStorage:
+        return cls(dsn, cross_event_loop=cross_event_loop)
 
     @asynccontextmanager
     async def uow(self) -> AsyncGenerator[SQLAlchemyUnitOfWork]:

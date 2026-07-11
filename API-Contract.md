@@ -793,12 +793,12 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 | URL 参数 | none |
 | 请求体 | `AgentRunCreateRequest` |
 | 幂等性 | body 含 `idempotency_key` 时，同一 tenant/agent/session 下重复提交返回同一 run；缺失时非幂等。 |
-| 副作用 | 写 run state、checkpoint/events；可能触发 model/tool/policy/worker 后续动作。当前 fake run 可同步完成或进入 waiting。 |
-| 成功响应码 | `200` |
+| 副作用 | local profile 写 run/checkpoint/events并 inline 执行；service profile 先写 `created+enqueue_pending` 私有状态，Redis接受并完成 queued/message/`run.queued` 对账后由独立 worker执行，API进程不得调用 executor。 |
+| 成功响应码 | local profile `200`；service profile queued成功 `202`。 |
 | 响应头 | 当前只保证 `Content-Type: application/json`；不保证 `X-Request-Id` response header。 |
 | 响应体 | `RunCreateResponse` |
-| 错误响应码 | `400 api.http_error`、`401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied` / `guardrail.denied`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`500 api.internal_error`。 |
-| 状态语义 | `completed/failed/cancelled` 表示 terminal；`waiting` 表示调用方需要 approval 或 resume；`running/created` 表示后续通过 events/detail 追踪。 |
+| 错误响应码 | `400 api.http_error`、`401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied` / `guardrail.denied`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`503 run.enqueue_unavailable`、`500 api.internal_error`。 |
+| 状态语义 | service 202 返回 `created`，且只有 Redis接受、repository保存 queued/message ref并发布唯一 `run.queued` 后才算成功；enqueue任一步失败返回503并保留可补投私有状态。同客户端 key重试复用原 run/operation/首次 request id；无客户端 key的新请求仍非幂等，但原 pending run由worker startup/pickup recovery补投。`completed/failed/cancelled` 表示 terminal；`waiting` 表示需要 approval 或 resume。私有 queue字段不进入响应/OpenAPI。 |
 | 安全规则 | API route 不得直接操作 ORM session、DBOS API 或 provider SDK；input 进入 runtime 前必须经过 `run.create` policy check 和 guardrail/trust 标注；无效 token 或缺少 `run.create` 权限不得创建 run。 |
 | 验证要求 | `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 必须检查 route table、OpenAPI path、helper 使用 `RunOrchestrator`、idempotency、request_id 和 error envelope；认证/策略/HITL contract tests 必须覆盖无效 token 和缺少 `run.create` 权限均不创建 run、guardrail deny 不创建半截 run、guardrail require_approval 进入 approval/checkpoint 等待。 |
 
@@ -998,12 +998,12 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | Path 参数 | `run_id: string`、`approval_id: string` |
 | URL 参数 | none |
 | 请求体 | `ApprovalResolveRequest` |
-| 幂等性 | public resolve 非幂等；已 resolved approval 再次 resolve 必须返回 `409 approval.invalid_transition`，不得重复推进 run、调用 tool handler或写第二个有效 resolution audit/event。若 private state 表明前一次调用只缺 terminal/resolution evidence，本次真实 API/CLI 调用可先使用同一 lease、既有 result 和稳定 event id 做内部补偿，再返回原 409；若前一次调用只提交 raw claimed lease 后进程硬退出，则本次真实调用只能在 owner timeout 到期且不存在 tool execution claim时原子换发 fencing id并继续。不得把这些恢复能力暴露成 public resolve 幂等成功。 |
-| 副作用 | approve/deny 先通过同一 repository 条件更新仲裁。deny 赢时 public status 原子变为 denied、目标动作不执行；approve 赢时只写 private lease，public status 继续 waiting，runtime 通过原 checkpoint/executor/tool continuation 执行一次。raw claimed lease 只有在超时且无 tool claim时可被接管；活跃 lease和已有 claim不可抢占。executor 在创建唯一 tool claim 的同一 UoW 内校验并续租当前 fencing id，旧 owner不得调用 handler。动作产生持久化确定性结果并使 run terminal 后，public status 才变为 approved并写唯一 `approval.resolved` event/audit。event sink 写入前失败或写入后确认丢失时，内部 private state 保留 evidence pending，后续真实 resolve 重试补齐而不重放 handler。 |
-| 成功响应码 | `200` |
+| 幂等性 | public resolve 非幂等；service approve仅在私有 `resolution_state=claimed`、`enqueue_pending|queued`、无tool claim且本次 reviewer/decision/规范化request hash与私有fingerprint一致时复用原lease/operation：pending补投，queued不重投。worker startup只恢复 fingerprint完整、无claim的 `claimed+enqueue_pending`。`execution_owned`过期无claim时仅matching真实APR-002可换新lease/new operation，并以本次request id建立新operation首次correlation；其他重复resolve仍返回既有409。 |
+| 副作用 | deny 仍在API/repository原子收口，零lease/queue/DBOS/handler。service approve只写private lease/fingerprint/enqueue state并投递 `resume_approval` refs，public保持waiting，API不执行executor/tool；worker pickup CAS为 `execution_owned`并保存DBOS owner/ref后恢复。旧lease/operation按fencing fail closed；确定性结果后才公开approved并写唯一evidence。 |
+| 成功响应码 | local inline `200`；service approve queued/in-progress `202`；deny `200`。 |
 | 响应头 | 当前只保证 `Content-Type: application/json`。 |
 | 响应体 | `ApprovalResolveResponse` |
-| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 approval.invalid_transition`、`409 approval.resolution_in_progress`、`409 approval.execution_needs_review`、`409 run.invalid_transition`、`422 validation_error`、`500 api.internal_error`。approve lease 已存在时，并发 deny/第二个 public resolve 使用 `approval.resolution_in_progress`；execution claim 状态不确定且无结果时使用 `approval.execution_needs_review`。 |
+| 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 approval.invalid_transition`、`409 approval.resolution_in_progress`、`409 approval.execution_needs_review`、`409 run.invalid_transition`、`422 validation_error`、`503 approval.enqueue_unavailable`、`500 api.internal_error`。approve lease 已存在时，并发 deny/第二个 public resolve 使用 `approval.resolution_in_progress`；execution claim 状态不确定且无结果时使用 `approval.execution_needs_review`。 |
 | 状态语义 | `approved` 表示人工允许原动作执行，不保证动作执行成功；completed 或确定性 failed result 都会在 run 进入对应 terminal 后完成 approved resolution。`denied` 表示原动作不得执行。结果不确定时 public approval 保持 waiting，`run.status` 保持非伪造的 waiting/failed 摘要，private state 可进入 needs_review。 |
 | 安全规则 | path 中的 `run_id` 必须与 approval 归属一致；错误 URL 不得推进其他 run。response、OpenAPI、event 和 audit 不得泄漏 resume token、private lease/internal state、arguments 原文、secret 或原始危险 payload。仲裁失败方只允许写 conflict audit，不得发布第二个有效 resolution event。 |
 | 验证要求 | contract tests 必须覆盖 deny 先赢时 approve 无 lease且 handler 为零、approve lease 先赢时并发 deny 返回 in-progress 409且 public waiting不变、过期 raw claimed lease 由真实 APR-002 route 换发 fencing id并继续、未过期 lease与已有 claim不被抢占、旧 owner fencing失败、completed/确定性 failed 各自的 terminal与最终 approved、executing-without-result 的 needs-review 409、重复 public resolve 409、跨 run拒绝、单一 resolution/audit、request_id和 OpenAPI 不公开 private state；还必须用真实 APR-002 route 注入 approve/deny 的 `run.resumed`、terminal、`approval.resolved` sink 写前失败和写后确认丢失，证明重试仍返回既有 409但最终状态一致、handler 0/1 次、audit/terminal/resolution 各唯一。SQLite/PostgreSQL repository tests 均需覆盖 lease takeover、fencing 与 unique claim。 |

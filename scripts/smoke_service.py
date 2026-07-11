@@ -480,7 +480,7 @@ def main() -> int:
         format_retrieval_extension_status(status)
         for status in retrieval_extension_statuses(settings, settings.storage.dsn)
     )
-    if revision != "0011_eval_experiment_legacy_created_review":
+    if revision != "0012_service_runtime_execution_context":
         print(
             f"smoke-service: PostgreSQL migration head mismatch ({revision})",
             file=sys.stderr,

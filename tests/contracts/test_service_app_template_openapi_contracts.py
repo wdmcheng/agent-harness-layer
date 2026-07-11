@@ -44,7 +44,7 @@ OPERATIONS = (
         "/api/v1/agents/{agent_id}/runs",
         "post",
         "RunCreateResponse",
-        ("400", "401", "403", "404", "409", "422", "500"),
+        ("400", "401", "403", "404", "409", "422", "500", "503"),
     ),
     OperationContract(
         "/api/v1/runs/{run_id}", "get", "RunCreateResponse", ("401", "403", "404", "500")
@@ -65,7 +65,7 @@ OPERATIONS = (
         "/api/v1/runs/{run_id}/resume",
         "post",
         "RunCreateResponse",
-        ("401", "403", "404", "409", "422", "500"),
+        ("401", "403", "404", "409", "422", "500", "503"),
     ),
     OperationContract(
         "/api/v1/runs/{run_id}/approvals",
@@ -83,7 +83,7 @@ OPERATIONS = (
         "/api/v1/runs/{run_id}/approvals/{approval_id}",
         "post",
         "ApprovalResolveResponse",
-        ("401", "403", "404", "409", "422", "500"),
+        ("401", "403", "404", "409", "422", "500", "503"),
     ),
     OperationContract(
         "/api/v1/policies/check",
@@ -252,6 +252,11 @@ def test_p0_openapi_has_no_path_method_or_schema_drift(tmp_path: Path) -> None:
     for contract in OPERATIONS:
         operation = paths[contract.path][contract.method]
         assert _response_ref(operation, "200").endswith(f"/{contract.response_schema}")
+        if (contract.path, contract.method) in {
+            ("/api/v1/agents/{agent_id}/runs", "post"),
+            ("/api/v1/runs/{run_id}/approvals/{approval_id}", "post"),
+        }:
+            assert _response_ref(operation, "202").endswith(f"/{contract.response_schema}")
         for status in contract.error_statuses:
             assert _response_ref(operation, status).endswith("/ApiErrorEnvelope")
         if contract.path == "/api/v1/health":

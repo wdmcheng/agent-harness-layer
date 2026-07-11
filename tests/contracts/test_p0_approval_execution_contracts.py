@@ -19,6 +19,7 @@ from agent_harness.runtime import (
     AgentExecutionRequest,
     AgentExecutionResult,
     ApprovalGrant,
+    InMemoryRunQueue,
     RunOrchestrator,
     RunResult,
     RunStatus,
@@ -92,6 +93,7 @@ async def build_approval_flow(
     *,
     handler: Any,
     recovery_lease_timeout_seconds: float = 300.0,
+    queue: InMemoryRunQueue | None = None,
 ) -> tuple[
     SQLAlchemyStorage,
     LocalJsonlEventSink,
@@ -132,6 +134,7 @@ async def build_approval_flow(
         event_bus=EventBus(sink=sink),
         identity=identity,
         executor_resolver=lambda _agent_id: executor,
+        queue=queue,
     )
     service = ApprovalService(
         storage=storage,
@@ -140,7 +143,24 @@ async def build_approval_flow(
         audit=AuditService(storage),
         recovery_lease_timeout_seconds=recovery_lease_timeout_seconds,
     )
-    waiting = await orchestrator.start_run(agent_id="examples.dev", input={"prompt": "act"})
+    if queue is None:
+        waiting = await orchestrator.start_run(agent_id="examples.dev", input={"prompt": "act"})
+    else:
+        submitted = await orchestrator.submit_run(
+            agent_id="examples.dev",
+            input={"prompt": "act"},
+            identity=identity,
+        )
+        delivery = await queue.pickup(consumer_id="initial-service-worker")
+        assert delivery is not None
+        waiting = await orchestrator.execute_run(
+            run_id=submitted.run_id,
+            tenant_id=identity.tenant_id,
+            operation_id=delivery.message.operation_id,
+            owner_id="initial-service-owner",
+            workflow_id="initial-service-workflow",
+        )
+        await queue.ack(delivery.receipt)
     return storage, sink, service, orchestrator, identity, registry, waiting
 
 

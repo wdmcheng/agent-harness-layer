@@ -25,6 +25,9 @@ from agent_harness.storage.models import (
     PolicyRuleModel,
     ToolInvocationModel,
 )
+from agent_harness.storage.service_approval_repositories import (
+    ServiceApprovalResolutionRepositoryMixin,
+)
 
 
 class ApiKeyCreate(HarnessDTO):
@@ -144,7 +147,7 @@ class PolicyRuleRepository:
         return [_policy_rule_record(model) for model in result.all()]
 
 
-class ApprovalRepository:
+class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
     """ApprovalService 使用的 waiting/resolve 状态 repository。"""
 
     def __init__(self, session: AsyncSession) -> None:
@@ -280,6 +283,7 @@ class ApprovalRepository:
                     ApprovalModel.tenant_id == tenant_id,
                     ApprovalModel.status == "waiting",
                     ApprovalModel.resolution_state == "claimed",
+                    ApprovalModel.resolution_operation_id.is_(None),
                     ApprovalModel.resolution_claimed_at <= expired_before,
                     ~exists().where(ToolInvocationModel.approval_id == approval_id),
                 )
@@ -321,7 +325,9 @@ class ApprovalRepository:
                     ApprovalModel.tenant_id == tenant_id,
                     ApprovalModel.status == "waiting",
                     ApprovalModel.resolution_lease_id == lease_id,
-                    ApprovalModel.resolution_state.in_(["claimed", "recovery_pending"]),
+                    ApprovalModel.resolution_state.in_(
+                        ["claimed", "execution_owned", "recovery_pending"]
+                    ),
                 )
                 .values(resolution_claimed_at=datetime.now(tz=UTC))
             ),
@@ -394,7 +400,9 @@ class ApprovalRepository:
                     ApprovalModel.tenant_id == tenant_id,
                     ApprovalModel.status == "waiting",
                     ApprovalModel.resolution_lease_id == lease_id,
-                    ApprovalModel.resolution_state.in_(["claimed", "recovery_pending"]),
+                    ApprovalModel.resolution_state.in_(
+                        ["claimed", "execution_owned", "recovery_pending"]
+                    ),
                 )
                 .values(
                     status="approved",
@@ -466,7 +474,9 @@ class ApprovalRepository:
                     ApprovalModel.tenant_id == tenant_id,
                     ApprovalModel.status == "waiting",
                     ApprovalModel.resolution_lease_id == lease_id,
-                    ApprovalModel.resolution_state.in_(["claimed", "recovery_pending"]),
+                    ApprovalModel.resolution_state.in_(
+                        ["claimed", "execution_owned", "recovery_pending"]
+                    ),
                 )
                 .values(resolution_state="recovery_pending")
             ),

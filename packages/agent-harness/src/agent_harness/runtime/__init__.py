@@ -26,6 +26,7 @@ from agent_harness.runtime.executor import AgentExecutor as AgentExecutor
 from agent_harness.runtime.executor import AgentExecutorResolver as AgentExecutorResolver
 from agent_harness.runtime.executor import ApprovalGrant as ApprovalGrant
 from agent_harness.runtime.executor import RunResult as RunResult
+from agent_harness.runtime.orchestrator import RunEnqueueUnavailable as RunEnqueueUnavailable
 from agent_harness.runtime.orchestrator import RunOrchestrator as RunOrchestrator
 from agent_harness.runtime.queue import InMemoryRunQueue as InMemoryRunQueue
 from agent_harness.runtime.queue import QueueConflictError as QueueConflictError
@@ -56,6 +57,7 @@ _ORCHESTRATOR_EXPORTS = [
     "InvalidRunTransition",
     "RunOrchestrator",
     "RunResult",
+    "RunEnqueueUnavailable",
 ]
 
 _EXECUTOR_EXPORTS = [

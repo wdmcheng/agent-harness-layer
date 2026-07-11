@@ -42,7 +42,7 @@ def test_0009_migration_creates_phase_12_5_schema(tmp_path: Path) -> None:
             """
         ).fetchone()
 
-    assert get_current_revision(dsn) == "0011_eval_experiment_legacy_created_review"
+    assert get_current_revision(dsn) == "0012_service_runtime_execution_context"
     assert {
         "eval_dataset_splits",
         "eval_experiments",
@@ -144,7 +144,7 @@ def test_0011_upgrades_existing_0009_experiment_without_rewriting_terminal_evide
     assert get_current_revision(dsn) == "0009_eval_experiment_loop"
     run_migrations(dsn)
 
-    assert get_current_revision(dsn) == "0011_eval_experiment_legacy_created_review"
+    assert get_current_revision(dsn) == "0012_service_runtime_execution_context"
     with sqlite3.connect(db_path) as connection:
         row = connection.execute(
             """
@@ -207,6 +207,7 @@ def test_0009_downgrade_is_empty_only_and_preserves_nonempty_evidence(
 
     with pytest.raises(RuntimeError, match="0011 downgrade refused"):
         command.downgrade(alembic_config(used_dsn), "0008_agent_execution_approval_claims")
+    # 0012 没有 Phase 13 evidence 时可先安全回退；随后 0011 在 eval evidence 处拒绝。
     assert get_current_revision(used_dsn) == "0011_eval_experiment_legacy_created_review"
     with sqlite3.connect(used_db) as connection:
         assert connection.execute("select count(*) from eval_dataset_splits").fetchone() == (1,)
