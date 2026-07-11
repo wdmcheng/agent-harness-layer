@@ -1,5 +1,10 @@
 # 变更记录
 
+## [v1.5] - 2026-07-12
+### 状态同步
+- 根据用户显式归档指令，将 Phase 13 三个已完成 change 按依赖顺序同步到长期主规格并归档；仅同步生命周期状态，不修改需求语义。
+- 当前无 active OpenSpec change；Phase 14 深度维护文档与 Phase 15 CI/release automation 验收继续保持未完成。
+
 ## [v1.4] - 2026-07-11
 ### 状态同步
 - 根据 Phase 13 三个 active change、真实 PostgreSQL/Redis/DBOS/Compose 证据与 fresh review 结果，勾选 AC-059、AC-060、AC-062 及分进程部署边界完成项；仅同步验收状态，不修改需求语义。

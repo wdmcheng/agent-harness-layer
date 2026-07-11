@@ -7,11 +7,11 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-11 的 v1.4。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-12 的 v1.5。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-12.5 changes 均已归档并同步为主规格。Phase 13 的 `durable-run-queue`、`split-api-worker-runtime`、`service-profile-deployment-proof` 已按依赖顺序完成，当前处于 ready-to-archive，未自动归档。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-13 changes 均已归档并同步为主规格。Phase 13 的 `durable-run-queue`、`split-api-worker-runtime`、`service-profile-deployment-proof` 已按依赖顺序归档到 `openspec/changes/archive/2026-07-12-*/`，当前无 active change。
 - 代码状态: Phase 1-13 已完成实现与全量验证。Phase 13 durable queue 与 split runtime 的本地提交为 `869084e`、`9460080`；部署证明补齐 wheel-only Compose、真实 HTTP→worker crash/reclaim、DBOS/checkpoint/approval、资源清理、ADR 与架构图。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
@@ -19,26 +19,26 @@
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | Phase 13 已完成，待用户决定归档 | Phase 1-13 已完成；Phase 14-15 未开始。 |
-| 当前 Phase | Phase 13 ready-to-archive | Durable Redis queue、API/worker 分进程、DBOS/PostgreSQL shared state 与可复制四服务部署证明均已闭环。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 按 queue → split runtime → deployment proof 顺序完成；未越权归档。 |
-| 当前 OpenSpec change | 3 个 complete | `openspec list --json` 显示三个 Phase 13 change tasks 全部完成；严格校验通过后保持 active，等待显式 archive 指令。 |
+| 总体状态 | Phase 13 已完成并归档 | Phase 1-13 已完成；Phase 14-15 未开始。 |
+| 当前 Phase | Phase 14 待规划 | Phase 13 的 Durable Redis queue、API/worker 分进程、DBOS/PostgreSQL shared state 与可复制四服务部署证明均已闭环并归档。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 已按 queue → split runtime → deployment proof 顺序同步主规格并归档。 |
+| 当前 OpenSpec change | 无 | `openspec list --json` 显示 `changes: []`；Phase 13 长期契约已进入 `openspec/specs/`。 |
 | 当前验证基线 | 全量与真实服务证据通过 | 离线基线 `325 passed, 13 skipped`；注入隔离 PostgreSQL/Redis 后 `338 passed, 0 skipped`。quality、local/service smoke、四示例 eval、build、license、pre-commit、OpenSpec strict 与 diff check 全通过。 |
-| 当前阻塞项 | 无 | 未自动 archive、push、release 或进入 Phase 14。 |
-| 当前建议下一步 | 用户决定归档或启动 Phase 14 | 归档需显式指令；Phase 14 继续深度文档、ADR 与维护者指南。 |
+| 当前阻塞项 | 无 | 未 push、release 或进入 Phase 14 实现。 |
+| 当前建议下一步 | 为 Phase 14 创建聚焦 change | Phase 14 继续深度文档、ADR 与维护者指南。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 等待用户决定是否按依赖顺序归档 Phase 13 三个 change；不自动 archive、push 或发布。
+- Phase 13 三个 change 已按依赖顺序归档；不自动 push 或发布。
 - 如继续开发，Phase 14 先创建聚焦 change，再补深度文档与维护者指南。
 
 ### 后续 Phase
 
 - Phase 12: Service App 模板与四个 P0 示例 Agent，已完成并归档。
 - Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环，已实现、验证、提交并归档。
-- Phase 13: Service Profile、API/Worker 分进程与未来拆分边界，已实现、验证并 ready-to-archive。
+- Phase 13: Service Profile、API/Worker 分进程与未来拆分边界，已实现、验证、同步主规格并归档。
 - Phase 14: 深度文档、ADR 与维护者指南。
 - Phase 15: CI/CD、Release Automation 与合规收口。
 
@@ -630,7 +630,7 @@ Phase 1 Monorepo / quality spine
 - 文档能让维护者指出 API、runtime worker、model/tool gateway、storage、event pipeline 的当前形态和未来拆分路径。
 
 **完成状态**：
-- 三个聚焦 OpenSpec change 已按 queue → split runtime → deployment proof 的依赖顺序实现，任务全部完成并保持 ready-to-archive；未自动归档。
+- 三个聚焦 OpenSpec change 已按 queue → split runtime → deployment proof 的依赖顺序实现、同步主规格并归档到 `openspec/changes/archive/2026-07-12-*/`。
 - Compose 以 PostgreSQL、Redis、migration、API、worker 协作；API 与 worker 共享 storage/queue/DBOS/PostgreSQL event 配置，镜像只安装已构建 core wheel，不读取仓库源码。
 - `make smoke-service` 已在 workspace 外复制模板中证明真实认证、RUN-001 四字段、worker A hard crash、worker B `XAUTOCLAIM`/同 DBOS workflow 恢复、唯一 terminal、approval enqueue 补投/checkpoint continuation、deny 零 continuation 与临时 credential 清理。
 - 默认 smoke 不留随机 Compose container/volume；`SERVICE_APP_KEEP_DATA=1` 只保留指定 PostgreSQL volume，数据库复核临时 credential 为 0 后可用输出的精确命令删除。

@@ -110,3 +110,52 @@ service-app 模板 CLI SHALL 只实现 app-specific `serve`。`doctor`、agents�
 #### Scenario: 核心 CLI 能力不被模板复制
 - **WHEN** 开发者从 service-app 项目执行 doctor、agents、run、approvals、eval、policy 或 scaffold 命令
 - **THEN** 调用使用核心 `agent-harness` CLI 的同一 command、DTO、error 和 service seam；模板不维护独立实现
+
+### Requirement: Service profile 分离 API 提交与 worker 执行
+service-app SHALL在 service profile分离 API/worker：RUN-001先持久化 `status=created`与私有 enqueue_pending，Redis接受并记录 queued/message ref后才发布 `run.queued`/返回成功；worker消费同 message执行。approve continuation同样持久化可补投状态；deny不排队。local/CLI继续 inline。
+
+#### Scenario: API 不在请求进程执行 agent
+- **WHEN** service profile 调用 RUN-001 且 worker 暂停
+- **THEN** API 返回同一 `status=created` run，run 不进入 terminal，executor调用计数为零，message留在 Redis等待 worker
+
+#### Scenario: Worker 启动后完成 API run
+- **WHEN** 独立 worker 随后消费该 message
+- **THEN** worker 执行 API 创建的同一 `run_id`，共享 PostgreSQL detail 与 event seam 最终返回 completed、failed 或 waiting 真实状态
+
+#### Scenario: Local profile 无外部依赖回归
+- **WHEN** 开发者使用 local profile 或 `agent-harness run`
+- **THEN** run 继续通过 SQLite/local event seam inline 执行，不要求 Redis、DBOS system database 或 service worker
+
+#### Scenario: Service approval API 不执行 approve continuation
+- **WHEN** reviewer在 service profile批准 executor-produced waiting approval且 worker暂停
+- **THEN** APR-002完成 lease/policy/audit/enqueue状态并返回 queued/in-progress语义，executor/tool调用计数保持零；worker恢复后才执行原 continuation
+
+#### Scenario: Service deny 不进入 queue
+- **WHEN** reviewer在 service profile拒绝同类 waiting approval
+- **THEN** API原子收口 denied，queue/DBOS operation为零，worker无需参与且 handler保持零
+
+### Requirement: Worker 只在确定性收口后确认 delivery
+runtime worker MUST在消费新消息前恢复同 tenant的 run `enqueue_pending` operation；approve recovery只允许 active `resolution_state=claimed`、`enqueue_pending` lease、尚无 tool claim且已保存完整 reviewer/decision/规范化 request hash的 operation，其他 approval state fail closed。approval pickup必须先 CAS为 `execution_owned`并持久化 DBOS workflow owner/ref。pickup到 API中断窗口的 run message先补齐 queued/message/`run.queued` evidence再执行。run到 terminal/waiting后才 ack；不确定异常不 ack，确定性失败先写 failed terminal再 ack。
+
+#### Scenario: 不确定失败保留 pending
+- **WHEN** worker 在持久化执行结果前遇到连接中断或被取消
+- **THEN** delivery 未 ack，run 不被伪造为 completed，后续 worker 可 reclaim 同一 message
+
+#### Scenario: 确定性失败先落证据再 ack
+- **WHEN** executor 返回受控失败且 runtime 成功持久化 failed terminal event
+- **THEN** worker ack delivery，后续 reclaim 不再执行该 message
+
+### Requirement: Service smoke 使用真实独立 API/worker
+service-app的 `smoke-service` SHALL在仓库内和 workspace外复制项目中启动真实四服务，并分别证明：(1) initial DBOS owner/workflow已持久化后 hard crash -> Redis reclaim ->同 workflow恢复；(2) `examples.dev_assistant`产生 application waiting checkpoint，APR-002 approve经 worker恢复、deny零 continuation。脚本 MUST使用有效 service credential、共享 PostgreSQL/Redis，不得用 direct Python worker、DBOS metadata冒充 application checkpoint、共享 JSONL或日志推断替代。
+
+#### Scenario: Workspace 外模板保留四服务证明
+- **WHEN** smoke 把模板复制到 workspace 外，只安装已构建的核心 wheel 并运行 `make smoke-service`
+- **THEN** 四服务使用复制项目自身的 Compose、profile 和脚本完成同一真实链路，不依赖仓库源码路径、根 `PYTHONPATH` 或 in-process fake
+
+#### Scenario: Smoke 失败保留可操作诊断
+- **WHEN** migration、Redis、API readiness、worker pickup、DBOS execution 或 event读取任一环节失败
+- **THEN** smoke 以非零退出并指出失败边界与脱敏关联 id，不输出 DSN password、token、绝对敏感路径或 provider raw error
+
+#### Scenario: Workspace 外 smoke 保留认证与资源隔离
+- **WHEN** 复制项目运行四服务 smoke并在中途失败
+- **THEN** service verifier仍拒绝缺失/无效凭据、有效临时凭据只在本轮生效，默认 cleanup删除复制项目本轮 containers/network/volume/queue/credential且不触碰仓库或其他项目资源
