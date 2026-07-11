@@ -101,7 +101,7 @@ Deep documentation is introduced incrementally:
 - `docs/architecture/README.md` contains architecture diagram sources, PNG previews, and deployment boundary notes.
 - `docs/extension-guide.md` is reserved for extension guidance.
 - `docs/adapter-contracts.md` is reserved for adapter contracts.
-- `docs/eval-observability-loop.md` records the current trace-to-eval foundation and the planned Phase 12.5 eval experiment / harness acceptance loop.
+- `docs/eval-observability-loop.md` records the implemented trace-to-eval foundation and eval experiment / harness acceptance loop; the corresponding OpenSpec changes are archived.
 - `docs/security-policy.md` is reserved for security and HITL policy.
 - `docs/release-process.md` is reserved for release automation.
 - `docs/adr/` is reserved for architecture decisions.

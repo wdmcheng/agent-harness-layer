@@ -11,33 +11,33 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-12 changes 已归档并同步为主规格，Phase 12.5 当前有 `eval-dataset-split-foundation`、`eval-harness-experiment-comparison`、`eval-experiment-api-acceptance` 三个 active changes。Phase 9-12 的归档由提交 `45d87bf` 完成。
-- 代码状态: Phase 1-12 已完成实现、本地验证、fresh code-reviewer Stage 1/2 审查、本地提交和 OpenSpec 归档。Phase 12 的模板、四示例、approval continuation 与 scaffold 分别由 `b77a028`、`698e2d4`、`ae4bba3` 交付，审查备注由 `72e3fdf` 收口。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-12.5 changes 均已归档并同步为主规格，当前无 active change。Phase 9-12 的归档由提交 `45d87bf` 完成，Phase 12.5 的三个 change 于 2026-07-11 按依赖顺序归档。
+- 代码状态: Phase 1-12.5 已完成实现、本地验证、fresh code-reviewer Stage 1/2 审查、本地提交和 OpenSpec 归档。Phase 12 的模板、四示例、approval continuation 与 scaffold 分别由 `b77a028`、`698e2d4`、`ae4bba3` 交付，审查备注由 `72e3fdf` 收口；Phase 12.5 实现提交为 `87f4d7f`、`df182a6`、`ec5ce53`、`fc639b6`、`adec693`。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | Phase 12.5 ready-to-archive | Phase 1-12 已完成；Phase 12.5 实现、全量验证与 fresh code-reviewer Stage 1/2 联合审查均已完成，Phase 13-15 未开始。 |
-| 当前 Phase | Phase 12.5 ready-to-archive | Tagged split、`0009 -> 0010 -> 0011` 追加式 persistence、heartbeat 失效与过期租约 fencing、legacy `created` 收敛、`needs_review`、experiment/comparison、EVL-004 HTTP/CLI 和人工 acceptance 已实现并通过验证。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12 | Phase 12 本地提交为 `b77a028`、`698e2d4`、`ae4bba3`、`72e3fdf`，归档提交为 `45d87bf`。 |
-| 当前 OpenSpec change | 3 个 Phase 12.5 active changes | `eval-dataset-split-foundation` -> `eval-harness-experiment-comparison` -> `eval-experiment-api-acceptance`；关系矩阵见 `openspec/changes/phase-12-5-change-matrix.md`。 |
+| 总体状态 | Phase 12.5 已完成并归档 | Phase 1-12.5 已完成；Phase 13-15 未开始。 |
+| 当前 Phase | Phase 13 未开始 | Phase 12.5 的 tagged split、experiment/comparison、EVL-004 HTTP/CLI 和人工 acceptance 已实现、验证、提交并归档；当前未开始后续开发。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5 | Phase 12.5 实现提交为 `87f4d7f`、`df182a6`、`ec5ce53`、`fc639b6`、`adec693`；三个 change 于 2026-07-11 归档。 |
+| 当前 OpenSpec change | 无 | `openspec list --json` 返回空列表；Phase 12.5 的三份 main specs 已同步并通过 strict validation。 |
 | 当前验证基线 | 全量与 PostgreSQL 证据通过 | `281 passed, 3 skipped`；三个 DSN 条件 skip 已用真实 PostgreSQL 独立补跑 `3 passed`。quality、local/service smoke、四示例 eval、build、license、pre-commit、OpenSpec 21/21 strict 与 diff check 全通过。 |
-| 当前阻塞项 | 无 | fresh code-reviewer Stage 1/2 联合审查 PASS；当前只待本地提交，不自动进入归档、Phase 13、push 或发布。 |
-| 当前建议下一步 | 等待显式归档指令 | 完成本地提交后停在 ready-to-archive；只有用户明确要求时才归档三个 active changes。 |
+| 当前阻塞项 | 无 | Phase 12.5 已归档；未自动进入 Phase 13、push 或发布。 |
+| 当前建议下一步 | 等待 Phase 13 指令 | 如需继续，先为 Service Profile、API/Worker 分进程与未来拆分边界创建新的聚焦 OpenSpec change。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- 创建 Phase 12.5 本地提交并做最终 git/OpenSpec 状态审计，只停在 ready-to-archive。
-- 等待用户显式归档指令；不自动进入 Phase 13、不 push、不发布。
+- 提交 Phase 12.5 main specs 同步与 OpenSpec 归档移动，并完成最终 Git/OpenSpec 状态审计。
+- 等待用户决定是否启动 Phase 13；不自动创建 change、不 push、不发布。
 
 ### 后续 Phase
 
 - Phase 12: Service App 模板与四个 P0 示例 Agent，已完成并归档。
-- Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环，实现、验证与 fresh 联合审查完成，ready-to-archive。
+- Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环，已实现、验证、提交并归档。
 - Phase 13: Service Profile、API/Worker 分进程与未来拆分边界。
 - Phase 14: 深度文档、ADR 与维护者指南。
 - Phase 15: CI/CD、Release Automation 与合规收口。
@@ -770,5 +770,5 @@ Phase 1 Monorepo / quality spine
 | PGroonga 和 pgvector 是 optional adapter，可能拖累 local profile 或 CI。 | Retrieval、embedding cache、service profile smoke。 | Phase 9、Phase 13 | 已缓解 | Phase 9 已把 PGroonga/pgvector 作为 optional capability probe；local profile 不硬依赖扩展，service smoke 输出缺失降级提示并继续走 PostgreSQL native FTS fallback。 |
 | P0 只做可拆边界，不做完整微服务；如果 API/worker/storage/tool 边界不清，后续会重构。 | API、runtime worker、model/tool gateway、storage、event/observability。 | Phase 2、Phase 4、Phase 5、Phase 13、Phase 14 | 部分缓解 | Phase 2 已通过 typed service profile、DTO/context/identity contracts 和 README 部署边界说明建立接口基础；Phase 13 做 API/worker 分进程 smoke。 |
 | Phoenix、Langfuse、Logfire 的 dataset/score/workflow 能力差异大。 | Observability adapter、Eval Gate、score sink。 | Phase 10、Phase 11 | 未处理 | P0 先做 provider-neutral contract 和 local/jsonl fallback；复杂 provider-native workflow 放 P1。 |
-| Eval 只用已知 case 做优化会过拟合，尤其是示例 agent 数量少时。 | Eval experiment、harness prompt/tool description/config 变更、release gate。 | Phase 12.5、Phase 15 | 未处理 | Phase 12 先交付四个示例 agent 形成真实行为分布；Phase 12.5 必须按 behavior tags 拆 optimization / holdout，保留 regression subset，并用人工 review 拦住无意义或过拟合的 harness 变更。 |
+| Eval 只用已知 case 做优化会过拟合，尤其是示例 agent 数量少时。 | Eval experiment、harness prompt/tool description/config 变更、release gate。 | Phase 12.5、Phase 15 | 部分缓解 | Phase 12.5 已按 behavior tags 拆分 optimization / holdout、保留 regression subset，并用人工 review 拦截无意义或过拟合的 harness 变更；Phase 15 仍需把这些证据接入 release gate，并持续扩充生产分布 case。 |
 | Prompt injection / tool output injection 如果后补，会污染所有 agent 和 eval 证据。 | Access input、MCP、tools、retrieval、context assembly、audit。 | Phase 2、Phase 4、Phase 6、Phase 8、Phase 9 | 已缓解 | Phase 2 已定义 trust marker/source_ref/context ref 和 guardrail decision DTO；Phase 6 已在 ContextAssembler 保留 per-fragment source/trust/token/truncation trace；Phase 8 已处理 tool/MCP output；Phase 9 已让 retrieval chunk 进入 context 前保留 citation/source_ref/trust_level，prompt injection 文本只作为 untrusted citation 内容。 |

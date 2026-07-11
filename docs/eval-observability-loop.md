@@ -160,4 +160,4 @@ Phase 12.5 的真相源是：
 - `DEV-PLAN.md` Phase 12.5
 - 本文的操作和维护边界
 
-本阶段按 `openspec/changes/phase-12-5-change-matrix.md` 拆为 `eval-dataset-split-foundation` -> `eval-harness-experiment-comparison` -> `eval-experiment-api-acceptance`。三个 active change 已完成验证与 fresh 联合审查，当前为 ready-to-archive；不得混入 Phase 13 API/worker split、Phase 14 全套深度文档或 Phase 15 release automation，也不得自动 archive。
+本阶段按 `foundation -> comparison -> API acceptance` 的依赖顺序交付，并于 2026-07-11 归档为 `2026-07-11-eval-dataset-split-foundation`、`2026-07-11-eval-harness-experiment-comparison`、`2026-07-11-eval-experiment-api-acceptance`。对应 main specs 已同步；后续维护不得把 Phase 13 API/worker split、Phase 14 全套深度文档或 Phase 15 release automation 混回本闭环。
