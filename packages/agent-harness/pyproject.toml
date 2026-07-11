@@ -17,6 +17,7 @@ dependencies = [
     "pydantic==2.13.4",
     "pydantic-ai==2.5.0",
     "PyYAML==6.0.3",
+    "redis==8.0.1",
     "SQLAlchemy==2.0.51",
     "typer==0.26.8",
 ]

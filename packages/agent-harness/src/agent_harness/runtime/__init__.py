@@ -27,6 +27,22 @@ from agent_harness.runtime.executor import AgentExecutorResolver as AgentExecuto
 from agent_harness.runtime.executor import ApprovalGrant as ApprovalGrant
 from agent_harness.runtime.executor import RunResult as RunResult
 from agent_harness.runtime.orchestrator import RunOrchestrator as RunOrchestrator
+from agent_harness.runtime.queue import InMemoryRunQueue as InMemoryRunQueue
+from agent_harness.runtime.queue import QueueConflictError as QueueConflictError
+from agent_harness.runtime.queue import QueueDelivery as QueueDelivery
+from agent_harness.runtime.queue import QueueEnqueueResult as QueueEnqueueResult
+from agent_harness.runtime.queue import QueueError as QueueError
+from agent_harness.runtime.queue import QueueReceipt as QueueReceipt
+from agent_harness.runtime.queue import RunQueue as RunQueue
+from agent_harness.runtime.queue import RunQueueMessage as RunQueueMessage
+from agent_harness.runtime.queue import StaleQueueReceiptError as StaleQueueReceiptError
+from agent_harness.runtime.queue import (
+    UnsupportedQueueMessageError as UnsupportedQueueMessageError,
+)
+from agent_harness.runtime.queue import build_execute_message as build_execute_message
+from agent_harness.runtime.queue import (
+    build_resume_approval_message as build_resume_approval_message,
+)
 from agent_harness.runtime.state import RunStatus as RunStatus
 
 _CHECKPOINT_EXPORTS = [
@@ -59,9 +75,25 @@ _STATE_EXPORTS = [
     "RunStatus",
 ]
 
+_QUEUE_EXPORTS = [
+    "InMemoryRunQueue",
+    "QueueConflictError",
+    "QueueDelivery",
+    "QueueEnqueueResult",
+    "QueueError",
+    "QueueReceipt",
+    "RunQueue",
+    "RunQueueMessage",
+    "StaleQueueReceiptError",
+    "UnsupportedQueueMessageError",
+    "build_execute_message",
+    "build_resume_approval_message",
+]
+
 __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     *_CHECKPOINT_EXPORTS,
     *_ORCHESTRATOR_EXPORTS,
     *_EXECUTOR_EXPORTS,
     *_STATE_EXPORTS,
+    *_QUEUE_EXPORTS,
 ]
