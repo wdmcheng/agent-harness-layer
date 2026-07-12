@@ -312,12 +312,12 @@ def create_app(
 
     generated_openapi = app.openapi
 
-    def evl_openapi() -> dict[str, Any]:
-        """移除 FastAPI 自动追加但不属于 EVL-004 的 GET 422 响应。"""
+    def contract_openapi() -> dict[str, Any]:
+        """按精确 operation allowlist 移除框架自动追加的非契约响应。"""
 
         schema = generated_openapi()
         paths = cast(dict[str, Any], schema["paths"])
-        expected = {
+        allowed_response_statuses = {
             ("/api/v1/evals/experiments", "post"): {
                 "200",
                 "201",
@@ -352,8 +352,23 @@ def create_app(
                 "422",
                 "500",
             },
+            ("/api/v1/runs/{run_id}", "get"): {
+                "200",
+                "401",
+                "403",
+                "404",
+                "500",
+            },
+            ("/api/v1/runs/{run_id}/cancel", "post"): {
+                "200",
+                "401",
+                "403",
+                "404",
+                "409",
+                "500",
+            },
         }
-        for (path, method), allowed in expected.items():
+        for (path, method), allowed in allowed_response_statuses.items():
             operation = cast(dict[str, Any], paths[path][method])
             responses = cast(dict[str, Any], operation["responses"])
             operation["responses"] = {
@@ -361,5 +376,5 @@ def create_app(
             }
         return schema
 
-    app.openapi = evl_openapi
+    app.openapi = contract_openapi
     return app

@@ -38,6 +38,6 @@
 ## Impact
 
 - API metadata: `templates/service-app/app/api/routes/runs.py`。
-- 错误映射核验: `templates/service-app/app/api/errors.py`、`templates/service-app/app/main.py`。
+- 错误映射核验: `templates/service-app/app/main.py`。
 - 契约证据: `tests/contracts/test_runtime_checkpoint_runs_contracts.py`。
 - 不新增依赖、配置、数据库表、migration、UI 或发布行为；公开 endpoint 路径与运行时响应体不变，仅移除 OpenAPI 中不属于对应 operation 的多余 response 声明。

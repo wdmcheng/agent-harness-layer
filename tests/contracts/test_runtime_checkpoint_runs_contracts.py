@@ -14,8 +14,10 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from starlette.requests import Request
+from tests.contracts.auth_policy_hitl_contract_helpers import asgi_request
 from tests.contracts.runtime_contract_helpers import FakeContractExecutor, sqlite_dsn
 
 from agent_harness.events import (
@@ -38,6 +40,32 @@ from app.main import create_app
 from app.workers.runtime_worker import run_once as worker_run_once
 
 ROOT = Path(__file__).resolve().parents[2]
+
+RUN_OPENAPI_CONTRACTS: dict[
+    tuple[str, str],
+    tuple[set[str], dict[str, str]],
+] = {
+    ("/api/v1/agents/{agent_id}/runs", "post"): (
+        {"200", "202", "400", "401", "403", "404", "409", "422", "500", "503"},
+        {"200": "RunCreateResponse", "202": "RunCreateResponse"},
+    ),
+    ("/api/v1/runs/{run_id}", "get"): (
+        {"200", "401", "403", "404", "500"},
+        {"200": "RunCreateResponse"},
+    ),
+    ("/api/v1/runs/{run_id}/events", "get"): (
+        {"200", "401", "403", "404", "422", "500"},
+        {"200": "RunEventsResponse"},
+    ),
+    ("/api/v1/runs/{run_id}/cancel", "post"): (
+        {"200", "401", "403", "404", "409", "500"},
+        {"200": "RunCreateResponse"},
+    ),
+    ("/api/v1/runs/{run_id}/resume", "post"): (
+        {"200", "401", "403", "404", "409", "422", "500"},
+        {"200": "RunCreateResponse"},
+    ),
+}
 
 
 def test_runtime_public_seams_expose_checkpoint_dtos() -> None:
@@ -233,6 +261,100 @@ def test_template_router_exposes_create_run_route() -> None:
         ("/api/v1/runs/{run_id}/resume", "POST"),
     } <= route_methods
     assert ("/api/v1/runs", "POST") not in route_methods
+
+
+def test_run_openapi_response_status_and_schema_are_exact(tmp_path: Path) -> None:
+    """最终 OpenAPI 必须逐 operation 精确对齐 RUN-001 至 RUN-005。"""
+
+    app = create_app(
+        orchestrator=cast(RunOrchestrator, object()),
+        event_sink=LocalJsonlEventSink(tmp_path / "unused-events.jsonl"),
+    )
+    paths = cast(dict[str, Any], app.openapi()["paths"])
+
+    for (path, method), (expected_statuses, success_schemas) in RUN_OPENAPI_CONTRACTS.items():
+        operation = cast(dict[str, Any], paths[path][method])
+        responses = cast(dict[str, Any], operation["responses"])
+        actual_statuses = set(responses)
+        assert actual_statuses == expected_statuses, (
+            f"{method.upper()} {path} response status 漂移: "
+            f"missing={sorted(expected_statuses - actual_statuses)}, "
+            f"extra={sorted(actual_statuses - expected_statuses)}"
+        )
+
+        for status, schema_name in success_schemas.items():
+            schema = responses[status]["content"]["application/json"]["schema"]
+            assert schema["$ref"] == f"#/components/schemas/{schema_name}"
+
+        error_statuses = expected_statuses - set(success_schemas)
+        for status in error_statuses:
+            schema = responses[status]["content"]["application/json"]["schema"]
+            assert schema["$ref"] == "#/components/schemas/ApiErrorEnvelope"
+
+    run_detail_operation = paths["/api/v1/runs/{run_id}"]["get"]
+    assert "RunDetailResponse" not in json.dumps(run_detail_operation, sort_keys=True)
+
+
+def test_fastapi_auto_422_is_removed_only_from_allowlisted_run_operations(
+    tmp_path: Path,
+) -> None:
+    """框架默认 422 存在，但应用只能窄化 RUN-002 与 RUN-004。"""
+
+    framework_app = FastAPI()
+
+    async def _read_item(item_id: int) -> dict[str, int]:
+        return {"item_id": item_id}
+
+    framework_app.add_api_route("/items/{item_id}", _read_item, methods=["GET"])
+    assert "422" in framework_app.openapi()["paths"]["/items/{item_id}"]["get"]["responses"]
+
+    app = create_app(
+        orchestrator=cast(RunOrchestrator, object()),
+        event_sink=LocalJsonlEventSink(tmp_path / "unused-events.jsonl"),
+    )
+    paths = app.openapi()["paths"]
+    assert "422" not in paths["/api/v1/runs/{run_id}"]["get"]["responses"]
+    assert "422" not in paths["/api/v1/runs/{run_id}/cancel"]["post"]["responses"]
+    for path, method in (
+        ("/api/v1/agents/{agent_id}/runs", "post"),
+        ("/api/v1/runs/{run_id}/events", "get"),
+        ("/api/v1/runs/{run_id}/resume", "post"),
+    ):
+        assert "422" in paths[path][method]["responses"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("POST", "/api/v1/agents/examples.basic/runs", {"input": []}),
+        ("GET", "/api/v1/runs/run-1/events?after_seq=-1", None),
+        ("POST", "/api/v1/runs/run-1/resume", {}),
+    ],
+)
+async def test_run_validation_errors_use_api_error_envelope(
+    tmp_path: Path,
+    method: str,
+    path: str,
+    body: dict[str, Any] | None,
+) -> None:
+    """所有声明 422 的 run operation 都要穿过统一 validation handler。"""
+
+    app = create_app(
+        orchestrator=cast(RunOrchestrator, object()),
+        event_sink=LocalJsonlEventSink(tmp_path / "unused-events.jsonl"),
+    )
+    status, response_body = await asgi_request(
+        cast(Any, app),
+        method=method,
+        path=path,
+        body=body,
+    )
+
+    assert status == 422
+    assert response_body["error"]["code"] == "validation_error"
+    assert response_body["error"]["request_id"]
+    assert "detail" not in response_body
 
 
 @pytest.mark.asyncio

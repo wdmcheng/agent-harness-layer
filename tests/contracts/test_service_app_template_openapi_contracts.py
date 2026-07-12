@@ -65,7 +65,7 @@ OPERATIONS = (
         "/api/v1/runs/{run_id}/resume",
         "post",
         "RunCreateResponse",
-        ("401", "403", "404", "409", "422", "500", "503"),
+        ("401", "403", "404", "409", "422", "500"),
     ),
     OperationContract(
         "/api/v1/runs/{run_id}/approvals",

@@ -44,7 +44,7 @@ RUN-002 的 success schema 在本变更固定为 `RunCreateResponse`，测试还
 
 - `templates/service-app/app/api/routes/runs.py`: router metadata 与五个 operation 的 response map。
 - `templates/service-app/app/main.py`: 唯一 OpenAPI factory 对 RUN-002/RUN-004 的框架自动 422 做窄化 allowlist 过滤。
-- `templates/service-app/app/api/errors.py`、`templates/service-app/app/main.py`: 只核验既有异常到 status/body 的映射，不计划改变错误语义。
+- `templates/service-app/app/main.py`: 核验既有异常到 status/body 的映射，并在唯一 OpenAPI factory 窄化不适用的自动 422；不改变错误语义。
 - `tests/contracts/test_runtime_checkpoint_runs_contracts.py`: RUN-001 至 RUN-005 精确 status/schema 漂移表。
 - API path、request body、运行时 response body、数据库、migration、依赖、配置、CLI、UI 和部署均不变。
 

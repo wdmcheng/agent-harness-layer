@@ -20,12 +20,12 @@
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
 | 总体状态 | Phase 1-13 历史交付已归档，P0 基线补缺待实现 | Phase 13.5-13.9 必须先闭环；Phase 14-15 未开始。 |
-| 当前 Phase | Phase 13.5 待开始 | 六个相关 P0 gap 的聚焦 OpenSpec change 已创建；完成逐 change 审查和多 change 联合审查后再实现。 |
+| 当前 Phase | Phase 13.6 待开始 | Phase 13.5 已完成 TDD、自测和 3 个 fresh code-reviewer 双阶段审查，停在 `ready-to-archive`；不得自动归档。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 已按 queue → split runtime → deployment proof 顺序同步主规格并归档。 |
-| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` | `openspec list --json` 显示六个 change 均为 `in-progress` 且 0 个任务完成；当前只允许审查契约，不得据此声称已实施。 |
-| 当前验证基线 | Phase 13 既有证据通过；本轮最终基线待刷新 | 既有离线 `325 passed, 13 skipped`、注入服务 `338 passed, 0 skipped` 和 service smoke 不能证明新增 P0 gap；所有补缺完成后必须重新跑全量。 |
+| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` | 第一项为 10/10 tasks、`ready-to-archive`；后五项保持 0 task 实施，不 archive、不 push。 |
+| 当前验证基线 | Phase 13.5 自测通过，最终基线仍待后续 capability 刷新 | 定向 `56 passed`；离线 `330 passed, 13 skipped`；quality、local smoke、真实 PostgreSQL/Redis service smoke、change strict 与 diff check 均通过。 |
 | 当前阻塞项 | P0 完成路径缺失已进入补缺计划 | Phase 14/15 不得在 13.5-13.9 完成前被标记完成。 |
-| 当前建议下一步 | 完成六个聚焦 change 的逐项与联合审查 | 审查顺序：run OpenAPI、config/secrets、run trace、usage evidence、delegation、SSE；实现依赖见 13.5-13.9，不 archive、不 push。 |
+| 当前建议下一步 | 提交 Phase 13.5 后按 TDD 开始 `config-secret-file-loading` | Phase 13.6 仍须独立自测、3 个 fresh code-reviewer、修复和提交；不得归档 Phase 13.5 change。 |
 
 ## 剩余工作
 
@@ -40,7 +40,7 @@
 - Phase 12: Service App 模板与四个 P0 示例 Agent，已完成并归档。
 - Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环，已实现、验证、提交并归档。
 - Phase 13: Service Profile、API/Worker 分进程与未来拆分边界，已实现、验证、同步主规格并归档。
-- Phase 13.5: 当前 Run OpenAPI response/status 准确性，待实现。
+- Phase 13.5: 当前 Run OpenAPI response/status 准确性，已通过实现、自测和三审，停在 `ready-to-archive`。
 - Phase 13.6: 配置启动失败与 Docker secret file 加载，待实现；依赖 Phase 13.5。
 - Phase 13.6A: Canonical run trace 与 approval/event 关联，待实现；依赖 Phase 13.6。
 - Phase 13.7: Model/Embedding usage evidence 与 local latency 门禁，待实现；依赖 Phase 13.6A。
@@ -51,7 +51,7 @@
 
 ### 尚未完成的关键验收
 
-- AC-017：P0 RUN-006 尚不存在；当前 run OpenAPI 还暴露未声明的额外错误状态，先由 Phase 13.5 修正精确性，再由 13.9 补 endpoint。
+- AC-017：P0 RUN-006 尚不存在；Phase 13.5 已收紧并三审通过 RUN-001 至 RUN-005 的 OpenAPI 精确性，13.9 再补 endpoint，因此 AC 仍未完成。
 - AC-008、AC-063：application startup failure 与 Docker secret file 加载尚未实现。
 - FLOW-003 / ApprovalRecord trace：当前 approval 与 run-scoped event 仍允许 `trace_id=null`；Phase 13.6A 负责 canonical run trace 生成、传播与历史 backfill。
 - AC-064、AC-065：model/embedding 完整 evidence 与 local fake run 时延门禁尚未实现。
@@ -668,7 +668,7 @@ Phase 1 Monorepo / quality spine
 
 **关键文件**：
 - `templates/service-app/app/api/routes/runs.py` - RUN-001 到 RUN-005 operation-specific response map。
-- `templates/service-app/app/api/errors.py`、`app/main.py` - error handler 与公开 status 对账。
+- `templates/service-app/app/main.py` - error handler、唯一 OpenAPI factory 与公开 status 对账。
 - `tests/contracts/test_runtime_checkpoint_runs_contracts.py` - 精确 status/schema 集合，既检查缺失也拒绝额外 response status。
 - `API-Contract.md` - RUN-001 到 RUN-005 当前 method/path/request/response/error/security 基准。
 
@@ -678,7 +678,7 @@ Phase 1 Monorepo / quality spine
 - RUN-002 在本 Phase 继续返回 `RunCreateResponse`；不得提前实现 Phase 13.8 的 delegation 聚合或 `RunDetailResponse`。
 - 定向 contract tests、`make quality`、`make test`、`make smoke-local`、`make smoke-service` 和 `git diff --check` 通过。
 
-**状态**：待实现；对应 AC-017 的已实现 route 准确性子项，完成后只到 `ready-to-archive`，不得自动归档。
+**状态**：`ready-to-archive`；10/10 tasks 已勾选，3 个 fresh code-reviewer 的 Stage 1/2 均 PASS。定向 `56 passed`、离线 `330 passed, 13 skipped`，quality、local smoke、真实 PostgreSQL/Redis service smoke、change strict 与 diff check 均通过。不自动归档；AC-017 仍因 RUN-006 未实现而保持未完成。
 
 ---
 

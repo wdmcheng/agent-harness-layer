@@ -30,18 +30,13 @@ from app.api.dependencies import (
     get_policy_engine,
 )
 
-ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
-    400: {"model": ApiErrorEnvelope},
-    401: {"model": ApiErrorEnvelope},
-    403: {"model": ApiErrorEnvelope},
-    404: {"model": ApiErrorEnvelope},
-    409: {"model": ApiErrorEnvelope},
-    422: {"model": ApiErrorEnvelope},
-    500: {"model": ApiErrorEnvelope},
-    503: {"model": ApiErrorEnvelope},
-}
+router = APIRouter(prefix="/api/v1", tags=["runs"])
 
-router = APIRouter(prefix="/api/v1", tags=["runs"], responses=ERROR_RESPONSES)
+
+def error_responses(*status_codes: int) -> dict[int | str, dict[str, Any]]:
+    """为单个 run operation 声明实际可返回的统一错误 envelope。"""
+
+    return {status_code: {"model": ApiErrorEnvelope} for status_code in status_codes}
 
 
 class RunCreateRequest(HarnessDTO):
@@ -219,7 +214,10 @@ async def get_run_with_orchestrator(
 @router.post(
     "/agents/{agent_id}/runs",
     response_model=RunCreateResponse,
-    responses={202: {"model": RunCreateResponse}},
+    responses={
+        202: {"model": RunCreateResponse},
+        **error_responses(400, 401, 403, 404, 409, 422, 500, 503),
+    },
 )
 async def create_agent_run(
     http_request: Request,
@@ -255,7 +253,11 @@ async def create_agent_run(
     return result
 
 
-@router.get("/runs/{run_id}", response_model=RunCreateResponse)
+@router.get(
+    "/runs/{run_id}",
+    response_model=RunCreateResponse,
+    responses=error_responses(401, 403, 404, 500),
+)
 async def get_run(
     http_request: Request,
     run_id: str,
@@ -272,7 +274,11 @@ async def get_run(
     )
 
 
-@router.get("/runs/{run_id}/events", response_model=RunEventsResponse)
+@router.get(
+    "/runs/{run_id}/events",
+    response_model=RunEventsResponse,
+    responses=error_responses(401, 403, 404, 422, 500),
+)
 async def read_run_events(
     http_request: Request,
     run_id: str,
@@ -296,7 +302,11 @@ async def read_run_events(
     )
 
 
-@router.post("/runs/{run_id}/cancel", response_model=RunCreateResponse)
+@router.post(
+    "/runs/{run_id}/cancel",
+    response_model=RunCreateResponse,
+    responses=error_responses(401, 403, 404, 409, 500),
+)
 async def cancel_run(
     http_request: Request,
     run_id: str,
@@ -319,7 +329,11 @@ async def cancel_run(
     )
 
 
-@router.post("/runs/{run_id}/resume", response_model=RunCreateResponse)
+@router.post(
+    "/runs/{run_id}/resume",
+    response_model=RunCreateResponse,
+    responses=error_responses(401, 403, 404, 409, 422, 500),
+)
 async def resume_run(
     http_request: Request,
     run_id: str,

@@ -674,6 +674,28 @@ B2 额外运行证据有效：`make test` 为 `325 passed, 13 skipped`；`make b
 
 提交边界：本提交只冻结已审查文档、图稿、长期规格来源修复、维护性代码/测试说明、Pyright 搜索路径与六个 0-task apply-ready change；不实施任何 change，不归档、不 push、不 tag，不把 Phase 14/15 标记完成。提交后开发必须从 `run-openapi-contract-accuracy` 开始，每个 change 独立走 TDD、自测、3 fresh review、修复、提交。
 
+### 6.27 Phase 13.5 实现候选与自测证据
+
+`run-openapi-contract-accuracy` 已按公开 OpenAPI seam 完成 TDD：新增精确 `(path, method)` response status 集合、成功 DTO、全部错误 `ApiErrorEnvelope`、RUN-002 禁止提前引用 `RunDetailResponse`、最小 FastAPI 自动 422 和三条真实 validation handler 合同。红灯首先证明 RUN-002 多出 `400/409/422/503`，随后移除 run router 共享 response map，改为五个 operation-specific map，并由应用唯一 OpenAPI factory 只对 RUN-002/RUN-004 移除不适用的自动 422。
+
+全量测试同时发现 `tests/contracts/test_service_app_template_openapi_contracts.py` 的旧矩阵仍要求 RUN-005 `503`；API Contract RUN-005 原文只允许 `401/403/404/409/422/500`，因此同步删除过期期望。未修改 runtime、queue、storage、auth、policy、guardrail、endpoint path 或 response body；RUN-006、delegation、SSE、Phase 14/15 均未实施。
+
+实现候选验证：定向 RUN/auth/policy/split-runtime 回归 `56 passed`；`make quality` PASS；`make test` 为 `330 passed, 13 skipped`；`make smoke-local` 为 `smoke-local: ok`；真实 PostgreSQL/Redis `make smoke-service` 为 `smoke-service: ok`、`workspace-outside=ok`、`wheel-only=ok`，并证明 hard crash exit 23、delivery count 2、stale receipt rejection、唯一 terminal、approval recovery、deny 零 continuation 和 credential cleanup；change strict PASS；`git diff --check` PASS。当前 10/10 tasks 已完成，尚未通过实现三审，因此本节只记录候选，不宣称 `ready-to-archive`。
+
+### 6.28 Phase 13.5 发现修复、有效三审与主 Agent 复核
+
+首轮 reviewer B 指出两个 MEDIUM，主 Agent 依据原始文件逐项采纳：`DEV-PLAN.md` 摘要仍写“13.5 待实现/当前仍暴露”，与同文档 13.5 章节的实现状态冲突；change 的 proposal、design、tasks 和 DEV-PLAN 还引用不存在的 `templates/service-app/app/api/errors.py`。现已把摘要同步为“实现与自测完成、待三审”，并把错误 handler 的唯一真实来源统一为 `templates/service-app/app/main.py`。修复后定向 `35 passed`、quality、change strict、全量 OpenSpec `29 passed, 0 failed` 与 diff check 均通过；旧审查 PASS 因 tracked diff 失效。
+
+修复后的固定快照为 `ff7584d620b97990b9520a2cb9a325572691925728cece82c860255ee4ecf21b`。按 2+1 执行的有效 reviewer 为 A、B、D；C 因仓库级搜索意外暴露本报告一行而由主 Agent 当场作废，未参与裁决。A、B、D 均直接读取相同原始范围，禁止读取本报告和彼此输出，分别独立运行六文件合同测试、quality、smoke-local、change strict、diff check 与 OpenAPI 重复调用探针。
+
+| Reviewer | Stage 1 / Spec | Stage 2 / Standards | 发现与证据 |
+|---|---|---|---|
+| A | PASS | PASS | HIGH 0 / MEDIUM 0 / LOW 0；六文件合同 `56 passed`，quality、smoke-local、strict、diff check 全通过；开始/结束 hash 均为 `ff7584...f21b`。 |
+| B | PASS | PASS | HIGH 0 / MEDIUM 0 / LOW 0；确认五个精确 status/schema、真实 422、EVL allowlist、无 scope creep；开始/结束 hash 均为 `ff7584...f21b`。 |
+| D | PASS | PASS | HIGH 0 / MEDIUM 0 / LOW 0；使用显式文件白名单，未读取本报告；六文件合同 `56 passed`，quality、smoke-local、strict、diff check 全通过；排除报告后的开始/结束 hash 均为 `6ef0eb...c1d1`。 |
+
+主 Agent 不按票数裁决：三份 PASS 均由 `runs.py` operation-specific response、`main.py` 唯一 factory、真实 `create_app().openapi()`、三条 422 ASGI 请求和独立命令输出支持；两个测试矩阵分别锁五个 RUN 精确集合与全 P0 surface，职责不同且未从生产常量派生，不构成自证或维护缺陷。Phase 13.5 因而达到 `ready-to-archive`，但不自动归档；AC-017 仍因 RUN-006 留待 Phase 13.9 而保持未完成，Phase 14/15 也保持未完成。
+
 ## 7. 覆盖矩阵
 
 本节先固定文档层 `REQ/AC -> Phase -> endpoint/schema/error/security -> 当前验收证据/缺口`。第 6 点 capability 审查继续在同一矩阵上补充 OpenSpec、生产符号和 unit/contract/integration/eval/smoke 的逐项证据；当前不得把“已规划”当作“已实现”。
@@ -687,7 +709,7 @@ B2 额外运行证据有效：`make test` 为 `325 passed, 13 skipped`；`make b
 | REQ-005；AC-010、AC-011、AC-012 已完成 | Phase 3、12 | repository/UoW/migration contracts，无新增公开 endpoint | tenant 边界、事务原子性、migration downgrade 拒绝条件 | SQLite/PostgreSQL repository 与 migration contracts；真实 service persistence 由 service smoke 复核。 |
 | REQ-006；AC-013、AC-014 已完成；canonical trace 关联缺口待补 | Phase 5、12、13、13.6A | RUN-001、RUN-002、RUN-004、RUN-005；RunCreateResponse/checkpoint/resume DTO | 409 invalid transition、503 queue unavailable；resume/approval 私有 lease 不进入公开 DTO；trace 缺失/冲突 fail closed | checkpoint/restart/idempotency、split API/worker contracts；`run-trace-correlation` 0/15，最终 smoke 分 local/service。 |
 | REQ-007；AC-015、AC-016 未完成 | Phase 6 summary seam、Phase 13.8 真实执行 | DLG-001、DelegationSummary、目标 RunDetailResponse | edge+policy+cycle/depth/budget、tenant、idempotency conflict、零副作用 deny | 当前只有 registry edge check 和调用方 summary；`agent-delegation-execution` 0/11，未实施。 |
-| REQ-008；AC-018 已完成，AC-017 未完成 | Phase 5、7、11、12、13.5、13.8、13.9 | AGT、RUN、APR、POL、EVL、HLT 全部 P0 endpoint；CLI doctor | 每个 operation 的精确 status、ApiErrorEnvelope、认证与可见性 | CLI doctor 与当前 route 存在；RUN-002～005 多余状态由 `run-openapi-contract-accuracy` 待修，RUN-006 由 13.9 待实现。 |
+| REQ-008；AC-018 已完成，AC-017 未完成 | Phase 5、7、11、12、13.5、13.8、13.9 | AGT、RUN、APR、POL、EVL、HLT 全部 P0 endpoint；CLI doctor | 每个 operation 的精确 status、ApiErrorEnvelope、认证与可见性 | CLI doctor 与当前 route 存在；RUN-001～005 精确状态已由 `run-openapi-contract-accuracy` 三审通过并停在 `ready-to-archive`，RUN-006 仍由 13.9 待实现。 |
 | REQ-009；AC-019、AC-020 已完成 | Phase 2、7 | 所有非 health P0 endpoint 的 identity/tenant context | 401 invalid/missing credential、403 policy、跨 tenant 404/403 不泄漏存在性 | auth/tenant/API contracts；第 6 点复核所有 route dependency 与 storage query。 |
 | REQ-010；AC-021、AC-022、AC-023、AC-024 已完成；ApprovalRecord trace 缺口待补 | Phase 2、4、7、12、13.6A | APR-001/001A/002、POL-001、RUN-001 input guardrail、tool module seam | require_approval/deny/audit；approval continuation 单次执行；目标 approval trace 必填且不可被 caller 覆盖 | HITL/policy/guardrail contracts 与 queued approval integration；当前 trace 仍 optional，13.6A 收口。 |
 | REQ-011；AC-025、AC-026、AC-027、AC-028 已完成 | Phase 8、12 | ToolInvocation/ArtifactRef/MCP DTO；P0 不暴露远程 tool HTTP route | workspace escape、allowlist、shell approval、输出截断、untrusted 标记 | tool registry/builtin/CLI/MCP/execution contracts；第 6 点复核真实故障路径。 |
@@ -709,10 +731,10 @@ B2 额外运行证据有效：`make test` 为 `325 passed, 13 skipped`；`make b
 |---|---|---|
 | `openspec validate --all --strict` | PASS | `29 passed, 0 failed`；六个 active change 单项 strict 亦全部 PASS，仅作为可解析证据。 |
 | `make quality` | PASS | Ruff format/check PASS；Pyright `0 errors`；import-boundary `ok`。 |
-| `make test` | PASS | `325 passed, 13 skipped`；由 B2 在固定快照运行。 |
+| `make test` | PASS | Phase 13.5 刷新为 `330 passed, 13 skipped`。 |
 | `make eval` | 待执行 | - |
-| `make smoke-local` | 待执行 | - |
-| `make smoke-service` | 待执行 | 真实 PostgreSQL/Redis service smoke，必须与离线测试分开报告。 |
+| `make smoke-local` | PASS | `smoke-local: ok`。 |
+| `make smoke-service` | PASS | 真实 PostgreSQL/Redis service smoke：`smoke-service: ok`、`workspace-outside=ok`、`wheel-only=ok`；与离线测试分开记录。 |
 | `make build` | PASS | wheel 与 sdist 成功生成。 |
 | `make license-check` | 待执行 | - |
 | `uv run pre-commit run --all-files` | 待执行 | - |
