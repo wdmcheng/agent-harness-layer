@@ -9,11 +9,11 @@
 
 #### Scenario: Quality command 可执行
 - **WHEN** 开发者运行 `make quality`
-- **THEN** 命令针对当前 Phase 1 code surface 运行 linting、格式检查、类型检查和 import boundary checks
+- **THEN** 命令针对当前受支持 code surface 运行 linting、格式检查、类型检查和 import boundary checks
 
 #### Scenario: Test command 可执行
 - **WHEN** 开发者运行 `make test`
-- **THEN** 命令运行 Phase 1 unit 和 contract test suite
+- **THEN** 命令运行当前 unit 和 contract test suite
 
 #### Scenario: Local smoke command 可执行
 - **WHEN** 开发者运行 `make smoke-local`
@@ -50,7 +50,7 @@
 - **THEN** `NOTICE` 存在，作为必需第三方声明和源码归因的记录位置
 
 ### Requirement: Pre-commit entrypoint 存在
-仓库 SHALL 提供 pre-commit configuration，指向 Phase 1 quality checks。
+仓库 SHALL 提供 pre-commit configuration，指向仓库 quality checks。
 
 #### Scenario: Pre-commit configuration 存在
 - **WHEN** 开发者检查仓库根目录

@@ -26,7 +26,7 @@ def _timestamp_columns() -> Sequence[sa.Column[Any]]:
 
 
 def upgrade() -> None:
-    """建立 Phase 12.5 唯一 schema，不回填或改写既有 eval case。"""
+    """建立 eval experiment 唯一 schema，不回填或改写既有 eval case。"""
 
     op.create_table(
         "eval_dataset_splits",
@@ -162,7 +162,7 @@ def downgrade() -> None:
         )
     }
     if any(counts.values()):
-        raise RuntimeError("0009 downgrade refused: Phase 12.5 eval evidence exists")
+        raise RuntimeError("0009 downgrade refused: eval experiment evidence exists")
 
     op.drop_table("harness_acceptance_records")
     op.drop_table("eval_experiments")

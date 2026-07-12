@@ -27,7 +27,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """任一 Phase 12.5 evidence 存在时拒绝回到会重跑 created 的旧代码。"""
+    """任一 eval experiment evidence 存在时拒绝回到会重跑 created 的旧代码。"""
 
     connection = op.get_bind()
     counts = {
@@ -39,4 +39,4 @@ def downgrade() -> None:
         )
     }
     if any(counts.values()):
-        raise RuntimeError("0011 downgrade refused: Phase 12.5 eval evidence exists")
+        raise RuntimeError("0011 downgrade refused: eval experiment evidence exists")

@@ -1,5 +1,15 @@
 # 变更记录
 
+## [v1.6] - 2026-07-12
+### 基线审查修正
+- 根据 Phase 1-13 基线审查和用户裁决，保留真实 delegation 与 SSE transport 的 P0 承诺；二者必须在 Phase 14/15 前通过聚焦 OpenSpec change 实现，当前保持未完成。
+- 将 P0 secrets 范围收窄为 env / Docker secret file 配置消费与全链路脱敏；抽象 SecretProvider、Vault/KMS adapter 明确放入 P1，并新增可执行验收标准。
+- 补充 model/embedding token、cost、latency trace 和性能 NFR 的可执行验收；这些行为缺口仍保持未完成，不以现有 DTO 或 JSON events seam冒充完成。
+- 同步 17 个有直接实现与合同测试证据的 AC 状态；新增 RUN-006 后 AC-017 重新打开。AC-008 仅有 loader 证据；AC-050 改为当前可审计的 REQ/AC -> production -> test evidence 追踪，同时保留新 change 必须先有 red 证据的过程门禁。
+- 明确 CI quality job 分别执行 `make quality` 与 `make test`，不再把 unit/contract tests 误写成 `make quality` 单命令的当前职责。
+- 补齐 Phase 12.5 的 EvalDatasetSplit、EvalExperiment、HarnessAcceptance 数据实体，并明确持久化业务实体必须直接携带 tenant_id。
+- 明确 Graph workflow 和 Redis session cache 为 P1 可选能力，修正架构 validator 的两个受控 crossing warning 记录；Phase 14、15 继续保持未完成。
+
 ## [v1.5] - 2026-07-12
 ### 状态同步
 - 根据用户显式归档指令，将 Phase 13 三个已完成 change 按依赖顺序同步到长期主规格并归档；仅同步生命周期状态，不修改需求语义。

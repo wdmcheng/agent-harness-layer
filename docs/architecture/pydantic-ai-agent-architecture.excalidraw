@@ -255,7 +255,28 @@
       "version": 3,
       "versionNonce": 745002587,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwb2jt7u9qr272",
+          "type": "arrow"
+        },
+        {
+          "id": "e-engine-access-stream",
+          "type": "arrow"
+        },
+        {
+          "id": "e-hitl-access",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwbyvzn2kdm6kq",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwbskeui7q4j1",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -338,11 +359,11 @@
       "width": 140,
       "height": 70,
       "angle": 0,
-      "strokeColor": "#2563eb",
-      "backgroundColor": "#ffffff",
+      "strokeColor": "#d6b656",
+      "backgroundColor": "#fff2cc",
       "fillStyle": "solid",
       "strokeWidth": 1.5,
-      "strokeStyle": "solid",
+      "strokeStyle": "dashed",
       "roughness": 0.35,
       "opacity": 100,
       "groupIds": [
@@ -482,7 +503,24 @@
       "version": 4,
       "versionNonce": 1927570677,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwb2jt7u9qr272",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwbahnnonveood",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwb3z2shjtxtc4",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwb804xinjyhta",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -647,7 +685,12 @@
       "version": 4,
       "versionNonce": 697832987,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "e-hitl-access",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -741,7 +784,28 @@
       "version": 5,
       "versionNonce": 338936437,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwbahnnonveood",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwbecu6q5k1vkn",
+          "type": "arrow"
+        },
+        {
+          "id": "e-engine-access-stream",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwba3rjuqkihfa",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwbohvmc8pbqbm",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1000,7 +1064,24 @@
       "version": 5,
       "versionNonce": 841506805,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwbecu6q5k1vkn",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwbcfll5ry6umn",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwbov3zsjnxfg8",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwbo3893nu33y",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1259,7 +1340,20 @@
       "version": 6,
       "versionNonce": 807550325,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwbcfll5ry6umn",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwb9382nmvaoi5",
+          "type": "arrow"
+        },
+        {
+          "id": "mr74ffwbocgsac6cv7",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1340,7 +1434,7 @@
       "x": 710,
       "y": 1378,
       "width": 280,
-      "height": 46,
+      "height": 58,
       "angle": 0,
       "strokeColor": "#7c3aed",
       "backgroundColor": "#ffffff",
@@ -1434,9 +1528,9 @@
       "id": "infra-secrets",
       "type": "rectangle",
       "x": 710,
-      "y": 1436,
+      "y": 1430,
       "width": 280,
-      "height": 46,
+      "height": 58,
       "angle": 0,
       "strokeColor": "#ea580c",
       "backgroundColor": "#fff7ed",
@@ -1552,7 +1646,12 @@
       "version": 4,
       "versionNonce": 369998555,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwbyvzn2kdm6kq",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1584,7 +1683,12 @@
       "version": 4,
       "versionNonce": 1726231637,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwb3z2shjtxtc4",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1616,7 +1720,12 @@
       "version": 6,
       "versionNonce": 266839931,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwba3rjuqkihfa",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1628,7 +1737,7 @@
       "x": 60,
       "y": 1034,
       "width": 200,
-      "height": 62,
+      "height": 74,
       "angle": 0,
       "strokeColor": "#0288d1",
       "backgroundColor": "#c7efff",
@@ -1648,7 +1757,12 @@
       "version": 6,
       "versionNonce": 23388597,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwbov3zsjnxfg8",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1680,7 +1794,12 @@
       "version": 5,
       "versionNonce": 1562050587,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwb9382nmvaoi5",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1712,7 +1831,12 @@
       "version": 3,
       "versionNonce": 1445520149,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwbskeui7q4j1",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1744,7 +1868,12 @@
       "version": 4,
       "versionNonce": 664421563,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwb804xinjyhta",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1776,7 +1905,12 @@
       "version": 5,
       "versionNonce": 1772468341,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwbohvmc8pbqbm",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1808,7 +1942,12 @@
       "version": 5,
       "versionNonce": 923268443,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwbo3893nu33y",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1840,7 +1979,12 @@
       "version": 5,
       "versionNonce": 362865109,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "mr74ffwbocgsac6cv7",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false,
@@ -1885,8 +2029,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "layer-access",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "layer-runtime",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -1931,8 +2083,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "layer-runtime",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "layer-engine",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -1977,8 +2137,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "layer-engine",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "layer-tools",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": "arrow",
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2023,8 +2191,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "layer-tools",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "layer-infra",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2069,8 +2245,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "l-evals-access",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "layer-access",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2115,8 +2299,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "l-evals-runtime",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "layer-runtime",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2161,8 +2353,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "l-evals-engine",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "layer-engine",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2207,8 +2407,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "l-evals-tools",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "layer-tools",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2253,8 +2461,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "l-evals-infra",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "layer-infra",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2299,8 +2515,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "layer-access",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "r-log-access",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2345,8 +2569,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "layer-runtime",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "r-log-runtime",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2391,8 +2623,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "layer-engine",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "r-log-engine",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2437,8 +2677,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "layer-tools",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "r-log-tools",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2483,8 +2731,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "layer-infra",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "r-log-infra",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -2526,9 +2782,9 @@
       "id": "left-label",
       "type": "text",
       "x": 62,
-      "y": 188,
+      "y": 180,
       "width": 205,
-      "height": 44,
+      "height": 60,
       "angle": 0,
       "strokeColor": "#075985",
       "backgroundColor": "transparent",
@@ -2548,13 +2804,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "左翼：Eval Gate\nPydantic Evals / Ragas / DeepEval",
-      "fontSize": 15,
+      "text": "左翼：Eval Gate\n当前：internal EvalRunner / pytest\n可选未接入：Pydantic Evals / Ragas / DeepEval",
+      "fontSize": 12,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "左翼：Eval Gate\nPydantic Evals / Ragas / DeepEval",
+      "originalText": "左翼：Eval Gate\n当前：internal EvalRunner / pytest\n可选未接入：Pydantic Evals / Ragas / DeepEval",
       "lineHeight": 1.25,
       "index": "b2V",
       "autoResize": true
@@ -2721,7 +2977,7 @@
       "width": 124,
       "height": 30,
       "angle": 0,
-      "strokeColor": "#2563eb",
+      "strokeColor": "#9a6700",
       "backgroundColor": "transparent",
       "fillStyle": "hachure",
       "strokeWidth": 1,
@@ -2741,13 +2997,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "WebSocket / SSE\n流式响应 / 事件推送",
+      "text": "P0 待实现 SSE Adapter\n当前 JSON seam；P1 可选 WS",
       "fontSize": 10,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "WebSocket / SSE\n流式响应 / 事件推送",
+      "originalText": "P0 待实现 SSE Adapter\n当前 JSON seam；P1 可选 WS",
       "lineHeight": 1.25,
       "index": "b2a",
       "autoResize": true
@@ -2897,13 +3153,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "Graph Nodes\nBaseNode 业务步骤",
+      "text": "P1 目标扩展位：Graph Nodes\nBaseNode 业务步骤",
       "fontSize": 12,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "Graph Nodes\nBaseNode 业务步骤",
+      "originalText": "P1 目标扩展位：Graph Nodes\nBaseNode 业务步骤",
       "lineHeight": 1.25,
       "index": "b2e",
       "autoResize": true
@@ -2936,13 +3192,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "GraphState\n强类型全局状态",
+      "text": "P1 目标扩展位：GraphState\n强类型全局状态",
       "fontSize": 12,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "GraphState\n强类型全局状态",
+      "originalText": "P1 目标扩展位：GraphState\n强类型全局状态",
       "lineHeight": 1.25,
       "index": "b2f",
       "autoResize": true
@@ -3053,13 +3309,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "REPL / Lifecycle Hooks\n运行时事件与干预",
+      "text": "目标扩展位：REPL / Hooks\n运行时事件与干预",
       "fontSize": 12,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "REPL / Lifecycle Hooks\n运行时事件与干预",
+      "originalText": "目标扩展位：REPL / Hooks\n运行时事件与干预",
       "lineHeight": 1.25,
       "index": "b2i",
       "autoResize": true
@@ -3287,13 +3543,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "Compact / Memory\n冷热记忆 / 上下文收敛",
+      "text": "当前 Context Compact seam\n历史裁剪 / 上下文收敛",
       "fontSize": 12,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "Compact / Memory\n冷热记忆 / 上下文收敛",
+      "originalText": "当前 Context Compact seam\n历史裁剪 / 上下文收敛",
       "lineHeight": 1.25,
       "index": "b2o",
       "autoResize": true
@@ -3599,13 +3855,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "PostgreSQL Core Data\n关系 / 元数据 / 索引 · RLS 租户隔离",
+      "text": "PostgreSQL Core Data\n当前：orchestrator 校验 + 部分 repository 过滤；未来：RLS",
       "fontSize": 11,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "PostgreSQL Core Data\n关系 / 元数据 / 索引 · RLS 租户隔离",
+      "originalText": "PostgreSQL Core Data\n当前：orchestrator 校验 + 部分 repository 过滤；未来：RLS",
       "lineHeight": 1.25,
       "index": "b2w",
       "autoResize": true
@@ -3614,9 +3870,9 @@
       "id": "infra-redis-text",
       "type": "text",
       "x": 718,
-      "y": 1386,
+      "y": 1384,
       "width": 264,
-      "height": 30,
+      "height": 45,
       "angle": 0,
       "strokeColor": "#7c3aed",
       "backgroundColor": "transparent",
@@ -3638,13 +3894,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "Redis / Queue\n会话缓存 / 异步任务",
-      "fontSize": 12,
+      "text": "Redis / Queue\n当前：Redis Streams durable RunQueue\n未来可选：session cache",
+      "fontSize": 11,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "Redis / Queue\n会话缓存 / 异步任务",
+      "originalText": "Redis / Queue\n当前：Redis Streams durable RunQueue\n未来可选：session cache",
       "lineHeight": 1.25,
       "index": "b2x",
       "autoResize": true
@@ -3731,9 +3987,9 @@
       "id": "infra-secrets-text",
       "type": "text",
       "x": 718,
-      "y": 1444,
+      "y": 1436,
       "width": 264,
-      "height": 30,
+      "height": 50,
       "angle": 0,
       "strokeColor": "#ea580c",
       "backgroundColor": "transparent",
@@ -3755,13 +4011,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "Secrets / KMS / SM Crypto\n密钥、国密、合规加解密",
-      "fontSize": 12,
+      "text": "Secrets\n当前：env + redaction\nP0 待实现：Docker secret file 消费\nP1：SecretProvider / KMS",
+      "fontSize": 10,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "Secrets / KMS / SM Crypto\n密钥、国密、合规加解密",
+      "originalText": "Secrets\n当前：env + redaction\nP0 待实现：Docker secret file 消费\nP1：SecretProvider / KMS",
       "lineHeight": 1.25,
       "index": "b30",
       "autoResize": true
@@ -3833,13 +4089,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "工程闭环：线上低分 Trace → Eval Case；Evals 带版本/实验标签写入观测平台（Logfire / Langfuse / Phoenix）\nPrompt / 策略版本统一入 Registry，可回溯对比",
+      "text": "工程闭环：线上低分 Trace → Eval Case；Evals 带版本/实验标签写入观测平台（Logfire / Langfuse / Phoenix）；\nPrompt / 策略版本统一入 Registry，可回溯对比",
       "fontSize": 12,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "工程闭环：线上低分 Trace → Eval Case；Evals 带版本/实验标签写入观测平台（Logfire / Langfuse / Phoenix）\nPrompt / 策略版本统一入 Registry，可回溯对比",
+      "originalText": "工程闭环：线上低分 Trace → Eval Case；Evals 带版本/实验标签写入观测平台（Logfire / Langfuse / Phoenix）；\nPrompt / 策略版本统一入 Registry，可回溯对比",
       "lineHeight": 1.25,
       "index": "b32",
       "autoResize": true
@@ -3872,13 +4128,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "Access Evals\npytest / Pydantic Evals",
+      "text": "Access Evals\npytest / internal EvalRunner",
       "fontSize": 12,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "Access Evals\npytest / Pydantic Evals",
+      "originalText": "Access Evals\npytest / internal EvalRunner",
       "lineHeight": 1.25,
       "index": "b33",
       "autoResize": true
@@ -3950,13 +4206,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "Engine Evals\nPydantic Evals / DeepEval",
+      "text": "Engine Evals\n当前：internal EvalRunner",
       "fontSize": 12,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "Engine Evals\nPydantic Evals / DeepEval",
+      "originalText": "Engine Evals\n当前：internal EvalRunner",
       "lineHeight": 1.25,
       "index": "b35",
       "autoResize": true
@@ -3965,9 +4221,9 @@
       "id": "l-evals-tools-text",
       "type": "text",
       "x": 68,
-      "y": 1050,
+      "y": 1049,
       "width": 184,
-      "height": 30,
+      "height": 45,
       "angle": 0,
       "strokeColor": "#0288d1",
       "backgroundColor": "transparent",
@@ -3989,13 +4245,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "RAG / Tool Evals\nRagas / Mock / Safety",
-      "fontSize": 12,
+      "text": "RAG / Tool Evals\n当前：Mock / Safety\n未来可选：Ragas",
+      "fontSize": 11,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "RAG / Tool Evals\nRagas / Mock / Safety",
+      "originalText": "RAG / Tool Evals\n当前：Mock / Safety\n未来可选：Ragas",
       "lineHeight": 1.25,
       "index": "b36",
       "autoResize": true
@@ -4028,13 +4284,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "Release Gate\n集成冒烟 / 阈值门禁",
+      "text": "待实现 Phase 15\nRelease Gate / CI 阈值门禁",
       "fontSize": 12,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "Release Gate\n集成冒烟 / 阈值门禁",
+      "originalText": "待实现 Phase 15\nRelease Gate / CI 阈值门禁",
       "lineHeight": 1.25,
       "index": "b37",
       "autoResize": true
@@ -4106,13 +4362,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "Runtime Spans\nGraphState / 分支 / HITL",
+      "text": "Runtime Spans\n当前：run / checkpoint / HITL\n未来：GraphState / 分支",
       "fontSize": 12,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "Runtime Spans\nGraphState / 分支 / HITL",
+      "originalText": "Runtime Spans\n当前：run / checkpoint / HITL\n未来：GraphState / 分支",
       "lineHeight": 1.25,
       "index": "b39",
       "autoResize": true
@@ -4262,13 +4518,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "Hybrid Retrieval — P0：pgvector + FTS/BM25 + PGroonga(CJK)；备选：OpenSearch / Elasticsearch / Vespa\n调用形态：作为 @agent.tool 暴露、模型自主调用 · ⚠ 检索内容一律按不可信输入处理",
+      "text": "Hybrid Retrieval — P0 必备：FTS/BM25；可选 adapter：pgvector / PGroonga(CJK)；未来：OpenSearch / Elasticsearch / Vespa\n调用形态：作为 @agent.tool 暴露、模型自主调用 · ⚠ 检索内容一律按不可信输入处理",
       "fontSize": 11,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "Hybrid Retrieval — P0：pgvector + FTS/BM25 + PGroonga(CJK)；备选：OpenSearch / Elasticsearch / Vespa\n调用形态：作为 @agent.tool 暴露、模型自主调用 · ⚠ 检索内容一律按不可信输入处理",
+      "originalText": "Hybrid Retrieval — P0 必备：FTS/BM25；可选 adapter：pgvector / PGroonga(CJK)；未来：OpenSearch / Elasticsearch / Vespa\n调用形态：作为 @agent.tool 暴露、模型自主调用 · ⚠ 检索内容一律按不可信输入处理",
       "lineHeight": 1.25,
       "index": "b3D",
       "autoResize": true
@@ -4356,11 +4612,11 @@
       "width": 220,
       "height": 50,
       "angle": 0,
-      "strokeColor": "#ea580c",
-      "backgroundColor": "#fff7ed",
+      "strokeColor": "#d6b656",
+      "backgroundColor": "#fff2cc",
       "fillStyle": "solid",
       "strokeWidth": 1.5,
-      "strokeStyle": "solid",
+      "strokeStyle": "dashed",
       "roughness": 0.35,
       "opacity": 100,
       "groupIds": [
@@ -4390,7 +4646,7 @@
       "width": 204,
       "height": 25,
       "angle": 0,
-      "strokeColor": "#ea580c",
+      "strokeColor": "#d6b656",
       "backgroundColor": "transparent",
       "fillStyle": "hachure",
       "strokeWidth": 1,
@@ -4410,13 +4666,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "在线预算与异步记忆压缩\n主链路轻量控制 / 后台队列压缩",
+      "text": "未来复杂 memory 策略\n长期记忆 / 异步后台压缩",
       "fontSize": 10,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "在线预算与异步记忆压缩\n主链路轻量控制 / 后台队列压缩",
+      "originalText": "未来复杂 memory 策略\n长期记忆 / 异步后台压缩",
       "lineHeight": 1.25,
       "createdAt": "2026-07-05T02:36:19.000Z",
       "updatedAt": "2026-07-05T02:36:19.000Z",
@@ -4485,13 +4741,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "防篡改审计\n双写不可变日志 / 哈希链",
+      "text": "未来增强：防篡改审计\n不可变日志 / 哈希链",
       "fontSize": 10,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "防篡改审计\n双写不可变日志 / 哈希链",
+      "originalText": "未来增强：防篡改审计\n不可变日志 / 哈希链",
       "lineHeight": 1.25,
       "createdAt": "2026-07-05T02:36:19.000Z",
       "updatedAt": "2026-07-05T02:36:19.000Z",
@@ -4764,13 +5020,13 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "service profile\nAPI + Runtime Worker\n可分离进程",
+      "text": "service profile（已实现）\nAPI + Runtime Worker\n物理分进程",
       "fontSize": 11,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "service profile\nAPI + Runtime Worker\n可分离进程",
+      "originalText": "service profile（已实现）\nAPI + Runtime Worker\n物理分进程",
       "lineHeight": 1.25,
       "index": "b3R",
       "autoResize": true
@@ -5058,13 +5314,13 @@
       "updated": 1783330662848,
       "link": null,
       "locked": false,
-      "text": "工作流驱动：Graph 节点调用 Agent",
+      "text": "目标工作流：Graph 节点调用 Agent",
       "fontSize": 11,
       "fontFamily": 2,
       "textAlign": "left",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "工作流驱动：Graph 节点调用 Agent",
+      "originalText": "目标工作流：Graph 节点调用 Agent",
       "lineHeight": 1.25,
       "index": "b3Z",
       "autoResize": true
@@ -5072,10 +5328,10 @@
     {
       "id": "e-engine-access-stream",
       "type": "arrow",
-      "x": 370,
-      "y": 745,
-      "width": 28,
-      "height": 435,
+      "x": 1005,
+      "y": 640,
+      "width": 55,
+      "height": 293,
       "angle": 0,
       "strokeColor": "#2563eb",
       "backgroundColor": "transparent",
@@ -5102,22 +5358,21 @@
           0,
           0
         ],
-        [
-          -28,
-          0
-        ],
-        [
-          -28,
-          -435
-        ],
-        [
-          0,
-          -435
-        ]
+        [0, -125],
+        [55, -125],
+        [55, -293]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "layer-engine",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "layer-access",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
@@ -5145,8 +5400,8 @@
       "y": 352.3288457264542,
       "width": 170,
       "height": 28,
-      "strokeColor": "#2563eb",
-      "backgroundColor": "#eff6ff",
+      "strokeColor": "#d6b656",
+      "backgroundColor": "#fff2cc",
       "groupIds": [
         "group-stream-return-label"
       ],
@@ -5163,7 +5418,7 @@
       "width": 158,
       "height": 13.75,
       "angle": 0,
-      "strokeColor": "#2563eb",
+      "strokeColor": "#9a6700",
       "backgroundColor": "transparent",
       "fillStyle": "hachure",
       "strokeWidth": 1,
@@ -5183,13 +5438,13 @@
       "updated": 1783330654964,
       "link": null,
       "locked": false,
-      "text": "■ 流式回传 SSE / WS",
+      "text": "■ P0 待实现 SSE；P1 可选 WS",
       "fontSize": 11,
       "fontFamily": 2,
       "textAlign": "left",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "■ 流式回传 SSE / WS",
+      "originalText": "■ P0 待实现 SSE；P1 可选 WS",
       "lineHeight": 1.25,
       "index": "b3c",
       "autoResize": true
@@ -5197,10 +5452,10 @@
     {
       "id": "e-hitl-access",
       "type": "arrow",
-      "x": 395,
-      "y": 547,
-      "width": 202,
-      "height": 200,
+      "x": 535,
+      "y": 571,
+      "width": 460,
+      "height": 233,
       "angle": 0,
       "strokeColor": "#ea580c",
       "backgroundColor": "transparent",
@@ -5227,26 +5482,23 @@
           0,
           0
         ],
-        [
-          -37,
-          0
-        ],
-        [
-          -37,
-          -154
-        ],
-        [
-          165,
-          -154
-        ],
-        [
-          165,
-          -200
-        ]
+        [0, 9],
+        [460, 9],
+        [460, -56],
+        [300, -56],
+        [300, -224]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "runtime-hitl",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "layer-access",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": "arrow",
       "endArrowhead": "arrow",
       "elbowed": false,

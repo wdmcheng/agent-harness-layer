@@ -1,7 +1,7 @@
 # storage-migration-uow Specification
 
 ## Purpose
-TBD - created by archiving change storage-migration-uow. Update Purpose after archive.
+定义 SQLite/PostgreSQL 共用的迁移、repository 与 Unit of Work 契约，使 P0 核心实体具备一致的租户隔离、事务边界、回滚语义和可验证 schema。
 ## Requirements
 ### Requirement: Async storage migration 创建 P0 核心 schema
 `agent_harness` package SHALL 提供 SQLAlchemy 2.0 async typed models 和 Alembic migration，用于创建 P0 所需的租户、session、run、checkpoint、event、trace、artifact、eval、policy 和 audit 核心表。

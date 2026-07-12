@@ -26,7 +26,7 @@ def timestamp_columns() -> Sequence[sa.Column[Any]]:
 
 
 def upgrade() -> None:
-    """补齐 Phase 11 eval case/run/score 关联字段，不删除既有薄表数据。"""
+    """补齐 eval case/run/score 关联字段，不删除既有薄表数据。"""
 
     with op.batch_alter_table("eval_cases") as batch_op:
         batch_op.add_column(sa.Column("agent_id", sa.String(length=255), nullable=True))
@@ -87,7 +87,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """回滚 Phase 11 schema 扩展，保留早期 eval_cases/eval_runs 薄表。"""
+    """回滚 eval schema 扩展，保留早期 eval_cases/eval_runs 薄表。"""
 
     op.drop_table("eval_scores")
     for index_name, table_name in [

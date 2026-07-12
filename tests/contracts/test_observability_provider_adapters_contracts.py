@@ -1,8 +1,8 @@
-"""Phase 10 observability provider adapter 的公开契约测试。
+"""Observability provider adapter 的公开契约测试。
 
-这些测试只穿过 Phase 10 的公共 seam：TelemetryFacade、trace context DTO、
+这些测试只穿过稳定公共 seam：TelemetryFacade、trace context DTO、
 provider adapter contract、typed config 和 doctor CLI。它们不要求真实 SaaS 账号，
-也不声明 Phase 11 的 eval case / score workflow 已经完成。
+也不声明 eval case / score workflow 已经完成。
 """
 
 from __future__ import annotations

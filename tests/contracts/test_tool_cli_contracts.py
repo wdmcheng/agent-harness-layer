@@ -1,4 +1,4 @@
-"""Phase 8 tools CLI 合同测试。"""
+"""Tools CLI 合同测试。"""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def _profile_with_agent_allowlist(
 
 
 def test_tools_cli_group_is_available(tmp_path: Path) -> None:
-    """CLI seam 是 Phase 8 的用户可见入口，必须至少能列出工具。"""
+    """CLI seam 是工具能力的用户可见入口，必须至少能列出工具。"""
 
     workspace = tmp_path / "workspace"
     workspace.mkdir()

@@ -24,12 +24,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Phase 10 provider adapters 是 optional fan-out；默认 local/jsonl 不依赖 SaaS SDK。
+# Provider adapters 是 optional fan-out；默认 local/jsonl 不依赖 SaaS SDK。
 observability = [
     "arize-phoenix==17.21.0",
     "langfuse==4.13.2",
     "logfire[httpx]==4.37.0",
-    # Logfire 4.37.0 当前约束 opentelemetry-sdk <1.43.0；Phase 10 先锁
+    # Logfire 4.37.0 当前约束 opentelemetry-sdk <1.43.0；该 optional extra 锁定
     # 可解析组合，避免 provider extra 声明成不可安装状态。
     "opentelemetry-api==1.42.1",
     "opentelemetry-exporter-otlp-proto-http==1.42.1",

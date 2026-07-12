@@ -1,4 +1,4 @@
-"""Phase 8 工具执行边界合同测试。
+"""工具执行边界合同测试。
 
 这些测试先锁公开 seam：API-Contract 文本、OpenAPI 无未声明 tools route、
 storage migration、ToolRegistry/FileTool/ShellTool/MCP DTO 和 import boundary。
@@ -39,7 +39,7 @@ EXPECTED_TOOL_ERROR_CODES = {
 
 
 def test_api_contract_declares_phase8_tool_seam_and_no_http_route() -> None:
-    """文档必须先固定 Phase 8 CLI/runtime seam，再允许实现代码进入。"""
+    """文档必须先固定 CLI/runtime seam，再允许实现代码进入。"""
 
     text = API_CONTRACT.read_text(encoding="utf-8")
 
@@ -62,7 +62,7 @@ def test_api_contract_declares_phase8_tool_seam_and_no_http_route() -> None:
 
 
 def test_openapi_does_not_expose_undocumented_tools_route() -> None:
-    """Phase 8 当前只开放 CLI/runtime/module seam，不偷偷加 HTTP tools route。"""
+    """当前只开放 CLI/runtime/module seam，不偷偷加 HTTP tools route。"""
 
     app = create_app(registry=cast(Any, object()))
     paths = set(app.openapi()["paths"])

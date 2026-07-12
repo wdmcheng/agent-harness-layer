@@ -58,8 +58,8 @@
 - **WHEN** 调用方通过 CLI 或 `POST /api/v1/agents/{agent_id}/runs` 请求不存在的 `agent_id`
 - **THEN** 系统在进入 `RunOrchestrator` 前通过 `AgentRegistry` 拒绝请求，并返回 `registry.agent_not_found`
 
-### Requirement: Delegation edge 默认受控
-系统 SHALL 从 agent descriptor 读取 delegation edge，并提供显式校验 seam；未声明 edge 时默认拒绝 agent 互调。声明过的 edge SHALL 产生 parent/child 归属摘要，使 delegated run 的 usage、budget 和 trace refs 可被 parent run 归并和审计。
+### Requirement: Delegation edge 与摘要接缝默认受控
+系统 SHALL 从 agent descriptor 读取 delegation edge，并提供显式校验 seam；未声明 edge 时默认拒绝 agent 互调。当前接缝只校验 edge，并可把调用方提供的 parent/child run、usage、budget 与 trace refs 组装为 `DelegationSummary`；它 MUST NOT 被解释为已经创建 child run、调用 target executor、持久化聚合或完成跨 agent 调度。
 
 #### Scenario: 未声明 delegation edge 被拒绝
 - **WHEN** agent A 请求委派给 agent B 且 A 的 descriptor 未声明 B
@@ -67,11 +67,11 @@
 
 #### Scenario: 已声明 delegation edge 允许继续
 - **WHEN** agent A 请求委派给 agent B 且 A 的 descriptor 已声明 B
-- **THEN** registry delegation check 返回允许结果，并生成包含 parent agent、target agent、parent run ref、delegated run ref、usage refs、budget summary 和 trace refs 的 delegation summary
+- **THEN** registry delegation check 返回允许结果；调用方可另行请求组装 delegation summary，但 registry 不创建或执行 child run
 
-#### Scenario: Delegated usage 归并到 parent run 摘要
-- **WHEN** delegated run 完成并上报 token、cost 和 trace refs
-- **THEN** parent run 可读取归并后的 delegated usage、budget impact 和 trace refs，不需要业务 agent 直接拼接 provider 原始事件
+#### Scenario: 调用方提供的摘要字段按原样收口
+- **WHEN** 调用方在已声明 edge 上提供 parent run、delegated run、usage、budget 和 trace refs
+- **THEN** registry 返回 provider-neutral `DelegationSummary`，但不声称这些 refs 已由 child execution 验证、持久化或归并到 parent run
 
 ### Requirement: ModelRouter 通过 provider-neutral 接缝执行路由和预算判断
 系统 SHALL 通过 `ModelProvider` interface 和 `ModelRouter` 选择默认/任务级模型，执行 timeout、fallback 和预算估算，并为 provider、budget 配置变更提供显式 reload/restart seam。

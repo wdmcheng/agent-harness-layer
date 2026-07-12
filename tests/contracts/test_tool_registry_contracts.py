@@ -1,4 +1,4 @@
-"""Phase 8 ToolRegistry 合同测试。"""
+"""ToolRegistry 合同测试。"""
 
 from __future__ import annotations
 

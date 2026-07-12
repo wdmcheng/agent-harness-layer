@@ -70,6 +70,7 @@ exclude = [
 extraPaths = [
     "packages/agent-harness/src",
     "templates/service-app",
+    "templates/service-app/scripts",
 ]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"

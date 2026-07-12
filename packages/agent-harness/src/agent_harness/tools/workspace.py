@@ -31,7 +31,7 @@ class WorkspacePolicy:
         return candidate
 
     def is_ignored(self, relative_path: str) -> bool:
-        """用轻量 glob 规则处理 `.agentignore`；Phase 8 不引入 gitignore 解析器。"""
+        """用轻量 glob 规则处理 `.agentignore`；该边界不引入 gitignore 解析器。"""
 
         normalized = relative_path.strip("/")
         for pattern in self._patterns:

@@ -38,7 +38,7 @@ def downgrade() -> None:
         )
     }
     if any(counts.values()):
-        raise RuntimeError("0010 downgrade refused: Phase 12.5 eval evidence exists")
+        raise RuntimeError("0010 downgrade refused: eval experiment evidence exists")
 
     with op.batch_alter_table("eval_experiments") as batch_op:
         batch_op.drop_column("execution_claim_expires_at")

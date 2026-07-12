@@ -100,9 +100,10 @@
 
 | Header | 必填 | 说明 |
 |---|---:|---|
-| `Accept` | No | 默认 `application/json`；未来 SSE endpoint 使用 `text/event-stream`。 |
+| `Accept` | No | 默认 `application/json`；P0 待实现 RUN-006 SSE 使用 `text/event-stream`。 |
 | `Content-Type` | Conditional | JSON mutating request 使用 `application/json`。 |
 | `X-Request-Id` | No | 调用方可传；服务端没有收到时生成 UUID，并写入响应 body 的 `request_id`。 |
+| `X-Trace-Id` | No | RUN-001 调用方可传受控 trace；`run-trace-correlation` 实现后，缺失时由 runtime 在业务副作用前生成 canonical trace，非法或已绑定其他 root run 的值必须 fail closed。 |
 | `Authorization` | Conditional | 认证 profile 启用 verifier 时必填 `Bearer <token>` 或等价 API key；local/dev profile 未配置 verifier 时由服务端注入默认身份。 |
 
 ### 4.4 通用响应格式
@@ -155,7 +156,7 @@
 |---:|---|
 | 200 | 同步读取或同步操作成功；当前 run create/cancel/resume 也返回 200。 |
 | 201 | 未来同步创建资源成功时可用；使用前必须更新本契约。 |
-| 202 | 未来异步排队成功时可用；必须返回 task/run id。 |
+| 202 | 当前 service profile 的 RUN-001 durable enqueue 成功；必须返回 run id。其他 endpoint 使用前必须单独声明。 |
 | 204 | 成功且无响应体。 |
 | 400 | 请求语义错误或 HTTPException 400。 |
 | 401 | 未认证或 token 无效；local/dev profile 未配置 verifier 时不要求 Authorization。 |
@@ -337,6 +338,7 @@
 - 同一 `run_id` 内 `seq` 单调递增。
 - terminal event 只能有一个，类型为 `run.completed`、`run.failed` 或 `run.cancelled`。
 - `reasoning.delta` 默认不对普通用户可见。
+- Phase 13.7 目标：`model.request.started`、`model.usage.updated` 与等价 embedding event 的单次调用关联固定写在 `payload.correlation.usage_call_id`，类型为非空 string。该值不得新增为 CanonicalEvent envelope 顶层字段，也不得进入 `ModelUsageEvidence`；TelemetryFacade 必须把同一值保留在 `TelemetryRecord.payload.correlation.usage_call_id`。当前 Phase 1-13 尚未实现这些 event type 与关联路径。
 - 大 payload 必须使用 `payload_ref`，并保留 checksum 或 artifact reference。
 
 ### 5.10 `AgentDescriptor`
@@ -469,6 +471,8 @@
 
 ### 5.15 `ApprovalRecord`
 
+当前生产 DTO/OpenAPI 仍允许 `trace_id=null`；`run-trace-correlation` 的目标契约是在迁移和运行时传播落地后将其收紧为必填。change 未实施前不得把目标必填状态当作当前能力。
+
 ```json
 {
   "approval_id": "approval_123",
@@ -500,7 +504,7 @@
 | `action` | string | Yes | 被审批动作。 |
 | `resource` | string | Yes | 被审批资源。 |
 | `reason` | string | Yes | 脱敏后的审批原因。 |
-| `trace_id` | string | No | 关联 trace。 |
+| `trace_id` | string | 目标 Yes；当前 No | run canonical trace；由 approval 从持久化 run context 继承，调用方不得覆盖。历史 nullable 数据由 `run-trace-correlation` 迁移收口。 |
 | `request_id` | string | No | 创建审批时的请求关联 ID。 |
 | `requested_by` | string | No | 创建审批的 actor user id。 |
 | `resolved_by` | string | No | 审批人 user id。 |
@@ -775,6 +779,51 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 | `evidence_refs` | string[] | Yes | comparison/holdout/regression evidence refs。 |
 | `followup_issue_ref` | string | No | rejected 或后续整改使用的安全逻辑引用。 |
 
+### 5.29 `ModelUsageEvidence`
+
+model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 agent 不得自行拼接 provider 原始 usage 或异常。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `usage_kind` | `model` / `embedding` | Yes | 调用类型。 |
+| `tenant_id` | string | Yes | 持久化 evidence 的直接租户归属，不得只从 run 推导。 |
+| `provider` | string | Yes | provider ID，不含 client 或 endpoint credential。 |
+| `model` | string | Yes | 实际模型 ID。 |
+| `input_tokens` | integer \| null | Yes | provider 可用时记录；不可用时为 null。 |
+| `output_tokens` | integer \| null | Yes | embedding 可为 null。 |
+| `cost_usd` | number \| null | Yes | provider/配置可计算时记录；不可用时为 null，不能伪造为 0。 |
+| `cost_status` | `reported` / `estimated` / `unavailable` | Yes | cost 来源。 |
+| `latency_ms` | integer | Yes | adapter 调用墙钟时延，必须大于等于 0。 |
+| `decision` | object | Yes | route、fallback、budget/policy decision 的 provider-neutral 摘要；`cost_status=estimated` 时必须包含安全的 `price_source_ref` 与 `price_source_version`，不得内联完整价目或 provider raw payload。 |
+| `run_id` | string | Yes | 所属 run。 |
+| `agent_id` | string | Yes | 所属 agent。 |
+| `request_id` | string | No | 请求关联 ID。 |
+| `trace_id` | string | Yes | 可与 CanonicalEvent、OTel 和 parent aggregation 对账的 trace ID。 |
+
+### 5.30 `DelegationSummary`
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `parent_run_id` | string | Yes | 发起 delegation 的 parent run。 |
+| `children` | object[] | Yes | 每项只含 child `run_id`、`agent_id`、status、usage evidence refs 和 trace refs。 |
+| `input_tokens` | integer | Yes | 已知 child model evidence 的输入 token 合计；任一 child 为 null 时不得把未知值当 0，且 `budget_status` 必须为 `incomplete`。 |
+| `output_tokens` | integer | Yes | 已知 child model evidence 的输出 token 合计；任一 child 为 null 时不得把未知值当 0，且 `budget_status` 必须为 `incomplete`。 |
+| `cost_usd` | number \| null | Yes | 所有可用 child cost 合计；存在 unavailable cost 时必须为 null，并在 `budget_status` 解释。 |
+| `budget_status` | `within_budget` / `exceeded` / `incomplete` | Yes | parent 对 child usage/cost 的预算影响。 |
+| `trace_refs` | string[] | Yes | 去重后的 child trace refs；不得包含 provider raw payload。 |
+
+### 5.31 `RunDetailResponse`
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `request_id` | string | Yes | 当前 API 请求关联 ID。 |
+| `run_id` | string | Yes | run 稳定 ID。 |
+| `agent_id` | string | Yes | 当前 agent。 |
+| `status` | `RunStatus` | Yes | 当前状态。 |
+| `terminal_event` | string \| null | Yes | terminal event type，非终态为 null。 |
+| `parent_run_id` | string \| null | Yes | child run 指向 parent；根 run 为 null。 |
+| `delegation_summary` | `DelegationSummary` \| null | Yes | parent run 的 durable 聚合；没有 child 时为 null。 |
+
 ## 6. Run API
 
 ### RUN-001 创建 agent-scoped run
@@ -782,13 +831,13 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `RUN-001` |
-| 状态 | 已实现 |
+| 状态 | 已实现。 |
 | 入口 / 调用方 | OpenAPI 调用方、service-app、未来 Access/API gateway；CLI 等价入口为 `agent-harness run <agent_id>` |
 | 用途 | 为指定 agent 创建一次 run，并通过 runtime seam 写入 run lifecycle 和 events。 |
 | 方法 | `POST` |
 | 路径 | `/api/v1/agents/{agent_id}/runs` |
 | 认证 | 已接入 `IdentityContext` dependency；local/dev 未配置 verifier 时注入默认身份，service/API key profile 要求 `Authorization: Bearer <token>` 或等价 API key；创建前必须通过 `run.create` policy check。 |
-| 请求头 | `Content-Type: application/json`；可选 `Accept: application/json`、`X-Request-Id`；认证 profile 启用 verifier 时必填 `Authorization: Bearer <token>` 或等价 API key。 |
+| 请求头 | `Content-Type: application/json`；可选 `Accept: application/json`、`X-Request-Id`、`X-Trace-Id`；认证 profile 启用 verifier 时必填 `Authorization: Bearer <token>` 或等价 API key。`run-trace-correlation` 实现后，缺失 trace 由服务端生成。 |
 | Path 参数 | `agent_id: string`，稳定 agent ID。Agent Registry 能力落地后必须由 `AgentRegistry` 校验存在性和重复性。 |
 | URL 参数 | none |
 | 请求体 | `AgentRunCreateRequest` |
@@ -796,8 +845,8 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 | 副作用 | local profile 写 run/checkpoint/events并 inline 执行；service profile 先写 `created+enqueue_pending` 私有状态，Redis接受并完成 queued/message/`run.queued` 对账后由独立 worker执行，API进程不得调用 executor。 |
 | 成功响应码 | local profile `200`；service profile queued成功 `202`。 |
 | 响应头 | 当前只保证 `Content-Type: application/json`；不保证 `X-Request-Id` response header。 |
-| 响应体 | `RunCreateResponse` |
-| 错误响应码 | `400 api.http_error`、`401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied` / `guardrail.denied`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`503 run.enqueue_unavailable`、`500 api.internal_error`。 |
+| 响应体 | `RunCreateResponse`。 |
+| 错误响应码 | 当前：`400 api.http_error`、`401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied` / `guardrail.denied`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`503 run.enqueue_unavailable`、`500 api.internal_error`。`run-trace-correlation` 目标新增 `409 trace.idempotency_conflict`。 |
 | 状态语义 | service 202 返回 `created`，且只有 Redis接受、repository保存 queued/message ref并发布唯一 `run.queued` 后才算成功；enqueue任一步失败返回503并保留可补投私有状态。同客户端 key重试复用原 run/operation/首次 request id；无客户端 key的新请求仍非幂等，但原 pending run由worker startup/pickup recovery补投。`completed/failed/cancelled` 表示 terminal；`waiting` 表示需要 approval 或 resume。私有 queue字段不进入响应/OpenAPI。 |
 | 安全规则 | API route 不得直接操作 ORM session、DBOS API 或 provider SDK；input 进入 runtime 前必须经过 `run.create` policy check 和 guardrail/trust 标注；无效 token 或缺少 `run.create` 权限不得创建 run。 |
 | 验证要求 | legacy route/OpenAPI 由 `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 锁定；service enqueue、身份 fencing 与 worker recovery 分别由 `test_split_runtime_execution_contracts.py`、`test_split_runtime_worker_recovery_contracts.py` 锁定；`make smoke-service` 必须在 workspace 外以真实 API key、PostgreSQL、Redis 和独立 worker证明 HTTP-to-worker、hard crash/reclaim、唯一 terminal 与重复提交同 run。认证/策略/HITL tests 必须覆盖无效 token 零 run/queue/audit、guardrail deny 和 require_approval。 |
@@ -807,7 +856,7 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `RUN-002` |
-| 状态 | 已实现 |
+| 状态 | 已实现基础 run detail；P0 待扩展为 `RunDetailResponse` 与 durable delegation aggregation。 |
 | 入口 / 调用方 | OpenAPI 调用方、service-app、未来 Access/API gateway。 |
 | 用途 | 按 `run_id` 读取 run 当前状态，不暴露 ORM model 或内部 handle。 |
 | 方法 | `GET` |
@@ -821,7 +870,7 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 | 副作用 | none。 |
 | 成功响应码 | `200` |
 | 响应头 | 当前只保证 `Content-Type: application/json`。 |
-| 响应体 | `RunCreateResponse` |
+| 响应体 | 当前为 `RunCreateResponse`；`agent-delegation-execution` 目标为 `RunDetailResponse`。实现切换必须与 route、OpenAPI 和 drift test 同一 change 落地。 |
 | 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`500 api.internal_error`。 |
 | 状态语义 | 调用方根据 `status` 和 `terminal_event` 判断继续轮询、读取 events、resume、cancel 或展示终态。 |
 | 安全规则 | 非当前 tenant 或不可见 run 必须返回 `404` 或 `403`，不能泄漏其他 tenant 的 run 是否存在。 |
@@ -832,7 +881,7 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `RUN-003` |
-| 状态 | 已实现为 JSON event read seam；SSE/WS adapter 属于后续输出协议，不是当前 route。 |
+| 状态 | 已实现为 JSON event read seam；P0 SSE transport 由待实现 RUN-006 承担，P1 可选 WS；都不是当前 route。 |
 | 入口 / 调用方 | OpenAPI 调用方、service-app、未来 SSE adapter、debug 工具、worker smoke。 |
 | 用途 | 按 `seq` 读取 `CanonicalEvent`，供断线恢复、debug、SSE/API resume 共用。 |
 | 方法 | `GET` |
@@ -845,7 +894,7 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 | 幂等性 | 幂等读取；同一 `after_seq` 可重复读取同一事件窗口。 |
 | 副作用 | none。 |
 | 成功响应码 | `200` |
-| 响应头 | 当前只保证 `Content-Type: application/json`。未来 SSE route 必须使用 `text/event-stream`，不能复用本 JSON route 伪装成 SSE。 |
+| 响应头 | 当前只保证 `Content-Type: application/json`。RUN-006 必须使用 `text/event-stream`，不能复用本 JSON route 伪装成 SSE。 |
 | 响应体 | `RunEventsResponse` |
 | 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`422 validation_error`、`500 api.internal_error`。 |
 | 状态语义 | 空数组表示当前没有新事件，不等于 run 已结束；terminal event 的 `terminal=true` 才是最终结算信号。 |
@@ -901,6 +950,31 @@ CLI/runtime/module seam 使用的工具调用 DTO；当前不暴露为 HTTP requ
 | 状态语义 | 普通 checkpoint 成功后返回新的 run status；如果完成则返回 terminal event。approval-gated checkpoint 的公开请求始终不改变 run/approval 状态。 |
 | 安全规则 | `resume_token` 必须属于 path 中的 `run_id` 并匹配 tenant/identity；错误 URL 不得推进其他 run。原始 token 即使同时匹配 approval context，也不足以执行 approval-gated 动作；该动作只能由 `APR-002` 取得私有 lease 后生成的 `ApprovalGrant` 经内部 resume seam 推进。 |
 | 验证要求 | contract tests 必须覆盖 token/run_id mismatch 先失败且不推进任一 run，并覆盖 approval-gated checkpoint 直接调用公开 `RUN-005` 返回 `409 run.invalid_transition`、tool handler 执行计数为零、token 未消费且 run/approval 状态不变。 |
+
+### RUN-006 流式读取 run events
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `RUN-006` |
+| 状态 | 规划中（P0）；不得用 RUN-003 JSON response 冒充 SSE。 |
+| 入口 / 调用方 | OpenAPI 调用方、service-app、未来 Access gateway。 |
+| 用途 | 将可见 `CanonicalEvent` 映射为 SSE frame，并按 `Last-Event-ID` 恢复未读事件。 |
+| 方法 | `GET` |
+| 路径 | `/api/v1/runs/{run_id}/events/stream` |
+| 认证 | 复用 RUN-003 的 IdentityContext、tenant/run 可见性和 event visibility policy。 |
+| 请求头 | `Accept: text/event-stream`；可选 `Last-Event-ID: <CanonicalEvent.seq>`、`X-Request-Id`、认证 profile 所需 `Authorization`。 |
+| Path 参数 | `run_id: string`。 |
+| URL 参数 | `include_internal: boolean=false`；true 时需要同 RUN-003 的额外权限。不得再接受 `after_seq`，避免两个续读真相源。 |
+| 请求体 | none |
+| 幂等性 | 幂等订阅；相同 `Last-Event-ID` 从同一后继 seq 开始。 |
+| 副作用 | none；读取不得创建 run/event/audit outcome，连接审计只能写脱敏 read evidence。 |
+| 成功响应码 | `200` |
+| 响应头 | `Content-Type: text/event-stream`、`Cache-Control: no-cache`；代理缓冲必须关闭或在部署文档明确。 |
+| 响应体 | SSE frame：`id=<seq>`、`event=<event_type>`、`data=<CanonicalEvent JSON>`；frame data 保留 event_version、terminal、visibility、request_id/trace_id。 |
+| 错误响应码 | 握手前使用 `401/403/404/422/500 ApiErrorEnvelope`；握手后错误转换为脱敏 `event: stream.error` frame 后关闭连接。 |
+| 状态语义 | 只发送 `seq > Last-Event-ID` 的可见事件；terminal event 发送后关闭。没有新事件时可发送 comment heartbeat，但 heartbeat 不占 CanonicalEvent seq。 |
+| 安全规则 | 默认隐藏 reasoning/internal event；header 必须解析为非负整数且属于当前 run 的 seq 空间；不得把 provider raw event、resume token、secret 或内部异常写入 frame。 |
+| 验证要求 | 局部 OpenAPI drift + transport contract 覆盖 content type、frame 映射、默认可见性、Last-Event-ID、非法 header 握手前错误、握手后错误、terminal 关闭与已有事件首 frame <1s。 |
 
 ## 7. Agent Registry API
 
@@ -1068,7 +1142,50 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 - Import-boundary tests 必须证明 MCP SDK 只出现在 `agent_harness.adapters.mcp` 或测试替身中。
 - SQLite local migration tests 和 PostgreSQL service smoke 必须把 `workspaces`、`tool_invocations` 与既有 core schema 的证据分开报告。
 
-## 10. Eval Gate API
+## 10. P0 Runtime Completion Seams
+
+### DLG-001 受控 agent delegation
+
+| 字段 | 约束 |
+|---|---|
+| 状态 | 规划中（P0）；现有 registry edge check 和手工 summary DTO 不是执行闭环。 |
+| 入口 | runtime/worker 注册的内置 `agent.delegate` tool/module seam；P0 不新增公开 delegation HTTP endpoint。 |
+| 请求 | parent `run_id`、source/target `agent_id`、child input、显式 idempotency key、IdentityContext、request/trace context。 |
+| 策略 | 先校验 source descriptor 的 delegation edge，再执行 `agent.delegate` PolicyEngine check；任一步 deny 都不得创建 child run、queue message、provider call 或业务 CanonicalEvent；允许写一次脱敏 policy/audit denial evidence。 |
+| 执行 | local profile 复用 orchestrator inline seam；service profile 复用 durable RunQueue。child `agent_runs.parent_run_id` 必须指向 parent，tenant/session/identity 不得由 child input 覆盖。 |
+| 预算 | child 继承 parent 剩余 token/cost/depth 上限；cycle、超深度或预算不足必须在创建 child 前稳定拒绝。 |
+| 幂等 | 规范化 request hash 覆盖 tenant、identity、parent/source/target、child input 与有效预算。同 key 同 hash 只产生一个 child run并重放 durable 结果；同 key 异 hash 返回 `delegation.idempotency_conflict`，且零 child/queue/provider/业务事件副作用。 |
+| 结果 | 返回 `DelegationSummary`；parent 聚合只能读取持久化 child run、`ModelUsageEvidence` 和 trace refs，不能相信业务 agent 手填 summary。 |
+| 错误 | `delegation.edge_denied`、`delegation.policy_denied`、`delegation.idempotency_conflict`、`delegation.cycle_detected`、`delegation.depth_exceeded`、`delegation.budget_exceeded`、`delegation.target_not_found`、`delegation.execution_failed`。 |
+| 安全 | 错误、event、audit 与 tool result 必须脱敏；跨 tenant target、provider raw usage、resume token 和本地路径不得进入公开 summary。 |
+| 验证 | deny 只允许 policy/audit evidence且无 child side effect、allow/local、service queue、同 key 同/异 hash、cycle/depth/budget、child failure、parent durable aggregation、trace/evidence refs 和 import boundary contract。 |
+
+### MOD-001 model / embedding usage evidence
+
+| 字段 | 约束 |
+|---|---|
+| 状态 | 规划中（P0）；当前 response/metadata 只有部分 token/latency 字段。 |
+| 入口 | provider adapter -> model/embedding router/facade -> EventBus/TelemetryFacade；业务 agent 只消费输出和稳定 DTO。 |
+| 生命周期 | 调用前发布 `model.request.started`；完成或受控失败后发布 `model.usage.updated` 或等价 embedding usage evidence。 |
+| 证据 | 每次调用产生 `ModelUsageEvidence`，包含 provider/model、token、cost 可用性、latency、route/fallback/budget decision、run/agent/trace。 |
+| cost | provider 未返回且无可验证价目配置时必须为 null + `unavailable`，不得写 0；估算值必须标 `estimated`。 |
+| 持久化 | local JSONL 与 service PostgreSQL event sink 保留 provider-neutral 摘要；大/raw provider payload 不落事件正文。 |
+| 安全 | secret、prompt 全文、embedding 原文、provider client/raw response 不得进入公开 DTO、event、trace 或 error。 |
+| 验证 | fake/model/embedding、reported/estimated/unavailable cost、fallback/policy required、失败脱敏、event seq/trace 关联、parent delegation aggregation 和业务 agent import boundary。 |
+
+### CFG-001 Docker secret file 配置加载
+
+| 字段 | 约束 |
+|---|---|
+| 状态 | 规划中（P0）；不引入 `SecretProvider` 抽象。 |
+| 入口 | 进程环境中的 `<BASE_ENV>_FILE`，例如 `AGENT_HARNESS_STORAGE__DSN_FILE`；去掉 `_FILE` 后复用既有 typed env path 解析。 |
+| 冲突 | 同时设置 `<BASE_ENV>` 与 `<BASE_ENV>_FILE` 必须结构化失败，不静默选择一个。 |
+| 文件 | 必须是受信 secret root 内的绝对、普通、非 symlink、UTF-8、非空文件；限制最大 64 KiB，只移除一个结尾换行。默认 service root 为 `/run/secrets`，测试可显式注入临时受信 root。 |
+| 合并顺序 | profile YAML -> agent YAML -> `.env` -> Docker secret file -> process env -> explicit overrides；冲突检查优先于 merge。 |
+| 错误 | `config.secret_file_invalid`，包含安全 field path 与修复提示，但不得包含文件内容、解析后的 secret 或受信 root 外绝对路径。 |
+| 验证 | 成功加载、direct/file 冲突、相对路径、目录、symlink、越界、空文件、非 UTF-8、超限、日志/error/health/doctor redaction 和 application startup failure。 |
+
+## 11. Eval Gate API
 
 ### EVL-001 draft eval case
 
@@ -1368,7 +1485,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 安全规则 | version 必须等于已比较 candidate；不得自动改写 prompt、tool description 或任何生产配置。 |
 | 验证要求 | policy/audit/atomicity/idempotency/version binding/side-effect counts/CLI 等价/OpenAPI contract tests。 |
 
-## 11. Health API
+## 12. Health API
 
 ### HLT-001 读取应用 health/capability 摘要
 
@@ -1395,7 +1512,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 安全规则 | response 只允许 kind/status/profile/request_id；禁止 DSN、Redis URL、password、token、endpoint credential、token env value、本机绝对路径和 provider 原始对象。 |
 | 验证要求 | contract tests 覆盖公开访问、X-Request-Id 透传、local/service summary、secret/绝对路径不泄漏、`HealthResponse` OpenAPI schema、500 `ApiErrorEnvelope`；service readiness 另由 PostgreSQL/Redis smoke 证明。 |
 
-## 12. 入口 / 调用方映射
+## 13. 入口 / 调用方映射
 
 | 入口 / 调用方 | 当前或目标接口 | 说明 |
 |---|---|---|
@@ -1405,29 +1522,33 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | `agent-harness approvals list/approve/deny` | 等价于 `APR-001` / `APR-002` 的 approval seam | CLI 不走 HTTP，但必须使用同一 `ApprovalService`、runtime resume 和 audit seam。 |
 | `agent-harness tools list/call` | 等价于 `TLS-001` / `TLS-002` 的 tool execution seam | CLI 不走 HTTP，但必须使用同一 `ToolRegistry`、PolicyEngine、workspace guard、artifact store、audit 和 DTO 语义。 |
 | runtime / worker tool call | 等价于 `TLS-003` 的 module seam | runtime/worker 必须通过 `ToolRegistry`，不得直接调用 FileTool、ShellTool、MCP SDK、subprocess 或文件系统危险操作。 |
-| OpenAPI 调用方 | `AGT-001`、`RUN-001` 到 `RUN-005`，后续保留 API | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
-| service-app FastAPI | `AGT-001`、`RUN-001` 到 `RUN-005` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
+| runtime / worker delegation | `DLG-001` module seam | 通过内置 `agent.delegate` 复用 registry、PolicyEngine、orchestrator/RunQueue、storage/event；P0 不新增远程 delegation route。 |
+| model / embedding adapter | `MOD-001` evidence seam | adapter 必须输出 provider-neutral `ModelUsageEvidence`，并通过 EventBus/TelemetryFacade 关联 run/trace；业务 agent 不拼 raw usage。 |
+| service config loader | `CFG-001` settings seam | `<BASE_ENV>_FILE` 只在受控 typed settings 边界读取；P0 不引入 SecretProvider。 |
+| OpenAPI 调用方 | 当前 `AGT-001`、`RUN-001` 到 `RUN-005`；P0 待实现 `RUN-006` | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
+| service-app FastAPI | 当前 `AGT-001`、`RUN-001` 到 `RUN-005`；P0 待实现 `RUN-006` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
 | runtime worker | 当前 service profile 独立进程；不暴露 HTTP 管理面 | worker 通过 runtime components消费 Redis queue，使用稳定 DBOS executor id并从 PostgreSQL恢复 execution identity/checkpoint；不直接泄漏 ORM/DBOS/provider对象。 |
 | HITL approval flow | `APR-001` / `APR-002` + runtime 内部 resume seam | approval continuation 必须关联 checkpoint、audit、tenant、identity、agent、run、action/resource 和 arguments hash；公开 `RUN-005` 只服务普通 checkpoint，不能执行 approval-gated 动作。 |
 | Eval review / experiment flow | `EVL-*` | draft 到 approved 必须人工确认，secret/隐私脱敏是写入门禁；experiment accept 必须有人审、policy/audit 和回归证据。 |
 | 当前 API/worker split | 所有 HTTP API + worker seam | API 与 worker 已物理分进程；数据只走 DTO、CanonicalEvent、repository/provider/facade，不传进程内可变对象；queue message必须携带 `request_id`、effective `idempotency_key`、`tenant_id`、`run_id`。下一步才是 tool/model gateway，再后是 observability/event pipeline；storage service仍待 repository contract 稳定。 |
 
-## 13. 流式与事件契约
+## 14. 流式与事件契约
 
 当前实现：
 
 - `GET /api/v1/runs/{run_id}/events` 返回 JSON `RunEventsResponse`。
 - 该 route 按 `after_seq` 读取 `CanonicalEvent`，不是 SSE 握手 endpoint。
 
-未来 SSE/WS adapter：
+P0 待实现 SSE 与 P1 可选 WS：
 
-- SSE/WS 是 Access 层输出协议，不能替代内部 `CanonicalEvent` 模型。
+- SSE 是 P0 Access 层输出协议，WS 是 P1 可选 adapter；二者都不能替代内部 `CanonicalEvent` 模型。
 - SSE event 必须由 `CanonicalEvent` 显式映射，保留 `seq`、`event_type`、`terminal`、`visibility` 和适用的 `trace_id/request_id`。
 - SSE adapter 必须把客户端 `Last-Event-ID` 映射为 `CanonicalEvent.seq` 续读起点；JSON events seam 继续使用 `after_seq`。
 - 断线恢复必须以 `seq` 为准；final 结算以 terminal event 为准。
 - 握手前错误走 `ApiErrorEnvelope`；握手后错误必须转成可序列化 event，且不得泄露 secret/provider 原始错误。
+- P0 endpoint、header、content type、可见性和性能验收以 `RUN-006` 为准；未实现前不得把 formatter 或 RUN-003 JSON route 标成 transport 已完成。
 
-## 14. OpenAPI 生成与漂移检查
+## 15. OpenAPI 生成与漂移检查
 
 当前必须保留：
 
@@ -1436,6 +1557,12 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 - `RunCreateResponse` schema 必须包含 `request_id`。
 - `RunCreateResponse` schema 不得包含 `resume_token`。
 - `ApiErrorEnvelope` 必须出现在已声明错误响应中。
+
+当前已知漂移（由 `run-openapi-contract-accuracy` 修复）：
+
+- run router 级共享 `responses` 让 RUN-002/003 等 operation 暴露其生产路径不可能返回的 `400/409/422/503`；必须改为 operation-specific response map。
+- RUN-002 当前仍引用 `RunCreateResponse`，`agent-delegation-execution` 才切换到 `RunDetailResponse`；两种状态必须由局部 drift test 分阶段锁定。
+- drift test 不仅检查必需状态存在，还必须拒绝 contract 未声明的额外 response status，避免共享 router metadata 扩张公开契约。
 
 每个新增或修改 endpoint 的开发门禁：
 
@@ -1457,12 +1584,13 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 
 新增 `approvals` 和 `policies` route 时，应按认证、策略、HITL 能力边界拆出对应 contract tests，不把所有 OpenAPI 检查堆进一个大测试。`agents` route 使用 `tests/contracts/test_agent_registry_model_context_contracts.py` 单独覆盖，认证/策略/HITL 还要补 401/403 和可见性检查。
 
-## 15. 契约验收清单
+## 16. 契约验收清单
 
 - [x] 已区分当前已实现 run API 与保留 API。
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
-- [x] 已固定当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则。
-- [x] 已明确 events JSON seam 与未来 SSE/WS adapter 的边界。
+- [ ] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致；`run-openapi-contract-accuracy` 修复额外 response status 后再勾选。
+- [x] 已明确当前 events JSON seam、P0 待实现 RUN-006 SSE 与 P1 可选 WS 的边界。
+- [x] 已固定 DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界，并保持为待实现状态。
 - [x] 已明确 `reasoning.delta` 默认不可见。
 - [x] 已明确 API route 不得暴露 ORM、DBOS、provider SDK 或进程内 handle。
 - [x] 已明确新增/修改 endpoint 必须先改本契约，再做局部 OpenAPI drift 检查。

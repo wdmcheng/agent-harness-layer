@@ -4,7 +4,9 @@ storage:
   kind: postgresql
   dsn: postgresql+asyncpg://agent_harness:agent_harness@localhost:55432/agent_harness
 queue:
-  # Redis 当前用于 service profile reachability 和未来 worker queue seam。
+  # API 与 worker 只依赖 RunQueue protocol；composition root 注入 RedisRunQueue。
+  # adapter 用 Streams 实现 enqueue/pickup/reclaim，并只在结果持久化后 fenced ACK；
+  # service smoke 同时验证 Redis reachability。
   kind: redis
   dsn: redis://localhost:56379/0
 observability:

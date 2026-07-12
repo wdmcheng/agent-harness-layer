@@ -14,7 +14,7 @@
 ## 当前部署边界
 
 - local profile 仍是单进程 SQLite/in-memory/local JSONL 开发形态。
-- service profile 当前由 PostgreSQL、Redis、migration、FastAPI API 和 runtime worker 组成；API 只认证、校验并排队，worker 持有稳定 DBOS executor id并负责 run/checkpoint/approval continuation。
+- service profile 当前由 PostgreSQL、Redis、migration、FastAPI API 和 runtime worker 组成；run create 与 approve continuation 由 API 经 `RunQueue` 分派，查询、校验和 deny 等控制面操作仍在 API 进程完成；worker 持有稳定 DBOS executor id，并负责 run/checkpoint/approve continuation。
 - API 与 worker 只交换 queue DTO、repository DTO 和 `CanonicalEvent` refs；`source_ref`、`trust_level`、context trace、guardrail/audit、tenant/run/request/trace correlation 必须跨边界保留。
 - 未来物理拆分顺序固定为 runtime worker（已拆）→ tool/model gateway → observability/event pipeline；storage service 仅在 repository contract 稳定后再拆。图中的紫色虚线仍表示未来边界，不代表当前 Compose 服务。
 

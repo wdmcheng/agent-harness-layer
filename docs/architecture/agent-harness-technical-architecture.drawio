@@ -8,16 +8,16 @@
         <mxCell id="title" value="技术架构图（Agent Harness Layer）" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#111827;align=center;verticalAlign=middle;" parent="1" vertex="1">
           <mxGeometry x="280" y="24" width="1260" height="44" as="geometry" />
         </mxCell>
-        <mxCell id="legend-current" value="已实现 Phase 1-8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;fontSize=12;" parent="1" vertex="1">
+        <mxCell id="legend-current" value="已实现 Phase 1-13" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="1" vertex="1">
           <mxGeometry x="40" y="28" width="190" height="24" as="geometry" />
         </mxCell>
-        <mxCell id="legend-future" value="待实现 Phase 9-15" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;fontSize=12;" parent="1" vertex="1">
+        <mxCell id="legend-future" value="待实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=11;dashed=1;" parent="1" vertex="1">
           <mxGeometry x="40" y="60" width="190" height="24" as="geometry" />
         </mxCell>
-        <mxCell id="legend-split" value="未来拆分 / P1+" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;fontSize=12;" parent="1" vertex="1">
+        <mxCell id="legend-split" value="未来拆分 / P1+" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
           <mxGeometry x="40" y="92" width="190" height="24" as="geometry" />
         </mxCell>
-        <mxCell id="legend-trust" value="信任边界 / 不可信输入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=13;dashed=1;fontSize=12;" parent="1" vertex="1">
+        <mxCell id="legend-trust" value="信任边界 / 不可信输入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
           <mxGeometry x="40" y="124" width="190" height="24" as="geometry" />
         </mxCell>
         <mxCell id="core" value="核心包 packages/agent-harness：稳定契约与运行时边界" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f8fafc;strokeColor=#334155;" parent="1" vertex="1">
@@ -26,11 +26,11 @@
         <mxCell id="template" value="模板应用 template service-app：薄 API / worker / profile 装配层" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f0f9ff;strokeColor=#0369a1;" parent="1" vertex="1">
           <mxGeometry x="1260" y="150" width="520" height="900" as="geometry" />
         </mxCell>
-        <mxCell id="contract-note" value="边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。&#10;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=Phase 9-15 或未来拆分，红虚线=信任边界。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
+        <mxCell id="contract-note" value="边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。&#10;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来物理拆分，红虚线=信任边界。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
           <mxGeometry x="250" y="1080" width="980" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="status-note" value="当前实现：Phase 1-8。黄色节点是 Phase 9-15 待实现，不代表已交付。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="1280" y="1080" width="500" height="60" as="geometry" />
+        <mxCell id="status-note" value="当前：Phase 1-13 已实现基础 seam；Phase 14-15 仍待实现。P0 待实现约束：&#10;1. usage_call_id 固定为 payload.correlation.usage_call_id，TelemetryRecord 保留同路径；不进入 ModelUsageEvidence。&#10;2. 估算价格来源固定为 decision.price_source_ref / decision.price_source_version。&#10;3. trace 迁移遇冲突非空值或孤立记录整批 fail closed。&#10;4. Approval trace 当前 nullable，目标 required，并从 run context 继承。&#10;5. nullable token 只累加已知值，任一未知则 budget_status=incomplete。&#10;6. SSE Last-Event-ID 必须属于当前已授权 run 的现有 seq。&#10;其余待实现：Run OpenAPI 精确性、Docker secret、真实 delegation 与性能门禁；紫色虚线=P1/未来拆分。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=11;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="1280" y="1040" width="500" height="210" as="geometry" />
         </mxCell>
         <mxCell id="dto" value="稳定载荷契约（DTO）&#10;HarnessDTO / ApiErrorEnvelope&#10;trust/source refs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="40" y="80" width="220" height="100" as="geometry" />
@@ -77,10 +77,10 @@
         <mxCell id="tools" value="已实现 Phase 8&#10;ToolRegistry&#10;File/Shell/MCP client&#10;output_guard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="350" y="770" width="230" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="retrieval" value="待实现 Phase 9&#10;检索能力&#10;RetrievalProvider / RAG&#10;trust_level" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;" parent="core" vertex="1">
+        <mxCell id="retrieval" value="已实现 Phase 9&#10;检索能力&#10;RetrievalProvider / RAG&#10;trust_level" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="620" y="770" width="220" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="providerobs" value="待实现 Phase 10-11&#10;观测 provider 与 Eval Gate&#10;score sink" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;" parent="core" vertex="1">
+        <mxCell id="providerobs" value="已实现 Phase 10-12.5&#10;观测、Eval Gate 与 experiment&#10;score sink / compare / acceptance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="870" y="800" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="fastapi" value="应用工厂&#10;FastAPI create_app()&#10;错误 envelope handler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
@@ -92,19 +92,19 @@
         <mxCell id="components" value="运行组件装配&#10;RuntimeComponents&#10;storage + event_sink&#10;+ orchestrator" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
           <mxGeometry x="40" y="260" width="210" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="worker" value="运行 worker 外壳&#10;--once fake run&#10;复用 runtime seam" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
+        <mxCell id="worker" value="运行 worker 外壳&#10;RunQueue protocol pickup/reclaim&#10;Redis adapter 隔离 / DBOS recovery" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
           <mxGeometry x="280" y="260" width="210" height="100" as="geometry" />
         </mxCell>
         <mxCell id="profiles" value="环境配置&#10;configs/profiles&#10;local.yaml / service.yaml&#10;storage/queue/policy&#10;模型路由/预算变更走 reload seam" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
           <mxGeometry x="40" y="430" width="210" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="sse" value="流式输出格式化&#10;SSE formatter&#10;CanonicalEvent -&gt; SSE&#10;Last-Event-ID -&gt; seq&#10;当前 JSON events seam" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
+        <mxCell id="sse" value="当前 SSE frame formatter&#10;当前 HTTP 仅 JSON events seam&#10;P0 待实现：SSE + Last-Event-ID&#10;P1 可选：WS adapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=12;dashed=1;" parent="template" vertex="1">
           <mxGeometry x="280" y="430" width="210" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="agentroutes" value="已实现 Phase 6&#10;Agent routes / registry smoke&#10;Phase 12 示例待实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
+        <mxCell id="agentroutes" value="已实现 Phase 6/12&#10;Agent routes / registry smoke&#10;四个 P0 示例 Agent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
           <mxGeometry x="40" y="610" width="210" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="authroutes" value="已实现 Phase 7&#10;认证/审批/策略 routes&#10;Eval API Phase 11 待实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
+        <mxCell id="authroutes" value="已实现 Phase 7-12.5&#10;认证/审批/策略 routes&#10;Eval API / experiment acceptance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
           <mxGeometry x="280" y="610" width="210" height="100" as="geometry" />
         </mxCell>
         <mxCell id="e-config-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" parent="1" edge="1" source="config" target="runtime">
@@ -179,11 +179,8 @@
         <mxCell id="e-policy-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="policy" target="runtime">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-tools-policy" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="tools" target="policy">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-retrieval-tools" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" parent="1" edge="1" source="retrieval" target="tools">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e-tools-policy" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="tools" target="policy">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="505" y="900" /><mxPoint x="640" y="900" /><mxPoint x="640" y="845" /></Array></mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>

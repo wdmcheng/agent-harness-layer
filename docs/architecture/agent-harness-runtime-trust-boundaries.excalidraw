@@ -95,14 +95,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "已实现 Phase 1-8",
+      "text": "已实现 Phase 1-13",
       "fontSize": 12,
       "fontFamily": 2,
       "fontString": "12px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "已实现 Phase 1-8",
+      "originalText": "已实现 Phase 1-13",
       "lineHeight": 1.25,
       "baseline": 14
     },
@@ -161,14 +161,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "待实现 Phase 9-15",
+      "text": "P0 待实现",
       "fontSize": 12,
       "fontFamily": 2,
       "fontString": "12px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "待实现 Phase 9-15",
+      "originalText": "P0 待实现",
       "lineHeight": 1.25,
       "baseline": 14
     },
@@ -310,7 +310,7 @@
       "x": 40,
       "y": 150,
       "width": 360,
-      "height": 860,
+      "height": 990,
       "angle": 0,
       "strokeColor": "#6c8ebf",
       "backgroundColor": "#e6f2ff",
@@ -376,7 +376,7 @@
       "x": 430,
       "y": 150,
       "width": 430,
-      "height": 860,
+      "height": 990,
       "angle": 0,
       "strokeColor": "#64748b",
       "backgroundColor": "#ffffff",
@@ -442,7 +442,7 @@
       "x": 900,
       "y": 150,
       "width": 430,
-      "height": 860,
+      "height": 990,
       "angle": 0,
       "strokeColor": "#5b8f5a",
       "backgroundColor": "#d5e8d4",
@@ -508,7 +508,7 @@
       "x": 1370,
       "y": 150,
       "width": 480,
-      "height": 860,
+      "height": 990,
       "angle": 0,
       "strokeColor": "#b85450",
       "backgroundColor": "#f8cecc",
@@ -572,7 +572,7 @@
       "id": "ex-trust-note",
       "type": "rectangle",
       "x": 300,
-      "y": 1050,
+      "y": 1180,
       "width": 930,
       "height": 90,
       "angle": 0,
@@ -601,7 +601,7 @@
       "id": "ex-trust-note-label",
       "type": "text",
       "x": 310,
-      "y": 1058,
+      "y": 1188,
       "width": 910,
       "height": 90,
       "angle": 0,
@@ -623,14 +623,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "信任边界：外部输入、tool/MCP output、retrieval chunk 进入上下文前必须带 source_ref、trust_level、truncation metadata；Phase 7-8 已接入 InputGuardrail、PolicyEngine、HITL、ToolRegistry、output_guard、artifact/audit evidence，retrieval chunk 仍属 Phase 9。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=Phase 9-15 或未来拆分，红虚线=信任边界。",
+      "text": "信任边界：外部输入、tool/MCP output、retrieval chunk 进入上下文前必须带 source_ref、trust_level、truncation metadata；InputGuardrail 只检查 API/CLI 输入，tool/MCP/retrieval 分别由 ToolRegistry、output_guard 与 retrieval context 收口。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=P0 待实现、未来 adapter 或拆分，红虚线=信任边界，线桥=交叉不连接。",
       "fontSize": 13,
       "fontFamily": 2,
       "fontString": "13px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "信任边界：外部输入、tool/MCP output、retrieval chunk 进入上下文前必须带 source_ref、trust_level、truncation metadata；Phase 7-8 已接入 InputGuardrail、PolicyEngine、HITL、ToolRegistry、output_guard、artifact/audit evidence，retrieval chunk 仍属 Phase 9。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=Phase 9-15 或未来拆分，红虚线=信任边界。",
+      "originalText": "信任边界：外部输入、tool/MCP output、retrieval chunk 进入上下文前必须带 source_ref、trust_level、truncation metadata；InputGuardrail 只检查 API/CLI 输入，tool/MCP/retrieval 分别由 ToolRegistry、output_guard 与 retrieval context 收口。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=P0 待实现、未来 adapter 或拆分，红虚线=信任边界，线桥=交叉不连接。",
       "lineHeight": 1.25,
       "baseline": 15
     },
@@ -638,9 +638,9 @@
       "id": "ex-stream-note",
       "type": "rectangle",
       "x": 1260,
-      "y": 1050,
+      "y": 1180,
       "width": 560,
-      "height": 70,
+      "height": 100,
       "angle": 0,
       "strokeColor": "#d79b00",
       "backgroundColor": "#ffe6cc",
@@ -667,9 +667,9 @@
       "id": "ex-stream-note-label",
       "type": "text",
       "x": 1270,
-      "y": 1058,
+      "y": 1188,
       "width": 540,
-      "height": 54,
+      "height": 84,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -689,14 +689,14 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "当前事件输出是 JSON read seam；SSE/WS 是输出协议，不替代 CanonicalEvent 内部模型；SSE 重连用 Last-Event-ID 映射 CanonicalEvent.seq。",
+      "text": "当前事件输出是 JSON read seam；P0 待实现 SSE transport。Last-Event-ID 是唯一 cursor，且非零值必须属于当前已授权 run 的现有 CanonicalEvent.seq；非法、其他 run、空洞或超过 max seq 均在握手前返回 422。WS 属于 P1 可选 adapter。",
       "fontSize": 13,
       "fontFamily": 2,
       "fontString": "13px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "当前事件输出是 JSON read seam；SSE/WS 是输出协议，不替代 CanonicalEvent 内部模型；SSE 重连用 Last-Event-ID 映射 CanonicalEvent.seq。",
+      "originalText": "当前事件输出是 JSON read seam；P0 待实现 SSE transport。Last-Event-ID 是唯一 cursor，且非零值必须属于当前已授权 run 的现有 CanonicalEvent.seq；非法、其他 run、空洞或超过 max seq 均在握手前返回 422。WS 属于 P1 可选 adapter。",
       "lineHeight": 1.25,
       "baseline": 15
     },
@@ -724,7 +724,12 @@
       "version": 1,
       "versionNonce": 9682,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-cli-req",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -790,7 +795,12 @@
       "version": 1,
       "versionNonce": 9744,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-api-req",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -856,7 +866,16 @@
       "version": 1,
       "versionNonce": 9806,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-jsonl-events",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-events-sse",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -922,7 +941,12 @@
       "version": 1,
       "versionNonce": 9868,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-events-sse",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -953,14 +977,14 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "未来流式输出\nSSE/WS adapter\ntext/event-stream\nLast-Event-ID -> seq\nCanonicalEvent 映射",
+      "text": "P0 待实现流式输出\nSSE text/event-stream\nLast-Event-ID -> seq\nCanonicalEvent 映射\nP1 可选 WS",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "未来流式输出\nSSE/WS adapter\ntext/event-stream\nLast-Event-ID -> seq\nCanonicalEvent 映射",
+      "originalText": "P0 待实现流式输出\nSSE text/event-stream\nLast-Event-ID -> seq\nCanonicalEvent 映射\nP1 可选 WS",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -988,7 +1012,20 @@
       "version": 1,
       "versionNonce": 9930,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-cli-req",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-api-req",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-req-orch",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1054,7 +1091,24 @@
       "version": 1,
       "versionNonce": 9992,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-queue-orch",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-orch-uow",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-orch-event",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-orch-state",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1085,14 +1139,14 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "运行编排\nRunOrchestrator\nstart/get/cancel/resume\n当前 fake run",
+      "text": "运行编排\nRunOrchestrator\nlocal 同进程 / service worker\nstart/get/cancel/resume",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "运行编排\nRunOrchestrator\nstart/get/cancel/resume\n当前 fake run",
+      "originalText": "运行编排\nRunOrchestrator\nlocal 同进程 / service worker\nstart/get/cancel/resume",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -1120,7 +1174,16 @@
       "version": 1,
       "versionNonce": 10054,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-orch-state",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-state-checkpoint",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1166,7 +1229,7 @@
       "id": "ex-checkpoint2",
       "type": "rectangle",
       "x": 480,
-      "y": 760,
+      "y": 980,
       "width": 300,
       "height": 100,
       "angle": 0,
@@ -1186,7 +1249,16 @@
       "version": 1,
       "versionNonce": 10116,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-state-checkpoint",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-hitl-checkpoint",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1217,14 +1289,14 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "检查点与恢复\nResumeToken\nexpected_run_id 校验",
+      "text": "检查点与恢复\n普通 resume：ResumeToken 校验\n审批 continuation：私有 lease / grant",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "检查点与恢复\nResumeToken\nexpected_run_id 校验",
+      "originalText": "检查点与恢复\n普通 resume：ResumeToken 校验\n审批 continuation：私有 lease / grant",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -1252,7 +1324,16 @@
       "version": 1,
       "versionNonce": 10178,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-orch-uow",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-uow-tables",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1318,7 +1399,12 @@
       "version": 1,
       "versionNonce": 10240,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-uow-tables",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1384,7 +1470,20 @@
       "version": 1,
       "versionNonce": 10302,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-orch-event",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-event-artifact2",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-event-jsonl",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1450,7 +1549,12 @@
       "version": 1,
       "versionNonce": 10364,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-event-artifact2",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1516,7 +1620,16 @@
       "version": 1,
       "versionNonce": 10426,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-event-jsonl",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-jsonl-events",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1547,14 +1660,14 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "本地事件落盘\nLocalJsonlEventSink\nCLI/API/SSE 读取同一事件",
+      "text": "事件持久化\nlocal：LocalJsonlEventSink\nservice：PostgreSQL event sink",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "本地事件落盘\nLocalJsonlEventSink\nCLI/API/SSE 读取同一事件",
+      "originalText": "事件持久化\nlocal：LocalJsonlEventSink\nservice：PostgreSQL event sink",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -1582,7 +1695,12 @@
       "version": 1,
       "versionNonce": 10488,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-input-guard",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1648,7 +1766,12 @@
       "version": 1,
       "versionNonce": 10550,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-tool-guard",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1714,7 +1837,12 @@
       "version": 1,
       "versionNonce": 10612,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-ret-context",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1745,23 +1873,89 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "待实现 Phase 9\nretrieval chunks\nsource_ref / trust_level",
+      "text": "已实现 Phase 9\nretrieval chunks\nsource_ref / trust_level",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "待实现 Phase 9\nretrieval chunks\nsource_ref / trust_level",
+      "originalText": "已实现 Phase 9\nretrieval chunks\nsource_ref / trust_level",
       "lineHeight": 1.25,
       "baseline": 16
     },
     {
+      "id": "ex-context_trust",
+      "type": "rectangle",
+      "x": 1390,
+      "y": 610,
+      "width": 210,
+      "height": 100,
+      "angle": 0,
+      "strokeColor": "#5b8f5a",
+      "backgroundColor": "#d5e8d4",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0.7,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {"type": 3},
+      "seed": 1910,
+      "version": 1,
+      "versionNonce": 10660,
+      "isDeleted": false,
+      "boundElements": [
+        {"id": "ex-e-ret-context", "type": "arrow"}
+      ],
+      "updated": 1783330617223,
+      "link": null,
+      "locked": false
+    },
+    {
+      "id": "ex-context_trust-label",
+      "type": "text",
+      "x": 1398,
+      "y": 618,
+      "width": 194,
+      "height": 84,
+      "angle": 0,
+      "strokeColor": "#111827",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 0.4,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": null,
+      "seed": 1911,
+      "version": 1,
+      "versionNonce": 10661,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1783330617223,
+      "link": null,
+      "locked": false,
+      "text": "已实现 Phase 6/9\nContextAssembler\nretrieval context\nsource/trust/truncation evidence",
+      "fontSize": 12,
+      "fontFamily": 2,
+      "fontString": "12px Helvetica",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": null,
+      "originalText": "已实现 Phase 6/9\nContextAssembler\nretrieval context\nsource/trust/truncation evidence",
+      "lineHeight": 1.25,
+      "baseline": 14
+    },
+    {
       "id": "ex-guardrail_future",
       "type": "rectangle",
-      "x": 1420,
+      "x": 1620,
       "y": 610,
-      "width": 300,
+      "width": 210,
       "height": 100,
       "angle": 0,
       "strokeColor": "#2f5597",
@@ -1780,7 +1974,20 @@
       "version": 2,
       "versionNonce": 10674,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-input-guard",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-guard-policy",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-tool-exec-guard",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617223,
       "link": null,
       "locked": false
@@ -1788,9 +1995,9 @@
     {
       "id": "ex-guardrail_future-label",
       "type": "text",
-      "x": 1428,
+      "x": 1628,
       "y": 618,
-      "width": 284,
+      "width": 194,
       "height": 84,
       "angle": 0,
       "strokeColor": "#111827",
@@ -1811,14 +2018,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "已实现 Phase 6/7\nContextAssembler\nInputGuardrail\nsource/trust/truncation trace",
-      "fontSize": 14,
+      "text": "已实现 Phase 7\nInputGuardrail\nAPI/CLI external input checks\ndecision + evidence",
+      "fontSize": 12,
       "fontFamily": 2,
-      "fontString": "14px Helvetica",
+      "fontString": "12px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "已实现 Phase 6/7\nContextAssembler\nInputGuardrail\nsource/trust/truncation trace",
+      "originalText": "已实现 Phase 7\nInputGuardrail\nAPI/CLI external input checks\ndecision + evidence",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -1846,7 +2053,16 @@
       "version": 2,
       "versionNonce": 10736,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-guard-policy",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-policy-hitl",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617223,
       "link": null,
       "locked": false
@@ -1877,14 +2093,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "已实现 Phase 7\nPolicyEngine\nallow / deny / require_approval\naudit evidence",
+      "text": "已实现 Phase 7\nPolicyEngine\nallow / deny / require_approval\ngates RunOrchestrator + audit evidence",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "已实现 Phase 7\nPolicyEngine\nallow / deny / require_approval\naudit evidence",
+      "originalText": "已实现 Phase 7\nPolicyEngine\nallow / deny / require_approval\ngates RunOrchestrator + audit evidence",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -1912,7 +2128,16 @@
       "version": 2,
       "versionNonce": 10798,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-policy-hitl",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-hitl-checkpoint",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617223,
       "link": null,
       "locked": false
@@ -1943,14 +2168,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "已实现 Phase 7\nHITL approval\napproval.required\napprove/deny -> resume",
+      "text": "已实现 Phase 7/13\napprove：lease/grant → continuation\ndeny：终止且不 continuation\n唯一 claim / fenced enqueue",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "已实现 Phase 7\nHITL approval\napproval.required\napprove/deny -> resume",
+      "originalText": "已实现 Phase 7/13\napprove：lease/grant → continuation\ndeny：终止且不 continuation\n唯一 claim / fenced enqueue",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -1993,8 +2218,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-cli",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-request_dto",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2033,13 +2266,29 @@
           0
         ],
         [
+          95,
+          0
+        ],
+        [
+          95,
+          -145
+        ],
+        [
           160,
           -145
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-api",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-request_dto",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2050,7 +2299,7 @@
       "x": 630,
       "y": 330,
       "width": 0,
-      "height": 70,
+      "height": 10,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2079,12 +2328,20 @@
         ],
         [
           0,
-          70
+          10
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-request_dto",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-run_queue",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2092,10 +2349,10 @@
     {
       "id": "ex-e-orch-uow",
       "type": "arrow",
-      "x": 780,
-      "y": 460,
-      "width": 170,
-      "height": -150,
+      "x": 630,
+      "y": 400,
+      "width": 470,
+      "height": 40,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2122,14 +2379,21 @@
           0,
           0
         ],
-        [
-          170,
-          -150
-        ]
+        [0, -5],
+        [470, -5],
+        [470, -40]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-orchestrator2",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-uow2",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2173,8 +2437,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-uow2",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-tables2",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2184,8 +2456,8 @@
       "type": "arrow",
       "x": 780,
       "y": 460,
-      "width": 170,
-      "height": 185,
+      "width": 320,
+      "height": 130,
       "angle": 0,
       "strokeColor": "#d79b00",
       "backgroundColor": "transparent",
@@ -2212,14 +2484,22 @@
           0,
           0
         ],
-        [
-          170,
-          185
-        ]
+        [110, 0],
+        [110, 100],
+        [320, 100],
+        [320, 130]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-orchestrator2",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-eventbus2",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2263,8 +2543,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-eventbus2",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-artifact2",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2302,14 +2590,19 @@
           0,
           0
         ],
-        [
-          0,
-          180
-        ]
+        [0, 180]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-eventbus2",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-localjsonl2",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2319,8 +2612,8 @@
       "type": "arrow",
       "x": 950,
       "y": 920,
-      "width": -630,
-      "height": -210,
+      "width": 630,
+      "height": 380,
       "angle": 0,
       "strokeColor": "#d79b00",
       "backgroundColor": "transparent",
@@ -2347,14 +2640,23 @@
           0,
           0
         ],
-        [
-          -630,
-          -210
-        ]
+        [-70, 0],
+        [-70, 170],
+        [-500, 170],
+        [-500, -210],
+        [-630, -210]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-localjsonl2",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-events_json",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2398,8 +2700,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-events_json",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-sse_future",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2443,8 +2753,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-orchestrator2",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-run_state",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2455,7 +2773,7 @@
       "x": 630,
       "y": 680,
       "width": 0,
-      "height": 80,
+      "height": 300,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2484,57 +2802,20 @@
         ],
         [
           0,
-          80
+          300
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
-      "startArrowhead": null,
-      "endArrowhead": "arrow",
-      "elbowed": false
-    },
-    {
-      "id": "ex-e-checkpoint-tables",
-      "type": "arrow",
-      "x": 780,
-      "y": 810,
-      "width": 170,
-      "height": -340,
-      "angle": 0,
-      "strokeColor": "#5b8f5a",
-      "backgroundColor": "transparent",
-      "fillStyle": "hachure",
-      "strokeWidth": 2,
-      "strokeStyle": "solid",
-      "roughness": 0.5,
-      "opacity": 100,
-      "groupIds": [],
-      "frameId": null,
-      "roundness": {
-        "type": 2
+      "startBinding": {
+        "elementId": "ex-run_state",
+        "focus": 0,
+        "gap": 1
       },
-      "seed": 2428,
-      "version": 1,
-      "versionNonce": 11604,
-      "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617222,
-      "link": null,
-      "locked": false,
-      "points": [
-        [
-          0,
-          0
-        ],
-        [
-          170,
-          -340
-        ]
-      ],
-      "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "endBinding": {
+        "elementId": "ex-checkpoint2",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2542,10 +2823,10 @@
     {
       "id": "ex-e-input-guard",
       "type": "arrow",
-      "x": 1500,
-      "y": 320,
-      "width": 70,
-      "height": 290,
+      "x": 1410,
+      "y": 275,
+      "width": 345,
+      "height": 335,
       "angle": 0,
       "strokeColor": "#b85450",
       "backgroundColor": "transparent",
@@ -2572,14 +2853,22 @@
           0,
           0
         ],
-        [
-          70,
-          290
-        ]
+        [-30, 0],
+        [-30, 315],
+        [315, 315],
+        [315, 335]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-external_input",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-guardrail_future",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2589,7 +2878,7 @@
       "type": "arrow",
       "x": 1715,
       "y": 320,
-      "width": -145,
+      "width": 270,
       "height": 160,
       "angle": 0,
       "strokeColor": "#b85450",
@@ -2617,24 +2906,32 @@
           0,
           0
         ],
-        [
-          -145,
-          160
-        ]
+        [125, 0],
+        [125, 140],
+        [-145, 140],
+        [-145, 160]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-tool_output",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-tool_execution",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
     },
     {
-      "id": "ex-e-ret-guard",
+      "id": "ex-e-ret-context",
       "type": "arrow",
       "x": 1615,
       "y": 450,
-      "width": -45,
+      "width": 235,
       "height": 160,
       "angle": 0,
       "strokeColor": "#b85450",
@@ -2662,14 +2959,22 @@
           0,
           0
         ],
-        [
-          -45,
-          160
-        ]
+        [-235, 0],
+        [-235, 140],
+        [-120, 140],
+        [-120, 160]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-retrieval_output",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-context_trust",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2677,9 +2982,9 @@
     {
       "id": "ex-e-guard-policy",
       "type": "arrow",
-      "x": 1570,
+      "x": 1725,
       "y": 710,
-      "width": 0,
+      "width": 155,
       "height": 30,
       "angle": 0,
       "strokeColor": "#111827",
@@ -2707,14 +3012,21 @@
           0,
           0
         ],
-        [
-          0,
-          30
-        ]
+        [0, 15],
+        [-155, 15],
+        [-155, 30]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-guardrail_future",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-policy_future",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2758,19 +3070,54 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-policy_future",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-hitl_future",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
     },
     {
+      "id": "ex-bridge-hitl-checkpoint",
+      "type": "ellipse",
+      "x": 441,
+      "y": 1021,
+      "width": 18,
+      "height": 18,
+      "angle": 0,
+      "strokeColor": "#ffffff",
+      "backgroundColor": "#ffffff",
+      "fillStyle": "solid",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "groupIds": ["group-hitl-checkpoint-bridge"],
+      "frameId": null,
+      "roundness": null,
+      "seed": 40601,
+      "version": 1,
+      "versionNonce": 40602,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1783830000000,
+      "link": null,
+      "locked": false
+    },
+    {
       "id": "ex-e-hitl-checkpoint",
       "type": "arrow",
       "x": 1420,
-      "y": 915,
-      "width": -640,
-      "height": -105,
+      "y": 920,
+      "width": 648,
+      "height": 220,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2779,7 +3126,7 @@
       "strokeStyle": "solid",
       "roughness": 0.5,
       "opacity": 100,
-      "groupIds": [],
+      "groupIds": ["group-hitl-checkpoint-bridge"],
       "frameId": null,
       "roundness": {
         "type": 2
@@ -2797,59 +3144,22 @@
           0,
           0
         ],
-        [
-          -640,
-          -105
-        ]
+        [-70, 0],
+        [-70, -70],
+        [-620, -70],
+        [-648, -110]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
-      "startArrowhead": null,
-      "endArrowhead": "arrow",
-      "elbowed": false
-    },
-    {
-      "id": "ex-e-policy-orch",
-      "type": "arrow",
-      "x": 1420,
-      "y": 790,
-      "width": -640,
-      "height": -330,
-      "angle": 0,
-      "strokeColor": "#111827",
-      "backgroundColor": "transparent",
-      "fillStyle": "hachure",
-      "strokeWidth": 2,
-      "strokeStyle": "solid",
-      "roughness": 0.5,
-      "opacity": 100,
-      "groupIds": [],
-      "frameId": null,
-      "roundness": {
-        "type": 2
+      "startBinding": {
+        "elementId": "ex-hitl_future",
+        "focus": 0,
+        "gap": 1
       },
-      "seed": 2666,
-      "version": 2,
-      "versionNonce": 12038,
-      "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617223,
-      "link": null,
-      "locked": false,
-      "points": [
-        [
-          0,
-          0
-        ],
-        [
-          -640,
-          -330
-        ]
-      ],
-      "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "endBinding": {
+        "elementId": "ex-checkpoint2",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2878,7 +3188,16 @@
       "version": 1,
       "versionNonce": 8828,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-tool-guard",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-tool-exec-guard",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617223,
       "link": null,
       "locked": false
@@ -2925,7 +3244,7 @@
       "type": "arrow",
       "x": 1570,
       "y": 580,
-      "width": 0,
+      "width": 155,
       "height": 30,
       "angle": 0,
       "strokeColor": "#b85450",
@@ -2953,25 +3272,107 @@
           0,
           0
         ],
-        [
-          0,
-          30
-        ]
+        [0, 10],
+        [155, 10],
+        [155, 30]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-tool_execution",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-guardrail_future",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
     },
     {
-      "id": "ex-e-tool-exec-policy",
+      "id": "ex-run_queue",
+      "type": "rectangle",
+      "x": 480,
+      "y": 340,
+      "width": 300,
+      "height": 50,
+      "angle": 0,
+      "strokeColor": "#2f5597",
+      "backgroundColor": "#dae8fc",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0.7,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 3
+      },
+      "seed": 40101,
+      "version": 1,
+      "versionNonce": 40119,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "id": "ex-e-req-orch",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-queue-orch",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1783830000000,
+      "link": null,
+      "locked": false
+    },
+    {
+      "id": "ex-run_queue-label",
+      "type": "text",
+      "x": 488,
+      "y": 344,
+      "width": 284,
+      "height": 50,
+      "angle": 0,
+      "strokeColor": "#111827",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 0.4,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": null,
+      "seed": 40131,
+      "version": 1,
+      "versionNonce": 40148,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1783830000000,
+      "link": null,
+      "locked": false,
+      "text": "执行分派\nservice：RunQueue seam → worker\nRedisRunQueue adapter 隐藏 Redis\nlocal：同进程直调",
+      "fontSize": 11,
+      "fontFamily": 2,
+      "fontString": "11px Helvetica",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": null,
+      "originalText": "执行分派\nservice：RunQueue seam → worker\nRedisRunQueue adapter 隐藏 Redis\nlocal：同进程直调",
+      "lineHeight": 1.15,
+      "baseline": 13
+    },
+    {
+      "id": "ex-e-queue-orch",
       "type": "arrow",
-      "x": 1570,
-      "y": 580,
+      "x": 630,
+      "y": 390,
       "width": 0,
-      "height": 160,
+      "height": 10,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2985,12 +3386,12 @@
       "roundness": {
         "type": 2
       },
-      "seed": 9012,
+      "seed": 40161,
       "version": 1,
-      "versionNonce": 9029,
+      "versionNonce": 40179,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1783830000000,
       "link": null,
       "locked": false,
       "points": [
@@ -3000,57 +3401,20 @@
         ],
         [
           0,
-          160
+          10
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
-      "startArrowhead": null,
-      "endArrowhead": "arrow",
-      "elbowed": false
-    },
-    {
-      "id": "ex-e-tool-exec-artifact",
-      "type": "arrow",
-      "x": 1420,
-      "y": 530,
-      "width": -170,
-      "height": 270,
-      "angle": 0,
-      "strokeColor": "#d79b00",
-      "backgroundColor": "transparent",
-      "fillStyle": "hachure",
-      "strokeWidth": 2,
-      "strokeStyle": "solid",
-      "roughness": 0.5,
-      "opacity": 100,
-      "groupIds": [],
-      "frameId": null,
-      "roundness": {
-        "type": 2
+      "startBinding": {
+        "elementId": "ex-run_queue",
+        "focus": 0,
+        "gap": 1
       },
-      "seed": 9013,
-      "version": 1,
-      "versionNonce": 9030,
-      "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617223,
-      "link": null,
-      "locked": false,
-      "points": [
-        [
-          0,
-          0
-        ],
-        [
-          -170,
-          270
-        ]
-      ],
-      "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "endBinding": {
+        "elementId": "ex-orchestrator2",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false

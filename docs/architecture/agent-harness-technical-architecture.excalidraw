@@ -95,14 +95,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "已实现 Phase 1-8",
+      "text": "已实现 Phase 1-13",
       "fontSize": 12,
       "fontFamily": 2,
       "fontString": "12px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "已实现 Phase 1-8",
+      "originalText": "已实现 Phase 1-13",
       "lineHeight": 1.25,
       "baseline": 14
     },
@@ -161,14 +161,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "待实现 Phase 9-15",
-      "fontSize": 12,
+      "text": "待实现",
+      "fontSize": 11,
       "fontFamily": 2,
-      "fontString": "12px Helvetica",
+      "fontString": "11px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "待实现 Phase 9-15",
+      "originalText": "待实现",
       "lineHeight": 1.25,
       "baseline": 14
     },
@@ -491,14 +491,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=Phase 9-15 或未来拆分，红虚线=信任边界。",
+      "text": "边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来物理拆分，红虚线=信任边界。",
       "fontSize": 13,
       "fontFamily": 2,
       "fontString": "13px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=Phase 9-15 或未来拆分，红虚线=信任边界。",
+      "originalText": "边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来物理拆分，红虚线=信任边界。",
       "lineHeight": 1.25,
       "baseline": 15
     },
@@ -506,9 +506,9 @@
       "id": "ex-status-note",
       "type": "rectangle",
       "x": 1280,
-      "y": 1080,
+      "y": 1040,
       "width": 500,
-      "height": 60,
+      "height": 210,
       "angle": 0,
       "strokeColor": "#d6b656",
       "backgroundColor": "#fff2cc",
@@ -535,9 +535,9 @@
       "id": "ex-status-note-label",
       "type": "text",
       "x": 1290,
-      "y": 1088,
+      "y": 1048,
       "width": 480,
-      "height": 44,
+      "height": 194,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -557,14 +557,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "当前实现：Phase 1-8。黄色节点是 Phase 9-15 待实现，不代表已交付。",
-      "fontSize": 13,
+      "text": "当前：Phase 1-13 已实现基础 seam；Phase 14-15 仍待实现。P0 待实现约束：\n1. usage_call_id 固定为 payload.correlation.usage_call_id，TelemetryRecord 保留同路径；不进入 ModelUsageEvidence。\n2. 估算价格来源固定为 decision.price_source_ref / decision.price_source_version。\n3. trace 迁移遇冲突非空值或孤立记录整批 fail closed。\n4. Approval trace 当前 nullable，目标 required，并从 run context 继承。\n5. nullable token 只累加已知值，任一未知则 budget_status=incomplete。\n6. SSE Last-Event-ID 必须属于当前已授权 run 的现有 seq。\n其余待实现：Run OpenAPI 精确性、Docker secret、真实 delegation 与性能门禁；紫色虚线=P1/未来拆分。",
+      "fontSize": 11,
       "fontFamily": 2,
-      "fontString": "13px Helvetica",
+      "fontString": "11px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "当前实现：Phase 1-8。黄色节点是 Phase 9-15 待实现，不代表已交付。",
+      "originalText": "当前：Phase 1-13 已实现基础 seam；Phase 14-15 仍待实现。P0 待实现约束：\n1. usage_call_id 固定为 payload.correlation.usage_call_id，TelemetryRecord 保留同路径；不进入 ModelUsageEvidence。\n2. 估算价格来源固定为 decision.price_source_ref / decision.price_source_version。\n3. trace 迁移遇冲突非空值或孤立记录整批 fail closed。\n4. Approval trace 当前 nullable，目标 required，并从 run context 继承。\n5. nullable token 只累加已知值，任一未知则 budget_status=incomplete。\n6. SSE Last-Event-ID 必须属于当前已授权 run 的现有 seq。\n其余待实现：Run OpenAPI 精确性、Docker secret、真实 delegation 与性能门禁；紫色虚线=P1/未来拆分。",
       "lineHeight": 1.25,
       "baseline": 15
     },
@@ -592,7 +592,12 @@
       "version": 1,
       "versionNonce": 9558,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-dto-all",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -658,7 +663,12 @@
       "version": 1,
       "versionNonce": 9620,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-config-runtime",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -724,7 +734,12 @@
       "version": 1,
       "versionNonce": 9682,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-identity-runtime",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -790,7 +805,44 @@
       "version": 1,
       "versionNonce": 9744,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-config-runtime",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-identity-runtime",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-dto-all",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-runtime-uow",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-runtime-checkpoint",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-runtime-event",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-components-runtime",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-model-runtime",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-policy-runtime",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -856,7 +908,12 @@
       "version": 1,
       "versionNonce": 9806,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-runtime-checkpoint",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -922,7 +979,16 @@
       "version": 1,
       "versionNonce": 9868,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-runtime-uow",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-uow-repo",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -988,7 +1054,16 @@
       "version": 1,
       "versionNonce": 9930,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-uow-repo",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-repo-sql",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1054,7 +1129,12 @@
       "version": 1,
       "versionNonce": 9992,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-repo-sql",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1120,7 +1200,24 @@
       "version": 1,
       "versionNonce": 10054,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-runtime-event",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-event-artifact",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-event-otel",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-sse-event",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1186,7 +1283,12 @@
       "version": 1,
       "versionNonce": 10116,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-event-artifact",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1252,7 +1354,12 @@
       "version": 1,
       "versionNonce": 10178,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-event-otel",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1384,7 +1491,12 @@
       "version": 2,
       "versionNonce": 10302,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-model-runtime",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617223,
       "link": null,
       "locked": false
@@ -1450,7 +1562,16 @@
       "version": 2,
       "versionNonce": 10364,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-policy-runtime",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-tools-policy",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617223,
       "link": null,
       "locked": false
@@ -1516,7 +1637,12 @@
       "version": 2,
       "versionNonce": 10426,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-tools-policy",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617223,
       "link": null,
       "locked": false
@@ -1566,11 +1692,11 @@
       "width": 220,
       "height": 90,
       "angle": 0,
-      "strokeColor": "#d6b656",
-      "backgroundColor": "#fff2cc",
+      "strokeColor": "#2f5597",
+      "backgroundColor": "#dae8fc",
       "fillStyle": "solid",
       "strokeWidth": 2,
-      "strokeStyle": "dashed",
+      "strokeStyle": "solid",
       "roughness": 0.7,
       "opacity": 100,
       "groupIds": [],
@@ -1613,14 +1739,14 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "待实现 Phase 9\n检索能力\nRetrievalProvider / RAG\ntrust_level",
+      "text": "已实现 Phase 9\n检索能力\nRetrievalProvider / RAG\ntrust_level",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "待实现 Phase 9\n检索能力\nRetrievalProvider / RAG\ntrust_level",
+      "originalText": "已实现 Phase 9\n检索能力\nRetrievalProvider / RAG\ntrust_level",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -1632,11 +1758,11 @@
       "width": 240,
       "height": 80,
       "angle": 0,
-      "strokeColor": "#d6b656",
-      "backgroundColor": "#fff2cc",
+      "strokeColor": "#2f5597",
+      "backgroundColor": "#dae8fc",
       "fillStyle": "solid",
       "strokeWidth": 2,
-      "strokeStyle": "dashed",
+      "strokeStyle": "solid",
       "roughness": 0.7,
       "opacity": 100,
       "groupIds": [],
@@ -1679,14 +1805,14 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "待实现 Phase 10-11\n观测 provider 与 Eval Gate\nscore sink",
+      "text": "已实现 Phase 10-12.5\n观测、Eval Gate 与 experiment\nscore sink / compare / acceptance",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "待实现 Phase 10-11\n观测 provider 与 Eval Gate\nscore sink",
+      "originalText": "已实现 Phase 10-12.5\n观测、Eval Gate 与 experiment\nscore sink / compare / acceptance",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -1714,7 +1840,12 @@
       "version": 1,
       "versionNonce": 10612,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-fastapi-routes",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1780,7 +1911,12 @@
       "version": 1,
       "versionNonce": 10674,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-fastapi-routes",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1846,7 +1982,20 @@
       "version": 1,
       "versionNonce": 10736,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-components-runtime",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-worker-components",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-profiles-components",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1912,7 +2061,12 @@
       "version": 1,
       "versionNonce": 10798,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-worker-components",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -1943,14 +2097,14 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "运行 worker 外壳\n--once fake run\n复用 runtime seam",
+      "text": "运行 worker 外壳\nRunQueue protocol pickup/reclaim\nRedis adapter 隔离 / DBOS recovery",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "运行 worker 外壳\n--once fake run\n复用 runtime seam",
+      "originalText": "运行 worker 外壳\nRunQueue protocol pickup/reclaim\nRedis adapter 隔离 / DBOS recovery",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -1978,7 +2132,12 @@
       "version": 1,
       "versionNonce": 10860,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-profiles-components",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -2028,11 +2187,11 @@
       "width": 210,
       "height": 100,
       "angle": 0,
-      "strokeColor": "#6c8ebf",
-      "backgroundColor": "#e6f2ff",
+      "strokeColor": "#d6b656",
+      "backgroundColor": "#fff2cc",
       "fillStyle": "solid",
       "strokeWidth": 2,
-      "strokeStyle": "solid",
+      "strokeStyle": "dashed",
       "roughness": 0.7,
       "opacity": 100,
       "groupIds": [],
@@ -2044,7 +2203,12 @@
       "version": 1,
       "versionNonce": 10922,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "ex-e-sse-event",
+          "type": "arrow"
+        }
+      ],
       "updated": 1783330617222,
       "link": null,
       "locked": false
@@ -2075,14 +2239,14 @@
       "updated": 1783330617222,
       "link": null,
       "locked": false,
-      "text": "流式输出格式化\nSSE formatter\nCanonicalEvent -> SSE\nLast-Event-ID -> seq\n当前 JSON events seam",
-      "fontSize": 14,
+      "text": "当前 SSE frame formatter\n当前 HTTP 仅 JSON events seam\nP0 待实现：SSE + Last-Event-ID\nP1 可选：WS adapter",
+      "fontSize": 12,
       "fontFamily": 2,
-      "fontString": "14px Helvetica",
+      "fontString": "12px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "流式输出格式化\nSSE formatter\nCanonicalEvent -> SSE\nLast-Event-ID -> seq\n当前 JSON events seam",
+      "originalText": "当前 SSE frame formatter\n当前 HTTP 仅 JSON events seam\nP0 待实现：SSE + Last-Event-ID\nP1 可选：WS adapter",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -2141,14 +2305,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "已实现 Phase 6\nAgent routes / registry smoke\nPhase 12 示例待实现",
+      "text": "已实现 Phase 6/12\nAgent routes / registry smoke\n四个 P0 示例 Agent",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "已实现 Phase 6\nAgent routes / registry smoke\nPhase 12 示例待实现",
+      "originalText": "已实现 Phase 6/12\nAgent routes / registry smoke\n四个 P0 示例 Agent",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -2207,14 +2371,14 @@
       "updated": 1783330617223,
       "link": null,
       "locked": false,
-      "text": "已实现 Phase 7\n认证/审批/策略 routes\nEval API Phase 11 待实现",
+      "text": "已实现 Phase 7-12.5\n认证/审批/策略 routes\nEval API / experiment acceptance",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "已实现 Phase 7\n认证/审批/策略 routes\nEval API Phase 11 待实现",
+      "originalText": "已实现 Phase 7-12.5\n认证/审批/策略 routes\nEval API / experiment acceptance",
       "lineHeight": 1.25,
       "baseline": 16
     },
@@ -2257,8 +2421,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-config",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-runtime",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2302,8 +2474,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-identity",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-runtime",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2355,8 +2535,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-dto",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-runtime",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": true
@@ -2400,8 +2588,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-runtime",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-uow",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2445,8 +2641,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-uow",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-repo",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2490,8 +2694,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-repo",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-sqlalchemy",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2535,8 +2747,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-runtime",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-checkpoint",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": true
@@ -2588,8 +2808,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-runtime",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-eventbus",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": true
@@ -2633,8 +2861,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-eventbus",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-artifact",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2678,8 +2914,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-eventbus",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-otel",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2731,8 +2975,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-components",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-runtime",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": true
@@ -2776,8 +3028,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-fastapi",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-routes",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2821,8 +3081,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-worker",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-components",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2866,8 +3134,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-profiles",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-components",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -2919,8 +3195,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-eventbus",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-sse",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": true
@@ -2964,8 +3248,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-model",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-runtime",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -3009,8 +3301,16 @@
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "startBinding": {
+        "elementId": "ex-policy",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "ex-runtime",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
@@ -3018,10 +3318,10 @@
     {
       "id": "ex-e-tools-policy",
       "type": "arrow",
-      "x": 620,
-      "y": 965,
-      "width": 40,
-      "height": -120,
+      "x": 505,
+      "y": 920,
+      "width": 155,
+      "height": 75,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -3048,59 +3348,22 @@
           0,
           0
         ],
-        [
-          40,
-          -120
-        ]
+        [0, -20],
+        [135, -20],
+        [135, -75],
+        [155, -75]
       ],
       "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
-      "startArrowhead": null,
-      "endArrowhead": "arrow",
-      "elbowed": false
-    },
-    {
-      "id": "ex-e-retrieval-tools",
-      "type": "arrow",
-      "x": 660,
-      "y": 965,
-      "width": -40,
-      "height": 0,
-      "angle": 0,
-      "strokeColor": "#9673a6",
-      "backgroundColor": "transparent",
-      "fillStyle": "hachure",
-      "strokeWidth": 2,
-      "strokeStyle": "dashed",
-      "roughness": 0.5,
-      "opacity": 100,
-      "groupIds": [],
-      "frameId": null,
-      "roundness": {
-        "type": 2
+      "startBinding": {
+        "elementId": "ex-tools",
+        "focus": 0,
+        "gap": 1
       },
-      "seed": 2802,
-      "version": 1,
-      "versionNonce": 12286,
-      "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617222,
-      "link": null,
-      "locked": false,
-      "points": [
-        [
-          0,
-          0
-        ],
-        [
-          -40,
-          0
-        ]
-      ],
-      "lastCommittedPoint": null,
-      "startBinding": null,
-      "endBinding": null,
+      "endBinding": {
+        "elementId": "ex-policy",
+        "focus": 0,
+        "gap": 1
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false

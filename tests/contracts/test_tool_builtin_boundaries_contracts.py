@@ -1,4 +1,4 @@
-"""Phase 8 FileTool、ShellTool 和 MCP 工具边界合同测试。"""
+"""FileTool、ShellTool 和 MCP 工具边界合同测试。"""
 
 from __future__ import annotations
 

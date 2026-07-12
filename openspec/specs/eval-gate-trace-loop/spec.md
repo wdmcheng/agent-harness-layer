@@ -50,7 +50,7 @@
 - **THEN** `make eval` 稳定返回 no approved cases 状态，不执行 draft case，也不伪造 score
 
 ### Requirement: ScoreSink 写入 local evidence 并降级 provider failure
-系统 SHALL 提供 `ScoreSink` interface 和 local JSONL sink。score 写入 MUST 先写 local evidence，再尝试通过 Phase 10 `TelemetryFacade` 或 provider adapter contract 写回观测 provider。provider 写回失败 MUST 只产生脱敏 degraded summary，不得影响 local score evidence 或 eval run terminal 状态。
+系统 SHALL 提供 `ScoreSink` interface 和 local JSONL sink。score 写入 MUST 先写 local evidence，再尝试通过 `TelemetryFacade` 或 provider adapter contract 写回观测 provider。provider 写回失败 MUST 只产生脱敏 degraded summary，不得影响 local score evidence 或 eval run terminal 状态。
 
 #### Scenario: Local score evidence 始终写入
 - **WHEN** eval runner 提交 score

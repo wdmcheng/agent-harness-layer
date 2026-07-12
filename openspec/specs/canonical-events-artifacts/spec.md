@@ -1,7 +1,7 @@
 # canonical-events-artifacts Specification
 
 ## Purpose
-TBD - created by archiving change canonical-events-artifacts. Update Purpose after archive.
+定义 provider-neutral `CanonicalEvent`、事件顺序与唯一终态，以及大 payload 的 artifact/ref 边界，使 runtime、API、audit、observability 和 eval 可共享稳定且可脱敏的事件证据。
 ## Requirements
 ### Requirement: CanonicalEvent 统一 run event envelope
 package SHALL 暴露 `CanonicalEvent` envelope，包含 `event_id`、`event_type`、`event_version`、`seq`、`timestamp`、`tenant_id`、`user_id`、`agent_id`、`run_id`、`parent_run_id`、`trace_id`、`span_id`、`visibility`、`payload`、`payload_ref`、`raw_event_ref` 和 terminal marker。

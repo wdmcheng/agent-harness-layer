@@ -71,7 +71,7 @@ class TelemetryFacade:
         self._inline_payload_bytes = inline_payload_bytes
 
     async def publish_event(self, event: CanonicalEvent) -> TelemetryPublishResult:
-        """从 CanonicalEvent 进入 Phase 10 observability seam。"""
+        """把 CanonicalEvent 映射到稳定的 observability seam。"""
 
         record = TelemetryRecord(
             name=f"agent_harness.{event.event_type.value}",

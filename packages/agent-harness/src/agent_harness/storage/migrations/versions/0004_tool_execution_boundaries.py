@@ -28,7 +28,7 @@ def timestamp_columns() -> Sequence[sa.Column[Any]]:
 
 
 def upgrade() -> None:
-    """创建 Phase 8 工具执行边界需要的持久化表。"""
+    """创建工具执行边界需要的持久化表。"""
 
     op.create_table(
         "workspaces",
@@ -69,7 +69,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """回滚 Phase 8 工具执行边界表。"""
+    """回滚工具执行边界表。"""
 
     op.drop_table("tool_invocations")
     op.drop_table("workspaces")

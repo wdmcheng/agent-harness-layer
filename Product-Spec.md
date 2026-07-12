@@ -33,7 +33,7 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 全景图重点表达：
 
 - 纵向 5 层运行中轴：Access、Runtime、Engine、Tools、Infra。
-- 主链路回边：Runtime 通过 Graph 节点驱动 Agent，Engine 与 Tools 形成 Agent Loop，Engine 通过 SSE/WS 向 Access 流式回传，HITL 审批回到 Runtime/Access 后 resume。
+- 目标主链路回边：当前 Runtime 通过稳定 orchestrator/adapter seam 驱动 Agent；P1 可在该 seam 后引入 Graph 节点。Engine 与 Tools 形成 Agent Loop；P0 待实现 SSE 向 Access 流式回传，WS 属于 P1 可选 adapter；HITL 审批回到 Runtime/Access 后 resume。
 - Access / Tools / Retrieval 的信任边界：外部输入、MCP tool output、检索内容都必须先标记来源和可信级别，再进入上下文组装或执行路径。
 - Engine 层上下文组装收口：历史裁剪、检索注入、工具结果截断、预算控制和异步记忆压缩不能散落在业务 agent 里。
 - 左翼 Eval Gate：分层 eval、release gate、trace 低分样本回流。
@@ -129,7 +129,7 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 | OUT-007 | MCP server 开发框架 | P0 做 MCP client，server template 放 P1 |
 | OUT-008 | 产品化前端 UI | P0 只提供 API、CLI、OpenAPI/Swagger/Redoc |
 | OUT-009 | OIDC/OAuth2 | P0 API Key/Bearer Token，OIDC/OAuth2 adapter 放 P1 |
-| OUT-010 | Vault/KMS 等企业密钥管理 adapter | P0 SecretProvider + env/Docker secret，Vault/KMS 放 P1 |
+| OUT-010 | SecretProvider、Vault/KMS 等密钥管理 adapter | P0 只消费 env / Docker secret file 注入并执行脱敏；抽象 SecretProvider 与 Vault/KMS adapter 放 P1 |
 | OUT-011 | OpenSearch / Elasticsearch / Vespa adapter | P0 留 RetrievalProvider，搜索集群 adapter 放 P1/P2 |
 | OUT-012 | AG-UI / Vercel AI stream adapter | P0 先做 CanonicalEvent + SSE/CLI/OTel/local-jsonl |
 | OUT-013 | 自动 eval case 入库默认开启 | P0 必须人工确认；规则自动入库放 P1 且默认关闭 |
@@ -342,9 +342,9 @@ project/
 - MUST README 解释目录树、职责和禁止跨边界规则。
 
 **验收标准：**
-- [ ] AC-001: Given 仓库根目录, when 执行 `uv sync`, then workspace 所有 P0 package 可以解析依赖。
-- [ ] AC-002: Given `packages/agent-harness`, when 执行 `uv build`, then 生成 wheel/sdist。
-- [ ] AC-003: Given 已生成 wheel, when 模板 app 使用 wheel 安装, then tests/smoke 不依赖源码路径也能通过。
+- [x] AC-001: Given 仓库根目录, when 执行 `uv sync`, then workspace 所有 P0 package 可以解析依赖。
+- [x] AC-002: Given `packages/agent-harness`, when 执行 `uv build`, then 生成 wheel/sdist。
+- [x] AC-003: Given 已生成 wheel, when 模板 app 使用 wheel 安装, then tests/smoke 不依赖源码路径也能通过。
 
 ### REQ-002: `agent_harness` 核心包与上游隔离
 
@@ -377,7 +377,7 @@ project/
 
 **验收标准：**
 - [x] AC-004: Given `agents/examples/*`, when 静态扫描 import, then 不出现直接 import `pydantic_ai`、`logfire`、`dbos`、`langfuse`、`phoenix`。
-- [ ] AC-005: Given 上游 adapter 被 fake adapter 替换, when 运行 unit/contract tests, then 核心接口测试仍可通过。
+- [x] AC-005: Given 上游 adapter 被 fake adapter 替换, when 运行 unit/contract tests, then 核心接口测试仍可通过。
 
 ### REQ-003: 后端服务型模板
 
@@ -432,7 +432,7 @@ templates/service-app/
 统一 `.env`、YAML 和 typed settings，避免业务代码手读配置。
 
 **行为：**
-- `.env` 放密钥、连接串、本机开关。
+- `.env` 放本机密钥、连接串和开关；service profile 可从环境变量或只读 Docker secret file 注入同一 typed settings 字段。
 - `configs/profiles/*.yaml` 放环境 profile、provider、storage、observability、policy 默认。
 - `agents/*/config.yaml` 放 agent 元数据、package-local executor reference、预算、工具白名单、eval dataset、delegation edge。
 - `agent_harness.config` 负责加载、合并、校验。
@@ -441,12 +441,17 @@ templates/service-app/
 - MUST 所有配置有 Pydantic schema 校验。
 - MUST 业务 agent 不直接 `open("config.yaml")`。
 - MUST 配置校验错误包含字段路径和修复提示。
+- MUST Docker secret file 只通过受控配置加载边界读取，拒绝目录、符号链接逃逸、不可读文件和空值；错误不得回显 secret 内容。
+- MUST P0 不引入只有单一实现的 `SecretProvider` 抽象；env、`.env` 与 Docker secret file 在同一 typed settings 合并边界收口，并在日志、错误、trace、eval 和 audit 前脱敏。
 - MUST 每个 agent config 显式声明受控 executor reference；缺失、越界或无效 executor 必须让 registry 整体失败，不得隐式 fallback。
 - SHOULD 配置加载边界为后续热更新保留 seam；P0 不要求 worker 运行中自动热重载，模型路由、预算和 provider 变更先走显式 reload / restart 路径。
 
 **验收标准：**
 - [ ] AC-008: Given 缺失必填配置, when 启动应用, then 启动失败并输出 schema 错误。
-- [ ] AC-009: Given local/service profile, when 加载 settings, then storage、queue、observability、policy 解析到 typed config。
+- [x] AC-009: Given local/service profile, when 加载 settings, then storage、queue、observability、policy 解析到 typed config。
+- [ ] AC-063: Given service profile 将 secret 作为只读 Docker secret file 注入, when 加载 typed settings, then 目标字段取得文件内容且任何错误、日志或公开 evidence 不回显原值。
+
+> `AC-008` 当前只证明 loader/registry 对缺失配置返回结构化错误，尚缺应用启动路径的失败合同，因此保持未完成。
 
 ### REQ-005: 存储、迁移与事务边界
 
@@ -565,6 +570,7 @@ templates/service-app/
 /api/v1/agents/{agent_id}/runs
 /api/v1/runs/{run_id}
 /api/v1/runs/{run_id}/events
+/api/v1/runs/{run_id}/events/stream
 /api/v1/runs/{run_id}/cancel
 /api/v1/runs/{run_id}/resume
 /api/v1/runs/{run_id}/approvals
@@ -598,8 +604,8 @@ agent-harness scaffold agent <agent_id>
 - MUST 破坏性 API 变更进入 `/api/v2`。
 
 **验收标准：**
-- [x] AC-017: Given OpenAPI schema, when 运行 schema 测试, then P0 endpoints 均存在。
-- [ ] AC-018: Given CLI, when 执行 `agent-harness doctor`, then 输出 profile、storage、queue、observability、eval 目录状态。
+- [ ] AC-017: Given OpenAPI schema, when 运行 schema 测试, then P0 endpoints 均存在。
+- [x] AC-018: Given CLI, when 执行 `agent-harness doctor`, then 输出 profile、storage、queue、observability、eval 目录状态。
 
 ### REQ-009: 租户、身份与认证
 
@@ -633,8 +639,8 @@ auth_method: str
 - MUST 所有权限判断只看 `IdentityContext` / `PermissionContext`，不直接耦合认证实现。
 
 **验收标准：**
-- [ ] AC-019: Given 未配置多租户, when 创建 run, then run/session/trace/eval 均带 `tenant_id="default"`。
-- [ ] AC-020: Given 无效 Bearer Token, when 调用 P0 API, then 返回认证错误且不创建 run。
+- [x] AC-019: Given 未配置多租户, when 创建 run, then run/session/trace/eval 均带 `tenant_id="default"`。
+- [x] AC-020: Given 无效 Bearer Token, when 调用 P0 API, then 返回认证错误且不创建 run。
 
 ### REQ-010: PolicyEngine、权限拦截与 HITL
 
@@ -686,7 +692,7 @@ auth_method: str
 - [x] AC-021: Given shell tool 默认策略, when agent 请求执行 shell, then 返回 `approval.required`。
 - [x] AC-022: Given 审批通过, when resume run, then 原 tool call 继续执行且 audit log 记录审批人和结果。
 - [x] AC-023: Given 策略为 deny, when 执行动作, then 动作不执行且 audit log 记录拒绝。
-- [ ] AC-024: Given 输入包含明显 prompt injection 或越权指令, when 创建 run, then guardrail 记录检查结果并按策略 allow / deny / require_approval。
+- [x] AC-024: Given 输入包含明显 prompt injection 或越权指令, when 创建 run, then guardrail 记录检查结果并按策略 allow / deny / require_approval。
 
 ### REQ-011: 工具系统、Shell、File 和 MCP
 
@@ -736,9 +742,9 @@ auth_method: str
 
 **验收标准：**
 - [x] AC-025: Given workspace 外路径, when FileTool read, then 默认拒绝或要求审批。
-- [ ] AC-026: Given MCP tool 未在 allowlist, when agent 调用, then policy 拒绝。
+- [x] AC-026: Given MCP tool 未在 allowlist, when agent 调用, then policy 拒绝。
 - [x] AC-027: Given shell 输出超过上限, when tool 完成, then stdout/stderr 被截断且 artifact_ref 可用。
-- [ ] AC-028: Given MCP tool output 包含指令型文本, when 写入上下文, then 系统保留来源和 untrusted 标记，并经过注入检测或截断。
+- [x] AC-028: Given MCP tool output 包含指令型文本, when 写入上下文, then 系统保留来源和 untrusted 标记，并经过注入检测或截断。
 
 ### REQ-012: 模型、预算、上下文组装与 embedding
 
@@ -765,9 +771,10 @@ auth_method: str
 
 **验收标准：**
 - [x] AC-029: Given fake model provider, when 运行 tests/eval, then 不需要真实 API key。
-- [ ] AC-030: Given 预算阈值, when 模型调用预计超阈值, then 产生 policy decision 或可追踪 fallback。
-- [ ] AC-031: Given 重复 embedding 输入, when 第二次调用, then 命中 cache 或记录 cache miss 原因。
+- [x] AC-030: Given 预算阈值, when 模型调用预计超阈值, then 产生 policy decision 或可追踪 fallback。
+- [x] AC-031: Given 重复 embedding 输入, when 第二次调用, then 命中 cache 或记录 cache miss 原因。
 - [x] AC-032: Given 历史、检索和 tool output 同时进入上下文, when 组装 prompt, then 输出 context assembly trace，包含来源、可信级别、token 预算和截断记录。
+- [ ] AC-064: Given model 或 embedding provider 完成一次调用, when 记录 provider-neutral evidence, then token、cost、latency、provider/model 和 budget decision 可由同一 run/trace 关联，且业务 agent 不拼接 provider 原始事件。
 
 ### REQ-013: Retrieval 与 RAG
 
@@ -795,8 +802,8 @@ auth_method: str
 
 **验收标准：**
 - [x] AC-033: Given local profile, when RAG 示例检索, then 不依赖 PostgreSQL 扩展也能返回结果。
-- [ ] AC-034: Given service profile 且 PGroonga 未安装, when doctor, then 输出降级提示而不是启动崩溃。
-- [ ] AC-035: Given hybrid retrieval adapter, when 提供 BM25/vector 结果, then 可执行 RRF 合并。
+- [x] AC-034: Given service profile 且 PGroonga 未安装, when doctor, then 输出降级提示而不是启动崩溃。
+- [x] AC-035: Given hybrid retrieval adapter, when 提供 BM25/vector 结果, then 可执行 RRF 合并。
 - [x] AC-036: Given 检索结果包含 prompt injection 文本, when 注入上下文, then 作为 untrusted citation 内容处理，不得覆盖 system / policy / developer 指令。
 
 ### REQ-014: CanonicalEvent 与流式输出
@@ -912,7 +919,7 @@ OTel 是底座协议，不是业务边界；Logfire/Phoenix/Langfuse 必须走�
 
 **验收标准：**
 - [x] AC-041: Given 未配置任何 SaaS provider, when 运行 agent, then local/jsonl 仍产出 trace。
-- [ ] AC-042: Given 配置 Logfire adapter, when 运行 agent, then provider adapter contract test 通过且业务代码无 Logfire import。
+- [x] AC-042: Given 配置 Logfire adapter, when 运行 agent, then provider adapter contract test 通过且业务代码无 Logfire import。
 
 ### REQ-016: Eval Gate 与 trace/eval 闭环
 
@@ -1084,8 +1091,8 @@ make quality
 ```
 
 **验收标准：**
-- [x] AC-050: Given 新能力块任务, when 开发开始, then 先存在失败测试或 contract test。
-- [ ] AC-051: Given `make quality`, when CI 执行, then ruff、pyright、unit/contract tests 均通过。
+- [ ] AC-050: Given P0 能力块, when 审查当前基线, then REQ/AC 可追踪到生产实现和至少一种 unit/contract/integration/eval/smoke evidence；新 change 仍必须在实现前保留失败测试或未满足 contract 的 red 证据。
+- [ ] AC-051: Given CI quality job, when pipeline 执行, then `make quality` 与 `make test` 分别通过，且 ruff、pyright、import boundary、unit/contract tests 均有独立结果。
 - [x] AC-052: Given `make eval`, when 未配置真实模型 key, then fake model eval 可通过。
 
 ### REQ-020: CI/CD 与 Release Automation
@@ -1167,7 +1174,7 @@ make quality
 - MUST 文档引用架构、外部库、官方能力时保留链接。
 
 **验收标准：**
-- [ ] AC-057: Given 仓库根目录, when 检查 license 文件, then `LICENSE` 存在且为 Apache-2.0。
+- [x] AC-057: Given 仓库根目录, when 检查 license 文件, then `LICENSE` 存在且为 Apache-2.0。
 - [ ] AC-058: Given 引入第三方片段, when review, then NOTICE/来源/license/修改说明可追踪。
 
 ### REQ-022: 部署边界与未来微服务拆分基础
@@ -1230,18 +1237,21 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | AgentDescriptor | agent 注册描述 | agent_id, version, input_schema, output_schema, config_ref |
 | Session | 用户会话 | session_id, tenant_id, user_id, agent_id, metadata |
 | AgentRun | 一次 agent 运行 | run_id, tenant_id, agent_id, session_id, status, parent_run_id |
-| Checkpoint | durable runtime checkpoint | checkpoint_id, run_id, state_ref, resume_token, created_at |
-| Approval | HITL 审批记录 | approval_id, run_id, action, decision, approver_id, status |
+| Checkpoint | durable runtime checkpoint | checkpoint_id, tenant_id, run_id, state_ref, resume_token, created_at |
+| Approval | HITL 审批记录 | approval_id, tenant_id, run_id, action, decision, approver_id, status |
 | PolicyRule | 权限策略 | rule_id, tenant_id, resource, action, effect, conditions |
 | AuditLog | 审计记录 | audit_id, tenant_id, run_id, actor, action, decision, trace_id |
-| GuardrailCheck | 输入 / 输出护栏检查摘要 | check_id, run_id, source_ref, trust_level, decision, artifact_ref |
-| ContextAssembly | 上下文组装记录 | assembly_id, run_id, input_refs, token_budget, truncation_summary, output_ref |
-| ToolInvocation | 工具调用记录 | invocation_id, run_id, tool_name, args_ref, result_ref, status |
-| TraceRef | 观测 trace 引用 | trace_id, run_id, provider, local_ref, external_url |
-| CanonicalEvent | 规范化事件 | event_id, run_id, seq, type, visibility, payload_ref |
+| GuardrailCheck | 输入 / 输出护栏检查摘要 | check_id, tenant_id, run_id, source_ref, trust_level, decision, artifact_ref |
+| ContextAssembly | 上下文组装记录 | assembly_id, tenant_id, run_id, input_refs, token_budget, truncation_summary, output_ref |
+| ToolInvocation | 工具调用记录 | invocation_id, tenant_id, run_id, tool_name, args_ref, result_ref, status |
+| TraceRef | 观测 trace 引用 | trace_id, tenant_id, run_id, provider, local_ref, external_url |
+| CanonicalEvent | 规范化事件 | event_id, tenant_id, run_id, seq, type, visibility, payload_ref |
 | EvalCase | eval case | case_id, tenant_id, agent_id, status, input_ref, expected_ref |
-| EvalRun | eval 执行 | eval_run_id, dataset_id, agent_id, status, score_summary |
-| EvalScore | eval 分数 | score_id, eval_run_id, case_id, metric, value, provider_ref |
+| EvalRun | eval 执行 | eval_run_id, tenant_id, dataset_id, agent_id, status, score_summary |
+| EvalScore | eval 分数 | score_id, tenant_id, eval_run_id, case_id, metric, value, provider_ref |
+| EvalDatasetSplit | 可复现实验数据集切分 | split_id, tenant_id, agent_id, dataset, strategy, optimization/holdout/regression case ids, evidence_refs |
+| EvalExperiment | 固定 split 上的 baseline/candidate 实验 | experiment_id, tenant_id, split_id, idempotency_key, harness manifests, score summaries, comparison, evidence refs |
+| HarnessAcceptance | 每个 experiment 唯一且不可变的人工决策 | acceptance_id, tenant_id, experiment_id, reviewer_id, decision, reason, audit_ref, evidence_refs |
 | Artifact | 大内容和产物引用 | artifact_id, tenant_id, run_id, kind, uri, checksum |
 | Workspace | per-run 或 per-agent 工作区 | workspace_id, tenant_id, run_id, root_path, policy_ref |
 | ReleaseRecord | release automation 记录 | version, tag, changelog_ref, artifacts, commit_sha |
@@ -1258,11 +1268,13 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | TraceRef belongs to AgentRun | trace 与运行关联 |
 | EvalCase can originate from TraceRef | failed/low-score trace 生成 draft case |
 | EvalRun has many EvalScores | eval run 产生多条指标分数 |
+| EvalDatasetSplit has many EvalExperiments | 固定 membership 可复用于 baseline/candidate 对比 |
+| EvalExperiment has at most one HarnessAcceptance | 人工验收决策唯一且不可变 |
 | Artifact belongs to Tenant and optionally Run/EvalCase | 大内容和证据统一引用 |
 
 ### 6.3 数据规则
 
-- 所有核心实体 MUST 带 `tenant_id`，除非是全局只读元数据。
+- 所有持久化的 runtime、storage、policy、audit、event 和 eval 业务实体 MUST 直接带 `tenant_id`，不得只依赖父实体推导；全局只读配置元数据和未持久化 DTO 可例外。
 - `run_id`、`trace_id`、`event_id`、`approval_id`、`artifact_id` MUST 全局唯一。
 - `CanonicalEvent.seq` MUST 在同一 `run_id` 内单调递增。
 - `AgentRun` terminal status MUST 只能是 completed、failed、cancelled 之一。
@@ -1287,7 +1299,7 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | DEP-008 | SQLAlchemy 2.0 | ORM | Yes | typed declarative |
 | DEP-009 | Alembic | DB migration | Yes | `make migrate` |
 | DEP-010 | PostgreSQL | service profile 主存储 | Yes for service profile | checkpoint/session/eval/policy |
-| DEP-011 | Redis | service profile queue/cache | Yes for service profile | 核心抽象不硬绑 |
+| DEP-011 | Redis | service profile durable RunQueue | Yes for service profile | 当前只承担 Streams queue；session cache 属于 P1 可选能力，核心抽象不硬绑 |
 | DEP-012 | SQLite | local profile 存储 | Yes for local profile | 本地/CI |
 | DEP-013 | OpenTelemetry | 观测底座 | Yes | provider adapter 前的统一协议 |
 | DEP-014 | Logfire | 推荐观测/eval provider | No | P0 adapter/recommended |
@@ -1319,6 +1331,11 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | 可访问性 | P0 不做产品 UI；OpenAPI/Redoc 保持默认可访问性 | P1 |
 | 合规 | Apache-2.0、NOTICE、license check、引用声明 | P0 |
 
+非功能验收：
+
+- [ ] AC-065: Given local profile 与 fake provider, when 从入口创建并完成单 agent run, then 稳定 smoke 记录的总时延小于 5 秒。
+- [ ] AC-066: Given 已建立 SSE 连接且存在可见事件, when 服务开始流式响应, then 首个 event frame 在 1 秒内返回；测试必须区分握手前错误和握手后错误事件。
+
 ## 9. P0 完成定义
 
 P0 完成条件：
@@ -1326,18 +1343,18 @@ P0 完成条件：
 - [ ] 所有 P0 requirements 已实现。
 - [ ] 所有 P0 acceptance criteria 已通过。
 - [ ] 所有 P0 能力块都有 unit/contract/integration/eval/smoke 中至少一种验证证据。
-- [ ] `packages/agent-harness` 可独立 build wheel/sdist。
-- [ ] `templates/service-app` 使用 wheel 安装 `agent-harness` 后仍可运行测试和 smoke。
-- [ ] local profile 可在无真实模型 key、无 SaaS provider 情况下跑通。
+- [x] `packages/agent-harness` 可独立 build wheel/sdist。
+- [x] `templates/service-app` 使用 wheel 安装 `agent-harness` 后仍可运行测试和 smoke。
+- [x] local profile 可在无真实模型 key、无 SaaS provider 情况下跑通。
 - [x] service profile 可通过 Docker Compose 跑 PostgreSQL/Redis smoke。
-- [ ] Trace -> EvalCaseDraft -> Human Review -> Approved Dataset -> EvalRun -> ScoreSink 闭环跑通。
-- [ ] Policy/HITL 对默认危险动作生效。
-- [x] CanonicalEvent terminal event 唯一性和 seq resume 测试通过。
+- [x] Trace -> EvalCaseDraft -> Human Review -> Approved Dataset -> EvalRun -> ScoreSink 闭环跑通。
+- [x] Policy/HITL 对默认危险动作生效。
+- [x] CanonicalEvent terminal event 唯一性和 JSON events `after_seq` resume 测试通过；SSE `Last-Event-ID` resume 仍由 AC-038 验收。
 - [ ] README 和深度文档已覆盖目录边界、扩展方式、安全策略、release process。
 - [x] README / architecture docs 已覆盖未来微服务拆分边界；service profile 可验证 API 与 worker 分进程协作。
 - [ ] GitHub Actions 和 GitLab CI 都能跑等价质量门禁。
 - [ ] Release automation dry-run 能生成版本、tag、CHANGELOG 预览和 wheel/sdist artifacts。
-- [ ] Apache-2.0 LICENSE、NOTICE 和 license check 存在。
+- [x] Apache-2.0 LICENSE、NOTICE 和 license check 存在。
 
 ## 10. 假设与待确认问题
 
@@ -1360,9 +1377,8 @@ P0 完成条件：
 |---|---|---:|---|
 | Q-001 | release automation 具体选择 python-semantic-release、release-please，还是双 CI 分别适配 | No | DEV-PLAN 阶段决策；P0 能力已确定 |
 | Q-002 | package registry 是私有 PyPI、GitHub Packages、GitLab Package Registry 还是公开 PyPI | No | P0 支持私有发布路径；公开发布后定 |
-| Q-003 | SQLAlchemy async/sync 具体策略 | No | 建议 async ORM + asyncpg；DEV-PLAN 细化 |
-| Q-004 | local BM25 使用具体实现 | No | 可在 DEV-PLAN 阶段评估 SQLite FTS/BM25 或 Python 库 |
-| Q-005 | Logfire/Phoenix/Langfuse adapter P0 深度 | No | P0 至少 contract + local/jsonl；外部深集成可分层 |
+
+已从待确认列表移除的既定事项：SQLAlchemy 已采用 async ORM + asyncpg seam；local retrieval 已采用 SQLite FTS/BM25 路径；Logfire/Phoenix/Langfuse 已固定为 provider-neutral adapter contract，外部深集成可分层演进。
 
 ## 11. Agent 系统规格
 
@@ -1409,7 +1425,7 @@ P0 完成条件：
 
 - P0 支持多 agent 注册、路由、隔离与受控 delegation。
 - P0 不做复杂 graph-based multi-agent UI。
-- P1 支持 graph-based workflow、handoff 策略、coordinator/specialist 模板和多 agent eval 对比。
+- P1 可在当前 orchestrator/adapter seam 后引入 graph-based workflow、handoff 策略、coordinator/specialist 模板和多 agent eval 对比。
 
 ### 11.5 评估与可观测
 
@@ -1440,6 +1456,6 @@ P0 完成条件：
 
 ### 12.3 运行验证状态
 
-- 已验证四张 drawio 源文件结构：`0 error(s), 0 warning(s)`。
+- 已使用 drawio-skill 的 `validate.py` 验证四张 drawio 源文件结构，当前均为 `0 error(s), 0 warning(s)`；另经 PNG 视觉核验确认连线没有穿过无关节点，图例中的线桥只说明交叉时的非连接语义，不代表当前保留 validator warning。
 - 已导出四张架构图 PNG 预览；PNG 用于审阅和快速理解，项目内可编辑真相源仍以 `.drawio` / `.excalidraw` 为准。
 - 本文档是需求事实源；当前实现进度、验证证据和已归档变更以 `DEV-PLAN.md` 与 `openspec/specs/` 为准。

@@ -137,7 +137,7 @@ class MCPServerSettings(HarnessDTO):
 
 
 class ToolSettings(HarnessDTO):
-    """Phase 8 工具执行配置；profile 未声明时使用安全默认值。"""
+    """工具执行配置；profile 未声明时使用安全默认值。"""
 
     workspace: WorkspaceToolSettings = Field(default_factory=WorkspaceToolSettings)
     shell: ShellToolSettings = Field(default_factory=ShellToolSettings)
