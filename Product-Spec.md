@@ -447,11 +447,11 @@ templates/service-app/
 - SHOULD 配置加载边界为后续热更新保留 seam；P0 不要求 worker 运行中自动热重载，模型路由、预算和 provider 变更先走显式 reload / restart 路径。
 
 **验收标准：**
-- [ ] AC-008: Given 缺失必填配置, when 启动应用, then 启动失败并输出 schema 错误。
+- [x] AC-008: Given 缺失必填配置, when 启动应用, then 启动失败并输出 schema 错误。
 - [x] AC-009: Given local/service profile, when 加载 settings, then storage、queue、observability、policy 解析到 typed config。
-- [ ] AC-063: Given service profile 将 secret 作为只读 Docker secret file 注入, when 加载 typed settings, then 目标字段取得文件内容且任何错误、日志或公开 evidence 不回显原值。
+- [x] AC-063: Given service profile 将 secret 作为只读 Docker secret file 注入, when 加载 typed settings, then 目标字段取得文件内容且任何错误、日志或公开 evidence 不回显原值。
 
-> `AC-008` 当前只证明 loader/registry 对缺失配置返回结构化错误，尚缺应用启动路径的失败合同，因此保持未完成。
+> `AC-008` 与 `AC-063` 已由 Phase 13.6 的公共 loader、四类 application startup 入口、wheel-only 合同和真实 service smoke 共同证明；异常链与 traceback frame locals 泄漏均已修复并通过 3 个 fresh code-reviewer 的 Stage 1/2 审查，对应 change 停在 `ready-to-archive` 且不自动归档。
 
 ### REQ-005: 存储、迁移与事务边界
 

@@ -9,16 +9,17 @@ import os
 
 from agent_harness.adapters.queue import RedisRunQueue
 from agent_harness.auth import hash_token
+from agent_harness.config import load_settings
 from agent_harness.events import PostgreSQLEventSink
 from agent_harness.runtime import QueueReceipt, StaleQueueReceiptError
-from agent_harness.storage import ApiKeyCreate, SQLAlchemyStorage
+from agent_harness.storage import ApiKeyCreate, SQLAlchemyStorage, storage_dsn_from_settings
 
 
 def storage_dsn() -> str:
-    value = os.environ.get("AGENT_HARNESS_STORAGE__DSN", "").strip()
-    if not value:
-        raise RuntimeError("AGENT_HARNESS_STORAGE__DSN is required")
-    return value
+    """通过 typed loader 读取 direct env 或受控 secret file 的 storage DSN。"""
+
+    profile = os.environ.get("AGENT_HARNESS_PROFILE", "service")
+    return storage_dsn_from_settings(load_settings(profile=profile))
 
 
 def queue_dsn() -> str:

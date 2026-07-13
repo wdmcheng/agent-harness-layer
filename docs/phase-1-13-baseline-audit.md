@@ -696,6 +696,394 @@ B2 额外运行证据有效：`make test` 为 `325 passed, 13 skipped`；`make b
 
 主 Agent 不按票数裁决：三份 PASS 均由 `runs.py` operation-specific response、`main.py` 唯一 factory、真实 `create_app().openapi()`、三条 422 ASGI 请求和独立命令输出支持；两个测试矩阵分别锁五个 RUN 精确集合与全 P0 surface，职责不同且未从生产常量派生，不构成自证或维护缺陷。Phase 13.5 因而达到 `ready-to-archive`，但不自动归档；AC-017 仍因 RUN-006 留待 Phase 13.9 而保持未完成，Phase 14/15 也保持未完成。
 
+### 6.29 Phase 13.6 实现候选、自测与清理缺陷闭环
+
+Phase 13.6 从提交 `63bb969f1717410bd295ea01650dd403382d2cd5` 开始，聚焦 active change `config-secret-file-loading`。实现范围只覆盖 AC-008、AC-063 与 CFG-001：公共 typed loader 的 `<BASE_ENV>_FILE`、CLI/API/worker/migration 启动 fail-closed、service profile 的只读 secret mount，以及公开/持久化 evidence 脱敏；未实现 canonical trace、model usage、delegation、SSE、Phase 14 或 Phase 15。
+
+实现与测试证据：
+
+- `load_settings` 固定 profile → agent → `.env` → secret file → process env → overrides；`_FILE` 只读取进程环境，direct/file 冲突在文件读取和 override 前失败。
+- 默认受信 root 为 `/run/secrets`；相对路径、目录、symlink、越界、特殊文件、不可读、空值、非 UTF-8、超过 64 KiB 和打开前后 identity 变化均返回稳定脱敏错误。
+- CLI、FastAPI app factory、runtime worker 与 migration composition 复用 `settings_error_lines`；配置失败时 Uvicorn、DBOS ready、migration 和业务副作用均为零。
+- Compose 的 migration、API、worker 共享 `AGENT_HARNESS_STORAGE__DSN_FILE=/run/secrets/agent_harness_storage_dsn` 与同一只读 mount；service profile 不保存 DSN，`.env.example` 只记录临时文件生成和清理方法。
+- 真实 service smoke 使用每轮随机 PostgreSQL password 和 storage DSN file，证明 migration/API/worker 三个消费者成功；missing、empty、symlink、outside、direct/file conflict 五类失败均 fail-closed。
+
+首次加入全观测面扫描后，`make smoke-service` 在 `secret-evidence-scan` 失败。分段安全 boundary 进一步定位到 smoke artifact；主 Agent 复核原始脚本发现负向 outside/symlink fixture 在用例结束后仍保留到全局 cleanup，既触发扫描，也违反“失败路径立即清理临时 secret”。修复是在 `_verify_secret_failure_cases` 内用 `finally` 删除 symlink 与 outside secret，不排除或弱化扫描。另增加运行失败与 `KeyboardInterrupt` 两条脚本入口合同，证明 secret 目录与 Compose project cleanup 均执行。
+
+修复后的候选验证：
+
+- config/startup/wheel-only/OpenAPI 定向合同：64 项通过。
+- `make quality`：Ruff format/check、Pyright `0 errors`、import-boundary 全部通过。
+- `make test`：`351 passed, 13 skipped`。
+- `make eval`：四个示例共 11 个 case 全部通过，`failures=0`。
+- `make smoke-local`：`smoke-local: ok`。
+- 真实 PostgreSQL/Redis `make smoke-service`：`smoke-service: ok`；三消费者、五类失败、`redacted=true`、`workspace-outside=ok`、`wheel-only=ok`、`secret-cleanup=ok`。
+- `make build`、`make license-check`、`uv run pre-commit run --all-files`、change strict、全量 strict `29 passed, 0 failed` 与 `git diff --check` 全部通过。
+
+当前 12/12 tasks 已勾选，Product Spec AC-008/063、API Contract CFG-001 与 DEV-PLAN 状态已同步。该快照仍只是实现候选；必须完成 3 个 fresh code-reviewer 的相同全范围 Stage 1/2 审查并由主 Agent逐条复核，才可写入 `clean` 和提交。change 只停在 `ready-to-archive`，不得自动归档。
+
+### 6.30 Phase 13.6 首轮三审、主 Agent 裁决与修复
+
+首轮按平台限制使用 2+1：A2、B、C2 三个 fresh reviewer 都读取相同上游真相源、OpenSpec change、完整实现/测试与验证命令，禁止读取本报告和彼此输出。A 的更早实例因平台安全误判在形成报告前中止，未计入三审；一次尚未完成的 ephemeral 尝试也已中止，未参与裁决。
+
+| Reviewer | Stage 1 | Stage 2 | 有效发现 |
+|---|---|---|---|
+| A2 | FAIL | 未执行 | HIGH：非 UTF-8/不可读 `.env` 逃出 `SettingsLoadError`；MEDIUM：真实 Compose 缺 unreadable、清理窗口不完整。 |
+| B | FAIL | FAIL | MEDIUM：真实 Compose 缺 unreadable、API Contract CFG-001 状态矛盾、service smoke 超过 500 有效行且职责过载。 |
+| C2 | FAIL | 未执行 | HIGH：cleanup chain 自身失败会跳过 secret 删除；MEDIUM：`.env` 原始异常、四入口未证明真实缺字段、Compose 缺 unreadable；LOW：API 状态矛盾。 |
+
+主 Agent 没有按票数裁决，逐项复核原始控制流与契约后全部采纳：
+
+1. `_load_env_values` 的 `Path.read_text` 确实未捕获 `UnicodeDecodeError/OSError`，四入口又只捕获 `SettingsLoadError`；独立复现返回原始 `UnicodeDecodeError`，与统一启动失败合同冲突。
+2. service spec 与 task 3.3 明确要求 unreadable Compose/readiness 证据，旧真实输出只含 missing/empty/symlink/outside/conflict，宿主机 loader 单测不能替代。
+3. secret 原先在主 `try` 前创建；单层 cleanup 中任一前置调用抛错都会跳过 `secret_path.unlink`，现有测试只 stub 成功 cleanup，证据不成立。
+4. 四入口参数化用例的“missing”是 profile 文件不存在，不是 AC-008 原文的同一 profile 缺必填字段。
+5. `API-Contract.md` 的 CFG-001 条目已改为当前实现，但验收清单仍把 CFG-001 与 DLG-001/MOD-001 一起写成待实现，属于内部状态漂移。
+6. `templates/service-app/scripts/smoke_service.py` 超过 Python 500 有效行并同时承担 secret matrix/evidence scan 与主 runtime 流程，符合默认必须拆分条件。
+
+已完成修复：
+
+- `.env` 读取/编码失败统一映射为 `config.invalid_env`、field `.env` 与固定 UTF-8/权限提示，不包含路径或 raw exception；新增 Unicode 与 OSError 公共 loader 合同。
+- 四入口参数化测试改为真实 service YAML 缺 `storage`，并把 FastAPI `create_app` 与 CLI/worker/migration 的同 code、field、hint、零 runtime/migration 副作用一起比较；另覆盖非 UTF-8 `.env`。
+- secret failure/evidence 逻辑拆到 `service_secret_smoke.py`，主 smoke 回到编排职责；真实 Compose 以非 root 用户读取 mode 000 secret，输出新增 `unreadable=true`。
+- secret 创建移入外层 `try`；credential/container/project/secret cleanup 改为嵌套 `finally`，即使 project cleanup 自身抛错也删除 secret 目录和本轮环境引用；新增 cleanup-failure 合同。
+- root wheel-only wrapper 使用独立子进程组，并在 `KeyboardInterrupt` 时显式向整组发送 SIGINT，让模板 Python `finally` 有机会完成；超时才升级 SIGTERM。
+- API 验收清单拆分状态：CFG-001 当前已实现，DLG-001/MOD-001 仍待实现。
+
+修复后定向 60 项、quality、local smoke 与 diff check 通过；真实 PostgreSQL/Redis smoke 输出三消费者、六类 failure case（含 unreadable）、`redacted=true`、`secret-cleanup=ok`。首轮三份结论因上述 tracked diff 全部失效，必须重跑完整验证和 3 个新的 fresh reviewer。
+
+### 6.31 Phase 13.6 修复后复审候选快照
+
+首轮修复后的完整验证已经刷新：定向 60 项通过；`make quality` PASS；`make test` 为 `356 passed, 13 skipped`；`make eval` 四个示例 11 个 case 全部通过；local smoke 与真实 PostgreSQL/Redis service smoke 分别通过；build、license、pre-commit、change strict、全量 strict `29 passed, 0 failed` 与 diff check 全部通过。真实 service evidence 明确包含 migration/API/worker 三消费者、missing/unreadable/empty/symlink/outside/conflict 六类失败、`redacted=true` 与 root `secret-cleanup=ok`。
+
+代码规模整改后，主 `templates/service-app/scripts/smoke_service.py` 为 550 个物理行，按“非空且非纯注释”的保守上界为 429；secret matrix/evidence scan 与 HTTP polling/submission 分别拆到 194 行、约 125 行的单职责模块，不再越过 500 有效行门槛。
+
+排除本报告的固定复审候选快照：
+
+```text
+cedddea9a5655c0467984f88243fe668b8407765086f8fb27444cfaeeefc1562
+```
+
+关键文件 SHA-256：
+
+| 文件 | SHA-256 |
+|---|---|
+| `Product-Spec.md` | `12281567f64a9bbbd16c7b3eded6fd838db6ebec95be5a64d82216750425e410` |
+| `DEV-PLAN.md` | `eeac4e21616373d938704441c5ed09e0f95c2547f5ecb33c49f626119dd895c2` |
+| `API-Contract.md` | `c6fcff17b424b59d5c6db28bcd10f1b4f80af590ed95aa784e77aea6b6d7564b` |
+| `tasks.md` | `dae545aaf5d6b60325c0cf22d5731c9b005be2d77fedc42388517bbd7e2d78f6` |
+| `config/settings.py` | `3962aeec107383ce50022f0a46d2b6f156f936bc804b84634abca2e724b37a53` |
+| `scripts/smoke_service.py` | `a0547dba9d5545ae6660ea8bd3e1a60b133375052796ac7bfe91e6585fe1c936` |
+| `scripts/service_secret_smoke.py` | `6d1ec5543f632fe7effb4f2cf31dd20f4a353ac252b1995e97aebbe36506bb91` |
+| `scripts/service_http_smoke.py` | `412190c9d3a1b644181a787025c631e437dd1dd533e6f53fe85d937dba2032bc` |
+| `test_config_secret_startup_contracts.py` | `3a216953e7a8873af971be7121a96624538dd58fba2f7ea98e53aa5060353d29` |
+| `test_service_deployment_compose_contracts.py` | `9a8b343d9d2bf4a209ab4f4bb4334ed24db6553ded8ab4195bdee5b5d35e9058` |
+
+下一轮仍由 3 个 fresh reviewer 审相同完整范围；本节不是 PASS 声明。Phase 13.6A、14、15 仍未实施，所有 active change 仍未 archive。
+
+### 6.32 Phase 13.6 第二轮三审与证据真实性修复
+
+第二轮 A、B、C 三个 fresh reviewer 在相同候选快照上完成相同完整范围；三者均独立读取原始契约、实现与验证，禁止读取本报告和彼此输出。
+
+| Reviewer | Stage 1 | Stage 2 | 发现 |
+|---|---|---|---|
+| A | FAIL | FAIL | MEDIUM：Compose failure matrix 只断言任意非零退出，未证明 unreadable 等场景由 loader 的稳定诊断/readiness 拒绝。 |
+| B | FAIL | FAIL | 同一 MEDIUM；LOW：CFG-001 未显式列出 `config.secret_file_conflict`。 |
+| C | FAIL | PASS_WITH_NOTES | 同一 MEDIUM；LOW：`settings.py` 超过 300 行审查阈值，secret I/O、source merge 与 error DTO 职责仍应拆分。 |
+
+主 Agent 直接复核 `_expect_secret_startup_failure`，确认它只检查 `returncode != 0`，随后用本地 `failure_diagnostic` 丢弃 raw output，并无条件写入 `True`；`--user 65534` 的 unreadable 场景确实可能在 Python/loader 前失败。该 MEDIUM 与两个维护性 LOW 全部采纳，不按三份报告的严重度差异裁决。
+
+修复与真实排障：
+
+- 每个 missing/unreadable/empty/symlink/outside/conflict 子场景必须在真实 migration stdout/stderr 中匹配预期 `config.secret_file_invalid` 或 `config.secret_file_conflict`、`field=storage.dsn` 和固定 hint，并扫描原始诊断不含 DSN、密码或宿主路径；任一缺失都使 smoke 失败。
+- missing 改为容器内 `/run/secrets` 下不存在路径，避免 Docker 在创建容器前因宿主 source 不存在而产生假阳性。
+- 初版 unreadable 使用 `--user 65534`，强化断言立即证明它未到 loader；去掉 user override 后又证明 Compose secret 会规范化 source 权限。最终使用可访问目录 bind mount 到 `/run/secrets/unreadable-fixture`，目录内 mode 000 普通文件由镜像真实 `harness` 用户读取，稳定命中 loader 诊断。
+- 真实 failure matrix 前后比较 PostgreSQL public table 数和 Redis run stream length；结果保持不变。另以 empty secret 执行 `compose up --wait api worker`，要求非零且两服务均不处于 running，随后只清理本轮 migration/API/worker 容器。
+- service evidence 新增 `api_worker_readiness_blocked=true` 与 `side_effects=false`；真实 PostgreSQL/Redis smoke 在强化断言下通过。
+- CFG-001 错误行同时列出 `config.secret_file_invalid` 与 `config.secret_file_conflict`。
+- `SettingsLoadError/settings_error_lines` 提取到 `config/errors.py`，受信 root、冲突和文件 I/O 提取到 `config/secret_files.py`；`settings.py` 保守有效行上界从 347 降到 227，公共 `agent_harness.config` export 与所有错误码保持不变。
+
+第二轮三份结论因上述 tracked diff 失效。
+
+### 6.33 Phase 13.6 第三轮复审候选
+
+强化修复后的当场证据：`make quality` PASS；`make test` 为 `356 passed, 13 skipped`；`make eval` 四个示例 11 个 case 全部通过；local smoke PASS；真实 service smoke 在逐 case code/field/hint、readiness 与零副作用门禁下 PASS；build、license、pre-commit、change strict、全量 strict `29 passed, 0 failed` 与 diff check 全部通过。
+
+排除本报告的固定候选快照：
+
+```text
+ceb3aacb4a5d09ba342b592cc1a3230013bc64bf6b31825afa1727a01ca11ba6
+```
+
+关键修复文件 SHA-256：
+
+| 文件 | SHA-256 |
+|---|---|
+| `DEV-PLAN.md` | `eeac4e21616373d938704441c5ed09e0f95c2547f5ecb33c49f626119dd895c2` |
+| `API-Contract.md` | `63a04835d16972862c0676c09f5325792ca041ea0cffdcbe1f4790569f8376b1` |
+| `config/errors.py` | `31d1326f2b18cfd62636194ba8c83a06f210aef87441264e8fcc20024053d25d` |
+| `config/secret_files.py` | `812df622c226544da3a5eb23f2842877abc5c2e3bb2b16e4b65da439273bd507` |
+| `config/settings.py` | `af72cd6d00080300b6ffe49a031bc805ba7f94669ad7dc4436a73fe6afa90f39` |
+| `service_secret_smoke.py` | `cdbfdc5a6b37095ec6b686c26175a07bbb1b0ee4f85e11c67d11e121a4c1e999` |
+| `smoke_service.py` | `a0547dba9d5545ae6660ea8bd3e1a60b133375052796ac7bfe91e6585fe1c936` |
+| `test_service_deployment_compose_contracts.py` | `055443befabd83f58576eceabd3d3737beeab5c6965ff960de19203859fbb2ca` |
+
+本节仍不是 PASS 声明；必须由新的 3 个 fresh reviewer 从 Stage 1 开始重审。
+
+### 6.34 Phase 13.6 第三轮三审、产品边界裁决与真实性修复
+
+第三轮按 2+1 执行。A、B 与最终有效的 C 都直接读取相同原始真相源、完整实现和运行证据，禁止读取本报告、其他 reviewer 输出或主 Agent 摘要。两个更早的 C 实例因平台长时间无命令、无进度且未形成报告而中止，不计入三审。
+
+| Reviewer | Stage 1 | Stage 2 | 发现 |
+|---|---|---|---|
+| A | PASS | PASS_WITH_LOW | LOW：`DEV-PLAN.md` 的 Phase 13.6 关键文件重复写 `config/settings.py`，未列实际承载受信读取与错误 DTO 的 `config/secret_files.py`、`config/errors.py`。 |
+| B | FAIL | 未执行 | HIGH：若本地进程能在 `resolve` 与首次 `stat` 之间把受信 root 内父目录替换为指向 root 外的 symlink，当前 `O_NOFOLLOW` 与 identity 复核仍可读取 root 外文件；LOW：同一关键文件清单漂移。 |
+| C | FAIL | FAIL | MEDIUM：真实 Compose 的 `symlink` case 把 `_FILE` 指向 `/smoke/storage-dsn-link`，loader 在文件类型检查前先以越过 `/run/secrets` 拒绝，因此只重复证明 outside，`"symlink": true` 属于假覆盖。 |
+
+主 Agent 逐条复核，不按票数裁决：
+
+1. **采纳关键文件清单 LOW。** `DEV-PLAN.md` 原文连续两行都指向 `config/settings.py`，而当前实现已拆为 `settings.py`、`secret_files.py`、`errors.py`；现已按真实职责修正。
+2. **采纳 Compose symlink MEDIUM。** 原脚本的 `_FILE=/smoke/storage-dsn-link` 明确不在默认受信 root `/run/secrets` 内；即使宿主 fixture 是 symlink，运行时也先命中 root containment，不能证明 symlink 类型分支。现改为把包含相对 symlink 与同目录普通目标的 fixture 目录只读挂载到 `/run/secrets/symlink-fixture`，并使用 `_FILE=/run/secrets/symlink-fixture/storage-dsn-link`。目标解析仍留在受信 root 内，因此失败只能由最终组件为 symlink 触发；宿主路径与 secret 内容继续纳入泄漏断言。
+3. **复现 B 的 race，但驳回其 HIGH 严重度与实现建议。** 主 Agent 在临时目录中确定性地于 `candidate.resolve()` 后、首次 `candidate.stat()` 前替换父目录，输出为 `{'swapped': True, 'loaded_outside': True}`，所以技术描述本身成立。但 Product Spec 约束的是 Docker 只读 secret file 的受控加载，change design 原文只要求用非跟随打开与 identity 复核“降低”检查/读取替换风险；真实 Compose 又把 `/run/secrets` 作为部署方控制的只读 mount。用户进一步明确本产品关注 Agent 网络之间的信任与隔离，不是抵御可并发改写受信 root 或宿主父目录的本地敌手沙箱。逐组件 `openat` 会把 Phase 13.6 扩张为新的本地攻击者模型，因此不采纳该代码改造；design 已补充受信 root 的部署前提、威胁模型非目标，以及 identity/tenant/policy/runtime 才承载网络间信任隔离，避免以后把理论 race 冒充产品范围。
+
+修复后的当场证据：新增静态装配合同先红灯失败于缺少 `/run/secrets/symlink-fixture/storage-dsn-link`，改造后转绿；config/startup/Compose 定向合同 `43 passed`；change strict 与 `git diff --check` PASS；真实 PostgreSQL/Redis `make smoke-service` PASS，继续证明 migration/API/worker 三消费者、missing/unreadable/empty/symlink/outside/conflict、API/worker readiness blocked、PostgreSQL/Redis `side_effects=false`、`redacted=true`、credential cleanup、workspace-outside、wheel-only 与 `secret-cleanup=ok`。
+
+本轮修复产生 tracked diff，因此 A、B、C 的全部结论再次失效。排除本报告、对所有当前 tracked/untracked 文件内容按路径排序取 SHA-256 后的候选快照为：
+
+```text
+e1cf601dbadfc83edb7c1cdda2d8c9c2e9d7cffe6c5e62c272907b1422dbda61
+```
+
+| 文件 | SHA-256 |
+|---|---|
+| `DEV-PLAN.md` | `34923dc6e0fa6d853b9aeaacdc976b125fb3b403ec2c19f49dae9ce6efda6d19` |
+| `openspec/changes/config-secret-file-loading/design.md` | `d379f2501576488a903f05228ff74897ff99442119883320ddd1ea99a71e4714` |
+| `templates/service-app/scripts/service_secret_smoke.py` | `6ee2343a1c10bf2a6f589b4077865599dd9ccda1f8755204b5c947c9f8dc4d6c` |
+| `tests/contracts/test_service_deployment_compose_contracts.py` | `099e807b493841f43086fe871fdaf39f02172b021e55e1b495f6adac2c8fd78b` |
+
+下一步必须由 3 个新的 fresh reviewer 对该候选从 Stage 1 开始重审；本节不是 PASS，`clean` 仍不得写入。Phase 13.6A、13.7、13.8、13.9、14、15 均保持未实施。
+
+### 6.35 Phase 13.6 生命周期状态漂移修复
+
+修复后下一轮 reviewer A 在原始文档中发现 1 个 MEDIUM：`Product-Spec.md` 与 `API-Contract.md` 已把 `config-secret-file-loading` 写成 `ready-to-archive`，而 `DEV-PLAN.md` 的当前 Phase、建议下一步和 Phase 13.6 正文都明确要求 3 个 fresh reviewer 通过后才能进入该状态。主 Agent 进一步全局复核发现 `DEV-PLAN.md` 的 OpenSpec 摘要、当前 change 表和 Phase 列表也存在同类提前状态。
+
+该发现全部采纳：Product Spec 与 API Contract 统一为“当前实现与自测完成，待三审通过后进入 `ready-to-archive`”；DEV-PLAN 仅保留已三审的 Run OpenAPI 为 `ready-to-archive`，config secret file 统一为待三审。reviewer A 的其余实现、真实 symlink、全量验证与无 scope creep 检查均通过，但该 MEDIUM 已使本轮失败；尚未完成报告的 reviewer B 已由主 Agent 中止，本轮不计为有效三审，也未派第三名凑票。
+
+本次文档 tracked diff 再次使全部既有 PASS 失效。下一轮仍须从相同完整范围的 3 个 fresh reviewer Stage 1 开始；在此之前不得写 `clean`、提交或声称 `ready-to-archive`。
+
+### 6.36 Phase 13.6 第四轮 reviewer C 生命周期与提交边界发现
+
+第四轮因平台历史 thread 上限改用本机 `codex exec --ephemeral -m gpt-5.6-sol` 运行 3 个 fresh reviewer；每个进程使用独立 ephemeral session、相同完整 prompt 与原始文件/验证证据，禁止读取本报告、其他 reviewer `/tmp` 输出或主 Agent 摘要。A、B 的 Stage 1/2 均 PASS；A 仅提出主 smoke 约 429 有效行的 LOW 后续拆分建议，B 为 0 finding。C 的 Stage 1 FAIL、Stage 2 PASS_WITH_NOTES，提出两个 MEDIUM。
+
+主 Agent 逐条复核：
+
+1. **采纳 `DEV-PLAN.md` 建议下一步的生命周期措辞。** 原文写“PASS 后提交并继续 Phase 13.6A，不归档 active change”，虽然其他状态区已写三审后进入 `ready-to-archive`，但该句没有显式记录进入状态，且“继续/不归档”容易被读成跳过收口。现统一为“PASS 后进入 `ready-to-archive` 并提交，再继续 Phase 13.6A；不自动归档”。
+2. **采纳 Phase 13.5 API 状态行混入 Phase 13.6 diff。** `HEAD 63bb969` 已是 Run OpenAPI 实现提交，但该提交遗漏 `API-Contract.md` 验收清单的完成勾选，导致当前 diff 才补上真实状态。回滚会把长期契约改回假状态；因此该单行已用独立提交 `c662264 docs: reconcile run openapi contract status` 收口，不与 Phase 13.6 行为提交混合。CFG-001 状态仍属于 Phase 13.6，留在当前 diff。
+3. **驳回 A 的 smoke 继续拆分 LOW 为当前缺陷。** code-review 规则对 Python 超过 300 有效行要求解释是否拆分，超过 500 才默认必须拆；当前主 smoke 约 429 有效行，且 HTTP、secret matrix/evidence 与通用 support 已拆为独立模块。A 自己也明确“尚未达到必须拆分级别”，B/C 均确认职责未形成阻塞性混杂。因此把 approval/recovery 继续拆分留作 Phase 13.6A 修改同一编排时的维护建议，不构成当前正确性或维护性未闭环缺陷。
+
+上述 tracked diff 使 A/B/C 结论全部失效；完成独立 Phase 13.5 文档提交并刷新验证后，Phase 13.6 必须重新执行 3 个 `gpt-5.6-sol` fresh reviewer。
+
+### 6.37 Phase 13.6 Compose secret 泄漏与架构状态修复
+
+主 Agent纠正 reviewer 调度口径后，只使用平台 `spawn_agent` 创建固定 `code-reviewer` sub-agent。外部 `claude --bare`/`codex exec --ephemeral` 结果不再计入最终三审门禁，只保留为候选发现与排障证据。
+
+固定 sub-agent reviewer A 在快照 `030f90ee7c7929f27028b88d6d6c5b854aec0fc9a52a03c05cebfd21c7d0ced5` 上确认：
+
+- **HIGH：**`docker-compose.yml` 把 `SERVICE_APP_POSTGRES_PASSWORD` 插值成 `POSTGRES_PASSWORD`；真实 `docker compose config` 原样输出密码，而 smoke 没扫描该观测面，违反 change 的“Compose 输出不得回显 secret 值”。
+- **MEDIUM：**产品全景与技术架构两组 `.drawio/.excalidraw/.png` 仍把 Docker secret file 标为 P0 待实现，与 Product/API/DEV 的已实现状态冲突。
+
+reviewer B 独立确认同一架构 MEDIUM；其余 loader、四入口、真实 failure matrix、readiness、零副作用、清理和 scope 检查通过。两份结论不按票数裁决：Compose config 的真实明文输出和图源原文分别足以证明两项缺陷。
+
+修复：
+
+- 根据 Docker 官方 PostgreSQL image 文档，PostgreSQL 改为独立 `POSTGRES_PASSWORD_FILE=/run/secrets/agent_harness_postgres_password`，不再向 Compose environment 插入密码值；应用 DSN 继续由 API/worker/migration 共用另一只读 secret。
+- service smoke 把 `docker compose config` 加入 secret-value 扫描，并在公开/persisted surfaces 继续扫描两份 secret 值与宿主路径。Compose 规范化输出中的 secret source path 是 operator 必需的部署元数据，不等同 secret 值；该路径仍禁止进入应用 health/log/event/database/artifact。
+- 成功、失败和中断清理两份临时 secret；OpenSpec design/tasks、API、DEV 和 `.env.example` 同步该边界，tasks 更新为 13/13。
+- 产品全景与技术架构两组三格式同步为 Docker secret file 已实现；drawio validator 均为 `0 error(s), 0 warning(s)`，两张 2000px PNG 原分辨率视觉核验无裁切、重叠或状态冲突。
+
+首次真实 service smoke 正确失败于 artifact 扫描把 PostgreSQL password 输入文件本身当作输出 artifact。主 Agent复核后只排除 storage DSN 与 PostgreSQL password 两份输入 secret，其他 artifact 继续扫描值和路径；随后真实 PostgreSQL/Redis smoke PASS，证据包含：
+
+```text
+postgres_password_file=true
+compose_config_redacted=true
+consumers=[migration, api, worker]
+missing/unreadable/empty/symlink/outside/conflict=true
+api_worker_readiness_blocked=true
+side_effects=false
+redacted=true
+workspace-outside=ok wheel-only=ok secret-cleanup=ok
+```
+
+定向 config/startup/Compose 合同 `43 passed`；quality、change/all strict `29 passed, 0 failed` 与 diff check 通过。新候选快照为：
+
+```text
+5b3c9531f01f68340069a9c14d21d19bffc1e666b5474f43678d640e2005d468
+```
+
+本节仍不是 PASS 声明；必须由 3 个新的 fixed `code-reviewer` sub-agent 从 Stage 1 重审。
+
+### 6.38 Phase 13.6 部署边界与安全诊断契约修复
+
+固定 sub-agent 复审 A、B 在相同快照 `5b3c9531f01f68340069a9c14d21d19bffc1e666b5474f43678d640e2005d468` 上独立读取原始文件和验证证据，均判定 Stage 1 FAIL；已执行的 Stage 2 结论不能覆盖 Spec 轴失败。
+
+| Reviewer | Stage 1 | Stage 2 | 发现 |
+|---|---|---|---|
+| A | FAIL | PASS | MEDIUM：部署边界图未显示 application DSN secret 向 migration/API/worker 的只读挂载，也未显示 PostgreSQL 独立 password file。 |
+| B | FAIL | 未执行 | 同一部署边界 MEDIUM；另有 MEDIUM：主 `typed-config` 规格要求非法 YAML 错误“标出 file path”，而实现和合同测试刻意只公开 `profile`/`agent` 逻辑来源并禁止宿主机绝对路径。 |
+
+主 Agent 逐项复核后全部采纳，不以两份报告是否重复作为裁决依据：
+
+1. `docs/architecture/README.md` 把部署边界图定义为 service profile、进程拆分与部署协作边界的真相源；而 change proposal/design 明确把 container secret mount 纳入本次变更依据。图中 API、worker、migration 与 PostgreSQL 节点原先都没有 `_FILE` 或只读挂载语义，足以单独证明架构交付物漂移。
+2. `settings.py` 把 YAML parser 失败映射为 `field_path=profile` 或 `field_path=agent`，合同测试又明确断言宿主机绝对路径不得出现；主规格的“标出 file path”既与实现冲突，也违反本次统一脱敏边界。该冲突不会因 `openspec validate` 可解析而消失。
+
+修复：
+
+- 主 `typed-config` 规格及本 change 的完整 MODIFIED requirement 统一为安全的逻辑 `field_path`，非法 YAML 只标出 `profile`/`agent` 来源，不公开宿主机绝对路径或 raw parser trace。
+- 部署边界 `.drawio`、`.excalidraw` 与 PNG 同步：migration/API/worker 节点标出 application DSN `_FILE :ro`，PostgreSQL 节点标出独立 password `_FILE :ro`，当前 Compose 注记明确两份 secret 的消费者；未来 gateway/event/storage 继续保留在独立紫色虚线区域。
+- drawio 结构校验为 `0 error(s), 0 warning(s)`；Excalidraw JSON 与 drawio XML 均可解析；重新导出的 PNG 为 `2000x1329`，原分辨率视觉核验未发现文字裁切、节点重叠或当前/未来边界混淆。
+- change strict 与全量 strict 为 `29 passed, 0 failed`，`git diff --check` PASS。
+
+修复后定向 config/startup/Compose 合同为 `43 passed`，`make quality` PASS。排除本报告后，对全部 tracked/untracked 变更文件按路径排序并汇总内容 SHA-256 的固定候选快照为：
+
+```text
+e8d87a00c310e2c5b3d406a9a0285bad0c4f2d8cc7fe4932f151642935f9fca4
+```
+
+| 文件 | SHA-256 |
+|---|---|
+| `openspec/specs/typed-config/spec.md` | `ad0fd45b2bb93befd2421a86e92aa1f0ab1669c69926997d937f9a156775f45f` |
+| `openspec/changes/config-secret-file-loading/specs/typed-config/spec.md` | `f7dabde8abc2dcb2311c129b2ef9ffa7b251c101c43add829a193ed3c70f0e11` |
+| `docs/architecture/agent-harness-deployment-boundaries.drawio` | `63af9c958ab4f01c0b3105fd6fb0ee286071a15f613add70ac576d962759b735` |
+| `docs/architecture/agent-harness-deployment-boundaries.excalidraw` | `ee2b120ff4d809dbbd8079c6bd424037a3874fa396a48623967d0abfa32513a4` |
+| `docs/architecture/agent-harness-deployment-boundaries.png` | `b1877049f72b376fc6d06296af663f9827b79ec0ef645456bb5da2e26c856784` |
+| `Product-Spec.md` | `1112abecbef92ee582c4afea1d5051b8289487f7224a13693213420064d4809e` |
+| `DEV-PLAN.md` | `0ebf820d494a9aca54cbd5f71ccf79bb7ccd86cc5902e306ec52e7aad5b2ab07` |
+| `API-Contract.md` | `de8f05d24137edda090096040b5111ce552096f6db33386e3ce4e36137d4b0c0` |
+
+上述修复产生新的 tracked diff，因此本轮 A、B 的全部结论失效；必须固定新快照并重新派 3 个 fresh fixed `code-reviewer` 执行相同完整 Stage 1/2 审查。本次基线目标不再读取、写入或受 `.agents/.needs-review` 影响，完成性只由用户定义的三审与验证证据裁决。
+
+### 6.39 Phase 13.6 修复后三审与生命周期收口
+
+平台按 2+1 派出 D、E、F 三个 fresh fixed `code-reviewer`；三者使用相同完整范围，禁止读取本报告、其他 reviewer 输出或主 Agent 摘要，均独立复算排除本报告的 36 文件候选快照：
+
+```text
+e8d87a00c310e2c5b3d406a9a0285bad0c4f2d8cc7fe4932f151642935f9fca4
+```
+
+| Reviewer | Stage 1 | Stage 2 | 发现与独立证据 |
+|---|---|---|---|
+| D | PASS | PASS | HIGH/MEDIUM/LOW 均为 0；43 项定向合同、quality、compileall、change/all strict、diff check、Compose JSON 装配通过；未独立运行完整 service smoke。 |
+| E | PASS | PASS | HIGH/MEDIUM/LOW 均为 0；43 项定向合同、quality、change/all strict、diff check、Compose config 脱敏和四图视觉检查通过；未独立运行完整 service smoke。 |
+| F | PASS | PASS | HIGH/MEDIUM/LOW 均为 0；43 项定向合同、四组 drawio/excalidraw 解析与 PNG 视觉检查通过；按停止扩展命令未独立重跑 quality、strict、diff check 或完整 service smoke。 |
+
+主 Agent 逐条复核三份引用，不以 3 票 PASS 代替证据：
+
+- 三者引用的 merge 顺序、冲突前置、受信文件边界、四入口 fail-closed、两份 Compose secret、readiness/零副作用哨兵、清理控制流和公开面扫描均可由原始代码及 43 项定向合同直接对应。
+- 三者均未把未运行的完整 service smoke 冒充自身证据；真实 PostgreSQL/Redis PASS 继续单列采用主 Agent 在同一行为实现上的实际运行输出，不能由离线合同替代。
+- 三者对主规格与 delta 组合、部署图三格式、当前/未来边界、scope creep、维护说明和文件规模均未提出缺陷；主 Agent 复核也未发现遗漏的 HIGH/MEDIUM 或涉及正确性/维护性的 LOW。
+
+因此 `config-secret-file-loading` 的实现候选通过本轮三审，Product Spec、API Contract 与 DEV-PLAN 随后同步为 `ready-to-archive`；change 保持 active，不自动 archive。Phase 13.6A、13.7、13.8、13.9、14、15 均未因此标记完成。
+
+状态同步后 change/all strict 仍为 `29 passed, 0 failed`，`git diff --check` PASS。排除本报告的新候选快照与三份权威状态文件 SHA-256 为：
+
+```text
+snapshot=72a75b105fad441097b57b2aa7daa65038af415fffa059cdb668c41c9573af2c
+Product-Spec.md=6eee385b049c8be11e48a0ff306a8631f0a75d93beee36dd48bac8aed861dcbf
+DEV-PLAN.md=e9269c3768e3e3a4ab4c79c894a2deee658e1f0882d019ab044f5e0beb4add2d
+API-Contract.md=2f924c4c8cb360334c498a3499ce4aaa32cab61f6d3784ddaa7633fe4e37e7a3
+```
+
+上述生命周期和报告同步本身产生 tracked diff，使 D/E/F 的 PASS 不再是最终无差异门禁。必须对新快照再派 3 个 fresh fixed `code-reviewer` 完成最终 Stage 1/2 审查；此后不得再修改 tracked 文件。本次目标不读取或写入 `.agents/.needs-review`。
+
+### 6.40 Phase 13.6 最终门禁异常链泄漏修复
+
+状态同步后的最终门禁按 2+1 启动。reviewer H 在快照 `72a75b105fad441097b57b2aa7daa65038af415fffa059cdb668c41c9573af2c` 上给出 Stage 1/2 PASS、零发现；reviewer G 独立给出 Stage 1 FAIL、Stage 2 未执行，并报告 HIGH：`settings.py` 用 `raise SettingsLoadError(...) from exc` 保留原始 Pydantic `ValidationError`，当 secret file 内容不满足 typed schema 时，外层错误已脱敏，但 `__cause__` 与格式化 traceback 仍包含 secret 原值。第三名 I 因候选已失败而中止，不拿 H 的 PASS 或旧 reviewer 补票。
+
+主 Agent 不按票数裁决，直接构造唯一 fixture 复现：
+
+```text
+{'outer_redacted': True, 'cause_type': 'ValidationError', 'cause_leaks': True, 'traceback_leaks': True}
+```
+
+该证据违反 Product Spec AC-063 与 change 的“错误、日志、trace、eval、audit 不包含 secret/raw exception”，因此采纳 HIGH。现有测试只断言外层 `str(error)`，没有覆盖异常链，属于真实测试盲区。
+
+修复采用两步红绿回路：
+
+1. 首先改为 `from None`，格式化 traceback 已脱敏，但主 Agent 继续检查发现 Python 仍把原始 `ValidationError` 保留在 `__context__`，因此未把该补丁作为最终修复。
+2. 最终实现先在 `except` 内复制安全 `ErrorDetail`，离开异常处理块后再抛 `SettingsLoadError`；回归测试同时断言 `__cause__ is None`、`__context__ is None`、外层字符串与完整格式化 traceback 均不含 secret fixture。
+
+修复后确定性复现输出：
+
+```text
+{'cause': None, 'context': None, 'outer_redacted': True, 'traceback_redacted': True}
+```
+
+定向合同 `43 passed`，`make quality` PASS，change/all strict `29 passed, 0 failed`，`git diff --check` PASS。该代码、测试、状态与报告 tracked diff 使 G/H 的全部结论失效；Product/API/DEV 已恢复为“异常链修复完成，待 3 个 fresh reviewer 从 Stage 1 重审”，尚未进入 `ready-to-archive`。
+
+排除本报告的修复候选快照与关键文件 SHA-256：
+
+```text
+snapshot=bf5fc9a2b86090822c67b0b9bb6ba7f1088d86581b3fc24c3c3339c8a1333fe3
+settings.py=25af916051c60cd297cc1d2a79a18928af312b8636fbb65b33d2d63522c73ffe
+test_typed_config_contracts.py=e5538400a53f6a2857c57009b8b1055598c7fb1797646a92e0efd0b9aa9e8191
+Product-Spec.md=6e6fc8e12c7ff3034e63066f8de88eeab7ec71166df206f881630ada249bce6d
+DEV-PLAN.md=5cb1c25194f7380293716d218a59c9deb763bcff2e2b928d5dda3a84551541d7
+API-Contract.md=1580184b744f72b5586b99323e9c47da428ea89b7878bf70cf793a9438202499
+```
+
+### 6.41 Phase 13.6 traceback frame locals 脱敏修复
+
+修复后 reviewer J 在快照 `bf5fc9a2b86090822c67b0b9bb6ba7f1088d86581b3fc24c3c3339c8a1333fe3` 上独立发现另一个 HIGH：`__cause__`、`__context__` 与格式化 traceback 已脱敏，但异常对象的 `load_settings` traceback frame locals 仍持有 `data` 和 `secret_env` 原值。启用 locals capture 的错误监控会把该值写入日志；现有测试没有遍历 `exc.__traceback__.tb_frame.f_locals`。
+
+主 Agent 直接复现：
+
+```text
+{'traceback_frame_local_hits': [('load_settings', 83, ['data', 'secret_env'])]}
+```
+
+该结果仍违反 AC-063 及 change 的错误、日志、trace 和 raw exception 脱敏要求，因此采纳 HIGH；不因前一轮外层错误修复或其他 PASS 降级。修复在复制安全 `ErrorDetail` 后，清空本地持有的 YAML、agent、`.env`、process env、secret env、direct env 与 merged data 副本，并删除对调用方 `overrides` mapping 的本地引用；不修改调用方持有的 mapping。回归测试只检查 `agent_harness.config.settings` traceback frames，避免把测试自身的 fixture 变量误判为生产泄漏。
+
+修复后确定性输出：
+
+```text
+{'settings_frame_local_hits': [], 'cause': None, 'context': None}
+```
+
+定向合同 `43 passed`，`make quality` PASS。J/K 审查的候选已经产生 tracked diff，两个实例均中止且不计入三审；下一轮必须重新固定快照并派 3 个 fresh reviewer。
+
+change/all strict 仍为 `29 passed, 0 failed`，`git diff --check` PASS。排除本报告的新候选与关键文件 SHA-256：
+
+```text
+snapshot=0eed7ede297f4f91f2599784c4c053b182e1091e5026b98fcaa96e495689a149
+settings.py=2262ffc227c11f7eb4e337b4103b47e5eaa0d01b35f0bed8dd498c855632a371
+test_typed_config_contracts.py=7e0a61372f2e1a9730d2038714e76ca03d5469382ddc558e1b51c298addcbc57
+```
+
+### 6.42 Phase 13.6 frame-local 修复后三审
+
+平台按 2+1 派出 M、N、O 三个 fresh fixed `code-reviewer`；三者使用相同完整范围，禁止读取本报告、彼此输出或主 Agent 摘要，均独立复算快照 `0eed7ede297f4f91f2599784c4c053b182e1091e5026b98fcaa96e495689a149`。
+
+| Reviewer | Stage 1 | Stage 2 | 发现与关键独立证据 |
+|---|---|---|---|
+| M | PASS | PASS | HIGH/MEDIUM/LOW 均为 0；四层异常脱敏、三类 caller overrides 不变、43 tests、quality、29/29 strict、diff check 与四图检查通过。 |
+| N | PASS | PASS | HIGH/MEDIUM/LOW 均为 0；四层异常脱敏、正常/错误 overrides 不变、43 tests、quality、29/29 strict、diff check 通过。 |
+| O | PASS | PASS | HIGH/MEDIUM/LOW 均为 0；四层异常脱敏、正常/错误 overrides 不变、43 tests、quality、29/29 strict、diff check 与四入口/清理合同通过。 |
+
+主 Agent 直接复核三者引用：`settings.py` 只清空本地持有的配置副本并删除本地 overrides 引用，不修改调用方 mapping；正常、secret schema 错误和 override schema 错误路径均有独立运行证据。三者未运行完整 service smoke，未把静态合同替代真实 PostgreSQL/Redis 证据。没有遗漏的 HIGH/MEDIUM 或涉及正确性/维护性的 LOW。
+
+因此 frame-local 修复候选通过三审，Product/API/DEV 同步为 `ready-to-archive`；change 保持 active，不自动 archive。该状态与报告同步产生最后一组 tracked diff，必须在不再编辑文件的前提下执行最终 3 个 fresh reviewer 无差异门禁。
+
+change/all strict 仍为 `29 passed, 0 failed`，`git diff --check` PASS。最终门禁快照与关键文件 SHA-256：
+
+```text
+snapshot=2db6fc735d3db8047ea90bdcc24f956c02948199048f8c93b9cc20ed4c26d4b2
+Product-Spec.md=823b10b6dee3d3f5c3015434a6bca2a4953a4fb33a8a98ecac1afbe350f60eda
+DEV-PLAN.md=1820dcfe8045cdceee7f70073944d553a9d974d69ca906f4be4691a0d1aee621
+API-Contract.md=83e0b518d5f5275b9e8475c18e14f53a3ae6c8c6d4ef9f589bc833535f6dbcd2
+settings.py=2262ffc227c11f7eb4e337b4103b47e5eaa0d01b35f0bed8dd498c855632a371
+test_typed_config_contracts.py=7e0a61372f2e1a9730d2038714e76ca03d5469382ddc558e1b51c298addcbc57
+```
+
 ## 7. 覆盖矩阵
 
 本节先固定文档层 `REQ/AC -> Phase -> endpoint/schema/error/security -> 当前验收证据/缺口`。第 6 点 capability 审查继续在同一矩阵上补充 OpenSpec、生产符号和 unit/contract/integration/eval/smoke 的逐项证据；当前不得把“已规划”当作“已实现”。
@@ -705,7 +1093,7 @@ B2 额外运行证据有效：`make test` 为 `325 passed, 13 skipped`；`make b
 | REQ-001；AC-001、AC-002、AC-003 已完成 | Phase 1 | 无 HTTP；workspace、package metadata、wheel/sdist | 构建失败必须非零退出；模板 wheel 安装不得依赖源码路径 | workspace/packaging contracts、`uv sync`、`make build`；最终轮重跑 build。 |
 | REQ-002；AC-004、AC-005 已完成 | Phase 2、6、10、12 | provider-neutral protocol/DTO，无业务 HTTP | import boundary 禁止业务 agent 直接依赖 vendor SDK | import boundary、fake adapter 与 provider contracts；第 6 点复核所有生产 import。 |
 | REQ-003；AC-006、AC-007 已完成 | Phase 1、12 | service-app、RUN-001、HLT-001、CLI 等价入口 | API/worker 分进程；health/error 不回显 credential | `make smoke-local` 与真实 PostgreSQL/Redis `make smoke-service` 必须分别重跑。 |
-| REQ-004；AC-009 已完成，AC-008、AC-063 未完成 | Phase 2、12、13.6 | typed settings、CFG-001、HLT-001 | schema/startup 错误结构化且脱敏；secret file 受信根、普通文件、大小与冲突门禁 | typed config contracts 只证明现有 loader；application startup failure 与 `_FILE` 由 `config-secret-file-loading` 待实现。 |
+| REQ-004；AC-008、AC-009、AC-063 已完成 | Phase 2、12、13.6 | typed settings、CFG-001、HLT-001 | schema/startup 错误结构化且脱敏；secret file 受信根、普通文件、大小与冲突门禁 | loader 与四入口合同、wheel-only 模板、离线 64 项和真实 service smoke 共同证明；异常链与 frame locals 脱敏已补回归并通过三审，`config-secret-file-loading` 13/13 且停在 `ready-to-archive`。 |
 | REQ-005；AC-010、AC-011、AC-012 已完成 | Phase 3、12 | repository/UoW/migration contracts，无新增公开 endpoint | tenant 边界、事务原子性、migration downgrade 拒绝条件 | SQLite/PostgreSQL repository 与 migration contracts；真实 service persistence 由 service smoke 复核。 |
 | REQ-006；AC-013、AC-014 已完成；canonical trace 关联缺口待补 | Phase 5、12、13、13.6A | RUN-001、RUN-002、RUN-004、RUN-005；RunCreateResponse/checkpoint/resume DTO | 409 invalid transition、503 queue unavailable；resume/approval 私有 lease 不进入公开 DTO；trace 缺失/冲突 fail closed | checkpoint/restart/idempotency、split API/worker contracts；`run-trace-correlation` 0/15，最终 smoke 分 local/service。 |
 | REQ-007；AC-015、AC-016 未完成 | Phase 6 summary seam、Phase 13.8 真实执行 | DLG-001、DelegationSummary、目标 RunDetailResponse | edge+policy+cycle/depth/budget、tenant、idempotency conflict、零副作用 deny | 当前只有 registry edge check 和调用方 summary；`agent-delegation-execution` 0/11，未实施。 |
@@ -731,15 +1119,17 @@ B2 额外运行证据有效：`make test` 为 `325 passed, 13 skipped`；`make b
 |---|---|---|
 | `openspec validate --all --strict` | PASS | `29 passed, 0 failed`；六个 active change 单项 strict 亦全部 PASS，仅作为可解析证据。 |
 | `make quality` | PASS | Ruff format/check PASS；Pyright `0 errors`；import-boundary `ok`。 |
-| `make test` | PASS | Phase 13.5 刷新为 `330 passed, 13 skipped`。 |
-| `make eval` | 待执行 | - |
+| `make test` | PASS | Phase 13.6 首轮修复后刷新为 `356 passed, 13 skipped`。 |
+| `make eval` | PASS | 四个示例 11 个 case 全部通过，`failures=0`。 |
 | `make smoke-local` | PASS | `smoke-local: ok`。 |
 | `make smoke-service` | PASS | 真实 PostgreSQL/Redis service smoke：`smoke-service: ok`、`workspace-outside=ok`、`wheel-only=ok`；与离线测试分开记录。 |
 | `make build` | PASS | wheel 与 sdist 成功生成。 |
-| `make license-check` | 待执行 | - |
-| `uv run pre-commit run --all-files` | 待执行 | - |
+| `make license-check` | PASS | `license-check: ok`。 |
+| `uv run pre-commit run --all-files` | PASS | Ruff format/check、Pyright、import boundary、license check 全部 PASS。 |
 | `git diff --check` | PASS | 无输出，退出码 0。 |
 
 ## 9. 修复记录、遗留风险与 Phase 14/15 缺口
 
-待审查推进后填写。Phase 14、15 始终保持未完成状态。
+- Phase 13.6 修复了 `_FILE` 合并、受信文件读取、四入口 fail-closed、Compose secret mount 与全观测面脱敏；service smoke 暴露并闭环了负向 outside/symlink fixture 未及时清理的维护性缺陷。
+- 当前遗留风险集中在尚未实施的 Phase 13.6A canonical trace、13.7 model usage、13.8 delegation 与 13.9 SSE；这些 active change 均不得因 Phase 13.6 验证通过而标记完成。
+- Phase 14 的深度文档/ADR/维护者指南和 Phase 15 的 CI/CD、release automation、NOTICE/第三方合规、tag/release dry-run 仍未实施。Phase 14、15 始终保持未完成状态。

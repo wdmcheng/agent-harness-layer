@@ -19,7 +19,7 @@ package SHALL 提供 typed settings loader，把显式 defaults、profile YAML�
 - **THEN** 这些值通过 typed schema 校验，并出现在 merged settings object 中
 
 ### Requirement: 校验诊断可操作
-配置校验失败 SHALL 暴露 field path 和 remediation hint，而不是直接抛出原始 parser trace。
+配置校验失败 SHALL 暴露安全的逻辑 field path 和 remediation hint，而不是直接抛出原始 parser trace 或公开宿主机文件系统路径。
 
 #### Scenario: 缺少必填 profile 字段
 - **WHEN** required nested profile field 缺失
@@ -27,7 +27,7 @@ package SHALL 提供 typed settings loader，把显式 defaults、profile YAML�
 
 #### Scenario: 非法 YAML 被安全报告
 - **WHEN** profile 或 agent YAML 无法解析为 mapping
-- **THEN** loading 以 structured config error 失败，错误中标出 file path，且不会执行 arbitrary YAML tags
+- **THEN** loading 以 structured config error 失败，`field_path` 标出 `profile` 或 `agent` 逻辑来源，错误不公开宿主机绝对路径，且不会执行 arbitrary YAML tags
 
 ### Requirement: 配置 schemas 可公开复用
 Profile、provider、storage、queue、observability、policy、budget、identity 和 agent config schemas SHALL 可从 `agent_harness.config` import，供 template app 和 tests 复用。

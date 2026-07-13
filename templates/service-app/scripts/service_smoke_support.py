@@ -79,6 +79,12 @@ def compose(env: dict[str, str], *args: str, check: bool = True) -> str:
     return result.stdout.strip()
 
 
+def compose_result(env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
+    """返回隔离 Compose 命令结果，供预期失败合同检查退出码与脱敏边界。"""
+
+    return run(_compose_command(env, *args), env=env, check=False)
+
+
 def cleanup_project(env: dict[str, str], *, preserve_volume: bool) -> None:
     """有限重试并逐项证明本轮 container/network/默认 volume 已清理。"""
 

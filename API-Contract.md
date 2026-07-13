@@ -1177,13 +1177,13 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 | 字段 | 约束 |
 |---|---|
-| 状态 | 规划中（P0）；不引入 `SecretProvider` 抽象。 |
+| 状态 | 当前已实现并修复异常链与 traceback frame locals 泄漏（P0），已通过 3 个 fresh code-reviewer 的 Stage 1/2 审查；对应 `config-secret-file-loading` 停在 `ready-to-archive`，不自动归档且不引入 `SecretProvider` 抽象。 |
 | 入口 | 进程环境中的 `<BASE_ENV>_FILE`，例如 `AGENT_HARNESS_STORAGE__DSN_FILE`；去掉 `_FILE` 后复用既有 typed env path 解析。 |
 | 冲突 | 同时设置 `<BASE_ENV>` 与 `<BASE_ENV>_FILE` 必须结构化失败，不静默选择一个。 |
 | 文件 | 必须是受信 secret root 内的绝对、普通、非 symlink、UTF-8、非空文件；限制最大 64 KiB，只移除一个结尾换行。默认 service root 为 `/run/secrets`，测试可显式注入临时受信 root。 |
 | 合并顺序 | profile YAML -> agent YAML -> `.env` -> Docker secret file -> process env -> explicit overrides；冲突检查优先于 merge。 |
-| 错误 | `config.secret_file_invalid`，包含安全 field path 与修复提示，但不得包含文件内容、解析后的 secret 或受信 root 外绝对路径。 |
-| 验证 | 成功加载、direct/file 冲突、相对路径、目录、symlink、越界、空文件、非 UTF-8、超限、日志/error/health/doctor redaction 和 application startup failure。 |
+| 错误 | 文件拒绝返回 `config.secret_file_invalid`，direct/file 冲突返回 `config.secret_file_conflict`；两者均包含安全 field path 与修复提示，但不得包含文件内容、解析后的 secret 或受信 root 外绝对路径。 |
+| 验证 | 成功加载、direct/file 冲突、相对路径、目录、symlink、越界、空文件、非 UTF-8、超限、日志/error/health/doctor redaction 和 application startup failure；Compose 的 application DSN 与 PostgreSQL password 均使用独立只读 secret file，`docker compose config` 不展开 secret 原值。 |
 
 ## 11. Eval Gate API
 
@@ -1590,7 +1590,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
 - [x] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致；`run-openapi-contract-accuracy` 已完成实现、验证与三审。
 - [x] 已明确当前 events JSON seam、P0 待实现 RUN-006 SSE 与 P1 可选 WS 的边界。
-- [x] 已固定 DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界，并保持为待实现状态。
+- [x] 已固定 DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；CFG-001 当前已实现，DLG-001 与 MOD-001 保持待实现。
 - [x] 已明确 `reasoning.delta` 默认不可见。
 - [x] 已明确 API route 不得暴露 ORM、DBOS、provider SDK 或进程内 handle。
 - [x] 已明确新增/修改 endpoint 必须先改本契约，再做局部 OpenAPI drift 检查。

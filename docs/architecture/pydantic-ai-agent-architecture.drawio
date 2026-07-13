@@ -137,7 +137,7 @@
         <mxCell id="infra-models" value="Model APIs&#xa;Claude / Gemini / Qwen / Kimi" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7c3aed;fontSize=12;fontStyle=1;" vertex="1" parent="layer-infra">
           <mxGeometry x="25" y="166" width="280" height="46" as="geometry" />
         </mxCell>
-        <mxCell id="infra-secrets" value="Secrets&#xa;当前：env + redaction&#xa;P0 待实现：Docker secret file 消费&#xa;P1：SecretProvider / KMS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=10;fontStyle=1;" vertex="1" parent="layer-infra">
+        <mxCell id="infra-secrets" value="Secrets&#xa;当前：env + Docker secret file + redaction&#xa;P1：SecretProvider / KMS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=10;fontStyle=1;" vertex="1" parent="layer-infra">
           <mxGeometry x="340" y="160" width="280" height="58" as="geometry" />
         </mxCell>
         <mxCell id="infra-storage" value="Object / File Storage&#xa;证据、Trace、产物、索引" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7c3aed;fontSize=12;fontStyle=1;" vertex="1" parent="layer-infra">

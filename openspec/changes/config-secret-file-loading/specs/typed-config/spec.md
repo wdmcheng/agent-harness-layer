@@ -23,6 +23,17 @@ package SHALL 提供 typed settings loader，把显式 defaults、profile YAML�
 - **WHEN** 同一进程环境同时设置 `<BASE_ENV>` 与 `<BASE_ENV>_FILE`
 - **THEN** loader 在读取配置副作用和应用启动前返回结构化冲突错误，不静默选择任一值且不回显 direct value 或文件内容
 
+### Requirement: 校验诊断可操作
+配置校验失败 SHALL 暴露安全的逻辑 field path 和 remediation hint，而不是直接抛出原始 parser trace 或公开宿主机文件系统路径。
+
+#### Scenario: 缺少必填 profile 字段
+- **WHEN** required nested profile field 缺失
+- **THEN** loading 失败，并报告缺失字段路径和指向 profile 或 env variable 的修复建议
+
+#### Scenario: 非法 YAML 被安全报告
+- **WHEN** profile 或 agent YAML 无法解析为 mapping
+- **THEN** loading 以 structured config error 失败，`field_path` 标出 `profile` 或 `agent` 逻辑来源，错误不公开宿主机绝对路径，且不会执行 arbitrary YAML tags
+
 ## ADDED Requirements
 
 ### Requirement: Secret file 读取边界 fail-closed

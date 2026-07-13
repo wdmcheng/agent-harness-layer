@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
@@ -11,22 +11,13 @@ import yaml
 from pydantic import ValidationError
 from yaml import YAMLError
 
+from agent_harness.config.errors import SettingsLoadError
 from agent_harness.config.schemas import HarnessSettings
-from agent_harness.contracts.errors import ApiErrorEnvelope, ErrorDetail, HarnessError
+from agent_harness.config.secret_files import DEFAULT_SECRET_ROOT, load_secret_file_env
+from agent_harness.contracts.errors import ErrorDetail
 
 ENV_PREFIX = "AGENT_HARNESS_"
 TEST_ENV_PREFIX = "AGENT_HARNESS_TEST_"
-
-
-class SettingsLoadError(HarnessError):
-    """配置加载失败，携带可展示给 CLI/API 的诊断。"""
-
-    def __init__(self, errors: Sequence[ErrorDetail]) -> None:
-        self.errors = list(errors)
-        super().__init__(self.errors)
-
-    def to_envelope(self) -> ApiErrorEnvelope:
-        return ApiErrorEnvelope(error=self.errors[0])
 
 
 def load_settings(
@@ -36,13 +27,14 @@ def load_settings(
     profile_path: Path | None = None,
     agent_config_path: Path | None = None,
     env_file: Path | None = None,
+    secret_root: Path | None = None,
     overrides: Mapping[str, Any] | None = None,
 ) -> HarnessSettings:
     """按公开优先级契约加载配置。
 
-    合并顺序是 profile YAML -> agent YAML -> `.env` 文件 -> 进程环境变量
-    -> 显式 overrides。后面的来源覆盖前面的标量值，mapping 递归合并，
-    list 作为完整值替换。
+    合并顺序是 profile YAML -> agent YAML -> `.env` 文件 -> secret file
+    -> 进程环境变量 -> 显式 overrides。后面的来源覆盖前面的标量值，
+    mapping 递归合并，list 作为完整值替换。
     """
 
     resolved_profile_path = _resolve_profile_path(profile, profiles_dir, profile_path)
@@ -51,6 +43,7 @@ def load_settings(
         data["profile"] = profile
 
     # agent YAML 只归一化进 agent 子树，避免 agent 级配置覆盖 profile 的部署边界。
+    agent_data: dict[str, Any] = {}
     if agent_config_path is not None:
         agent_data = _read_yaml_mapping(agent_config_path, field_prefix="agent")
         data = _deep_merge(data, _normalize_agent_data(agent_data))
@@ -60,13 +53,23 @@ def load_settings(
     env_values = _load_env_values(resolved_env_file)
     data = _deep_merge(data, _env_values_to_nested(env_values))
 
-    # 进程环境变量覆盖 `.env`，用于 CI、容器和调用方临时注入。
+    # `_FILE` 只来自进程环境。direct/file 冲突必须在读取任何 secret 和应用
+    # overrides 前失败，避免部署错误被更高优先级输入静默掩盖。
     process_env = {
         key: value
         for key, value in os.environ.items()
         if key.startswith(ENV_PREFIX) and key not in {"AGENT_HARNESS_CONFIG"}
     }
-    data = _deep_merge(data, _env_values_to_nested(process_env))
+    secret_env = load_secret_file_env(
+        process_env,
+        secret_root=secret_root or DEFAULT_SECRET_ROOT,
+    )
+    data = _deep_merge(data, _env_values_to_nested(secret_env))
+
+    # direct 进程环境变量覆盖 secret file，用于非冲突字段和非 secret 配置；
+    # `_FILE` 本身不能进入 Pydantic schema。
+    direct_env = {key: value for key, value in process_env.items() if not key.endswith("_FILE")}
+    data = _deep_merge(data, _env_values_to_nested(direct_env))
 
     # explicit overrides 只给测试和受控调用使用，优先级最高。
     if overrides:
@@ -75,7 +78,22 @@ def load_settings(
     try:
         return HarnessSettings.model_validate(data)
     except ValidationError as exc:
-        raise SettingsLoadError(_validation_errors(exc)) from exc
+        # 原始 ValidationError 会保留输入值；先复制安全字段，再离开异常处理块。
+        validation_errors = _validation_errors(exc)
+    # 支持 locals capture 的错误监控也不能取得原始配置值；只清理本地副本，
+    # 不修改调用方持有的 overrides mapping。
+    for sensitive_values in (
+        data,
+        agent_data,
+        env_values,
+        process_env,
+        secret_env,
+        direct_env,
+    ):
+        sensitive_values.clear()
+    del overrides
+    # 在 except 外抛出，避免 __cause__/__context__ 和 traceback 绕过脱敏。
+    raise SettingsLoadError(validation_errors)
 
 
 def _resolve_profile_path(
@@ -106,31 +124,44 @@ def _resolve_env_file(profile_path: Path, env_file: Path | None) -> Path | None:
 
 
 def _read_yaml_mapping(path: Path, *, field_prefix: str) -> dict[str, Any]:
+    safe_field = field_prefix or "profile"
+    source_name = "agent YAML" if field_prefix == "agent" else "profile YAML"
     if not path.exists():
         raise SettingsLoadError(
             [
                 ErrorDetail(
                     code="config.missing",
-                    message=f"配置文件不存在：{path}",
-                    field_path=field_prefix or str(path),
-                    hint=f"创建 profile YAML 或检查路径：{path}",
+                    message="配置文件不存在",
+                    field_path=safe_field,
+                    hint=f"创建或检查 {source_name}",
                 )
             ]
         )
     try:
         # 配置来自本地文件也仍是输入边界；只允许 safe YAML 数据结构进 Pydantic。
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except YAMLError as exc:
+    except (UnicodeDecodeError, YAMLError):
         raise SettingsLoadError(
             [
                 ErrorDetail(
                     code="config.invalid_yaml",
-                    message=f"YAML 解析失败：{exc}",
-                    field_path=field_prefix or str(path),
-                    hint=f"检查 YAML 语法：{path}",
+                    message="YAML 解析失败",
+                    field_path=safe_field,
+                    hint=f"检查 {source_name} 的 UTF-8 编码和 YAML 语法",
                 )
             ]
-        ) from exc
+        ) from None
+    except OSError:
+        raise SettingsLoadError(
+            [
+                ErrorDetail(
+                    code="config.invalid",
+                    message="配置文件不可读",
+                    field_path=safe_field,
+                    hint=f"检查 {source_name} 的读取权限",
+                )
+            ]
+        ) from None
     if raw is None:
         return {}
     if not isinstance(raw, dict):
@@ -139,8 +170,8 @@ def _read_yaml_mapping(path: Path, *, field_prefix: str) -> dict[str, Any]:
                 ErrorDetail(
                     code="config.invalid",
                     message="配置文件必须是 mapping",
-                    field_path=field_prefix or str(path),
-                    hint=f"把 profile YAML 改成 key/value mapping：{path}",
+                    field_path=safe_field,
+                    hint=f"把 {source_name} 改成 key/value mapping",
                 )
             ]
         )
@@ -157,8 +188,21 @@ def _normalize_agent_data(agent_data: Mapping[str, Any]) -> dict[str, Any]:
 def _load_env_values(path: Path | None) -> dict[str, str]:
     if path is None or not path.exists():
         return {}
+    try:
+        content = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        raise SettingsLoadError(
+            [
+                ErrorDetail(
+                    code="config.invalid_env",
+                    message=".env 配置不可读或编码无效",
+                    field_path=".env",
+                    hint="检查 .env 的读取权限和 UTF-8 编码",
+                )
+            ]
+        ) from None
     values: dict[str, str] = {}
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
+    for raw_line in content.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -176,6 +220,10 @@ def _env_values_to_nested(values: Mapping[str, str]) -> dict[str, Any]:
         # 合同测试的外部服务 DSN 与产品配置共享品牌前缀，但不是 HarnessSettings。
         # 在统一转换 seam 排除它，避免 `.env` 与进程环境两条路径行为分叉。
         if not raw_key.startswith(ENV_PREFIX) or raw_key.startswith(TEST_ENV_PREFIX):
+            continue
+        # `_FILE` 只允许来自进程环境并由受控 secret loader 消费；`.env`
+        # 中的同名项既不能触发文件读取，也不能作为未知 schema 字段进入 Pydantic。
+        if raw_key.endswith("_FILE"):
             continue
         key = raw_key.removeprefix(ENV_PREFIX)
         if key in {"CONFIG"}:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -39,14 +40,16 @@ def _run_copied_smoke(command: list[str], copied: Path, wheel_target: Path) -> N
         command,
         cwd=copied,
         env={**os.environ, "AGENT_HARNESS_SOURCE": str(wheel_target)},
+        start_new_session=True,
     )
     try:
         return_code = process.wait()
     except KeyboardInterrupt:
+        os.killpg(process.pid, signal.SIGINT)
         try:
             process.wait(timeout=30)
         except subprocess.TimeoutExpired:
-            process.terminate()
+            os.killpg(process.pid, signal.SIGTERM)
             process.wait(timeout=10)
         raise
     if return_code != 0:
@@ -78,7 +81,9 @@ def main() -> int:
             _run_copied_smoke(command, copied, wheel_target)
         except subprocess.CalledProcessError:
             return 1
-    print("smoke-service-root: workspace-outside=ok wheel-only=ok")
+        if list(copied.rglob("storage-dsn.secret")):
+            raise RuntimeError("service smoke did not clean the temporary storage secret")
+    print("smoke-service-root: workspace-outside=ok wheel-only=ok secret-cleanup=ok")
     return 0
 
 

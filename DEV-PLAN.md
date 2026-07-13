@@ -11,8 +11,8 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-13 changes 均已归档。基线审查已创建六个 active change，分别修正 Run OpenAPI、config secret file、run trace correlation、model usage evidence、真实 delegation 与 SSE；当前都只完成契约草案，尚未实施。
-- 代码状态: Phase 1-13 已完成当时计划的实现与验证，但不等于 P0 完成。基线审查确认仍缺 application startup failure、Docker secret file、canonical run trace 非空传播、完整 model/embedding evidence、真实 delegation、SSE transport 和性能门禁；Phase 14、15 均未开始。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-13 changes 均已归档。基线审查创建的六个 active change 中，Run OpenAPI 与 config secret file 已停在 `ready-to-archive`；run trace correlation、model usage evidence、真实 delegation 与 SSE 尚未实施。
+- 代码状态: Phase 1-13 已完成当时计划的实现与验证，但不等于 P0 完成。Phase 13.5 已收紧 Run OpenAPI，Phase 13.6 已补齐 application startup failure 与 Docker secret file；仍缺 canonical run trace 非空传播、完整 model/embedding evidence、真实 delegation、SSE transport 和性能门禁。Phase 14、15 均未开始。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
@@ -20,12 +20,12 @@
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
 | 总体状态 | Phase 1-13 历史交付已归档，P0 基线补缺待实现 | Phase 13.5-13.9 必须先闭环；Phase 14-15 未开始。 |
-| 当前 Phase | Phase 13.6 待开始 | Phase 13.5 已完成 TDD、自测和 3 个 fresh code-reviewer 双阶段审查，停在 `ready-to-archive`；不得自动归档。 |
+| 当前 Phase | Phase 13.6A 待实现 | Phase 13.5 已提交；Phase 13.6 的 13/13 tasks、异常链与 frame locals 脱敏修复、全量验证及 3 个 fresh code-reviewer Stage 1/2 审查均已完成，停在 `ready-to-archive`。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 已按 queue → split runtime → deployment proof 顺序同步主规格并归档。 |
-| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` | 第一项为 10/10 tasks、`ready-to-archive`；后五项保持 0 task 实施，不 archive、不 push。 |
-| 当前验证基线 | Phase 13.5 自测通过，最终基线仍待后续 capability 刷新 | 定向 `56 passed`；离线 `330 passed, 13 skipped`；quality、local smoke、真实 PostgreSQL/Redis service smoke、change strict 与 diff check 均通过。 |
+| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` | 前两项分别为 10/10、13/13 tasks 且均停在 `ready-to-archive`；后四项保持 0 task 实施，不 archive、不 push。 |
+| 当前验证基线 | Phase 13.6 修复、验证与三审通过，状态同步 diff 待最终无差异三审 | 定向 43 项、quality、change/all strict 与 diff check 已刷新通过；此前离线全量、eval、local smoke、真实 PostgreSQL/Redis service smoke、build、license、pre-commit 均通过。 |
 | 当前阻塞项 | P0 完成路径缺失已进入补缺计划 | Phase 14/15 不得在 13.5-13.9 完成前被标记完成。 |
-| 当前建议下一步 | 提交 Phase 13.5 后按 TDD 开始 `config-secret-file-loading` | Phase 13.6 仍须独立自测、3 个 fresh code-reviewer、修复和提交；不得归档 Phase 13.5 change。 |
+| 当前建议下一步 | 对 Phase 13.6 状态同步 diff 执行最终无差异三审 | PASS 后提交 Phase 13.6，再实现 Phase 13.6A；不自动归档 active change。 |
 
 ## 剩余工作
 
@@ -41,7 +41,7 @@
 - Phase 12.5: Eval Experiment 与 Harness Hill-Climb 闭环，已实现、验证、提交并归档。
 - Phase 13: Service Profile、API/Worker 分进程与未来拆分边界，已实现、验证、同步主规格并归档。
 - Phase 13.5: 当前 Run OpenAPI response/status 准确性，已通过实现、自测和三审，停在 `ready-to-archive`。
-- Phase 13.6: 配置启动失败与 Docker secret file 加载，待实现；依赖 Phase 13.5。
+- Phase 13.6: 配置启动失败与 Docker secret file 加载，异常链与 frame locals 泄漏已修复并通过三审，停在 `ready-to-archive`；不自动归档。
 - Phase 13.6A: Canonical run trace 与 approval/event 关联，待实现；依赖 Phase 13.6。
 - Phase 13.7: Model/Embedding usage evidence 与 local latency 门禁，待实现；依赖 Phase 13.6A。
 - Phase 13.8: 真实受控 delegation 与 parent aggregation，待实现；依赖 Phase 13.7。
@@ -52,7 +52,7 @@
 ### 尚未完成的关键验收
 
 - AC-017：P0 RUN-006 尚不存在；Phase 13.5 已收紧并三审通过 RUN-001 至 RUN-005 的 OpenAPI 精确性，13.9 再补 endpoint，因此 AC 仍未完成。
-- AC-008、AC-063：application startup failure 与 Docker secret file 加载尚未实现。
+- AC-008、AC-063：Phase 13.6 已实现 application startup fail-closed、受控 Docker secret file 加载和公开 evidence 脱敏；异常链与 frame locals 泄漏已修复并通过实现三审，待最终基线提交。
 - FLOW-003 / ApprovalRecord trace：当前 approval 与 run-scoped event 仍允许 `trace_id=null`；Phase 13.6A 负责 canonical run trace 生成、传播与历史 backfill。
 - AC-064、AC-065：model/embedding 完整 evidence 与 local fake run 时延门禁尚未实现。
 - AC-015、AC-016：现有 delegation 只有 registry/summary seam，真实 child run 与 parent aggregation 尚未实现。
@@ -690,19 +690,19 @@ Phase 1 Monorepo / quality spine
 - 让 CLI、FastAPI、worker 和 migration composition 的缺失/无效配置统一结构化失败，且错误、doctor、health、日志和 evidence 不泄露 secret。
 
 **关键文件**：
-- `packages/agent-harness/src/agent_harness/config/settings.py` - secret file 解析、冲突检查、合并顺序。
-- `packages/agent-harness/src/agent_harness/config/errors.py` - `config.secret_file_invalid` 与安全提示。
+- `packages/agent-harness/src/agent_harness/config/settings.py`、`config/secret_files.py` - secret file 解析、冲突检查、合并顺序与受信文件读取。
+- `packages/agent-harness/src/agent_harness/config/errors.py` - `config.secret_file_invalid`、冲突与安全提示。
 - `templates/service-app/app/main.py`、`app/runtime.py`、`app/workers/runtime_worker.py` - application startup failure 映射。
-- `templates/service-app/docker-compose.yml`、`.env.example`、`configs/profiles/service.yaml` - Docker secret file 装配示例，不提交真实 secret。
+- `templates/service-app/docker-compose.yml`、`.env.example`、`configs/profiles/service.yaml` - application DSN 与 PostgreSQL password 的只读 Docker secret file 装配，不提交或在 Compose config 展开真实 secret。
 - `tests/contracts/test_typed_config_contracts.py`、新增 startup/config composition tests - CFG-001 与 AC-008/063。
 
 **验收标准**：
 - direct env、`.env` 和 `_FILE` 使用同一 typed field path；direct/file 同时配置稳定失败，不静默覆盖。
 - 只读取显式受信 root 内普通文件，错误不包含 secret 内容或受信 root 外绝对路径。
 - CLI/API/worker/migration 启动对缺失必填配置给出相同 code、field_path 和修复提示。
-- wheel-only template contract、`make quality`、定向 tests、local/service smoke、OpenAPI 无漂移和 secret grep 通过。
+- wheel-only template contract、`make quality`、定向 tests、local/service smoke、OpenAPI 无漂移和 secret grep 通过；`docker compose config` 不包含 storage DSN 或 PostgreSQL password 原值。
 
-**状态**：待实现；依赖 Phase 13.5，完成后只到 `ready-to-archive`，不得自动归档。
+**状态**：`ready-to-archive`；13/13 tasks 已勾选，原始 Pydantic 异常链与 traceback frame locals 泄漏已修复并补回归测试，3 个 fresh code-reviewer 的 Stage 1/2 均 PASS。不得自动归档。
 
 ---
 
@@ -951,7 +951,7 @@ Phase 1 Monorepo / quality spine
 | Phoenix、Langfuse、Logfire 的 dataset/score/workflow 能力差异大。 | Observability adapter、Eval Gate、score sink。 | Phase 10、Phase 11 | 未处理 | P0 先做 provider-neutral contract 和 local/jsonl fallback；复杂 provider-native workflow 放 P1。 |
 | Eval 只用已知 case 做优化会过拟合，尤其是示例 agent 数量少时。 | Eval experiment、harness prompt/tool description/config 变更、release gate。 | Phase 12.5、Phase 15 | 部分缓解 | Phase 12.5 已按 behavior tags 拆分 optimization / holdout、保留 regression subset，并用人工 review 拦截无意义或过拟合的 harness 变更；Phase 15 仍需把这些证据接入 release gate，并持续扩充生产分布 case。 |
 | Prompt injection / tool output injection 如果后补，会污染所有 agent 和 eval 证据。 | Access input、MCP、tools、retrieval、context assembly、audit。 | Phase 2、Phase 4、Phase 6、Phase 8、Phase 9 | 已缓解 | Phase 2 已定义 trust marker/source_ref/context ref 和 guardrail decision DTO；Phase 6 已在 ContextAssembler 保留 per-fragment source/trust/token/truncation trace；Phase 8 已处理 tool/MCP output；Phase 9 已让 retrieval chunk 进入 context 前保留 citation/source_ref/trust_level，prompt injection 文本只作为 untrusted citation 内容。 |
-| Docker secret file 若直接当普通路径读取，会引入 symlink/越界、冲突优先级和错误泄密。 | settings、API/worker/migration startup、doctor/health/log。 | Phase 13.6 | 未处理 | CFG-001 固定受信 root、普通文件、64 KiB、direct/file 冲突、结构化脱敏错误和全入口启动测试。 |
+| Docker secret file 若直接当普通路径读取，会引入 symlink/越界、冲突优先级和错误泄密。 | settings、API/worker/migration startup、doctor/health/log。 | Phase 13.6 | 已缓解 | CFG-001 已实现受信 root、普通文件、64 KiB、direct/file 冲突、四入口结构化失败；真实 service smoke 扫描 health、doctor、logs、PostgreSQL 与 artifacts，并证明成功、失败和中断清理。 |
 | Run/approval/event 允许空 trace 会让审计、usage 与 delegation 产生不兼容关联。 | runtime、worker、checkpoint、approval、CanonicalEvent、model usage。 | Phase 13.6A | 未处理 | `run-trace-correlation` 在副作用前生成 canonical trace，跨进程传播并对历史 nullable 数据确定性 backfill。 |
 | Provider usage 若由业务 agent 手工拼接，delegation budget 与 trace/eval 证据不可审计。 | model/embedding adapter、event/trace、parent aggregation。 | Phase 13.7、13.8 | 未处理 | MOD-001 先建立 durable provider-neutral evidence，DLG-001 只从持久化 child evidence 聚合。 |
 | 真实 delegation 容易造成循环、跨租户、预算放大、重复 child run 和 service crash 后双计费。 | registry、policy、runtime、RunQueue、storage、events。 | Phase 13.8 | 未处理 | edge + policy + cycle/depth/budget 前置门禁，parent/target idempotency，service crash/reclaim 与 durable aggregation tests。 |

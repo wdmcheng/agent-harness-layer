@@ -1,5 +1,7 @@
 """类型化配置的公共 API。"""
 
+from agent_harness.config.errors import SettingsLoadError as SettingsLoadError
+from agent_harness.config.errors import settings_error_lines as settings_error_lines
 from agent_harness.config.schemas import (
     AgentConfig as AgentConfig,
 )
@@ -36,7 +38,6 @@ from agent_harness.config.schemas import (
 from agent_harness.config.schemas import (
     StorageSettings as StorageSettings,
 )
-from agent_harness.config.settings import SettingsLoadError as SettingsLoadError
 from agent_harness.config.settings import load_settings as load_settings
 
 _SCHEMA_MODEL_EXPORTS = [
@@ -57,6 +58,7 @@ _SCHEMA_MODEL_EXPORTS = [
 _LOADER_EXPORTS = [
     "SettingsLoadError",
     "load_settings",
+    "settings_error_lines",
 ]
 
 __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]

@@ -7,7 +7,12 @@ from pathlib import Path
 import typer
 
 from agent_harness.audit import AuditService
-from agent_harness.config import HarnessSettings, SettingsLoadError, load_settings
+from agent_harness.config import (
+    HarnessSettings,
+    SettingsLoadError,
+    load_settings,
+    settings_error_lines,
+)
 from agent_harness.policy import DatabasePolicyProvider, PolicyEngine, YamlPolicyProvider
 from agent_harness.storage import SQLAlchemyStorage
 
@@ -18,10 +23,8 @@ def load_settings_or_exit(profile: str, profiles_dir: Path | None) -> HarnessSet
     try:
         return load_settings(profile=profile, profiles_dir=profiles_dir)
     except SettingsLoadError as exc:
-        for error in exc.errors:
-            field = f" field={error.field_path}" if error.field_path else ""
-            hint = f" hint={error.hint}" if error.hint else ""
-            typer.echo(f"{error.code}:{field} {error.message}{hint}", err=True)
+        for line in settings_error_lines(exc):
+            typer.echo(line, err=True)
         raise typer.Exit(1) from exc
 
 

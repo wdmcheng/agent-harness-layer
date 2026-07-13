@@ -8,6 +8,7 @@ from typing import Annotated
 import typer
 import uvicorn
 
+from agent_harness.config import SettingsLoadError, settings_error_lines
 from app.main import create_app
 
 cli = typer.Typer(no_args_is_help=True)
@@ -29,12 +30,17 @@ def serve(
 ) -> None:
     """从类型化 profile 创建唯一 FastAPI app，并交给 Uvicorn 运行。"""
 
-    application = create_app(
-        profile=profile,
-        profiles_dir=profiles_dir,
-        storage_dsn=storage_dsn,
-        events_path=events_path,
-    )
+    try:
+        application = create_app(
+            profile=profile,
+            profiles_dir=profiles_dir,
+            storage_dsn=storage_dsn,
+            events_path=events_path,
+        )
+    except SettingsLoadError as exc:
+        for line in settings_error_lines(exc):
+            typer.echo(line, err=True)
+        raise typer.Exit(1) from exc
     uvicorn.run(application, host=host, port=port)
 
 

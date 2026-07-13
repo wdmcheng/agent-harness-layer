@@ -1,7 +1,8 @@
 name: agent-harness-service-app
 
 x-runtime-environment: &runtime-environment
-  AGENT_HARNESS_STORAGE__DSN: postgresql+asyncpg://agent_harness:agent_harness@postgres:5432/agent_harness
+  AGENT_HARNESS_PROFILE: service
+  AGENT_HARNESS_STORAGE__DSN_FILE: /run/secrets/agent_harness_storage_dsn
   AGENT_HARNESS_QUEUE__DSN: redis://redis:6379/0
   SERVICE_APP_EXECUTOR_ID: agent-harness-service-worker
   SERVICE_APP_RECLAIM_IDLE_SECONDS: ${SERVICE_APP_RECLAIM_IDLE_SECONDS:-1}
@@ -15,6 +16,8 @@ x-runtime-service: &runtime-service
   environment: *runtime-environment
   volumes:
     - ${SERVICE_APP_SMOKE_DIR:?SERVICE_APP_SMOKE_DIR is required}:/smoke
+  secrets:
+    - agent_harness_storage_dsn
 
 services:
   postgres:
@@ -23,7 +26,9 @@ services:
     environment:
       POSTGRES_DB: agent_harness
       POSTGRES_USER: agent_harness
-      POSTGRES_PASSWORD: agent_harness
+      POSTGRES_PASSWORD_FILE: /run/secrets/agent_harness_postgres_password
+    secrets:
+      - agent_harness_postgres_password
     volumes:
       - agent_harness_postgres_data:/var/lib/postgresql
     healthcheck:
@@ -47,8 +52,12 @@ services:
     <<: *runtime-service
     command:
       - python
-      - -c
-      - "import os; from agent_harness.storage import run_migrations; run_migrations(os.environ['AGENT_HARNESS_STORAGE__DSN'])"
+      - -m
+      - app.migrate
+      - --profile
+      - service
+      - --profiles-dir
+      - /app/configs/profiles
     depends_on:
       postgres:
         condition: service_healthy
@@ -116,3 +125,9 @@ services:
 
 volumes:
   agent_harness_postgres_data:
+
+secrets:
+  agent_harness_storage_dsn:
+    file: ${SERVICE_APP_STORAGE_DSN_FILE:?SERVICE_APP_STORAGE_DSN_FILE is required}
+  agent_harness_postgres_password:
+    file: ${SERVICE_APP_POSTGRES_PASSWORD_FILE:?SERVICE_APP_POSTGRES_PASSWORD_FILE is required}

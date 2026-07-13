@@ -7,12 +7,29 @@ import os
 import secrets
 import shutil
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
 
+from service_http_smoke import (
+    approval_id as _approval_id,
+)
+from service_http_smoke import (
+    request as _request,
+)
+from service_http_smoke import (
+    submit as _submit,
+)
+from service_http_smoke import (
+    wait_for as _wait_for,
+)
+from service_http_smoke import (
+    wait_run_status as _wait_run_status,
+)
+from service_secret_smoke import (
+    assert_configuration_secret_absent,
+    verify_secret_failure_cases,
+)
 from service_smoke_support import (
     assert_stale_receipt,
     cleanup_credential_at_boundary,
@@ -39,53 +56,6 @@ STREAM = "agent-harness:service:runs:stream"
 GROUP = "agent-harness-workers"
 
 
-def _request(
-    base_url: str,
-    method: str,
-    path: str,
-    *,
-    token: str | None = None,
-    body: dict[str, object] | None = None,
-    request_id: str | None = None,
-) -> tuple[int, dict[str, Any]]:
-    headers = {"Content-Type": "application/json"}
-    if token is not None:
-        headers["Authorization"] = f"Bearer {token}"
-    if request_id is not None:
-        headers["X-Request-Id"] = request_id
-    payload = None if body is None else json.dumps(body).encode()
-    request = urllib.request.Request(
-        f"{base_url}{path}",
-        data=payload,
-        headers=headers,
-        method=method,
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=5) as response:
-            return response.status, cast(dict[str, Any], json.loads(response.read()))
-    except urllib.error.HTTPError as exc:
-        return exc.code, cast(dict[str, Any], json.loads(exc.read()))
-
-
-def _wait_for(
-    description: str,
-    predicate: Any,
-    *,
-    timeout_seconds: float = 45,
-) -> Any:
-    deadline = time.monotonic() + timeout_seconds
-    last: object = None
-    while time.monotonic() < deadline:
-        try:
-            last = predicate()
-            if last:
-                return last
-        except (OSError, RuntimeError, urllib.error.URLError, json.JSONDecodeError) as exc:
-            last = exc
-        time.sleep(0.25)
-    raise RuntimeError(f"timeout waiting for {description}: {last}")
-
-
 def _stream_length(env: dict[str, str]) -> int:
     return stream_length(env, STREAM)
 
@@ -94,75 +64,14 @@ def _first_message(env: dict[str, str]) -> tuple[str, dict[str, Any]]:
     return first_stream_message(env, STREAM)
 
 
-def _wait_run_status(
-    base_url: str,
-    token: str,
-    run_id: str,
-    status: str,
-) -> dict[str, Any]:
-    latest: dict[str, Any] = {}
-
-    def poll() -> dict[str, Any] | None:
-        nonlocal latest
-        code, payload = _request(base_url, "GET", f"/api/v1/runs/{run_id}", token=token)
-        latest = payload
-        return payload if code == 200 and payload.get("status") == status else None
-
-    try:
-        return cast(
-            dict[str, Any],
-            _wait_for(f"run {run_id} status={status}", poll, timeout_seconds=60),
-        )
-    except RuntimeError as exc:
-        marker = Path(os.environ.get("SERVICE_APP_SMOKE_DIR", "")) / "recovery-handler.json"
-        marker_payload = marker.read_text(encoding="utf-8") if marker.exists() else "missing"
-        raise RuntimeError(
-            f"run status timeout: latest={latest} recovery_handler={marker_payload}"
-        ) from exc
-
-
-def _approval_id(base_url: str, token: str, run_id: str) -> str:
-    def poll() -> str | None:
-        code, payload = _request(
-            base_url,
-            "GET",
-            f"/api/v1/runs/{run_id}/approvals",
-            token=token,
-        )
-        approvals = payload.get("approvals", [])
-        return approvals[0]["approval_id"] if code == 200 and approvals else None
-
-    return cast(str, _wait_for(f"approval for {run_id}", poll))
-
-
-def _submit(
-    base_url: str,
-    token: str,
-    *,
-    agent_id: str,
-    input_payload: dict[str, object],
-    idempotency_key: str,
-    request_id: str,
-) -> dict[str, Any]:
-    code, payload = _request(
-        base_url,
-        "POST",
-        f"/api/v1/agents/{agent_id}/runs",
-        token=token,
-        request_id=request_id,
-        body={"input": input_payload, "idempotency_key": idempotency_key},
-    )
-    if code != 202 or payload.get("status") != "created":
-        raise RuntimeError(f"RUN-001 enqueue failed: status={code} body={payload}")
-    return payload
-
-
 def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, object]:
     base_url = f"http://127.0.0.1:{env['SERVICE_APP_API_PORT']}"
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "image-build"
     compose(env, "build", "migration")
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "redis-readiness"
     compose(env, "up", "-d", "--wait", "postgres", "redis")
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "secret-failure-contracts"
+    secret_failures = verify_secret_failure_cases(env)
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "migration"
     compose(env, "run", "--rm", "migration")
 
@@ -396,8 +305,15 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
     if (Path(env["SERVICE_APP_SMOKE_DIR"]) / "workspace" / "denied.txt").exists():
         raise RuntimeError("deny executed the protected tool handler")
 
-    return {
+    evidence: dict[str, object] = {
         "migration": "0012_service_runtime_execution_context",
+        "secret_file": {
+            "consumers": ["migration", "api", "worker"],
+            "postgres_password_file": True,
+            "compose_config_redacted": True,
+            "redacted": True,
+            "failure_cases": secret_failures,
+        },
         "auth": {"missing": 401, "invalid": 401, "side_effects": 0},
         "queue": {
             **expected,
@@ -421,6 +337,14 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
         },
         "deny": {"run_id": deny_run, "status": "failed", "continuations": 0},
     }
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "secret-evidence-scan"
+    assert_configuration_secret_absent(
+        env,
+        base_url=base_url,
+        evidence=evidence,
+        request=_request,
+    )
+    return evidence
 
 
 def main() -> int:
@@ -428,9 +352,9 @@ def main() -> int:
     prepare_core_wheel()
     project = os.environ.get("SERVICE_APP_COMPOSE_PROJECT") or f"agent-harness-{uuid4().hex[:10]}"
     smoke_dir = APP_ROOT / ".agent-harness" / project
-    smoke_dir.mkdir(parents=True, exist_ok=True)
-    (smoke_dir / "workspace").mkdir(exist_ok=True)
-    (smoke_dir / "artifacts").mkdir(exist_ok=True)
+    database_password = secrets.token_urlsafe(24)
+    secret_path = smoke_dir / "storage-dsn.secret"
+    postgres_password_path = smoke_dir / "postgres-password.secret"
     token = secrets.token_urlsafe(32)
     tenant_id = f"smoke-{uuid4()}"
     env = {
@@ -438,6 +362,8 @@ def main() -> int:
         "SERVICE_APP_COMPOSE_PROJECT": project,
         "SERVICE_APP_API_PORT": str(free_port()),
         "SERVICE_APP_SMOKE_DIR": str(smoke_dir),
+        "SERVICE_APP_STORAGE_DSN_FILE": str(secret_path),
+        "SERVICE_APP_POSTGRES_PASSWORD_FILE": str(postgres_password_path),
         "SERVICE_APP_BOOTSTRAP_TENANT": tenant_id,
         "SERVICE_APP_RECLAIM_IDLE_SECONDS": os.environ.get("SERVICE_APP_RECLAIM_IDLE_SECONDS", "1"),
         "SERVICE_APP_IMAGE": f"agent-harness-service-app:{project}",
@@ -446,21 +372,45 @@ def main() -> int:
     os.environ["SERVICE_APP_SMOKE_DIR"] = str(smoke_dir)
     keep_data = os.environ.get("SERVICE_APP_KEEP_DATA") == "1"
     credential_cleanup_confirmed = args.migrate_only
+    credential_cleanup_needed = False
     worker_a = f"{project}-worker-a"
     try:
+        smoke_dir.mkdir(parents=True, exist_ok=True)
+        (smoke_dir / "workspace").mkdir(exist_ok=True)
+        (smoke_dir / "artifacts").mkdir(exist_ok=True)
+        secret_path.write_text(
+            f"postgresql+asyncpg://agent_harness:{database_password}@postgres:5432/agent_harness",
+            encoding="utf-8",
+        )
+        secret_path.chmod(0o600)
+        postgres_password_path.write_text(database_password, encoding="utf-8")
+        postgres_password_path.chmod(0o600)
         if args.migrate_only:
             env["SERVICE_APP_SMOKE_BOUNDARY"] = "image-build"
             compose(env, "build", "migration")
             env["SERVICE_APP_SMOKE_BOUNDARY"] = "postgres-readiness"
             compose(env, "up", "-d", "--wait", "postgres")
+            env["SERVICE_APP_SMOKE_BOUNDARY"] = "secret-failure-contracts"
+            secret_failures = verify_secret_failure_cases(env)
             env["SERVICE_APP_SMOKE_BOUNDARY"] = "migration"
             compose(env, "run", "--rm", "migration")
-            evidence: dict[str, object] = {"migration": "0012_service_runtime_execution_context"}
+            evidence: dict[str, object] = {
+                "migration": "0012_service_runtime_execution_context",
+                "secret_file": {
+                    "consumers": ["migration"],
+                    "postgres_password_file": True,
+                    "compose_config_redacted": True,
+                    "redacted": True,
+                    "failure_cases": secret_failures,
+                },
+            }
         else:
+            credential_cleanup_needed = True
             evidence = _run_smoke(env, token, tenant_id)
             if not cleanup_credential_at_boundary(env, token):
                 raise RuntimeError("service smoke credential cleanup did not delete one record")
             credential_cleanup_confirmed = True
+            credential_cleanup_needed = False
             evidence["credential_cleanup"] = {"deleted": 1}
         print("smoke-service: " + json.dumps(evidence, ensure_ascii=False, sort_keys=True))
         print("smoke-service: ok")
@@ -470,18 +420,30 @@ def main() -> int:
         diagnostic = failure_diagnostic(env["SERVICE_APP_SMOKE_BOUNDARY"], env)
         raise RuntimeError(diagnostic) from None
     finally:
-        if not args.migrate_only and not credential_cleanup_confirmed:
-            cleanup_retry = cleanup_credential_at_boundary(env, token, check=False)
-            credential_cleanup_confirmed = cleanup_retry
-        preserve_volume = preserve_postgres_volume(
-            keep_data,
-            credential_cleanup_confirmed=credential_cleanup_confirmed,
-        )
-        run(["docker", "rm", "-f", worker_a], env=env, check=False)
-        cleanup_project(env, preserve_volume=preserve_volume)
-        shutil.rmtree(smoke_dir, ignore_errors=True)
-        for wheel in (APP_ROOT / ".agent-harness").glob("agent_harness-*.whl"):
-            wheel.unlink(missing_ok=True)
+        try:
+            if credential_cleanup_needed and not credential_cleanup_confirmed:
+                credential_cleanup_confirmed = cleanup_credential_at_boundary(
+                    env,
+                    token,
+                    check=False,
+                )
+        finally:
+            preserve_volume = preserve_postgres_volume(
+                keep_data,
+                credential_cleanup_confirmed=credential_cleanup_confirmed,
+            )
+            try:
+                run(["docker", "rm", "-f", worker_a], env=env, check=False)
+            finally:
+                try:
+                    cleanup_project(env, preserve_volume=preserve_volume)
+                finally:
+                    secret_path.unlink(missing_ok=True)
+                    postgres_password_path.unlink(missing_ok=True)
+                    shutil.rmtree(smoke_dir, ignore_errors=True)
+                    os.environ.pop("SERVICE_APP_SMOKE_DIR", None)
+                    for wheel in (APP_ROOT / ".agent-harness").glob("agent_harness-*.whl"):
+                        wheel.unlink(missing_ok=True)
         if preserve_volume:
             volume = f"{project}_agent_harness_postgres_data"
             inspected = run(["docker", "volume", "inspect", volume], env=env, check=False)

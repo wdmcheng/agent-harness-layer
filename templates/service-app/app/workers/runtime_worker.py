@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import os
+import sys
 from pathlib import Path
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from agent_harness.adapters.runtime import (
     DBOSServiceRuntimeAdapter,
     workflow_id_for_operation,
 )
+from agent_harness.config import SettingsLoadError, settings_error_lines
 from agent_harness.runtime import (
     QueueDelivery,
     RunQueueMessage,
@@ -344,6 +346,8 @@ async def _run_worker(
     try:
         await _recover_pending_enqueue(components)
         await dbos.start()
+        if not once:
+            print("runtime-worker: ready", flush=True)
         ready_file = _ready_file()
         if ready_file is not None:
             ready_file.write_text(EXECUTOR_ID, encoding="utf-8")
@@ -430,31 +434,35 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if args.once:
-        run_id = asyncio.run(
-            run_once(
-                profile=args.profile,
-                profiles_dir=args.profiles_dir,
-                storage_dsn=args.storage_dsn,
-                events_path=args.events_path,
-                artifact_root=args.artifact_root,
-                workspace_root=args.workspace_root,
-                idempotency_key=args.idempotency_key,
+    try:
+        if args.once:
+            run_id = asyncio.run(
+                run_once(
+                    profile=args.profile,
+                    profiles_dir=args.profiles_dir,
+                    storage_dsn=args.storage_dsn,
+                    events_path=args.events_path,
+                    artifact_root=args.artifact_root,
+                    workspace_root=args.workspace_root,
+                    idempotency_key=args.idempotency_key,
+                )
             )
-        )
-        print(f"runtime-worker: run_id={run_id}")
-    else:
-        print("runtime-worker: ready", flush=True)
-        asyncio.run(
-            run_forever(
-                profile=args.profile,
-                profiles_dir=args.profiles_dir,
-                storage_dsn=args.storage_dsn,
-                events_path=args.events_path,
-                artifact_root=args.artifact_root,
-                workspace_root=args.workspace_root,
+            print(f"runtime-worker: run_id={run_id}")
+        else:
+            asyncio.run(
+                run_forever(
+                    profile=args.profile,
+                    profiles_dir=args.profiles_dir,
+                    storage_dsn=args.storage_dsn,
+                    events_path=args.events_path,
+                    artifact_root=args.artifact_root,
+                    workspace_root=args.workspace_root,
+                )
             )
-        )
+    except SettingsLoadError as exc:
+        for line in settings_error_lines(exc):
+            print(line, file=sys.stderr)
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":
