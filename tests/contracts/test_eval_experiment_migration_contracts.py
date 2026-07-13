@@ -10,7 +10,7 @@ from alembic import command
 from tests.contracts.auth_policy_hitl_contract_helpers import sqlite_dsn
 
 
-def test_0009_migration_creates_phase_12_5_schema(tmp_path: Path) -> None:
+def test_0009_migration_creates_eval_experiment_schema(tmp_path: Path) -> None:
     from agent_harness.storage import get_current_revision, run_migrations
 
     db_path = tmp_path / "eval-experiment-schema.db"

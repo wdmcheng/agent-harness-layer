@@ -34,19 +34,6 @@ from agent_harness.storage import SQLAlchemyStorage, run_migrations
 PROFILES = ROOT / "templates" / "service-app" / "configs" / "profiles"
 
 
-def eval_gate_change_dir() -> Path:
-    """返回当前或唯一归档的 change，避免归档动作让契约测试失效。"""
-
-    changes = ROOT / "openspec" / "changes"
-    active = changes / "eval-gate-trace-loop"
-    if active.is_dir():
-        return active
-
-    archived = sorted((changes / "archive").glob("*-eval-gate-trace-loop"))
-    assert len(archived) == 1, "expected exactly one archived eval-gate-trace-loop change"
-    return archived[0]
-
-
 class FailingScoreProvider(ProviderTelemetryAdapter):
     """ScoreSink provider failure fixture，验证 local evidence 不被外部错误拖垮。"""
 
@@ -78,13 +65,12 @@ class RecordingEvalPolicyProvider:
         )
 
 
-def test_openspec_declares_eval_gate_trace_loop_scope() -> None:
-    """Eval Gate change 必须覆盖闭环能力，且明确不自动 archive。"""
+def test_main_spec_declares_eval_gate_trace_loop_capability() -> None:
+    """长期合同只锁主规格中的产品能力，不依赖 change 生命周期状态。"""
 
-    change = eval_gate_change_dir()
-    proposal = (change / "proposal.md").read_text(encoding="utf-8")
-    spec = (change / "specs" / "eval-gate-trace-loop" / "spec.md").read_text(encoding="utf-8")
-    tasks = (change / "tasks.md").read_text(encoding="utf-8")
+    spec = (ROOT / "openspec" / "specs" / "eval-gate-trace-loop" / "spec.md").read_text(
+        encoding="utf-8"
+    )
 
     for marker in [
         "EvalCaseFactory",
@@ -98,9 +84,7 @@ def test_openspec_declares_eval_gate_trace_loop_scope() -> None:
         "provider failure",
         "secret redaction",
     ]:
-        assert marker in proposal or marker in spec or marker in tasks
-    assert "不执行 `openspec archive`" in proposal
-    assert "openspec validate eval-gate-trace-loop --type change --strict" in tasks
+        assert marker in spec
 
 
 def test_api_contract_documents_eval_gate_endpoints() -> None:

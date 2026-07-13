@@ -8,7 +8,7 @@
         <mxCell id="title" value="技术架构图（Agent Harness Layer）" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#111827;align=center;verticalAlign=middle;" parent="1" vertex="1">
           <mxGeometry x="280" y="24" width="1260" height="44" as="geometry" />
         </mxCell>
-        <mxCell id="legend-current" value="已实现 Phase 1-13" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="1" vertex="1">
+        <mxCell id="legend-current" value="当前已实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="1" vertex="1">
           <mxGeometry x="40" y="28" width="190" height="24" as="geometry" />
         </mxCell>
         <mxCell id="legend-future" value="待实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=11;dashed=1;" parent="1" vertex="1">
@@ -24,13 +24,13 @@
           <mxGeometry x="40" y="150" width="1180" height="900" as="geometry" />
         </mxCell>
         <mxCell id="template" value="模板应用 template service-app：薄 API / worker / profile 装配层" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f0f9ff;strokeColor=#0369a1;" parent="1" vertex="1">
-          <mxGeometry x="1260" y="150" width="520" height="900" as="geometry" />
+          <mxGeometry x="1260" y="150" width="520" height="1140" as="geometry" />
         </mxCell>
         <mxCell id="contract-note" value="边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。&#10;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来物理拆分，红虚线=信任边界。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
           <mxGeometry x="250" y="1080" width="980" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="status-note" value="当前：Phase 1-13 基础 seam、Run OpenAPI 精确性与 Docker secret file 已实现；Phase 14-15 仍待实现。P0 待实现约束：&#10;1. usage_call_id 固定为 payload.correlation.usage_call_id，TelemetryRecord 保留同路径；不进入 ModelUsageEvidence。&#10;2. 估算价格来源固定为 decision.price_source_ref / decision.price_source_version。&#10;3. trace 迁移遇冲突非空值或孤立记录整批 fail closed。&#10;4. Approval trace 当前 nullable，目标 required，并从 run context 继承。&#10;5. nullable token 只累加已知值，任一未知则 budget_status=incomplete。&#10;6. SSE Last-Event-ID 必须属于当前已授权 run 的现有 seq。&#10;其余待实现：canonical run trace、model usage、真实 delegation、SSE 与性能门禁；紫色虚线=P1/未来拆分。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=11;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="1280" y="1040" width="500" height="210" as="geometry" />
+        <mxCell id="status-note" value="当前：基础 runtime seam、Run OpenAPI 精确性与 Docker secret file 已实现；发布运营与持续验收仍规划中。P0 规划约束：&#10;1. trace：binding 直接带 tenant；agent_runs 非唯一投影；同租户 parent/child 与 binding 由 DB 门禁；0012a 将表切换为 tenant_embedding_cache，0013 属 trace，0014 属 evidence outbox/事件容量预约，0015 属 delegation；仅 run-scoped eval_runs 投影；local manifest 离线迁移。&#10;2. usage：EventBus 是 canonical usage 唯一 local 写入者；副作用前按 highest seq 与受信 operation kind 预约容量；durable settlement 只补投 evidence、不重放 provider；usage / approval.resolved 先于 run terminal；canonical JSON bytes 有硬上限。&#10;3. delegation：DelegationService + parent 原子预算预留 + durable aggregation；未知 cost/latency 为 null/incomplete。&#10;4. usage_call_id 固定为 payload.correlation.usage_call_id；TelemetryRecord 保留同路径。&#10;5. embedding 复用 model.request.started / model.usage.updated。&#10;6. HTTP Last-Event-ID 与 CLI --after-seq 必须命中当前调用方可见的现有 seq；隐藏/空洞/其他 run 统一脱敏拒绝；两种 transport 统一 canonical bytes 受限分页、慢客户端不预取，P0 不隐式清理 event。&#10;规划中：canonical run trace、model usage、真实 delegation、HTTP/CLI stream 与性能门禁；紫色虚线=P1/未来拆分。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=11;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="1280" y="1040" width="500" height="230" as="geometry" />
         </mxCell>
         <mxCell id="dto" value="稳定载荷契约（DTO）&#10;HarnessDTO / ApiErrorEnvelope&#10;trust/source refs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="40" y="80" width="220" height="100" as="geometry" />
@@ -53,10 +53,10 @@
         <mxCell id="repo" value="仓储接口&#10;Tenant / Session&#10;Run / Checkpoint&#10;不暴露 ORM session" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="350" y="480" width="230" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="sqlalchemy" value="数据库实现&#10;SQLAlchemy 2.0&#10;Alembic&#10;SQLite / PostgreSQL" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
+        <mxCell id="sqlalchemy" value="数据库实现&#10;SQLAlchemy 2.0 / Alembic&#10;SQLite / PostgreSQL&#10;当前 migration：0012" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="620" y="485" width="220" height="95" as="geometry" />
         </mxCell>
-        <mxCell id="eventbus" value="事件总线&#10;CanonicalEvent&#10;EventBus / EventSink&#10;seq + terminal 唯一" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
+        <mxCell id="eventbus" value="事件总线&#10;CanonicalEvent / EventSink&#10;seq 单调递增&#10;run terminal 唯一" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="870" y="410" width="240" height="110" as="geometry" />
         </mxCell>
         <mxCell id="artifact" value="产物存储&#10;FileArtifactStore&#10;payload_ref&#10;sha256 + 脱敏" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
@@ -68,19 +68,19 @@
         <mxCell id="dbos" value="耐久运行适配边界&#10;DBOSRuntimeAdapter&#10;NoopDBOSRuntimeAdapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="60" y="650" width="250" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="model" value="已实现 Phase 6&#10;AgentRegistry / ModelRouter&#10;ContextAssembler&#10;Pydantic AI adapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
+        <mxCell id="model" value="当前已实现&#10;AgentRegistry / ModelRouter&#10;ContextAssembler&#10;Pydantic AI adapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="350" y="650" width="230" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="policy" value="已实现 Phase 7&#10;Auth / PolicyEngine / HITL&#10;ApprovalService&#10;AuditService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
+        <mxCell id="policy" value="当前已实现&#10;Auth / PolicyEngine / HITL&#10;ApprovalService&#10;AuditService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="620" y="650" width="220" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="tools" value="已实现 Phase 8&#10;ToolRegistry&#10;File/Shell/MCP client&#10;output_guard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
+        <mxCell id="tools" value="当前已实现&#10;ToolRegistry&#10;File/Shell/MCP client&#10;output_guard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="350" y="770" width="230" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="retrieval" value="已实现 Phase 9&#10;检索能力&#10;RetrievalProvider / RAG&#10;trust_level" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
+        <mxCell id="retrieval" value="当前已实现&#10;检索能力&#10;RetrievalProvider / RAG&#10;trust_level" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="620" y="770" width="220" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="providerobs" value="已实现 Phase 10-12.5&#10;观测、Eval Gate 与 experiment&#10;score sink / compare / acceptance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
+        <mxCell id="providerobs" value="当前已实现&#10;观测、Eval Gate 与 experiment&#10;score sink / compare / acceptance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
           <mxGeometry x="870" y="800" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="fastapi" value="应用工厂&#10;FastAPI create_app()&#10;错误 envelope handler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
@@ -98,13 +98,13 @@
         <mxCell id="profiles" value="环境配置&#10;configs/profiles&#10;local.yaml / service.yaml&#10;storage/queue/policy&#10;模型路由/预算变更走 reload seam" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
           <mxGeometry x="40" y="430" width="210" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="sse" value="当前 SSE frame formatter&#10;当前 HTTP 仅 JSON events seam&#10;P0 待实现：SSE + Last-Event-ID&#10;P1 可选：WS adapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=12;dashed=1;" parent="template" vertex="1">
+        <mxCell id="sse" value="当前 SSE frame formatter&#10;当前 HTTP 仅 JSON events seam&#10;P0 规划：HTTP SSE + CLI NDJSON&#10;P1 可选：WS adapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=12;dashed=1;" parent="template" vertex="1">
           <mxGeometry x="280" y="430" width="210" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="agentroutes" value="已实现 Phase 6/12&#10;Agent routes / registry smoke&#10;四个 P0 示例 Agent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
+        <mxCell id="agentroutes" value="当前已实现&#10;Agent routes / registry smoke&#10;四个 P0 示例 Agent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
           <mxGeometry x="40" y="610" width="210" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="authroutes" value="已实现 Phase 7-12.5&#10;认证/审批/策略 routes&#10;Eval API / experiment acceptance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
+        <mxCell id="authroutes" value="当前已实现&#10;认证/审批/策略 routes&#10;Eval API / experiment acceptance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
           <mxGeometry x="280" y="610" width="210" height="100" as="geometry" />
         </mxCell>
         <mxCell id="e-config-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" parent="1" edge="1" source="config" target="runtime">

@@ -75,7 +75,7 @@ def acceptance_create(*, request_hash: str = "b" * 64) -> HarnessAcceptanceCreat
 
 
 @pytest.mark.asyncio
-async def test_phase_12_5_repositories_are_tenant_scoped_and_idempotent(
+async def test_eval_experiment_repositories_are_tenant_scoped_and_idempotent(
     tmp_path: Path,
 ) -> None:
     from agent_harness.storage import (
@@ -288,7 +288,7 @@ async def test_execution_claim_is_fenced_and_uncertain_outcome_needs_review(
 
 
 @pytest.mark.asyncio
-async def test_phase_12_5_result_update_and_acceptance_decision_are_immutable(
+async def test_eval_experiment_result_update_and_acceptance_decision_are_immutable(
     tmp_path: Path,
 ) -> None:
     from agent_harness.storage import (
@@ -416,7 +416,7 @@ async def test_phase_12_5_result_update_and_acceptance_decision_are_immutable(
 
 
 @pytest.mark.asyncio
-async def test_phase_12_5_unit_of_work_rolls_back_without_commit(tmp_path: Path) -> None:
+async def test_eval_experiment_unit_of_work_rolls_back_without_commit(tmp_path: Path) -> None:
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
     dsn = sqlite_dsn(tmp_path / "eval-experiment-rollback.db")

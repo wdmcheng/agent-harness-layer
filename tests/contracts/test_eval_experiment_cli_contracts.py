@@ -268,7 +268,7 @@ def test_eval_experiment_cli_create_show_compare_accept_and_errors(tmp_path: Pat
     assert table_count(db_path, "audit_logs") == 2
 
 
-def test_phase_11_no_approved_cases_semantics_remain_stable(tmp_path: Path) -> None:
+def test_eval_runner_no_approved_cases_semantics_remain_stable(tmp_path: Path) -> None:
     """Experiment CLI 不能改变基础 approved-only runner 的空态。"""
 
     from agent_harness.evals import EvalRunner, ScoreSink

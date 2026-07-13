@@ -12,10 +12,10 @@ Product Spec 要求 approval 与 run trace 强关联，但当前 API Contract、
 
 ## What Changes
 
-- 为每个新 run 建立不可为空、全局唯一的 canonical `trace_id`：调用方提供合法值时保留，缺失时由受控 runtime composition 在任何持久化事件或 provider/tool 副作用前生成。
+- 为每个新 root run 建立不可为空、全局唯一的 canonical `trace_id`；child run 复用 root lineage 的同一 trace，不给 `agent_runs.trace_id` 建唯一约束。HTTP `X-Trace-Id`、CLI `--trace-id` 与内部入口提供合法值时保留，缺失时由受控 runtime composition 在任何持久化事件或 provider/tool 副作用前生成。
 - 把 canonical `trace_id` 持久化到 run execution context，并传播到 checkpoint/resume、CanonicalEvent、approval/audit、model/embedding evidence、worker message 和后续 child delegation。
 - 将 `ApprovalRecord.trace_id` 收紧为必填；API/CLI/body 不得覆盖 run 已绑定的 canonical trace。
-- 为已有 nullable trace 数据提供确定性、幂等、可回滚的 migration/backfill；读取兼容只允许存在于迁移窗口，不得长期保留新记录写入 null 的双轨。
+- 为已有 nullable trace 数据提供确定性、幂等的 migration/backfill；跨租户 parent edge、孤立、成环或冲突 lineage 在 DDL/UPDATE 前整批拒绝。失败事务可回滚、中断 bundle 可恢复；成功迁移后 downgrade 同时要求 trace evidence 全空和显式 Alembic `-x allow_empty_evidence_downgrade=true`，不得删除或覆盖新 evidence。读取兼容只允许存在于迁移窗口，不得长期保留新记录写入 null 的双轨。
 - 增加 local/service、restart/resume、approval 与跨进程 worker 的 trace 一致性合同，并把后续 `model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` 明确设为相关下游 change。
 
 ## Non-Goals
@@ -36,11 +36,12 @@ Product Spec 要求 approval 与 run trace 强关联，但当前 API Contract、
 - `runtime-checkpoint-runs`：run create/checkpoint/resume/worker execution 必须保留同一非空 trace。
 - `auth-policy-hitl-approvals`：approval 与 audit 必须从 run 继承非空 trace，调用方不得覆盖。
 - `canonical-events-artifacts`：同一 run 的 lifecycle、approval、tool/model 与 terminal event 必须携带 canonical trace。
-- `service-app-shell`：RUN-001 接受可选 `X-Trace-Id`，缺失时由服务端生成并进入后续关联证据。
+- `service-app-shell`：RUN-001 接受可选 `X-Trace-Id`，CLI-RUN-001 接受可选 `--trace-id`；二者缺失时由 runtime 生成并进入后续关联证据。
+- `storage-migration-uow`：固定 `0013` 从 `0012a_embedding_cache_tenant_scope` 继续的 upgrade/backfill，以及 evidence-aware downgrade 的 SQLite/PostgreSQL 一致性。
 
 ## Impact
 
 - 受影响代码：runtime orchestration/execution context、approval service/repository、CanonicalEvent/EventBus、API/CLI composition、worker queue context 和 storage migration。
-- 受影响 API：`ApprovalRecord.trace_id` 从 nullable 收紧为 required；RUN-001 的可选 trace header 与服务端生成语义被正式记录。
-- 受影响数据：现有 nullable run execution context、approval、event、audit/trace refs 需要确定性 backfill；不得删除历史 evidence。
+- 受影响 API/CLI：`ApprovalRecord.trace_id` 从 nullable 收紧为 required；RUN-001 的可选 trace header、CLI-RUN-001 的可选 `--trace-id` 与生成/错误语义被正式记录。
+- 受影响数据：现有 nullable run execution context、approval、event、audit/trace refs 需要确定性 backfill；不得删除历史 evidence。`0013` 以已闭环 embedding cache 租户隔离的 `0012a` 为直接前置。
 - 受影响测试：SQLite/PostgreSQL migration、API/CLI/local/service run、restart/resume、approval、worker 与 trace/evidence contract。

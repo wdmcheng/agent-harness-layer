@@ -14,9 +14,11 @@
 - 实现 DLG-001 内置 `agent.delegate` tool/module seam；P0 不新增公开 delegation HTTP endpoint。
 - 在 edge、policy、tenant、cycle、depth、预算和幂等校验通过后才产生 child run 与 queue/executor 副作用。
 - 持久化 parent-child 关系，并把 child token、cost、latency、budget impact 与 trace refs 聚合到 parent 公开摘要。
-- 显式 idempotency key 绑定 tenant、identity、parent/source/target、child input 与有效预算；同 key 同 hash 重放，同 key 异请求返回 `delegation.idempotency_conflict` 且零业务副作用。
+- 对同一 parent 的所有并发请求执行原子预算预留；不同 idempotency key 也必须竞争同一余额，未知 usage 保持占用并进入复核，不能按 0 释放。
+- 显式 idempotency key 绑定 tenant、identity、parent/source/target、child input 与稳定预算意图；P0 无显式预算参数时使用 `inherit_parent`，动态 parent 余额和锁内计算的有效预留额不进入 hash。新 claim 与首次 parent reservation 同事务提交；同 key 同 hash 即使其他 key 改变余额也复用原 reservation/operation，同 key 异请求在预算写入前返回 `delegation.idempotency_conflict` 且零业务副作用。
 - 与 `model-usage-evidence` 前序 capability 对接，并把 RUN-002 原子切换为包含 parent/delegation aggregation 的 `RunDetailResponse`。
 - 未声明 edge、跨租户、权限拒绝、预算拒绝和 child failure 均形成稳定错误或终态证据，不泄漏 provider payload 或 secret。
+- `0015` downgrade 同时要求 delegation/reservation/aggregation evidence 全空和显式 Alembic `-x allow_empty_evidence_downgrade=true`；任一条件不满足都在 DDL 前拒绝。
 
 ## Non-Goals
 
@@ -35,10 +37,11 @@
 - `agent-registry-model-context`: 从 edge-check/调用方摘要接缝扩展为受控真实 delegation 入口。
 - `runtime-checkpoint-runs`: 增加 child run 生命周期、parent-child 持久化与幂等执行边界。
 - `service-app-shell`: 保持“无公开 delegation HTTP route”，并把 RUN-002 原子切换为 `RunDetailResponse` 与精确 OpenAPI 契约。
+- `storage-migration-uow`: 固定 `0015` delegation/reservation/aggregation upgrade 与 evidence-aware downgrade 的 SQLite/PostgreSQL 一致性。
 
 ## Impact
 
 - 核心：registry、runtime orchestration、storage repository/UoW、CanonicalEvent 与 model usage evidence。
 - 模板：service app RUN-002 route/schema、app factory/runtime 装配、内置 tool/module seam 与 local/service queue 路径。
-- 数据：需要可迁移的 parent-child delegation 与 aggregation evidence；所有记录必须带 `tenant_id`。
+- 数据：在前序 `0014` evidence outbox 后以 `0015` 增加可迁移的 parent-child delegation、budget reservation 与 aggregation evidence；所有记录必须带 `tenant_id`。
 - 测试：unit、contract、integration、真实 PostgreSQL/Redis service smoke 与 OpenAPI drift。

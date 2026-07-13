@@ -38,7 +38,7 @@ EXPECTED_TOOL_ERROR_CODES = {
 }
 
 
-def test_api_contract_declares_phase8_tool_seam_and_no_http_route() -> None:
+def test_api_contract_declares_tool_execution_seam_and_no_http_route() -> None:
     """文档必须先固定 CLI/runtime seam，再允许实现代码进入。"""
 
     text = API_CONTRACT.read_text(encoding="utf-8")

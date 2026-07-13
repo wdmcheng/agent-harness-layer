@@ -227,7 +227,7 @@ agent 运行中触发 shell、文件删除、workspace 外访问、外部网络/
 3. runtime 产生 `approval.required` 事件并创建 checkpoint。
 4. CLI 或 HTTP 客户端提交 approve/deny；approve 原子取得不公开的 owner lease 和 fencing id，deny 与 approve 通过同一 repository 条件更新仲裁。
 5. runtime 通过绑定 approval/checkpoint 上下文的 grant 恢复原 continuation，并在调用危险动作前于同一事务校验当前 fencing id、创建唯一 execution claim。
-6. 确定性结果与 run terminal 持久化后再公开完成 approval resolution，并写唯一 audit/event evidence。
+6. 确定性结果持久化后，把 `approval.resolved` 与 run terminal 写入同一 durable evidence outbox；按稳定顺序先发布 resolution evidence、最后发布 terminal，二者都确认后才公开完成 approval resolution。丢失确认只能按稳定 event id 重放 outbox，不能重放危险动作。
 
 **分支路径：**
 - deny 时 run 按策略失败或走 fallback。
@@ -451,7 +451,7 @@ templates/service-app/
 - [x] AC-009: Given local/service profile, when 加载 settings, then storage、queue、observability、policy 解析到 typed config。
 - [x] AC-063: Given service profile 将 secret 作为只读 Docker secret file 注入, when 加载 typed settings, then 目标字段取得文件内容且任何错误、日志或公开 evidence 不回显原值。
 
-> `AC-008` 与 `AC-063` 已由 Phase 13.6 的公共 loader、四类 application startup 入口、wheel-only 合同和真实 service smoke 共同证明；异常链与 traceback frame locals 泄漏均已修复并通过 3 个 fresh code-reviewer 的 Stage 1/2 审查，对应 change 停在 `ready-to-archive` 且不自动归档。
+> `AC-008` 与 `AC-063` 的验收证据必须覆盖公共 loader、四类 application startup 入口、wheel-only 合同、真实 service smoke，以及异常链与 traceback frame locals 的脱敏回归；具体实现进度和变更生命周期不写入本产品契约。
 
 ### REQ-005: 存储、迁移与事务边界
 
@@ -764,6 +764,7 @@ auth_method: str
 **规则：**
 - MUST 业务 agent 不直接写 provider 细节。
 - MUST 模型/embedding 调用记录 token、cost、latency trace。
+- MUST token、cost、latency 证据拒绝 bool、负数与非有限值；cache hit 仍记录本次调用级 evidence，但不得把首次 provider latency、token 或 cost 伪装成本次 provider 调用。
 - MUST 单次模型调用预计超过预算阈值时触发 policy。
 - MUST 所有注入模型上下文的外部内容保留 `source_ref`、`trust_level` 和截断信息。
 - MUST ContextAssembler 在超预算时按可解释顺序降级：裁剪历史、压缩记忆、截断 tool/retrieval output、切换 fallback model 或触发 policy。
@@ -774,7 +775,7 @@ auth_method: str
 - [x] AC-030: Given 预算阈值, when 模型调用预计超阈值, then 产生 policy decision 或可追踪 fallback。
 - [x] AC-031: Given 重复 embedding 输入, when 第二次调用, then 命中 cache 或记录 cache miss 原因。
 - [x] AC-032: Given 历史、检索和 tool output 同时进入上下文, when 组装 prompt, then 输出 context assembly trace，包含来源、可信级别、token 预算和截断记录。
-- [ ] AC-064: Given model 或 embedding provider 完成一次调用, when 记录 provider-neutral evidence, then token、cost、latency、provider/model 和 budget decision 可由同一 run/trace 关联，且业务 agent 不拼接 provider 原始事件。
+- [ ] AC-064: Given model、embedding provider 或 embedding cache 完成一次调用, when 记录 provider-neutral evidence, then 非负且有限的 token、cost、latency、provider/model、cache/provider side-effect decision 和 budget decision 可由同一 run/trace 关联，且业务 agent 不拼接 provider 原始事件。
 
 ### REQ-013: Retrieval 与 RAG
 
@@ -881,11 +882,14 @@ eval.score.recorded
 
 **规则：**
 - MUST 每个 run 内 `seq` 单调递增。
-- MUST terminal event 且只能有一个：`run.completed` / `run.failed` / `run.cancelled`。
+- MUST terminal event 且只能有一个：`run.completed` / `run.failed` / `run.cancelled`；三种 run terminal event 必须为 `visibility=public`，EventBus 与所有持久化 sink 必须拒绝 non-public terminal；它是该 run 的最后一条 CanonicalEvent，持久化后必须拒绝任何后续业务事件。
+- MUST usage 结算、approval resolution 等 terminal 前置 evidence 由 durable outbox/settlement 状态协调；terminal 一旦可见，所有必需前置 evidence 必须已经存在，恢复只能重放稳定 event id，不能重放 provider/tool 副作用。
+- MUST run 创建时预留一个 terminal event 容量；任何可能产生后续 evidence 的 provider/tool/approval/delegation 副作用开始前，durable outbox 必须按受信、版本化、封闭的 operation kind 计算最大 event 数并原子预留，调用方不能自报较小数值。当前已持久化的最高 `seq`、未结算预约和 terminal 预约之和不得超过 CanonicalEvent `seq` 上限；不能用 event row count 代替最高 `seq`，因为历史或直接写入可能留下空洞。容量不足时必须在外部副作用前拒绝，不能等到结算阶段才发现无 seq 可写。
 - MUST `tool.call.args_delta` 可表示半截 JSON，不要求每个 delta 可解析。
 - MUST `reasoning.delta` 默认不对普通用户暴露。
 - MUST hook/policy/approval 控制事件进 audit/local-jsonl，即使不推给前端。
 - MUST 大 payload 走 `payload_ref`。
+- MUST 正常写入的 CanonicalEvent envelope 使用全局唯一的 canonical JSON serializer 计数并且不超过 `65536` bytes；serializer 对 `CanonicalEvent.to_payload()` 使用 UTF-8、`ensure_ascii=false`、排序键、紧凑分隔符并拒绝 NaN，换行和 SSE frame 前缀不计入 envelope bytes。payload 超限先 artifact 化，artifact 化后 envelope 仍超限则在持久化前稳定拒绝。EventBus、local JSONL、PostgreSQL/SQLite 校验和 SSE byte page 必须复用该 serializer；历史或直接数据库写入的超限 row 只能 fail closed，不能让 SSE reader 返回空页忙循环。
 - MUST SSE 是输出协议，不是内部事件模型。
 - MUST SSE 断线恢复以 `CanonicalEvent.seq` 为准；HTTP SSE adapter 应把 `Last-Event-ID` 映射为续读起点。
 

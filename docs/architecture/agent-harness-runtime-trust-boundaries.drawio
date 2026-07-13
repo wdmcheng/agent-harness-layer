@@ -8,7 +8,7 @@
         <mxCell id="title" value="运行链路与信任边界图（Agent Harness Layer）" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#111827;align=center;verticalAlign=middle;" parent="1" vertex="1">
           <mxGeometry x="280" y="24" width="1340" height="44" as="geometry" />
         </mxCell>
-        <mxCell id="legend-current" value="已实现 Phase 1-13" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="1" vertex="1">
+        <mxCell id="legend-current" value="当前已实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="1" vertex="1">
           <mxGeometry x="40" y="28" width="190" height="24" as="geometry" />
         </mxCell>
         <mxCell id="legend-future" value="P0 待实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
@@ -35,10 +35,10 @@
         <mxCell id="trust-note" value="信任边界：外部输入、tool/MCP output、retrieval chunk 进入上下文前必须带 source_ref、trust_level、truncation metadata；InputGuardrail 只检查 API/CLI 输入，tool/MCP/retrieval 分别由 ToolRegistry、output_guard 与 retrieval context 收口。&#10;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=P0 待实现、未来 adapter 或拆分，红虚线=信任边界，线桥=交叉不连接。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
           <mxGeometry x="300" y="1180" width="930" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="stream-note" value="当前事件输出是 JSON read seam；P0 待实现 SSE transport。Last-Event-ID 是唯一 cursor，且非零值必须属于当前已授权 run 的现有 CanonicalEvent.seq；非法、其他 run、空洞或超过 max seq 均在握手前返回 422。WS 属于 P1 可选 adapter。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="1260" y="1180" width="560" height="100" as="geometry" />
+        <mxCell id="stream-note" value="P0 待实现：tenant_embedding_cache/0012a、canonical trace binding/继承、local state manifest/upgrader、EventBus canonical usage 唯一写入、evidence outbox + 事件容量预约/0014、DelegationService/0015、HTTP SSE/CLI NDJSON transport 与 terminal-cursor EOF。HTTP Last-Event-ID 与 CLI --after-seq 各自是唯一公开 cursor，隐藏、跨 run、空洞或越界统一脱敏拒绝；outbox 只补投 evidence、不重放 provider/tool，副作用前按 highest seq 与受信 operation kind 预约；两种 transport 复用 canonical bytes 受限分页、慢客户端不预取，P0 不隐式清理 event；WS 属于 P1。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="1260" y="1170" width="560" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="cli" value="命令行入口&#10;agent-harness run&#10;doctor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="access" vertex="1">
+        <mxCell id="cli" value="命令行入口&#10;agent-harness run / doctor&#10;规划：events stream" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="access" vertex="1">
           <mxGeometry x="40" y="90" width="240" height="90" as="geometry" />
         </mxCell>
         <mxCell id="api" value="接口入口（HTTP）&#10;RUN-001..005&#10;FastAPI 路由" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="access" vertex="1">
@@ -47,7 +47,7 @@
         <mxCell id="events_json" value="事件读取入口&#10;RUN-003 JSON events&#10;GET /runs/{id}/events&#10;after_seq 续读&#10;seq 断点" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="access" vertex="1">
           <mxGeometry x="40" y="510" width="240" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="sse_future" value="P0 待实现流式输出&#10;SSE text/event-stream&#10;Last-Event-ID -&gt; seq&#10;CanonicalEvent 映射&#10;P1 可选 WS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;" parent="access" vertex="1">
+        <mxCell id="sse_future" value="P0 规划流式输出&#10;HTTP SSE：Last-Event-ID -&gt; seq&#10;CLI NDJSON：--after-seq&#10;统一 CanonicalEvent reader&#10;P1 可选 WS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;dashed=1;" parent="access" vertex="1">
           <mxGeometry x="40" y="660" width="240" height="100" as="geometry" />
         </mxCell>
         <mxCell id="request_dto" value="运行创建请求&#10;RunCreateRequest&#10;request_id&#10;agent_id/input/idempotency" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="runtime_lane" vertex="1">
@@ -71,7 +71,7 @@
         <mxCell id="tables2" value="仓储核心表&#10;tenants/sessions&#10;agent_runs/checkpoints" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="persist" vertex="1">
           <mxGeometry x="50" y="270" width="300" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="eventbus2" value="事件发布&#10;EventBus.publish()&#10;CanonicalEvent seq&#10;terminal 唯一" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="persist" vertex="1">
+        <mxCell id="eventbus2" value="事件发布&#10;EventBus.publish()&#10;CanonicalEvent seq&#10;run terminal 唯一" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="persist" vertex="1">
           <mxGeometry x="50" y="440" width="300" height="110" as="geometry" />
         </mxCell>
         <mxCell id="artifact2" value="大载荷产物&#10;FileArtifactStore&#10;large payload -&gt; payload_ref&#10;脱敏 + checksum" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="persist" vertex="1">
@@ -86,19 +86,19 @@
         <mxCell id="tool_output" value="工具/MCP 输出&#10;File/Shell/MCP stdout&#10;source_ref / untrusted" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=13;dashed=1;" parent="trustlane" vertex="1">
           <mxGeometry x="250" y="80" width="190" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="retrieval_output" value="已实现 Phase 9&#10;retrieval chunks&#10;source_ref / trust_level" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=13;dashed=1;" parent="trustlane" vertex="1">
+        <mxCell id="retrieval_output" value="当前已实现&#10;retrieval chunks&#10;source_ref / trust_level" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=13;dashed=1;" parent="trustlane" vertex="1">
           <mxGeometry x="140" y="210" width="210" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="context_trust" value="已实现 Phase 6/9&#10;ContextAssembler&#10;retrieval context&#10;source/trust/truncation evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=12;" parent="trustlane" vertex="1">
+        <mxCell id="context_trust" value="当前已实现&#10;ContextAssembler&#10;retrieval context&#10;source/trust/truncation evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=12;" parent="trustlane" vertex="1">
           <mxGeometry x="20" y="460" width="210" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="guardrail_future" value="已实现 Phase 7&#10;InputGuardrail&#10;API/CLI external input checks&#10;decision + evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="trustlane" vertex="1">
+        <mxCell id="guardrail_future" value="当前已实现&#10;InputGuardrail&#10;API/CLI external input checks&#10;decision + evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="trustlane" vertex="1">
           <mxGeometry x="250" y="460" width="210" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="policy_future" value="已实现 Phase 7&#10;PolicyEngine&#10;allow / deny / require_approval&#10;gates RunOrchestrator + audit evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="trustlane" vertex="1">
+        <mxCell id="policy_future" value="当前已实现&#10;PolicyEngine&#10;allow / deny / require_approval&#10;gates RunOrchestrator + audit evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="trustlane" vertex="1">
           <mxGeometry x="50" y="590" width="300" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="hitl_future" value="已实现 Phase 7/13&#10;approve：lease/grant → continuation&#10;deny：终止且不 continuation&#10;唯一 claim / fenced enqueue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="trustlane" vertex="1">
+        <mxCell id="hitl_future" value="当前已实现&#10;approve：lease/grant → continuation&#10;deny：终止且不 continuation&#10;唯一 claim / fenced enqueue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="trustlane" vertex="1">
           <mxGeometry x="50" y="720" width="300" height="100" as="geometry" />
         </mxCell>
         <mxCell id="e-cli-req" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="cli" target="request_dto">
@@ -185,7 +185,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-      <mxCell id="tool_execution" value="已实现 Phase 8&#10;工具执行边界&#10;ToolRegistry / output_guard&#10;policy + audit + artifact_ref" style="rounded=1;whiteSpace=wrap;html=1;fontColor=#111827;fontSize=13;fillColor=#dae8fc;strokeColor=#2f5597;" parent="trustlane" vertex="1"><mxGeometry x="50" y="330" width="300" height="100" as="geometry" /></mxCell><mxCell id="e-tool-exec-guard" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#b85450;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="tool_execution" target="guardrail_future" edge="1"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1570" y="590" /><mxPoint x="1725" y="590" /></Array></mxGeometry></mxCell></root>
+      <mxCell id="tool_execution" value="当前已实现&#10;工具执行边界&#10;ToolRegistry / output_guard&#10;policy + audit + artifact_ref" style="rounded=1;whiteSpace=wrap;html=1;fontColor=#111827;fontSize=13;fillColor=#dae8fc;strokeColor=#2f5597;" parent="trustlane" vertex="1"><mxGeometry x="50" y="330" width="300" height="100" as="geometry" /></mxCell><mxCell id="e-tool-exec-guard" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#b85450;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="tool_execution" target="guardrail_future" edge="1"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1570" y="590" /><mxPoint x="1725" y="590" /></Array></mxGeometry></mxCell></root>
     </mxGraphModel>
   </diagram>
 </mxfile>

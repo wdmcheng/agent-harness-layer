@@ -5,7 +5,7 @@
 
 #### Scenario: Fallback decision 与实际调用一致
 - **WHEN** router 因默认模型不可用或预算选择 fallback model
-- **THEN** terminal usage evidence 同时记录原 route decision、实际 provider/model 和 budget impact，且字段来自 router/adapter 边界
+- **THEN** 调用级最终 usage evidence 同时记录原 route decision、实际 provider/model 和 budget impact，且字段来自 router/adapter 边界；该 evidence 不设置 run terminal marker
 
 #### Scenario: 业务 agent 不拼接 raw usage
 - **WHEN** import/static boundary 扫描业务 agent、template agent 和 API route

@@ -103,7 +103,7 @@
 | `Accept` | No | 默认 `application/json`；P0 待实现 RUN-006 SSE 使用 `text/event-stream`。 |
 | `Content-Type` | Conditional | JSON mutating request 使用 `application/json`。 |
 | `X-Request-Id` | No | 调用方可传；服务端没有收到时生成 UUID，并写入响应 body 的 `request_id`。 |
-| `X-Trace-Id` | No | RUN-001 调用方可传受控 trace；`run-trace-correlation` 实现后，缺失时由 runtime 在业务副作用前生成 canonical trace，非法或已绑定其他 root run 的值必须 fail closed。 |
+| `X-Trace-Id` | No | 当前 RUN-001 仅透传调用方值，缺失时仍可能产生 nullable trace。`run-trace-correlation` 目标：调用方值必须匹配 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`，不 trim、不折叠大小写；缺失时 runtime 在业务副作用前生成 lowercase RFC 4122 UUID canonical trace；非法格式返回 `422 validation_error`，已绑定其他 root run 返回 `409 trace.conflict`。change 未实施前不得把目标校验/生成/冲突行为当作当前能力。 |
 | `Authorization` | Conditional | 认证 profile 启用 verifier 时必填 `Bearer <token>` 或等价 API key；local/dev profile 未配置 verifier 时由服务端注入默认身份。 |
 
 ### 4.4 通用响应格式
@@ -154,7 +154,7 @@
 
 | 状态码 | 用途 |
 |---:|---|
-| 200 | 同步读取或同步操作成功；当前 run create/cancel/resume 也返回 200。 |
+| 200 | 同步读取或同步操作成功；local profile 的 run create 及当前 cancel/resume 返回 200。 |
 | 201 | 未来同步创建资源成功时可用；使用前必须更新本契约。 |
 | 202 | 当前 service profile 的 RUN-001 durable enqueue 成功；必须返回 run id。其他 endpoint 使用前必须单独声明。 |
 | 204 | 成功且无响应体。 |
@@ -325,21 +325,30 @@
   "event_version": "1.0",
   "seq": 2,
   "timestamp": "2026-07-07T00:00:00Z",
+  "trace_id": "trace_123",
   "payload": {
     "status": "completed"
   },
   "terminal": true,
-  "visibility": "internal"
+  "visibility": "public"
 }
 ```
 
 硬约束：
 
 - 同一 `run_id` 内 `seq` 单调递增。
-- terminal event 只能有一个，类型为 `run.completed`、`run.failed` 或 `run.cancelled`。
+- CanonicalEvent `seq` 的持久化范围固定为 `1..2147483647`。run 创建时先持久化一个 terminal capacity reservation；provider/tool/approval/delegation 等操作必须在外部副作用前，由受信、版本化、封闭的 `operation_kind -> max_prerequisite_events` registry 派生预约数，并通过 `0014` durable evidence outbox 的 run 级锁/CAS 原子预留，业务 agent/HTTP 调用方不得自报容量。容量不变量固定为 `highest_persisted_seq + outstanding_reserved_event_count + terminal_reservation <= 2147483647`；`highest_persisted_seq` 是该 run 已持久化的最大 `seq`，没有 event 时为 `0`，不得用 event row count 替代。预约消费、event 插入与 high-water mark 推进必须在同一 run 锁/事务内原子完成。容量不足时以稳定 `event.sequence_exhausted` 零业务副作用拒绝，不消费 seq。预约只在对应 prerequisite evidence 已持久化或确定不会产生时按实耗结算/释放，未知结果保持预约并阻止 terminal；terminal 消费最后保留的预约且仍是最后一条 event。若历史状态已越过容量不变量、high-water mark 与最大已持久化 `seq` 不一致，或 `seq=2147483647` 不是 terminal，任何新写入以 `event.sequence_state_invalid` 零变更拒绝并要求人工处置。SQLite/local 与 PostgreSQL 必须使用相同规则；稀疏高 seq（例如 `{1, 2147483646}`）必须按最大值拒绝新的 operation reservation并保住 terminal 容量。
+- 当前生产 DTO/OpenAPI 仍允许 run-scoped `trace_id=null`；`run-trace-correlation` 落地时必须原子切换为必填，并与该 run 的 persisted canonical trace 逐值一致。RUN-003 和后续 RUN-006 SSE 使用同一字段，不生成第二 trace；change 未实施前不得把目标必填状态当作当前能力。
+- terminal event 只能有一个，类型为 `run.completed`、`run.failed` 或 `run.cancelled`；三种 run terminal event 的 `visibility` 必须为 `public`，EventBus 与 local/PostgreSQL sink 必须在持久化前拒绝 `terminal=true` 且 `visibility!=public` 的 envelope，不能依赖 DTO 的 `internal` 默认值。
+- terminal event 是同一 run 的最后一条 CanonicalEvent；持久化后 EventBus/sink 必须拒绝 terminal 和 non-terminal 的任何后续业务事件，不能让已结束的 SSE/JSON 消费者漏掉晚到 evidence。
+- terminal 由 durable evidence outbox 协调：usage 结算与 `approval.resolved` 等必需前置 evidence 先按稳定 event id 幂等发布，terminal 最后发布；terminal 一旦可见，恢复不得再补写前置 evidence或重放 provider/tool 副作用。
+- 当前生产 approval 补偿仍可能在 run terminal 后写 `approval.resolved`，尚不满足上述 terminal-last 目标；`model-usage-evidence` 必须以 `0014` 有序 outbox 原子切换 usage、approval resolution 与 terminal 恢复语义，实施前不得把该目标写成当前能力。
 - `reasoning.delta` 默认不对普通用户可见。
-- Phase 13.7 目标：`model.request.started`、`model.usage.updated` 与等价 embedding event 的单次调用关联固定写在 `payload.correlation.usage_call_id`，类型为非空 string。该值不得新增为 CanonicalEvent envelope 顶层字段，也不得进入 `ModelUsageEvidence`；TelemetryFacade 必须把同一值保留在 `TelemetryRecord.payload.correlation.usage_call_id`。当前 Phase 1-13 尚未实现这些 event type 与关联路径。
-- 大 payload 必须使用 `payload_ref`，并保留 checksum 或 artifact reference。
+- 当前 CanonicalEvent catalog 已声明 `model.request.started`、`model.usage.updated`，但当前 model/embedding 调用尚未发布完整的 started/usage 关联 evidence。`model-usage-evidence` 目标：model 与 embedding 精确复用这两个 type，并以 `ModelUsageEvidence.usage_kind` 区分，不新增等价 embedding event type；单次调用关联固定写在 `payload.correlation.usage_call_id`，类型为非空 string。该值不得新增为 CanonicalEvent envelope 顶层字段，也不得进入 `ModelUsageEvidence`；TelemetryFacade 必须把同一值保留在 `TelemetryRecord.payload.correlation.usage_call_id`。`model.usage.updated` 只结束调用级 usage 生命周期，`CanonicalEvent.terminal=false`，不得关闭 run stream。
+- CanonicalEvent envelope 的唯一字节定义为公共 `canonical_event_bytes()`：先取 `CanonicalEvent.to_payload()`，再以 UTF-8、`ensure_ascii=false`、`sort_keys=true`、紧凑 separators `(',', ':')`、`allow_nan=false` 生成 JSON bytes；不计 JSONL 末尾换行、SSE `data:`/frame 分隔符或传输压缩。EventBus、local JSONL、SQLite/PostgreSQL legacy 校验和 SSE byte page 必须调用同一实现，不能各自使用默认 `json.dumps`。正常 envelope 最多 `65536` bytes；大 payload 必须先使用 `payload_ref` 并保留 checksum 或 artifact reference，artifact 化后 envelope 仍超限时，EventBus 以 `event.envelope_too_large` 在持久化和 fan-out 前拒绝。历史或 direct-write 超限 row 读取时返回稳定 `event.envelope_state_invalid`，SSE 转换为一个脱敏 `stream.error` 后关闭，不得返回无 cursor 的空页并忙循环。边界合同必须覆盖恰好等于/超过 `65536` 与 `1048576` bytes、中文/转义字符、不同键插入顺序和 NaN 拒绝。
+- `event.sequence_exhausted`、`event.sequence_state_invalid`、`event.envelope_too_large` 与 `event.envelope_state_invalid` 是 EventBus/repository 内部稳定错误码，不新增公开 HTTP status。RUN-006 已握手后遇到非法历史 envelope 时，`stream.error` 的公开 `data.code` 固定为 `stream.event_state_invalid`；握手前若预检即可发现，则使用既有 `500 api.internal_error` envelope，不回显内部行、payload 或 seq 细节。
+
+`run-trace-correlation` 的 local evidence 升级只允许通过离线命令 `agent-harness migrate-local-state --state-dir <dir> (--profile <name> [--profiles-dir <dir>] | --file-only) [--event-path <path>]... [--score-path <path>]...`。必须且只能选择一个模式：profile 模式通过 typed settings 解析关系库配置，credential 只能来自环境或受信 `_FILE`，完整 DSN 不得进入 argv、进程列表、shell history、日志或错误；`--file-only` 只接受显式 non-run records，以及 `payload.telemetry.context.run_id` 为空的 legacy ordinary telemetry，即使其 envelope `run_id` 是合成 trace id 或字面值 `"telemetry"`。显式 run scope、普通 record 的真实非空 `run_id`，或 legacy ordinary telemetry 的非空 nested context `run_id` 都必须立即失败并要求改用 profile 模式。命令冻结 manifest 与显式 legacy paths 后统一预检和迁移；普通 API、CLI run/eval、worker 启动不得自动推进旧 schema。
 
 ### 5.10 `AgentDescriptor`
 
@@ -789,16 +798,18 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | `tenant_id` | string | Yes | 持久化 evidence 的直接租户归属，不得只从 run 推导。 |
 | `provider` | string | Yes | provider ID，不含 client 或 endpoint credential。 |
 | `model` | string | Yes | 实际模型 ID。 |
-| `input_tokens` | integer \| null | Yes | provider 可用时记录；不可用时为 null。 |
-| `output_tokens` | integer \| null | Yes | embedding 可为 null。 |
-| `cost_usd` | number \| null | Yes | provider/配置可计算时记录；不可用时为 null，不能伪造为 0。 |
-| `cost_status` | `reported` / `estimated` / `unavailable` | Yes | cost 来源。 |
-| `latency_ms` | integer | Yes | adapter 调用墙钟时延，必须大于等于 0。 |
-| `decision` | object | Yes | route、fallback、budget/policy decision 的 provider-neutral 摘要；`cost_status=estimated` 时必须包含安全的 `price_source_ref` 与 `price_source_version`，不得内联完整价目或 provider raw payload。 |
+| `input_tokens` | integer \| null | Yes | provider 可用时记录非 bool、`>=0` 的整数；不可用时为 null。 |
+| `output_tokens` | integer \| null | Yes | provider 可用时记录非 bool、`>=0` 的整数；embedding 或不可用时可为 null。 |
+| `cost_usd` | number \| null | Yes | 可用时必须是非 bool、有限且 `>=0` 的 USD 数值；不可用时为 null，不能伪造为 0。 |
+| `cost_status` | `reported` / `estimated` / `unavailable` | Yes | `reported|estimated` 要求 `cost_usd` 非 null；`unavailable` 要求 `cost_usd=null`。 |
+| `latency_ms` | integer | Yes | 本次 adapter 调用墙钟时延，必须是非 bool、`>=0` 的整数。 |
+| `decision` | object | Yes | route、fallback、cache/provider-side-effect、budget/policy decision 的 provider-neutral 摘要；cache hit 必须有 `cache_status=hit`、`provider_called=false`；`cost_status=estimated` 时必须包含安全的 `price_source_ref` 与 `price_source_version`，不得内联完整价目或 provider raw payload。 |
 | `run_id` | string | Yes | 所属 run。 |
 | `agent_id` | string | Yes | 所属 agent。 |
 | `request_id` | string | No | 请求关联 ID。 |
 | `trace_id` | string | Yes | 可与 CanonicalEvent、OTel 和 parent aggregation 对账的 trace ID。 |
+
+所有 usage 数值在持久化、EventBus 发布和 delegation 聚合前统一校验；bool、负数、NaN、正负 Infinity 以及 `cost_usd/cost_status` 不一致必须结构化拒绝，不能通过求和反向冲减预算。真实零 token/cost 合法，但必须与 null/`unavailable` 分开。embedding cache hit 仍是一轮调用级 usage 生命周期：发布 started/final evidence，`latency_ms` 记录本次 cache lookup 墙钟，token/cost 为 null 且 `cost_status=unavailable`，`decision.cache_status=hit`、`decision.provider_called=false`；不得复用 cache row 的首次 `provider_latency_ms`，也不得再次调用 provider。
 
 ### 5.30 `DelegationSummary`
 
@@ -806,8 +817,9 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 |---|---|---:|---|
 | `parent_run_id` | string | Yes | 发起 delegation 的 parent run。 |
 | `children` | object[] | Yes | 每项只含 child `run_id`、`agent_id`、status、usage evidence refs 和 trace refs。 |
-| `input_tokens` | integer | Yes | 已知 child model evidence 的输入 token 合计；任一 child 为 null 时不得把未知值当 0，且 `budget_status` 必须为 `incomplete`。 |
-| `output_tokens` | integer | Yes | 已知 child model evidence 的输出 token 合计；任一 child 为 null 时不得把未知值当 0，且 `budget_status` 必须为 `incomplete`。 |
+| `input_tokens` | integer \| null | Yes | 已知 child model evidence 的输入 token 合计；混合已知/未知时保留已知和，全部未知时为 null。任一 child 为 null 时不得把未知值当 0，且 `budget_status` 必须为 `incomplete`。 |
+| `output_tokens` | integer \| null | Yes | 已知 child model evidence 的输出 token 合计；混合已知/未知时保留已知和，全部未知时为 null。任一 child 为 null 时不得把未知值当 0，且 `budget_status` 必须为 `incomplete`。 |
+| `latency_ms` | integer \| null | Yes | 仅当所有 child latency 都可用时求和；任一 child latency 未知时为 null 且 `budget_status` 必须为 `incomplete`，不得把未知值当 0。 |
 | `cost_usd` | number \| null | Yes | 所有可用 child cost 合计；存在 unavailable cost 时必须为 null，并在 `budget_status` 解释。 |
 | `budget_status` | `within_budget` / `exceeded` / `incomplete` | Yes | parent 对 child usage/cost 的预算影响。 |
 | `trace_refs` | string[] | Yes | 去重后的 child trace refs；不得包含 provider raw payload。 |
@@ -846,10 +858,23 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 成功响应码 | local profile `200`；service profile queued成功 `202`。 |
 | 响应头 | 当前只保证 `Content-Type: application/json`；不保证 `X-Request-Id` response header。 |
 | 响应体 | `RunCreateResponse`。 |
-| 错误响应码 | 当前：`400 api.http_error`、`401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied` / `guardrail.denied`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`503 run.enqueue_unavailable`、`500 api.internal_error`。`run-trace-correlation` 目标新增 `409 trace.idempotency_conflict`。 |
+| 错误响应码 | 当前：`400 api.http_error`、`401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied` / `guardrail.denied`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`503 run.enqueue_unavailable`、`500 api.internal_error`。`run-trace-correlation` 新增 `409 trace.conflict` 与 `409 trace.idempotency_conflict`。 |
 | 状态语义 | service 202 返回 `created`，且只有 Redis接受、repository保存 queued/message ref并发布唯一 `run.queued` 后才算成功；enqueue任一步失败返回503并保留可补投私有状态。同客户端 key重试复用原 run/operation/首次 request id；无客户端 key的新请求仍非幂等，但原 pending run由worker startup/pickup recovery补投。`completed/failed/cancelled` 表示 terminal；`waiting` 表示需要 approval 或 resume。私有 queue字段不进入响应/OpenAPI。 |
 | 安全规则 | API route 不得直接操作 ORM session、DBOS API 或 provider SDK；input 进入 runtime 前必须经过 `run.create` policy check 和 guardrail/trust 标注；无效 token 或缺少 `run.create` 权限不得创建 run。 |
 | 验证要求 | legacy route/OpenAPI 由 `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 锁定；service enqueue、身份 fencing 与 worker recovery 分别由 `test_split_runtime_execution_contracts.py`、`test_split_runtime_worker_recovery_contracts.py` 锁定；`make smoke-service` 必须在 workspace 外以真实 API key、PostgreSQL、Redis 和独立 worker证明 HTTP-to-worker、hard crash/reclaim、唯一 terminal 与重复提交同 run。认证/策略/HITL tests 必须覆盖无效 token 零 run/queue/audit、guardrail deny 和 require_approval。 |
+
+### CLI-RUN-001 创建 agent-scoped run
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `CLI-RUN-001` |
+| 状态 | 当前命令已实现；`run-trace-correlation` 目标增加可选 `--trace-id` 并收紧错误语义。 |
+| 命令 | `agent-harness run <agent_id> [--trace-id <value>]`，其余 profile/storage/events/agents/idempotency/prompt 选项保持既有语义。 |
+| Trace 输入 | `--trace-id` 缺失时在业务副作用前生成 lowercase RFC 4122 UUID；提供时必须原样匹配 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`，不 trim、不折叠大小写，并与 RUN-001 使用同一 normalizer。 |
+| 幂等与冲突 | 同一 idempotency key 缺失 trace 或提供首次 canonical trace 时复用首次 run；提供不同 trace 返回 `trace.idempotency_conflict`。已绑定其他 root run 返回 `trace.conflict`；格式非法返回 `validation_error`。 |
+| 输出与退出 | 成功保持既有 run/status/terminal stdout；trace validation/conflict 只向 stderr 写稳定错误 code 和安全摘要并非零退出，不回显其他 tenant/root 绑定信息。 |
+| 副作用 | 非法、全局冲突或 idempotency trace 冲突必须在 run、event、queue、approval、tool/model/provider 副作用前失败。 |
+| 验证要求 | CLI runner contracts 覆盖缺失生成、合法值保留、空白/超长/非法字符、全局冲突、同 key 相同/不同 trace、stderr/exit 与逐表/queue/provider side-effect count，并与 RUN-001 对同一 normalizer 做双向断言。 |
 
 ### RUN-002 读取 run detail
 
@@ -962,7 +987,7 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 方法 | `GET` |
 | 路径 | `/api/v1/runs/{run_id}/events/stream` |
 | 认证 | 复用 RUN-003 的 IdentityContext、tenant/run 可见性和 event visibility policy。 |
-| 请求头 | `Accept: text/event-stream`；可选 `Last-Event-ID: <CanonicalEvent.seq>`、`X-Request-Id`、认证 profile 所需 `Authorization`。 |
+| 请求头 | `Accept: text/event-stream`；可选 `Last-Event-ID: <CanonicalEvent.seq>`，十进制整数范围固定为 `0..2147483647`；以及 `X-Request-Id`、认证 profile 所需 `Authorization`。OpenAPI header schema 必须声明 `minimum=0`、`maximum=2147483647`。 |
 | Path 参数 | `run_id: string`。 |
 | URL 参数 | `include_internal: boolean=false`；true 时需要同 RUN-003 的额外权限。不得再接受 `after_seq`，避免两个续读真相源。 |
 | 请求体 | none |
@@ -972,9 +997,26 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 响应头 | `Content-Type: text/event-stream`、`Cache-Control: no-cache`；代理缓冲必须关闭或在部署文档明确。 |
 | 响应体 | SSE frame：`id=<seq>`、`event=<event_type>`、`data=<CanonicalEvent JSON>`；frame data 保留 event_version、terminal、visibility、request_id/trace_id。 |
 | 错误响应码 | 握手前使用 `401/403/404/422/500 ApiErrorEnvelope`；握手后错误转换为脱敏 `event: stream.error` frame 后关闭连接。 |
-| 状态语义 | 只发送 `seq > Last-Event-ID` 的可见事件；terminal event 发送后关闭。没有新事件时可发送 comment heartbeat，但 heartbeat 不占 CanonicalEvent seq。 |
-| 安全规则 | 默认隐藏 reasoning/internal event；header 必须解析为非负整数且属于当前 run 的 seq 空间；不得把 provider raw event、resume token、secret 或内部异常写入 frame。 |
-| 验证要求 | 局部 OpenAPI drift + transport contract 覆盖 content type、frame 映射、默认可见性、Last-Event-ID、非法 header 握手前错误、握手后错误、terminal 关闭与已有事件首 frame <1s。 |
+| 状态语义 | 只发送 `seq > Last-Event-ID` 的可见事件；run terminal event 发送后关闭。若合法 cursor 已消费当前 run 的 terminal marker，握手后立即 EOF，不重放 terminal、不发送 heartbeat。只有 run 尚未 terminal 且暂时没有新事件时才可发送 comment heartbeat；heartbeat 不占 CanonicalEvent seq。P0 transport 不增加 CanonicalEvent 清理、TTL 或 retention job：run 存续期间其 event evidence 不删除，曾合法的非零 cursor 不会因本 transport 的后台行为变成过期 cursor；未来 retention 必须另建行为 change 并定义 expired-cursor 契约。 |
+| 背压 | EventSink 按 exclusive `after_seq` 提供受限分页；每条 event 必须先通过 `canonical_event_bytes() <= 65536` 的单条合法性校验，再计入默认每页最多 `100` 个 event、合法 envelope 合计最多 `1048576` bytes 的 page budget。generator 同时最多持有一个 page，逐 frame 等待 ASGI send 完成后才继续，不得预取下一页。达到 event 或 page bytes 任一上限即以最后已发送 seq 续读；客户端断连或 send cancellation 立即停止读取。 |
+| 安全规则 | 默认隐藏 reasoning/internal event；header 必须解析为 `0..2147483647` 内的十进制整数，该上限与 PostgreSQL `canonical_events.seq` 的 `Integer` schema 一致。`0` 是无需命中既有 seq 的合法初始 cursor，其他值必须命中当前身份与 `include_internal` 权限下可见的既有 event seq。隐藏空洞、其他 run seq、不存在 seq 与整数越界返回同一 422，不得形成 internal event 存在性 oracle；不得把 provider raw event、resume token、secret 或内部异常写入 frame。 |
+| 验证要求 | 局部 OpenAPI drift + transport contract 覆盖 content type、frame 映射、默认可见性、缺失/`0`/可见既有/隐藏/非法 Last-Event-ID、统一 422、握手后错误、terminal 关闭与已有事件首 frame <1s；local/PostgreSQL 还必须覆盖 run/operation capacity reservation、稀疏高 seq/high-water mark、容量不足副作用前拒绝、未知结果保留预约、非法历史容量状态、canonical serializer 的 Unicode/键顺序/NaN/精确边界、单条 envelope `65536/65537` 与 page 累计 `1048576/1048577` 四点、`100` event 上限、慢客户端无预取、断连取消，以及 P0 无 retention 清理。 |
+
+### CLI-EVT-001 流式读取 run events
+
+| 字段 | 内容 |
+|---|---|
+| Contract ID | `CLI-EVT-001` |
+| 状态 | 规划中（P0）；满足 REQ-014 的 CLI stream adapter，不得以 run 完成后的三行摘要冒充流式输出。 |
+| 命令 | `agent-harness events stream <run_id> [--after-seq <0..2147483647>] [--include-internal]`，并复用既有 profile/storage/events-path/identity 配置选项。 |
+| 用途 | 通过同一授权 EventSink reader 在终端逐条消费 `CanonicalEvent`；不经 HTTP/SSE framing，也不建立第二套 event store。 |
+| Cursor | `--after-seq` 是 CLI 专属 exclusive cursor，默认 `0`；非零值必须命中当前身份与 `--include-internal` 权限下可见的既有 event。它不进入 RUN-006 query，也不改变 HTTP 唯一 `Last-Event-ID` 契约。 |
+| stdout | 每个可见 event 恰好一行 UTF-8 NDJSON，内容必须是 `canonical_event_bytes(event).decode('utf-8')`；不得混入状态提示、heartbeat、日志或 provider 原始 payload。 |
+| stderr / exit | 输入、授权、cursor 或 legacy envelope 错误使用稳定脱敏 code 写 stderr 并非零退出；已输出部分 event 后的读取错误也不得向 stdout 伪造 CanonicalEvent。Ctrl-C 使用中断退出且停止 reader。 |
+| 状态语义 | 严格按 seq 递增输出 `seq > after_seq` 的可见 event；terminal event 输出后退出。合法 cursor 已消费 terminal 时成功空输出退出；run 尚未 terminal且暂时无新 event 时有界轮询但不打印 heartbeat。 |
+| 安全/副作用 | 默认隐藏 reasoning/internal；`--include-internal` 需要与 RUN-003/RUN-006 相同的额外权限。读取不得创建或修改 run/event/audit outcome，不得形成隐藏/其他 run seq oracle。 |
+| 背压 | 复用与 RUN-006 相同的单条 `65536` bytes 合法性、`100` event / `1048576` bytes page、一次一页与逐行写出边界；终端 stdout 阻塞时不得预取第二页。 |
+| 验证要求 | CLI contract 覆盖默认/内部可见性、`0`/可见/隐藏/空洞/其他 run/越界 cursor、NDJSON canonical bytes、terminal/已消费 terminal、慢 stdout、Ctrl-C、legacy invalid row、SQLite 与真实 PostgreSQL reader；与 RUN-006 双向断言同一过滤和序列化结果。 |
 
 ## 7. Agent Registry API
 
@@ -1073,14 +1115,14 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | URL 参数 | none |
 | 请求体 | `ApprovalResolveRequest` |
 | 幂等性 | public resolve 非幂等；service approve仅在私有 `resolution_state=claimed`、`enqueue_pending|queued`、无tool claim且本次 reviewer/decision/规范化request hash与私有fingerprint一致时复用原lease/operation：pending补投，queued不重投。worker startup只恢复 fingerprint完整、无claim的 `claimed+enqueue_pending`。`execution_owned`过期无claim时仅matching真实APR-002可换新lease/new operation，并以本次request id建立新operation首次correlation；其他重复resolve仍返回既有409。 |
-| 副作用 | deny 仍在API/repository原子收口，零lease/queue/DBOS/handler。service approve只写private lease/fingerprint/enqueue state并投递 `resume_approval` refs，public保持waiting，API不执行executor/tool；worker pickup CAS为 `execution_owned`并保存DBOS owner/ref后恢复。旧lease/operation按fencing fail closed；确定性结果后才公开approved并写唯一evidence。 |
+| 副作用 | deny 仍在API/repository原子取得仲裁，零lease/queue/DBOS/handler。service approve只写private lease/fingerprint/enqueue state并投递 `resume_approval` refs，public保持waiting，API不执行executor/tool；worker pickup CAS为 `execution_owned`并保存DBOS owner/ref后恢复。旧lease/operation按fencing fail closed；`model-usage-evidence` 落地后，确定性结果把 `approval.resolved` 与对应 terminal 写入 durable ordered outbox，resolution 先于 terminal，二者完成后才公开 resolution。 |
 | 成功响应码 | local inline `200`；service approve queued/in-progress `202`；deny `200`。 |
 | 响应头 | 当前只保证 `Content-Type: application/json`。 |
 | 响应体 | `ApprovalResolveResponse` |
 | 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 approval.invalid_transition`、`409 approval.resolution_in_progress`、`409 approval.execution_needs_review`、`409 run.invalid_transition`、`422 validation_error`、`503 approval.enqueue_unavailable`、`500 api.internal_error`。approve lease 已存在时，并发 deny/第二个 public resolve 使用 `approval.resolution_in_progress`；execution claim 状态不确定且无结果时使用 `approval.execution_needs_review`。 |
-| 状态语义 | `approved` 表示人工允许原动作执行，不保证动作执行成功；completed 或确定性 failed result 都会在 run 进入对应 terminal 后完成 approved resolution。`denied` 表示原动作不得执行。结果不确定时 public approval 保持 waiting，`run.status` 保持非伪造的 waiting/failed 摘要，private state 可进入 needs_review。 |
+| 状态语义 | `approved` 表示人工允许原动作执行，不保证动作执行成功；completed 或确定性 failed result 先产生唯一 approved resolution evidence，再产生对应 run terminal，二者 durable 后完成 public approved resolution。`denied` 表示原动作不得执行，并遵守同一 resolution-before-terminal 证据顺序。结果不确定时 public approval 保持 waiting，`run.status` 保持非伪造的 waiting/failed 摘要，private state 可进入 needs_review。当前生产仍采用 terminal 后补偿 resolution 的旧顺序，必须由 `model-usage-evidence` 原子切换后才能宣称满足本目标。 |
 | 安全规则 | path 中的 `run_id` 必须与 approval 归属一致；错误 URL 不得推进其他 run。response、OpenAPI、event 和 audit 不得泄漏 resume token、private lease/internal state、arguments 原文、secret 或原始危险 payload。仲裁失败方只允许写 conflict audit，不得发布第二个有效 resolution event。 |
-| 验证要求 | contract tests 必须覆盖 deny 先赢时 approve 无 lease且 handler 为零、approve lease 先赢时并发 deny 返回 in-progress 409且 public waiting不变、过期 raw claimed lease 由真实 APR-002 route 换发 fencing id并继续、未过期 lease与已有 claim不被抢占、旧 owner fencing失败、completed/确定性 failed 各自的 terminal与最终 approved、executing-without-result 的 needs-review 409、重复 public resolve 409、跨 run拒绝、单一 resolution/audit、request_id和 OpenAPI 不公开 private state；还必须用真实 APR-002 route 注入 approve/deny 的 `run.resumed`、terminal、`approval.resolved` sink 写前失败和写后确认丢失，证明重试仍返回既有 409但最终状态一致、handler 0/1 次、audit/terminal/resolution 各唯一。SQLite/PostgreSQL repository tests 均需覆盖 lease takeover、fencing 与 unique claim。 |
+| 验证要求 | contract tests 必须覆盖 deny 先赢时 approve 无 lease且 handler 为零、approve lease 先赢时并发 deny 返回 in-progress 409且 public waiting不变、过期 raw claimed lease 由真实 APR-002 route 换发 fencing id并继续、未过期 lease与已有 claim不被抢占、旧 owner fencing失败、completed/确定性 failed 各自的 resolution-before-terminal 与最终 approved、executing-without-result 的 needs-review 409、重复 public resolve 409、跨 run拒绝、单一 resolution/audit、request_id和 OpenAPI 不公开 private state；还必须注入 approve/deny 的 `run.resumed`、`approval.resolved`、terminal sink 写前失败、写后确认丢失和进程重启，证明 outbox 使用稳定 event id按 resolution-before-terminal 恢复、public resolution不早于 prerequisite evidence、handler 0/1 次且 audit/resolution/terminal 各唯一。SQLite/PostgreSQL repository tests 均需覆盖 lease takeover、fencing、unique claim与 ordered outbox recovery。 |
 
 ### POL-001 policy check
 
@@ -1153,12 +1195,12 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 请求 | parent `run_id`、source/target `agent_id`、child input、显式 idempotency key、IdentityContext、request/trace context。 |
 | 策略 | 先校验 source descriptor 的 delegation edge，再执行 `agent.delegate` PolicyEngine check；任一步 deny 都不得创建 child run、queue message、provider call 或业务 CanonicalEvent；允许写一次脱敏 policy/audit denial evidence。 |
 | 执行 | local profile 复用 orchestrator inline seam；service profile 复用 durable RunQueue。child `agent_runs.parent_run_id` 必须指向 parent，tenant/session/identity 不得由 child input 覆盖。 |
-| 预算 | child 继承 parent 剩余 token/cost/depth 上限；cycle、超深度或预算不足必须在创建 child 前稳定拒绝。 |
-| 幂等 | 规范化 request hash 覆盖 tenant、identity、parent/source/target、child input 与有效预算。同 key 同 hash 只产生一个 child run并重放 durable 结果；同 key 异 hash 返回 `delegation.idempotency_conflict`，且零 child/queue/provider/业务事件副作用。 |
-| 结果 | 返回 `DelegationSummary`；parent 聚合只能读取持久化 child run、`ModelUsageEvidence` 和 trace refs，不能相信业务 agent 手填 summary。 |
+| 预算 | child 继承 parent 剩余 token/cost/depth 上限。ownership/edge/policy/tenant/cycle/depth 校验不创建 delegation/预算/child 业务状态；通过后，系统在同一事务中先按 `(tenant_id,parent_run_id,idempotency_key)` 读取或创建 claim 并核对稳定 request hash：既有同 hash 直接重放或恢复首次持久化的 operation/reservation，不读取当前 parent 余额重新派生 hash 或预留；既有异 hash 在预算写入前返回 `delegation.idempotency_conflict`。只有全新 claim 才以 parent 级行锁/CAS 按当时 parent 剩余额度、当前 policy/descriptor ceiling 与稳定预算意图计算本次最坏情况有效预留额，并把计算结果单独持久化到 reservation。不同 key 串行竞争同一剩余额度。预留在 child 创建前确定性失败时释放，创建后保持 durable，按最终 usage 结算；usage 不确定时保持 reserved/needs_review，不得当 0 或提前释放。cycle、超深度或预算不足必须稳定拒绝；允许的脱敏 policy/audit evidence 不算 delegation 业务状态。 |
+| 幂等 | 规范化 request hash 覆盖 tenant、identity、parent/source/target、child input 与稳定预算意图。P0 没有显式预算参数时，预算意图固定为 `inherit_parent`；hash 不得包含动态 parent 剩余额度、锁内计算的有效预留额或其他会在重试间变化的余额投影。新 idempotency claim 与首次有效 reservation 必须在同一事务提交或回滚；同 key 同 hash 只产生一个 claim/reservation/child run 并重放或恢复 durable 结果，即使其他 key 已改变 parent 余额也复用首次 reservation；同 key 异 hash 在 reservation 前返回 `delegation.idempotency_conflict`，且零 child/queue/provider/业务事件副作用。 |
+| 结果 | 返回 `DelegationSummary`；parent 聚合只能读取已经通过非 bool、非负、有限数值和 cost-status 组合校验的持久化 child run、`ModelUsageEvidence` 和 trace refs，不能相信业务 agent 手填 summary或让负数反向冲减预算。 |
 | 错误 | `delegation.edge_denied`、`delegation.policy_denied`、`delegation.idempotency_conflict`、`delegation.cycle_detected`、`delegation.depth_exceeded`、`delegation.budget_exceeded`、`delegation.target_not_found`、`delegation.execution_failed`。 |
 | 安全 | 错误、event、audit 与 tool result 必须脱敏；跨 tenant target、provider raw usage、resume token 和本地路径不得进入公开 summary。 |
-| 验证 | deny 只允许 policy/audit evidence且无 child side effect、allow/local、service queue、同 key 同/异 hash、cycle/depth/budget、child failure、parent durable aggregation、trace/evidence refs 和 import boundary contract。 |
+| 验证 | deny 只允许 policy/audit evidence 且无 child side effect、allow/local、service queue、同 key 同/异 hash、同 key 并发与 claim 后崩溃恢复不重复 reservation、首次 claim 后由其他 key 改变 parent 余额再重试原 key 仍复用首次 reservation、不同 key 预算竞争、cycle/depth/budget、child failure、parent durable aggregation、trace/evidence refs 和 import boundary contract。 |
 
 ### MOD-001 model / embedding usage evidence
 
@@ -1166,18 +1208,20 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 |---|---|
 | 状态 | 规划中（P0）；当前 response/metadata 只有部分 token/latency 字段。 |
 | 入口 | provider adapter -> model/embedding router/facade -> EventBus/TelemetryFacade；业务 agent 只消费输出和稳定 DTO。 |
-| 生命周期 | 调用前发布 `model.request.started`；完成或受控失败后发布 `model.usage.updated` 或等价 embedding usage evidence。 |
-| 证据 | 每次调用产生 `ModelUsageEvidence`，包含 provider/model、token、cost 可用性、latency、route/fallback/budget decision、run/agent/trace。 |
-| cost | provider 未返回且无可验证价目配置时必须为 null + `unavailable`，不得写 0；估算值必须标 `estimated`。 |
+| 生命周期 | model 与 embedding 调用前都发布 `model.request.started`，完成或受控失败后都发布恰好一条调用级最终 `model.usage.updated`，并以 `ModelUsageEvidence.usage_kind` 区分；不得新增等价 embedding event type。`model.usage.updated` 必须 `CanonicalEvent.terminal=false`，run terminal marker 仍只属于三种 run terminal event。 |
+| terminal 顺序 | 每次 started 调用先写 durable settlement/outbox 状态；provider 结果只写入该状态一次，再按稳定 `usage_call_id`/event id 幂等发布最终 usage。runtime 收口前恢复所有 pending settlement，最终 usage 必须先于同一 run terminal；不得重放 provider。`approval.resolved` 等其他前置 evidence 与 terminal 复用同一有序 outbox，EventBus/sink 拒绝 terminal 后的任何业务事件。 |
+| 证据 | 每次调用产生 `ModelUsageEvidence`，包含 provider/model、token、cost 可用性、latency、route/fallback/cache/budget decision、run/agent/trace；所有数值在持久化和聚合前拒绝 bool、负数与非有限值。 |
+| cost | `reported|estimated` 必须带非负有限 `cost_usd`，`unavailable` 必须为 null；provider 未返回且无可验证价目配置时不得写 0，估算值必须标 `estimated`。 |
+| cache hit | embedding cache hit 仍发布 started/final evidence，记录本次 lookup latency、null token/cost、`unavailable` 与 `cache_status=hit/provider_called=false`；不复用首次 provider latency且 provider 调用次数为零。 |
 | 持久化 | local JSONL 与 service PostgreSQL event sink 保留 provider-neutral 摘要；大/raw provider payload 不落事件正文。 |
 | 安全 | secret、prompt 全文、embedding 原文、provider client/raw response 不得进入公开 DTO、event、trace 或 error。 |
-| 验证 | fake/model/embedding、reported/estimated/unavailable cost、fallback/policy required、失败脱敏、event seq/trace 关联、parent delegation aggregation 和业务 agent import boundary。 |
+| 验证 | 本 capability 验证 fake/model/embedding、reported/estimated/unavailable cost、fallback/policy required、失败脱敏、event seq/trace 关联和业务 agent import boundary。parent delegation aggregation 属于后序 `agent-delegation-execution` 及联合验收，不作为 MOD-001 的退出条件。 |
 
 ### CFG-001 Docker secret file 配置加载
 
 | 字段 | 约束 |
 |---|---|
-| 状态 | 当前已实现并修复异常链与 traceback frame locals 泄漏（P0），已通过 3 个 fresh code-reviewer 的 Stage 1/2 审查；对应 `config-secret-file-loading` 停在 `ready-to-archive`，不自动归档且不引入 `SecretProvider` 抽象。 |
+| 状态 | 当前已实现（P0），包括异常链与 traceback frame locals 脱敏；保持既有 typed settings 边界，不引入 `SecretProvider` 抽象。 |
 | 入口 | 进程环境中的 `<BASE_ENV>_FILE`，例如 `AGENT_HARNESS_STORAGE__DSN_FILE`；去掉 `_FILE` 后复用既有 typed env path 解析。 |
 | 冲突 | 同时设置 `<BASE_ENV>` 与 `<BASE_ENV>_FILE` 必须结构化失败，不静默选择一个。 |
 | 文件 | 必须是受信 secret root 内的绝对、普通、非 symlink、UTF-8、非空文件；限制最大 64 KiB，只移除一个结尾换行。默认 service root 为 `/run/secrets`，测试可显式注入临时受信 root。 |
@@ -1516,7 +1560,8 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 | 入口 / 调用方 | 当前或目标接口 | 说明 |
 |---|---|---|
-| `agent-harness run <agent_id>` | 等价于 `RUN-001` 的 runtime seam | CLI 不走 HTTP，但必须使用同一 `RunOrchestrator`、storage、event bus 和 DTO 语义。 |
+| `agent-harness run <agent_id> [--trace-id <value>]` | `CLI-RUN-001`，等价于 `RUN-001` 的 runtime seam | CLI 不走 HTTP，但必须使用同一 `RunOrchestrator`、storage、event bus、trace normalizer 和 DTO 语义。 |
+| `agent-harness events stream <run_id>` | `CLI-EVT-001` stream seam | CLI 不走 HTTP/SSE framing；必须复用 RUN-003/RUN-006 的授权 EventSink reader、visibility、cursor、canonical serializer 和 terminal 语义。 |
 | `agent-harness agents list` | 等价于 `AGT-001` 的 registry seam | CLI 不走 HTTP，但必须使用同一 `AgentRegistry`、descriptor DTO、identity/policy visibility 和 validation 语义。 |
 | `agent-harness policy check` | 等价于 `POL-001` 的 policy seam | CLI 不走 HTTP，但必须使用同一 `PolicyEngine`、identity、audit 和 decision DTO。 |
 | `agent-harness approvals list/approve/deny` | 等价于 `APR-001` / `APR-002` 的 approval seam | CLI 不走 HTTP，但必须使用同一 `ApprovalService`、runtime resume 和 audit seam。 |
@@ -1558,9 +1603,9 @@ P0 待实现 SSE 与 P1 可选 WS：
 - `RunCreateResponse` schema 不得包含 `resume_token`。
 - `ApiErrorEnvelope` 必须出现在已声明错误响应中。
 
-当前已知漂移（由 `run-openapi-contract-accuracy` 修复）：
+已解决漂移与后续变更门禁：
 
-- run router 级共享 `responses` 让 RUN-002/003 等 operation 暴露其生产路径不可能返回的 `400/409/422/503`；必须改为 operation-specific response map。
+- `run-openapi-contract-accuracy` 已移除 run router 级共享 `responses`，当前 RUN-002/003 等 operation 使用与生产路径一致的 operation-specific response map；局部 drift test 持续拒绝重新引入不可能返回的状态码。
 - RUN-002 当前仍引用 `RunCreateResponse`，`agent-delegation-execution` 才切换到 `RunDetailResponse`；两种状态必须由局部 drift test 分阶段锁定。
 - drift test 不仅检查必需状态存在，还必须拒绝 contract 未声明的额外 response status，避免共享 router metadata 扩张公开契约。
 
@@ -1588,7 +1633,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 
 - [x] 已区分当前已实现 run API 与保留 API。
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
-- [x] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致；`run-openapi-contract-accuracy` 已完成实现、验证与三审。
+- [x] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致，并由局部双向 drift contract 持续校验。
 - [x] 已明确当前 events JSON seam、P0 待实现 RUN-006 SSE 与 P1 可选 WS 的边界。
 - [x] 已固定 DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；CFG-001 当前已实现，DLG-001 与 MOD-001 保持待实现。
 - [x] 已明确 `reasoning.delta` 默认不可见。

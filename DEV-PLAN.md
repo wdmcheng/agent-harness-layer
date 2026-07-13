@@ -22,10 +22,10 @@
 | 总体状态 | Phase 1-13 历史交付已归档，P0 基线补缺待实现 | Phase 13.5-13.9 必须先闭环；Phase 14-15 未开始。 |
 | 当前 Phase | Phase 13.6A 待实现 | Phase 13.5 已提交；Phase 13.6 的 13/13 tasks、异常链与 frame locals 脱敏修复、全量验证及 3 个 fresh code-reviewer Stage 1/2 审查均已完成，停在 `ready-to-archive`。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 已按 queue → split runtime → deployment proof 顺序同步主规格并归档。 |
-| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` | 前两项分别为 10/10、13/13 tasks 且均停在 `ready-to-archive`；后四项保持 0 task 实施，不 archive、不 push。 |
-| 当前验证基线 | Phase 13.6 修复、验证与三审通过，状态同步 diff 待最终无差异三审 | 定向 43 项、quality、change/all strict 与 diff check 已刷新通过；此前离线全量、eval、local smoke、真实 PostgreSQL/Redis service smoke、build、license、pre-commit 均通过。 |
+| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`embedding-cache-tenant-isolation`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` | 前两项分别为 10/10、13/13 tasks 且均停在 `ready-to-archive`；后五项共 70 个 task，当前均为 0 task 实施，不 archive、不 push。 |
+| 当前验证基线 | Phase 13.6 已提交；Phase 13.6A-13.9 合同基准修复与联合 1+2 审查进行中 | 当前合同快照已通过 strict OpenSpec、合同测试、quality、图稿结构/视觉与 diff check；未来行为尚未实现，不能用这些结果替代实现验证。 |
 | 当前阻塞项 | P0 完成路径缺失已进入补缺计划 | Phase 14/15 不得在 13.5-13.9 完成前被标记完成。 |
-| 当前建议下一步 | 对 Phase 13.6 状态同步 diff 执行最终无差异三审 | PASS 后提交 Phase 13.6，再实现 Phase 13.6A；不自动归档 active change。 |
+| 当前建议下一步 | 完成五个关联 change、DEV/API 与架构图的最终联合 1+2 审查 | PASS 后实现 Phase 13.6A；不自动归档 active change。 |
 
 ## 剩余工作
 
@@ -52,12 +52,12 @@
 ### 尚未完成的关键验收
 
 - AC-017：P0 RUN-006 尚不存在；Phase 13.5 已收紧并三审通过 RUN-001 至 RUN-005 的 OpenAPI 精确性，13.9 再补 endpoint，因此 AC 仍未完成。
-- AC-008、AC-063：Phase 13.6 已实现 application startup fail-closed、受控 Docker secret file 加载和公开 evidence 脱敏；异常链与 frame locals 泄漏已修复并通过实现三审，待最终基线提交。
+- AC-008、AC-063：Phase 13.6 已实现并提交 application startup fail-closed、受控 Docker secret file 加载和公开 evidence 脱敏；异常链与 frame locals 泄漏已修复，对应 active change 停在 `ready-to-archive` 且不自动归档。
 - FLOW-003 / ApprovalRecord trace：当前 approval 与 run-scoped event 仍允许 `trace_id=null`；Phase 13.6A 负责 canonical run trace 生成、传播与历史 backfill。
 - AC-064、AC-065：model/embedding 完整 evidence 与 local fake run 时延门禁尚未实现。
 - AC-015、AC-016：现有 delegation 只有 registry/summary seam，真实 child run 与 parent aggregation 尚未实现。
 - AC-038、AC-066：现有 SSE 只有 formatter，HTTP transport、Last-Event-ID 和首 frame 时延尚未实现。
-- AC-050：由 `docs/phase-1-13-baseline-audit.md` 建立 REQ/AC -> production -> test evidence 矩阵；Phase 15 release matrix 必须复用并持续校验，新 change 仍需保留 red evidence。
+- AC-050：由各 change 的 `tasks.md`、Phase 本地提交以及 review/test 命令证据持续维护 REQ/AC -> production -> test 追溯；Phase 15 release matrix 必须汇总并重新校验，新 change 仍需保留 red evidence。
 - Phase 14 深度文档和 Phase 15 release automation 尚未实现。
 - GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
 - Phase 14 的扩展指南、安全策略、维护者手册与 release 深度文档尚未完成。
@@ -709,23 +709,27 @@ Phase 1 Monorepo / quality spine
 ## Phase 13.6A: Canonical Run Trace Correlation
 
 **交付内容**：
+- 在 trace 开发前先完成聚焦 change `embedding-cache-tenant-isolation`：以插入式 revision `0012a_embedding_cache_tenant_scope` 修正 Phase 6 cache 的 tenant identity、跨租户 `vector_ref` 和持久化 hit/miss metadata，并把物理表切换为 `tenant_embedding_cache`，让旧 binary 在新 schema 上因旧表不存在而 fail closed；`0013` 直接依赖该 revision，不重编号后续迁移。
 - 创建聚焦 change `run-trace-correlation`，收口 Product FLOW-003、ApprovalRecord 与 ModelUsageEvidence 对 `trace_id` 必填性的冲突。
 - 每个新 root run 在任何事件、enqueue、tool/model/provider 副作用前绑定唯一 canonical trace；调用方缺失时由 runtime 生成，合法显式值保留，冲突值 fail closed。
 - 把 canonical trace 持久化到 run execution context，并传播到 checkpoint/resume、worker、approval/audit、run-scoped CanonicalEvent 和后续 usage/delegation evidence。
-- 对历史 nullable run/approval/event/audit 数据执行按 run 确定性、幂等 backfill；已有非空 trace 不覆盖，孤立记录阻止部分迁移。
+- 对历史 nullable run/approval/event/audit 数据执行按 root lineage 确定性、幂等 backfill：单一合法非空 trace 优先且只填空，全空才按固定 namespace/root id 生成 UUIDv5，非法单值、多值或跨 lineage 碰撞在 DDL/UPDATE 前整批拒绝；binding 直接带 tenant，跨租户 parent edge与孤立记录同样 fail closed，多来源聚合 eval run 不伪造 AgentRun trace。
+- 用 local state manifest 与单一 `agent-harness migrate-local-state` 离线入口冻结 SQLite、event JSONL、eval score JSONL inventory；普通运行入口不得自动推进旧 schema。
 
 **关键文件**：
 - `packages/agent-harness/src/agent_harness/runtime/` - trace normalizer、run create、execution context 与恢复传播。
 - `packages/agent-harness/src/agent_harness/approvals/`、`storage/approval_records.py` - ApprovalRecord 非空 trace 与调用方不可覆盖。
 - `packages/agent-harness/src/agent_harness/events/`、storage migration/repositories - run-scoped event trace 门禁与历史 backfill。
-- `templates/service-app/app/api/routes/runs.py`、CLI/runtime composition - 可选 `X-Trace-Id` 与缺失生成。
+- local state manifest/upgrader 与 CLI - 显式 legacy inventory、journal/backup/fsync/atomic recovery 和 file-only eval fail-closed 边界。
+- `templates/service-app/app/api/routes/runs.py`、CLI/runtime composition - HTTP 可选 `X-Trace-Id`、CLI 可选 `--trace-id` 与缺失生成。
 - runtime/approval/event/API/CLI contract、SQLite/PostgreSQL integration 与 service worker recovery tests。
 
 **验收标准**：
-- API、CLI、内部入口缺失 trace 时生成；非法或已绑定其他 root run 的 trace 在业务副作用前返回稳定错误。
+- API、CLI、内部入口缺失 trace 时生成；HTTP `X-Trace-Id` 与 CLI `--trace-id` 共用同一格式/冲突 normalizer，非法或已绑定其他 root run 的 trace 在业务副作用前返回稳定错误，CLI 只向 stderr 写稳定 code 并非零退出。
 - local、service worker、checkpoint/resume、approve/deny 与 terminal evidence 对同一 run 使用同一 trace，即使 request_id 改变。
 - ApprovalRecord 与所有 run-scoped CanonicalEvent trace 非空且等于 persisted run context；调用方 body/metadata 无法覆盖。
-- SQLite/PostgreSQL backfill 幂等、已有 trace 不改写、孤立记录整批 fail closed；migration 不删除历史 evidence。
+- SQLite/PostgreSQL backfill 幂等；单一合法历史 trace 不改写，全空 lineage 确定生成，非法单值、多值、全局碰撞、孤立记录和跨租户 parent edge 整批 fail closed；新 parent/child 与 trace binding 也有数据库租户门禁，migration 不删除历史 evidence。
+- local manifest bundle 完整预检；中断后恢复全旧或继续全新，未登记路径与 `--file-only` 模式中的 run-scoped record 不得被声称已迁移。
 - 定向 contracts、`make quality`、`make test`、local/service smoke、build、license、pre-commit、strict OpenSpec 与 diff check 通过。
 
 **状态**：待实现；依赖 Phase 13.6，Phase 13.7 再依赖本 Phase 的 canonical trace；完成后只到 `ready-to-archive`。
@@ -736,19 +740,23 @@ Phase 1 Monorepo / quality spine
 
 **交付内容**：
 - 创建聚焦 change `model-usage-evidence`，实现 API Contract MOD-001 和 Product Spec AC-064/065。
-- 为 model/embedding adapter 输出统一 `ModelUsageEvidence`，记录 `tenant_id`、provider/model、token、cost availability、latency、route/fallback/budget decision 与 run/agent/trace。
+- 为 model/embedding adapter 输出统一 `ModelUsageEvidence`，记录 `tenant_id`、provider/model、非负有限 token/cost/latency、cost availability、route/fallback/cache/budget decision 与 run/agent/trace；bool、负数、NaN/Infinity 和不一致的 `cost_status` 在持久化/聚合前拒绝。
 - 通过 EventBus/TelemetryFacade 持久化 provider-neutral evidence；local fake run smoke 记录入口到 terminal 的总时延并执行 5 秒门禁。
+- 增加 `0014` durable evidence outbox/usage settlement：provider 结果按 `usage_call_id` 幂等封闭，approval resolution 与 terminal 也按先前置 evidence、后 terminal 的稳定顺序恢复，绝不重放 provider/tool 副作用。
 
 **关键文件**：
 - `packages/agent-harness/src/agent_harness/models/providers.py`、`models/router.py`、新增 `models/usage.py` - 统一 evidence DTO 与路由语义。
 - `packages/agent-harness/src/agent_harness/embeddings/provider.py`、`adapters/models/*`、`adapters/models/openai_compatible_embeddings.py` - provider mapping。
 - `packages/agent-harness/src/agent_harness/events/types.py`、`observability/facade.py` - usage event/trace 映射与脱敏。
+- storage `0014` migration、outbox/settlement repository、approval continuation/reconciliation - crash-safe usage 和 resolution/terminal 最终性。
 - `templates/service-app/app/runtime.py`、示例 agent composition - 注入 run/agent/request/trace context，不让业务 agent 拼 raw usage。
 - `tests/contracts/test_agent_registry_model_context_contracts.py`、observability/event contracts、`scripts/smoke_local.py` - MOD-001 与 AC-064/065。
 
 **验收标准**：
-- fake model、Pydantic AI adapter 和 embedding adapter 都产生同一 evidence shape；cost 不可用时为 null + `unavailable`，不得伪造 0。
-- `model.request.started` 与 `model.usage.updated` 关联同一 tenant/run/agent/trace；失败路径仍产出脱敏、可结算 evidence。
+- fake model、Pydantic AI adapter 和 embedding adapter 都产生同一 evidence shape；token/cost/latency 拒绝 bool、负数和非有限值；`reported|estimated` 必须有非负有限 `cost_usd`，`unavailable` 必须为 null，不得伪造 0。
+- embedding cache hit 仍产生一组 started/final 调用级 evidence：当前 cache lookup 墙钟写入 `latency_ms`，token/cost 为 null + `unavailable`，decision 明确 `cache_status=hit`、`provider_called=false`，且不得复用首次 provider latency或再次调用 provider。
+- `model.request.started` 与 `model.usage.updated` 关联同一 tenant/run/agent/trace；fallback 只调用实际备用 provider 并记录原决策与实际 provider/model，hard budget/policy 拒绝保持零 provider side effect；两类调用级最终 usage 都为 `terminal=false`，失败路径仍产出脱敏、可结算 evidence。
+- sink 写失败或丢失确认后由 durable outbox 使用稳定 event id 恢复，provider/tool 不重放；terminal 可见前 usage 与 approval resolution 前置 evidence 已存在。
 - prompt/embedding 原文、provider client/raw response 和 secret 不进入事件、trace、error 或公开 API。
 - local fake run 的稳定入口级 smoke 在 5 秒内完成；阈值失败可重复定位而非依赖单元测试墙钟偶然性。
 
@@ -762,6 +770,7 @@ Phase 1 Monorepo / quality spine
 - 创建聚焦 change `agent-delegation-execution`，修正长期 OpenSpec 把 summary seam 写成真实执行的漂移，实现 DLG-001 与 AC-015/016。
 - 提供内置 `agent.delegate` tool/module seam：registry edge、PolicyEngine、cycle/depth/budget、idempotency 和 tenant/identity 全部在创建 child 前门禁。
 - local 复用 inline orchestrator，service 复用 durable RunQueue；child run 写 `parent_run_id`，parent detail 从持久化 child run、usage evidence 和 trace refs 计算 `DelegationSummary`。
+- 先按 `(tenant,parent,key)` 与稳定 request hash 原子 claim 幂等请求，再让全新 claim 在同一事务按当前 parent 余额计算并持久化 parent 级 reservation；同 key 重试不重算动态余额，复用首次 reservation/operation，不同 key 串行竞争余额，并持久化结算/释放/needs_review 状态。
 
 **关键文件**：
 - `packages/agent-harness/src/agent_harness/registry/registry.py`、新增 `registry/delegation.py` - edge 与 delegation service。
@@ -772,7 +781,8 @@ Phase 1 Monorepo / quality spine
 
 **验收标准**：
 - 未声明 edge、policy deny、cycle/depth/budget/tenant 失败均在 child run/queue/provider/业务事件副作用前拒绝；允许写一次脱敏 policy/audit denial evidence。
-- 规范化 request hash 覆盖 tenant、identity、parent/source/target、child input 与有效预算；同 key 同 hash 只创建一个 child 并重放 durable 结果，同 key 异 hash 返回 `delegation.idempotency_conflict` 且零 child/queue/provider/业务事件副作用。
+- 规范化 request hash 覆盖 tenant、identity、parent/source/target、child input 与稳定预算意图；P0 无显式预算参数时使用 `inherit_parent`，禁止把动态 parent 剩余额度或锁内计算的有效预留额写入 hash。新 claim 与首次 reservation 同事务提交；同 key 同 hash 即使其他 key 已改变 parent 余额也只复用首次 claim/reservation/child 和 durable operation，同 key 异 hash 在 reservation 前返回 `delegation.idempotency_conflict`，且零 child/queue/provider/业务事件副作用。
+- 不同 key 并发竞争同一 parent 预算时由 SQLite/PostgreSQL 原子 reservation 串行化，合计不得超过剩余额度；未知最终 usage 保持 reserved/needs_review。
 - service worker crash/reclaim 不重复执行 provider 调用或聚合 usage。
 - parent detail 的 usage/budget/trace 只来自 durable child evidence，不接受调用方手填 summary。
 - child failure 可追踪且不伪装 parent success；terminal/event seq/idempotency 与既有 runtime 契约不回归。
@@ -786,19 +796,25 @@ Phase 1 Monorepo / quality spine
 **交付内容**：
 - 创建聚焦 change `sse-event-streaming`，实现 RUN-006、AC-038/066；WS 继续留在 P1。
 - 新增 `text/event-stream` route，把 `CanonicalEvent` 映射为 id/event/data frame，并用唯一 `Last-Event-ID` 续读语义恢复。
+- 新增 `agent-harness events stream <run_id>` CLI stream adapter；以 CLI 专属 `--after-seq` 续读同一授权 reader，并把 `canonical_event_bytes()` 逐条输出为 NDJSON，不另建事件状态。
 - 复用 RUN-003 的 tenant/run/event visibility，区分握手前 ApiErrorEnvelope 与握手后 `stream.error`，terminal 后关闭。
 
 **关键文件**：
 - `templates/service-app/app/api/sse.py` - frame、heartbeat、stream error 映射。
 - `templates/service-app/app/api/routes/runs.py`、`app/api/schemas.py`、`app/main.py` - RUN-006 route 与 OpenAPI。
+- `packages/agent-harness/src/agent_harness/cli.py` - `events stream` 命令、CLI cursor/visibility/error 与 NDJSON 输出；只调用授权 EventSink reader。
 - event sink/read repository - 按 seq 增量读取，不新增第二套 event 真相源。
+- EventBus/sink 与 `0014` evidence outbox - 固定 `1..2147483647` 写入容量，run 创建时预留 terminal，副作用前原子预留最大 prerequisite event 数；容量基数使用 `highest_persisted_seq` 而非 row count。公共 canonical JSON serializer 固定 UTF-8/排序键/紧凑分隔符/拒绝 NaN，正常 envelope 硬上限 `65536` bytes。SSE 使用同一 serializer 做 `100` event / `1048576` bytes 的受限分页，generator 同时只持有一个 page。
 - 新增 SSE transport/OpenAPI/security tests、`scripts/smoke_local.py` 与 service smoke probes。
 
 **验收标准**：
 - `Content-Type: text/event-stream`，frame `id` 等于 seq；`Last-Event-ID=n` 只发送 `seq>n` 的可见事件。
-- 默认隐藏 reasoning/internal；include_internal 需要权限；非法 header 在握手前结构化失败且无副作用。
+- CLI `events stream` 默认只输出 public event；`--after-seq=n` 只输出 `seq>n`，每行与公共 canonical bytes 逐值一致，terminal 后退出，空闲不输出 heartbeat 或伪造 event，Ctrl-C/错误不写业务 evidence。
+- 默认隐藏 reasoning/internal；include_internal 需要权限；`Last-Event-ID` 与 OpenAPI header schema 固定 `0..2147483647`，非法或越界 header 在握手前结构化失败且无副作用。
 - 握手后错误只发送脱敏 `stream.error`；terminal frame 后关闭，heartbeat 不占 seq。
-- 已存在可见 event 时首 frame 小于 1 秒；局部 OpenAPI drift、local/service transport smoke 和断线重连通过。
+- `highest_persisted_seq + outstanding reservations + terminal reservation` 在 run 级锁/CAS 下不得超过 `2147483647`，预约消费与 high-water mark 推进必须处于同一原子边界；稀疏高 seq 不能按 row count 低估。容量不足在 provider/tool/approval/delegation 副作用前以 `event.sequence_exhausted` 拒绝，未知结果保留预约并阻止 terminal，非法历史容量状态 fail closed。正常 envelope 按公共 canonical JSON serializer 超过 `65536` bytes 时必须 artifact 化或写前拒绝；legacy/direct-write 超限 row 只发送一次脱敏 stream error 后关闭。慢客户端逐 frame 等待 send，不预取第二页，断连后停止读取。
+- P0 不增加 event 清理、TTL 或 retention job；run 存续期间 CanonicalEvent evidence 保留。未来 retention 必须另建 behavior change 定义 expired cursor，不能在 Phase 13.9 中隐式加入。
+- 已存在可见 event 时首 frame 小于 1 秒；局部 OpenAPI drift、HTTP/CLI transport contracts、local/service transport smoke 和断线重连通过。
 
 **状态**：待实现；依赖 Phase 13.8，并在其完成 run route/schema 修改后顺序实施；所有相关 change 必须先完成联合审查。
 
@@ -867,25 +883,30 @@ Phase 1 Monorepo / quality spine
 | `tenants` | Phase 3 | 默认租户和未来多租户隔离基础。 |
 | `identities` | Phase 7 | API key / bearer token 解析后的身份记录或本地默认身份。 |
 | `sessions` | Phase 3 | 用户会话和 agent session 关联。 |
-| `agent_runs` | Phase 3 / 13.8 | run 生命周期、状态、parent run、idempotency；Phase 13.8 让 parent/child 归属进入真实 delegation 执行。 |
-| `checkpoints` | Phase 3 | durable runtime checkpoint 和 resume token。 |
-| `canonical_events` | Phase 4 / 13.7 / 13.9 | run event、seq、terminal、visibility；补 model/embedding evidence 与 SSE 单一事件真相源。 |
-| `trace_refs` | Phase 4 | local/provider trace 引用。 |
+| `agent_runs` | Phase 3 / 13.6A / 13.8 | run 生命周期、状态、parent run、idempotency；Phase 13.6A 增加非唯一 canonical trace 投影，Phase 13.8 让 parent/child 归属进入真实 delegation 执行。 |
+| `run_trace_bindings` | Phase 13.6A (`0013`) | 直接持久化 `tenant_id`，以复合 root/tenant 约束把全局唯一 `trace_id` 绑定到唯一 root run；child 通过 `agent_runs.trace_id` 复用 root lineage。 |
+| `checkpoints` | Phase 3 / 13.6A | durable runtime checkpoint 和 resume token；Phase 13.6A 回填并强制继承 canonical trace。 |
+| `canonical_events` | Phase 4 / 13.6A / 13.7 / 13.9 | run event、seq、terminal、visibility；Phase 13.6A 回填并强制 run-scoped canonical trace，后续补 model/embedding evidence 与 SSE 单一事件真相源。 |
+| `trace_refs` | Phase 4 / 13.6A | local/provider trace 引用；Phase 13.6A 新增独立 canonical `trace_id`，不覆盖 provider `external_trace_id`。 |
 | `artifacts` | Phase 4 | 大 payload、tool output、eval evidence、checksum。 |
-| `embedding_cache` | Phase 6 | embedding 输入 hash、provider、vector ref、cache metadata。 |
+| `embedding_cache` -> `tenant_embedding_cache` | Phase 6 / 13.6A 前置修复 (`0012a`) | `0012a` 保留 row/evidence 后切换物理表名；tenant、embedding 输入 hash、provider、tenant-scoped vector ref、最近一次 hit/miss 与首次 provider latency metadata 使用四列 identity。旧 binary 继续查询 `embedding_cache` 时因表不存在而 fail closed，不能恢复跨租户读取。 |
 | `api_keys` | Phase 7 | API Key / Bearer Token 本地认证材料的 hash 和权限范围。 |
 | `policy_rules` | Phase 7 | YAML/DB policy provider 的规则落库。 |
-| `approvals` | Phase 7 / Phase 12 | HITL approval required / approve / deny 记录；Phase 12 增加不进入 public DTO/OpenAPI 的 private resolution lease/state。 |
-| `audit_logs` | Phase 7 | policy decision、approval、tool、eval dataset 写入审计。 |
+| `approvals` | Phase 7 / Phase 12 / 13.6A | HITL approval required / approve / deny 记录；Phase 12 增加不进入 public DTO/OpenAPI 的 private resolution lease/state，Phase 13.6A 回填并收紧 canonical trace。 |
+| `audit_logs` | Phase 7 / 13.6A | policy decision、approval、tool、eval dataset 写入审计；Phase 13.6A 对 run-scoped payload 回填并校验 canonical trace。 |
 | `guardrail_checks` | Phase 7 | input/tool/retrieval guardrail 检查摘要、decision、source_ref 和 artifact_ref；Phase 4 先以 CanonicalEvent/local evidence 表达。 |
 | `context_assemblies` | Phase 6 | context input refs、token budget、trust summary、truncation summary 和 output_ref。 |
 | `workspaces` | Phase 8 | per-run 或 per-agent workspace 根路径和 policy 引用。 |
-| `tool_invocations` | Phase 8 / Phase 12 | tool name、args_ref、result_ref、status、duration；Phase 12 增加 nullable unique `approval_id`、arguments hash、execution state/result ref，作为 approved continuation 的持久化单次执行 claim。 |
+| `tool_invocations` | Phase 8 / Phase 12 / 13.6A | tool name、args_ref、result_ref、status、duration；Phase 12 增加 nullable unique `approval_id`、arguments hash、execution state/result ref，作为 approved continuation 的持久化单次执行 claim；Phase 13.6A 对 run-scoped invocation 回填并校验 canonical trace。 |
 | `retrieval_documents` | Phase 9 | RAG 示例和 local/service retrieval 的文档 metadata。 |
 | `retrieval_chunks` | Phase 9 | chunk 文本 ref、BM25/vector metadata、citation ref。 |
-| `eval_cases` | Phase 11 | draft / approved eval case，关联 trace 和 agent。 |
-| `eval_runs` | Phase 11 | 一次 eval 执行的状态和 score summary。 |
-| `eval_scores` | Phase 11 | per-case / per-metric score 和 provider ref。 |
+| `eval_cases` | Phase 11 / 13.6A | draft / approved eval case；具有 run 归属的记录由 Phase 13.6A 对齐 canonical trace，人工非 run draft 保持独立。 |
+| `eval_runs` | Phase 11 / 13.6A | 一次 eval 执行的状态和 score summary；Phase 13.6A 仅为自身 `run_id` 非空的记录投影对应 canonical trace，多来源聚合 eval run 保持非 run nullable 语义。 |
+| `eval_scores` | Phase 11 / 13.6A | per-case / per-metric score 和 provider ref；run-scoped 历史记录由 Phase 13.6A 回填。 |
+| `run_evidence_outbox` | Phase 13.7 (`0014`) | usage settlement、approval resolution 与 terminal 的稳定 event id、有序发布和 crash recovery；不保存 raw provider/tool payload。 |
+| `agent_delegations` | Phase 13.8 (`0015`) | parent/child、request hash、幂等 claim、状态与 evidence refs。 |
+| `delegation_budget_reservations` | Phase 13.8 (`0015`) | parent 级 token/cost reservation、结算/释放与 needs_review 状态。 |
+| `delegation_aggregates` | Phase 13.8 (`0015`) | child terminal/model evidence 的可重入 parent aggregation 与 incomplete/needs_review 状态。 |
 | `eval_dataset_splits` | Phase 12.5 | behavior tag、optimization / holdout / regression subset 和 case membership。 |
 | `eval_experiments` | Phase 12.5 | baseline/candidate harness experiment、score delta、holdout result 和 comparison evidence。 |
 | `harness_acceptance_records` | Phase 12.5 | 人工 acceptance decision、policy decision、audit ref 和 accepted harness version。 |
@@ -899,21 +920,21 @@ Phase 1 Monorepo / quality spine
 | REQ-002 核心包与上游隔离 | Phase 2, Phase 6, Phase 10, Phase 12 |
 | REQ-003 后端服务型模板 | Phase 1, Phase 12 |
 | REQ-004 配置系统 | Phase 2, Phase 12, Phase 13.6 |
-| REQ-005 存储、迁移与事务边界 | Phase 3, Phase 12 |
-| REQ-006 Durable runtime、checkpoint、resume | Phase 5, Phase 12, Phase 13, Phase 13.6A |
+| REQ-005 存储、迁移与事务边界 | Phase 3, Phase 12, Phase 13.6A, Phase 13.8 |
+| REQ-006 Durable runtime、checkpoint、resume | Phase 5, Phase 12, Phase 13, Phase 13.6A, Phase 13.8 |
 | REQ-007 多 agent registry 与 delegation | Phase 6（registry/summary seam）, Phase 13.8（真实执行/聚合） |
 | REQ-008 API、CLI 与管理面 | Phase 5, Phase 7, Phase 11, Phase 12, Phase 13.5, Phase 13.8, Phase 13.9 |
-| REQ-009 租户、身份与认证 | Phase 2, Phase 7 |
-| REQ-010 PolicyEngine、权限拦截、InputGuardrail 与 HITL | Phase 2, Phase 4, Phase 7, Phase 12, Phase 13.6A |
+| REQ-009 租户、身份与认证 | Phase 2, Phase 7, Phase 13.6A, Phase 13.8, Phase 13.9 |
+| REQ-010 PolicyEngine、权限拦截、InputGuardrail 与 HITL | Phase 2, Phase 4, Phase 7, Phase 12, Phase 13.6A, Phase 13.8, Phase 13.9 |
 | REQ-011 工具系统、Shell、File、MCP | Phase 8, Phase 12 |
-| REQ-012 模型、预算、上下文组装与 embedding | Phase 2, Phase 4, Phase 6, Phase 13.7 |
+| REQ-012 模型、预算、上下文组装与 embedding | Phase 2, Phase 4, Phase 6, Phase 13.6A, Phase 13.7 |
 | REQ-013 Retrieval 与 RAG | Phase 6, Phase 9, Phase 12 |
-| REQ-014 CanonicalEvent 与流式输出 | Phase 4, Phase 5, Phase 13.6A, Phase 13.9 |
-| REQ-015 Observability 转换层 | Phase 4, Phase 10, Phase 13.6A |
+| REQ-014 CanonicalEvent 与流式输出 | Phase 4, Phase 5, Phase 13.6A, Phase 13.7, Phase 13.8, Phase 13.9 |
+| REQ-015 Observability 转换层 | Phase 4, Phase 10, Phase 13.6A, Phase 13.7, Phase 13.8 |
 | REQ-016 Eval Gate 与 trace/eval 闭环 | Phase 10, Phase 11, Phase 12.5 |
 | REQ-017 示例 agent | Phase 12 |
 | REQ-018 README 与文档体系 | Phase 1, Phase 12, Phase 14 |
-| REQ-019 TDD、测试与质量门禁 | Phase 1, all phases；AC-050 由 `docs/phase-1-13-baseline-audit.md` 和 Phase 15 持续矩阵覆盖，AC-051、AC-053、AC-054、AC-055、AC-056、AC-058 由 Phase 15 覆盖，AC-065、AC-066 由 Phase 13.7、Phase 13.9 固定性能证据 |
+| REQ-019 TDD、测试与质量门禁 | Phase 1, all phases；AC-050 由各 change tasks、Phase 本地提交、review/test 命令证据与 Phase 15 release matrix 持续覆盖，AC-051、AC-053、AC-054、AC-055、AC-056、AC-058 由 Phase 15 覆盖，AC-065、AC-066 由 Phase 13.7、Phase 13.9 固定性能证据 |
 | REQ-020 CI/CD 与 Release Automation | Phase 15 |
 | REQ-021 开源合规与许可证 | Phase 1, Phase 14, Phase 15 |
 | REQ-022 部署边界与未来微服务拆分基础 | Phase 2, Phase 4, Phase 5, Phase 13, Phase 13.8, Phase 13.9, Phase 14 |
@@ -923,9 +944,10 @@ Phase 1 Monorepo / quality spine
 - 包管理器只用 `uv`；不使用 poetry、pipenv、npm 作为 Python 依赖主流程。
 - 每个 Phase 必须先有失败测试或 contract test，再实现代码；不接受先堆代码后补测试作为 Phase 完成方式。
 - 新增或修改 HTTP endpoint 必须先更新 `API-Contract.md`，再新增局部 OpenAPI drift contract test，最后实现 route；发布前全量复扫只做证据汇总，不作为第一次发现契约问题的入口。
-- 同一目标的多个 OpenSpec change 只要共享 run/event/config/测试或验收，就必须在任何实现开始前完成逐 change 严格校验；每个 change 由 3 个 fresh code-reviewer 审相同完整契约范围并各自达到 Stage 1/2 PASS；随后再由 3 个新的 fresh code-reviewer 对全部相关 change 做联合 Stage 1/2 审查。本轮 13.5-13.9 的六个 change 不得声称彼此独立。
+- 同一目标的多个 OpenSpec change 只要共享 run/event/config/测试或验收，就必须在任何实现开始前完成逐 change 严格校验，并由 3 个 fresh code-reviewer 按 1+2 执行同一冻结范围的联合审查：第 1 名对每个 change 及组合范围给出 Stage 1/2 PASS 后，才并行派第 2、3 名；三名都必须同时给出逐 change 与联合 PASS。任一 finding、修复或受审 diff 都使既有 PASS 失效并从第 1 名重启，不再重复建立一套与联合审查分离的逐 change reviewer 队列。本轮 13.5-13.9 的七个 active change 不得声称彼此独立，其中 `embedding-cache-tenant-isolation` 是 Phase 13.6A 的强制前置。
 - Phase 13.5-13.9 实现严格按 `13.5 -> 13.6 -> 13.6A -> 13.7 -> 13.8 -> 13.9` 串行。后序 change 在前序未归档 diff 上继续工作并必须重跑全部受影响合同；不得并行编辑共享文件，也不得用后序 change 覆盖前序已通过行为。
-- 共享文件按接力所有权收口：`app/api/routes/runs.py` 由 13.5 建立精确 response map、13.6A 固定 trace header/生成、13.8 扩展 detail、13.9 最终加入 SSE并保留累计合同；`app/api/schemas.py` 由 13.8 建立 delegation schema、13.9 只追加 SSE 所需 schema；`app/runtime.py` 依次承接 13.6 startup、13.6A trace、13.7 usage、13.8 delegation；`app/main.py` 由 13.5 先接入窄化 OpenAPI factory、13.6 固定 startup、13.6A 接入 trace normalizer、13.9 再装配 SSE；`scripts/smoke_local.py` 由 13.6A 先固定 run trace、13.7 再固定 fake latency、13.9 最终追加首 frame 门禁。每次接力后的 3 审覆盖累计行为。
+- 共享文件按接力所有权收口：`app/api/routes/runs.py` 由 13.5 建立精确 response map、13.6A 固定 trace header/生成、13.8 扩展 detail、13.9 最终加入 SSE并保留累计合同；`app/api/schemas.py` 由 13.8 建立 delegation schema、13.9 只追加 SSE 所需 schema；`app/runtime.py` 依次承接 13.6 startup、13.6A trace、13.7 usage、13.8 delegation；`app/main.py` 由 13.5 先接入窄化 OpenAPI factory、13.6 固定 startup、13.6A 接入 trace normalizer、13.9 再装配 SSE；`scripts/smoke_local.py` 由 13.6A 先固定 run trace、13.7 再固定 fake latency、13.9 最终追加首 frame 门禁。每次 Phase 接力后的 1+2 审查覆盖累计行为。
+- 共享 storage/event 文件同样按串行接力：`storage/models.py`、`storage/repositories.py`、`storage/migrations/versions` 与 migration contracts 先以 `0012a_embedding_cache_tenant_scope` 闭环 Phase 6 cache 租户隔离并把物理表切换为 `tenant_embedding_cache`，使旧 binary 在新 schema 上查询旧表即失败；再由 13.6A 的 `0013` 建立 trace binding/backfill，13.7 在 `0014` 增加 durable evidence outbox/usage settlement与 event capacity reservation并把 approval resolution/terminal 纳入有序恢复，13.8 在 `0015` 追加 delegation/aggregation/budget reservation且保留前序约束；`events/types.py`、`events/bus.py`、local/PostgreSQL sinks 与 audit repository 由 13.6A 固定 canonical trace 门禁，13.7 追加 usage event、terminal 前置 outbox 与 envelope 上限，13.9 只增加读取 transport。`0012a` 至 `0015` 的 downgrade 都必须同时满足 evidence 全空和 Alembic `-x allow_empty_evidence_downgrade=true`，并测试缺失/重复/非法 opt-in、有 evidence 即使 opt-in 也阻断、兼容读取和无 DDL 部分提交。
 - 每完成一个 Phase 执行四步走：Code Review -> 测试完整性 -> 编译验证 -> 功能测试。
 - 四步走全部通过后才能 commit；commit message 用 `feat`、`fix`、`refactor`、`chore` 前缀。
 - `packages/agent-harness` 不依赖 `templates/*` 或 `examples/*`；模板只能通过 path dependency 或 wheel 使用核心包。

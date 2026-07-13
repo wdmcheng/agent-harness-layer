@@ -21,7 +21,7 @@ from tests.contracts.test_eval_experiment_storage_contracts import (
     reason="PostgreSQL eval experiment contract runs when service smoke provides a DSN.",
 )
 @pytest.mark.asyncio
-async def test_phase_12_5_postgresql_repository_and_downgrade_contract() -> None:
+async def test_eval_experiment_postgresql_repository_and_downgrade_contract() -> None:
     """在隔离 PostgreSQL database 验证 repository、rollback 与 empty-only downgrade。"""
 
     from sqlalchemy.engine import make_url
@@ -31,7 +31,7 @@ async def test_phase_12_5_postgresql_repository_and_downgrade_contract() -> None
     from agent_harness.storage.migrations.runner import alembic_config
 
     base_url = make_url(os.environ["AGENT_HARNESS_TEST_POSTGRES_DSN"])
-    database_name = f"agent_harness_phase125_{uuid4().hex}"
+    database_name = f"agent_harness_eval_experiment_{uuid4().hex}"
     admin_url = base_url.set(database="postgres")
     test_url = base_url.set(database=database_name)
     admin_engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
