@@ -1588,7 +1588,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 
 - [x] 已区分当前已实现 run API 与保留 API。
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
-- [ ] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致；`run-openapi-contract-accuracy` 修复额外 response status 后再勾选。
+- [x] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致；`run-openapi-contract-accuracy` 已完成实现、验证与三审。
 - [x] 已明确当前 events JSON seam、P0 待实现 RUN-006 SSE 与 P1 可选 WS 的边界。
 - [x] 已固定 DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界，并保持为待实现状态。
 - [x] 已明确 `reasoning.delta` 默认不可见。
