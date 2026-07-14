@@ -61,6 +61,7 @@ async def test_postgresql_approval_arbitration_and_unique_tool_claim(tmp_path: P
                 approval_id=approval.approval_id,
                 run_id=approval.run_id,
                 tenant_id=approval.tenant_id,
+                request_id="req-postgres-resolution-lease",
             )
             await uow.commit()
 
@@ -129,6 +130,7 @@ async def test_postgresql_approval_arbitration_and_unique_tool_claim(tmp_path: P
                     run_id=approval.run_id,
                     tenant_id=approval.tenant_id,
                     resolved_by=identity.user_id,
+                    request_id="req-postgres-losing-deny",
                 )
         assert conflict.value.code == "approval.resolution_in_progress"
 

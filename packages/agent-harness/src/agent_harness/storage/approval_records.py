@@ -22,7 +22,7 @@ class ApprovalCreate(HarnessDTO):
     reason: str
     resume_token: str | None = None
     requested_by: str | None = None
-    trace_id: str | None = None
+    trace_id: str
     request_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -43,6 +43,7 @@ class ApprovalResolutionLease(HarnessDTO):
     approval: ApprovalRecord
     lease_id: str
     state: str
+    resolution_request_id: str
     claimed_at: datetime | None = None
 
 

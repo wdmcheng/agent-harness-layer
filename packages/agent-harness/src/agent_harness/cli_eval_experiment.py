@@ -13,7 +13,7 @@ import typer
 from pydantic import ValidationError
 
 from agent_harness.audit import AuditService
-from agent_harness.cli_shared import load_settings_or_exit, policy_engine
+from agent_harness.cli_shared import load_settings_or_exit, policy_engine, require_schema_or_exit
 from agent_harness.evals import (
     AcceptanceService,
     EvalExperimentError,
@@ -25,7 +25,7 @@ from agent_harness.evals import (
 )
 from agent_harness.identity import IdentityContext
 from agent_harness.security.redaction import redact_secrets
-from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
+from agent_harness.storage import SQLAlchemyStorage, storage_dsn_from_settings
 
 
 def register_eval_experiment_commands(experiment_app: typer.Typer) -> None:
@@ -256,7 +256,7 @@ def _services(
 ) -> tuple[IdentityContext, SQLAlchemyStorage, ExperimentService, AcceptanceService]:
     settings = load_settings_or_exit(profile, profiles_dir)
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
-    run_migrations(resolved_dsn)
+    require_schema_or_exit(resolved_dsn)
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
     experiments = ExperimentService(
         storage=storage,

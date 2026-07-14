@@ -104,6 +104,8 @@ def test_scaffold_cli_help_success_structure_and_existing_target(tmp_path: Path)
     assert descriptor.config_ref == "support/triage/config.yaml"
     assert not {"executor", "callable", "module", "path"} & public_payload.keys()
 
+    list_dsn = _sqlite_dsn(tmp_path / "cli-list.db")
+    run_migrations(list_dsn)
     list_result = runner.invoke(
         app,
         [
@@ -114,7 +116,7 @@ def test_scaffold_cli_help_success_structure_and_existing_target(tmp_path: Path)
             "--profiles-dir",
             str(ROOT / "templates" / "service-app" / "configs" / "profiles"),
             "--storage-dsn",
-            _sqlite_dsn(tmp_path / "cli-list.db"),
+            list_dsn,
         ],
     )
     assert list_result.exit_code == 0, list_result.output

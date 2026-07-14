@@ -163,6 +163,7 @@ def test_dbos_hard_crash_recovers_pending_workflow(tmp_path: Path) -> None:
                     session_id=session.id,
                     agent_id="fake-agent",
                     idempotency_key=run_key,
+                    trace_id=f"trace-{run_key}",
                     input={"source_ref": "source://hard-crash", "trust_level": "trusted"},
                 ),
                 execution_context={

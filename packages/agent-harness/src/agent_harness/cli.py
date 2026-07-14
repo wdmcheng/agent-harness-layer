@@ -10,33 +10,22 @@ from uuid import uuid4
 
 import typer
 
+from agent_harness import cli_local_state, cli_shared
 from agent_harness.approvals import ApprovalService
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
 from agent_harness.cli_access import register_access_commands
 from agent_harness.cli_eval import approve_eval_case, draft_eval_case
 from agent_harness.cli_eval_experiment import register_eval_experiment_commands
-from agent_harness.cli_shared import event_path, load_settings_or_exit, policy_engine
-from agent_harness.evals import (
-    EvalRunner,
-    ScoreSink,
-)
+from agent_harness.evals import EvalRunner, ScoreSink
 from agent_harness.events import EventBus, LocalJsonlEventSink
 from agent_harness.policy import InputGuardrail, PolicyCheck, PolicyDeniedError
 from agent_harness.registry import AgentRegistry, RegistryLoadError
-from agent_harness.runtime import RunOrchestrator
+from agent_harness.runtime import RunOrchestrator, RunTraceError
 from agent_harness.runtime.services import build_agent_execution_services
 from agent_harness.scaffold import ScaffoldError, scaffold_agent_package
-from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
-from agent_harness.storage.diagnostics import (
-    eval_directory_status,
-    format_retrieval_extension_status,
-    migration_revision,
-    observability_provider_statuses,
-    observability_status,
-    redis_status,
-    retrieval_extension_statuses,
-)
+from agent_harness.storage import SQLAlchemyStorage, storage_dsn_from_settings
+from agent_harness.storage import diagnostics as storage_diagnostics
 from agent_harness.tools import ToolCallRequest, ToolRuntimeContext, WorkspacePolicy
 from agent_harness.tools.cli_runtime import call_and_record_tool, visible_tool_descriptors
 
@@ -53,6 +42,10 @@ eval_app.add_typer(eval_experiment_app, name="experiment")
 app.add_typer(scaffold_app, name="scaffold")
 register_access_commands(app)
 register_eval_experiment_commands(eval_experiment_app)
+cli_local_state.register_local_state_commands(app)
+
+# 保留原根模块导入 seam；实现与注册归属 cli_local_state。
+migrate_local_state_command = cli_local_state.migrate_local_state_command
 
 
 @app.callback()
@@ -84,7 +77,7 @@ def doctor(
 ) -> None:
     """校验 profile 配置，并按 profile 类型报告本地或 service 依赖状态。"""
 
-    settings = load_settings_or_exit(profile, profiles_dir)
+    settings = cli_shared.load_settings_or_exit(profile, profiles_dir)
 
     key_status = "api key required" if settings.model.requires_api_key else "api key not required"
     typer.echo(f"profile: {settings.profile}")
@@ -95,19 +88,24 @@ def doctor(
         f"identity: {settings.identity.default.tenant_id}/{settings.identity.default.user_id}"
     )
     typer.echo(f"model: {settings.model.provider} ({key_status})")
-    revision = migration_revision(settings, storage_dsn=storage_dsn)
+    revision = storage_diagnostics.migration_revision(settings, storage_dsn=storage_dsn)
     typer.echo(f"migration: {revision or 'not initialized'}")
-    redis_ok, redis_message = redis_status(settings)
+    redis_ok, redis_message = storage_diagnostics.redis_status(settings)
     typer.echo(f"redis: {redis_message}")
-    observability_ok, observability_message = observability_status(settings)
+    observability_ok, observability_message = storage_diagnostics.observability_status(settings)
     typer.echo(f"observability: {settings.observability.kind}")
     typer.echo(f"observability sink: {observability_message}")
-    for provider_status in observability_provider_statuses(settings):
+    for provider_status in storage_diagnostics.observability_provider_statuses(settings):
         typer.echo(f"observability provider: {provider_status}")
-    eval_ok, eval_message, eval_directory = eval_directory_status(profiles_dir)
+    eval_ok, eval_message, eval_directory = storage_diagnostics.eval_directory_status(profiles_dir)
     typer.echo(f"eval directory: {eval_directory} ({eval_message})")
-    for extension_status in retrieval_extension_statuses(settings, storage_dsn=storage_dsn):
-        typer.echo(f"retrieval extension {format_retrieval_extension_status(extension_status)}")
+    for extension_status in storage_diagnostics.retrieval_extension_statuses(
+        settings, storage_dsn=storage_dsn
+    ):
+        typer.echo(
+            "retrieval extension "
+            f"{storage_diagnostics.format_retrieval_extension_status(extension_status)}"
+        )
 
     if settings.profile == "service" and (
         revision is None or not redis_ok or not observability_ok or not eval_ok
@@ -126,11 +124,12 @@ def run(
         "templates/service-app/agents"
     ),
     idempotency_key: Annotated[str | None, typer.Option("--idempotency-key")] = None,
+    trace_id: Annotated[str | None, typer.Option("--trace-id")] = None,
     prompt: Annotated[str | None, typer.Option("--prompt")] = None,
 ) -> None:
     """通过 registry executor 运行 Agent，并保留 runtime、storage 与 event evidence。"""
 
-    settings = load_settings_or_exit(profile, profiles_dir)
+    settings = cli_shared.load_settings_or_exit(profile, profiles_dir)
 
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
     try:
@@ -143,8 +142,9 @@ def run(
             typer.echo(f"{error.code}:{field} {error.message}{hint}", err=True)
         raise typer.Exit(1) from exc
 
-    run_migrations(resolved_dsn)
-    resolved_events_path = event_path(settings, events_path)
+    cli_shared.require_schema_or_exit(resolved_dsn)
+    resolved_events_path = cli_shared.event_path(settings, events_path)
+    cli_shared.require_local_state_ready_or_exit(event_paths=(resolved_events_path,))
     service_root = agents_dir.resolve().parent
     configured_artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
     artifact_root = (
@@ -158,7 +158,7 @@ def run(
     )
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
     audit = AuditService(storage=storage)
-    policy = policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
+    policy = cli_shared.policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
     event_sink = LocalJsonlEventSink(resolved_events_path)
     artifact_store = FileArtifactStore(artifact_root)
     event_bus = EventBus(
@@ -197,49 +197,78 @@ def run(
     import asyncio
 
     async def _run():
-        guardrail = InputGuardrail(policy=policy, audit=audit)
-        decision = await guardrail.check(
-            actor=settings.identity.default,
+        preflight_trace = await orchestrator.prepare_trace(
             agent_id=agent_id,
-            input=input_payload,
-        )
-        if decision.decision == "deny":
-            raise PolicyDeniedError(decision.reason)
-        checkpoint_state = None
-        if decision.decision == "require_approval":
-            checkpoint_state = {
-                "reason": decision.reason,
-                "policy": decision.to_payload(),
-            }
-        run_result = await orchestrator.start_run(
-            agent_id=agent_id,
-            input=input_payload,
             idempotency_key=idempotency_key,
-            checkpoint_state=checkpoint_state,
             identity=settings.identity.default,
+            trace_id=trace_id,
         )
-        await orchestrator.record_guardrail_check(
-            run_id=run_result.run_id,
+        async with orchestrator.coordinate_run_submission(
             agent_id=agent_id,
+            idempotency_key=idempotency_key,
+            trace_id=preflight_trace,
             identity=settings.identity.default,
-            payload=decision.to_payload(),
-        )
-        if checkpoint_state is not None and run_result.resume_token is not None:
-            await approval_service.require_approval(
-                actor=settings.identity.default,
-                run_id=run_result.run_id,
+        ):
+            canonical_trace = await orchestrator.prepare_trace(
                 agent_id=agent_id,
-                action="input.prompt_injection",
-                resource=f"agent:{agent_id}:input",
-                reason=decision.reason,
-                resume_token=run_result.resume_token,
+                idempotency_key=idempotency_key,
+                identity=settings.identity.default,
+                trace_id=preflight_trace,
             )
-        return run_result
+            checkpoint_state = None
+            decision = None
+            if not canonical_trace.replays_existing:
+                guardrail = InputGuardrail(policy=policy, audit=audit)
+                decision = await guardrail.check(
+                    actor=settings.identity.default,
+                    agent_id=agent_id,
+                    input=input_payload,
+                )
+                if decision.decision == "deny":
+                    raise PolicyDeniedError(decision.reason)
+                if decision.decision == "require_approval":
+                    checkpoint_state = {
+                        "reason": decision.reason,
+                        "policy": decision.to_payload(),
+                    }
+            run_result = await orchestrator.start_run(
+                agent_id=agent_id,
+                input=input_payload,
+                idempotency_key=idempotency_key,
+                checkpoint_state=checkpoint_state,
+                identity=settings.identity.default,
+                trace_id=canonical_trace,
+            )
+            if decision is not None:
+                await orchestrator.record_guardrail_check(
+                    run_id=run_result.run_id,
+                    agent_id=agent_id,
+                    identity=settings.identity.default,
+                    payload=decision.to_payload(),
+                )
+            if (
+                decision is not None
+                and checkpoint_state is not None
+                and run_result.resume_token is not None
+            ):
+                await approval_service.require_approval(
+                    actor=settings.identity.default,
+                    run_id=run_result.run_id,
+                    agent_id=agent_id,
+                    action="input.prompt_injection",
+                    resource=f"agent:{agent_id}:input",
+                    reason=decision.reason,
+                    resume_token=run_result.resume_token,
+                )
+            return run_result
 
     try:
         result = asyncio.run(_run())
     except PolicyDeniedError as exc:
         typer.echo(f"policy.denied: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    except RunTraceError as exc:
+        typer.echo(f"{exc.code}: {exc}", err=True)
         raise typer.Exit(1) from exc
     finally:
         asyncio.run(storage.dispose())
@@ -258,9 +287,9 @@ def list_agents(
     profiles_dir: Annotated[Path | None, typer.Option("--profiles-dir")] = None,
     storage_dsn: Annotated[str | None, typer.Option("--storage-dsn")] = None,
 ) -> None:
-    """列出 registry 中已配置的 agent public descriptor。"""
+    """按当前身份和策略列出 registry 中可见的 agent public descriptor。"""
 
-    settings = load_settings_or_exit(profile, profiles_dir)
+    settings = cli_shared.load_settings_or_exit(profile, profiles_dir)
     try:
         registry = AgentRegistry.load_from_directory(agents_dir)
     except RegistryLoadError as exc:
@@ -271,12 +300,10 @@ def list_agents(
         raise typer.Exit(1) from exc
 
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
-    run_migrations(resolved_dsn)
+    cli_shared.require_schema_or_exit(resolved_dsn)
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
     audit = AuditService(storage=storage)
-    policy = policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
-
-    import asyncio
+    policy = cli_shared.policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
 
     async def _check_visibility() -> None:
         await policy.require_allowed(
@@ -308,7 +335,7 @@ def list_tools(
 ) -> None:
     """列出本地可用工具；这不是 HTTP tools route。"""
 
-    settings = load_settings_or_exit(profile, profiles_dir)
+    settings = cli_shared.load_settings_or_exit(profile, profiles_dir)
     workspace_policy = WorkspacePolicy(
         root=workspace,
         ignore_file=settings.tools.workspace.ignore_file,
@@ -338,7 +365,7 @@ def call_tool(
 ) -> None:
     """通过 CLI 调用内置工具，输出 ToolCallResult JSON。"""
 
-    settings = load_settings_or_exit(profile, profiles_dir)
+    settings = cli_shared.load_settings_or_exit(profile, profiles_dir)
     try:
         loaded_arguments: Any = json.loads(arguments)
     except json.JSONDecodeError as exc:
@@ -504,6 +531,7 @@ def eval_run(
 ) -> None:
     """运行 approved eval cases；draft 只统计不执行。"""
 
+    cli_shared.require_local_state_ready_or_exit(score_paths=(scores_path,))
     runner = EvalRunner(score_sink=ScoreSink(local_path=scores_path))
     result = asyncio.run(
         runner.run_file_dataset(
@@ -527,6 +555,7 @@ def eval_scores(
 ) -> None:
     """输出本地 score JSONL。"""
 
+    cli_shared.require_local_state_ready_or_exit(score_paths=(scores_path,))
     if not scores_path.exists():
         return
     typer.echo(scores_path.read_text(encoding="utf-8"), nl=False)

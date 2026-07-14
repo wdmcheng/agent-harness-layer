@@ -326,18 +326,21 @@ async def test_public_resolve_retry_reconciles_pending_evidence_before_returning
         async with storage.uow() as uow:
             approval = (await uow.approvals.list_by_run(waiting.run_id))[0]
         resolve = service.approve if decision == "approved" else service.deny
+        first_request_id = f"req-original-{decision}-{failure_point}-{mode}"
+        retry_request_id = f"req-retry-{decision}-{failure_point}-{mode}"
         with pytest.raises(OSError, match=failure_type.value):
             await resolve(
                 actor=identity,
                 run_id=waiting.run_id,
                 approval_id=approval.approval_id,
+                request_id=first_request_id,
             )
 
         with TestClient(app) as client:
             response = client.post(
                 f"/api/v1/runs/{waiting.run_id}/approvals/{approval.approval_id}",
                 json={"decision": decision},
-                headers={"X-Request-Id": f"req-reconcile-{decision}-{failure_point}-{mode}"},
+                headers={"X-Request-Id": retry_request_id},
             )
 
         events = await sink.read(run_id=waiting.run_id)
@@ -363,7 +366,11 @@ async def test_public_resolve_retry_reconciles_pending_evidence_before_returning
     assert run is not None and run.status == expected_run
     assert calls == (1 if decision == "approved" else 0)
     assert sum(event.terminal for event in events) == 1
-    assert sum(event.event_type == CanonicalEventType.APPROVAL_RESOLVED for event in events) == 1
+    resolution_events = [
+        event for event in events if event.event_type == CanonicalEventType.APPROVAL_RESOLVED
+    ]
+    assert len(resolution_events) == 1
+    assert resolution_events[0].request_id == first_request_id
     assert sum(record.action == f"approval.{expected_status}" for record in audits) == 1
 
 
@@ -398,6 +405,7 @@ async def test_expired_raw_claim_is_taken_over_and_fenced_by_public_retry(
                 approval_id=approval.approval_id,
                 run_id=waiting.run_id,
                 tenant_id=identity.tenant_id,
+                request_id="req-abandoned-lease",
             )
             await uow.commit()
         with TestClient(app) as client:
@@ -461,6 +469,7 @@ async def test_unexpired_raw_claim_is_not_taken_over_by_concurrent_public_retry(
                 approval_id=approval.approval_id,
                 run_id=waiting.run_id,
                 tenant_id=identity.tenant_id,
+                request_id="req-active-lease",
             )
             await uow.commit()
         with TestClient(app) as client:

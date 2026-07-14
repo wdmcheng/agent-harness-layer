@@ -11,8 +11,8 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-13 changes 均已归档。基线审查创建的六个 active change 中，Run OpenAPI 与 config secret file 已停在 `ready-to-archive`；run trace correlation、model usage evidence、真实 delegation 与 SSE 尚未实施。
-- 代码状态: Phase 1-13 已完成当时计划的实现与验证，但不等于 P0 完成。Phase 13.5 已收紧 Run OpenAPI，Phase 13.6 已补齐 application startup failure 与 Docker secret file；仍缺 canonical run trace 非空传播、完整 model/embedding evidence、真实 delegation、SSE transport 和性能门禁。Phase 14、15 均未开始。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-13 changes 均已归档。Run OpenAPI 与 config secret file 已停在 `ready-to-archive`；Phase 13.6A 的 embedding cache tenant isolation 与 canonical run trace 已实现，当前因代码审查发现的并发/重放缺口重启联合合同与代码 1+2；model usage evidence、真实 delegation 与 SSE 尚未实施。
+- 代码状态: Phase 1-13 已完成当时计划的实现与验证，但不等于 P0 完成。Phase 13.5 已收紧 Run OpenAPI，Phase 13.6 已补齐 application startup failure 与 Docker secret file；Phase 13.6A 已完成实现，尚未通过最终 1+2 审查。完整 model/embedding evidence、真实 delegation、SSE transport 和性能门禁仍缺失。Phase 14、15 均未开始。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
@@ -20,12 +20,12 @@
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
 | 总体状态 | Phase 1-13 历史交付已归档，P0 基线补缺待实现 | Phase 13.5-13.9 必须先闭环；Phase 14-15 未开始。 |
-| 当前 Phase | Phase 13.6A 待实现 | Phase 13.5 已提交；Phase 13.6 的 13/13 tasks、异常链与 frame locals 脱敏修复、全量验证及 3 个 fresh code-reviewer Stage 1/2 审查均已完成，停在 `ready-to-archive`。 |
+| 当前 Phase | Phase 13.6A 联合合同与代码 1+2 门禁进行中 | 第十三轮第一名代码 reviewer 发现跨 tenant trace 冲突晚于 guardrail audit、同 event-id 不同语义被误判为重放；实现、反例合同与 OpenSpec/API 说明已修复，须先重走联合合同 1+2，再在同一最终 digest 上重启代码 1+2。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 已按 queue → split runtime → deployment proof 顺序同步主规格并归档。 |
-| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`embedding-cache-tenant-isolation`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` | 前两项分别为 10/10、13/13 tasks 且均停在 `ready-to-archive`；后五项共 70 个 task，当前均为 0 task 实施，不 archive、不 push。 |
-| 当前验证基线 | Phase 13.6 已提交；Phase 13.6A-13.9 合同基准修复与联合 1+2 审查进行中 | 当前合同快照已通过 strict OpenSpec、合同测试、quality、图稿结构/视觉与 diff check；未来行为尚未实现，不能用这些结果替代实现验证。 |
+| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`embedding-cache-tenant-isolation`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` | 前两项分别为 10/10、13/13 tasks 且均停在 `ready-to-archive`；后五项共 70 个 task，Phase 13.6A 当前为 24/25，仅余三审收口任务，其余 45 个 task 尚未实施。不 archive、不 push。 |
+| 当前验证基线 | Phase 13.6 已提交；Phase 13.6A 第十四轮核心门禁通过 | `make quality`、`make test`（492 passed、106 skipped）、fresh PostgreSQL 10 文件/241 项、同一嵌套 bundle 连续两次 eval、local/service smoke（head `0013a`）、build、license 全通过；合同补丁后的 pre-commit、strict OpenSpec、diff/图源快检须在冻结摘要前重跑。 |
 | 当前阻塞项 | P0 完成路径缺失已进入补缺计划 | Phase 14/15 不得在 13.5-13.9 完成前被标记完成。 |
-| 当前建议下一步 | 完成五个关联 change、DEV/API 与架构图的最终联合 1+2 审查 | PASS 后实现 Phase 13.6A；不自动归档 active change。 |
+| 当前建议下一步 | 冻结 Phase 13.6A 第十四轮合同/代码共同摘要 | 先派 fresh 第一名 code-reviewer 联合复核全部相关 change 与上游真相源，合同 Stage 1/2 PASS 后才并行派第二、第三名；合同三审通过后才在同 digest 上重启 Phase 代码 1+2，不自动归档 active change。 |
 
 ## 剩余工作
 
@@ -42,7 +42,7 @@
 - Phase 13: Service Profile、API/Worker 分进程与未来拆分边界，已实现、验证、同步主规格并归档。
 - Phase 13.5: 当前 Run OpenAPI response/status 准确性，已通过实现、自测和三审，停在 `ready-to-archive`。
 - Phase 13.6: 配置启动失败与 Docker secret file 加载，异常链与 frame locals 泄漏已修复并通过三审，停在 `ready-to-archive`；不自动归档。
-- Phase 13.6A: Canonical run trace 与 approval/event 关联，待实现；依赖 Phase 13.6。
+- Phase 13.6A: Canonical run trace 与 approval/event 关联，跨 tenant trace 临界区和完整 event-id 重放语义已修复，第十四轮核心门禁通过；因 design/spec/tasks/API Contract 明确化，先重走联合合同 1+2，再重启代码 1+2；依赖 Phase 13.6。
 - Phase 13.7: Model/Embedding usage evidence 与 local latency 门禁，待实现；依赖 Phase 13.6A。
 - Phase 13.8: 真实受控 delegation 与 parent aggregation，待实现；依赖 Phase 13.7。
 - Phase 13.9: SSE transport、Last-Event-ID 与首 frame 性能，待实现；依赖 Phase 13.8。
@@ -53,7 +53,7 @@
 
 - AC-017：P0 RUN-006 尚不存在；Phase 13.5 已收紧并三审通过 RUN-001 至 RUN-005 的 OpenAPI 精确性，13.9 再补 endpoint，因此 AC 仍未完成。
 - AC-008、AC-063：Phase 13.6 已实现并提交 application startup fail-closed、受控 Docker secret file 加载和公开 evidence 脱敏；异常链与 frame locals 泄漏已修复，对应 active change 停在 `ready-to-archive` 且不自动归档。
-- FLOW-003 / ApprovalRecord trace：当前 approval 与 run-scoped event 仍允许 `trace_id=null`；Phase 13.6A 负责 canonical run trace 生成、传播与历史 backfill。
+- FLOW-003 / ApprovalRecord trace：Phase 13.6A 已切换为 canonical run trace 非空生成、传播与历史 backfill；跨 tenant/不同 idempotency key 的同 trace 竞争现在由全局 trace 锁覆盖锁内复检、guardrail/audit 与 root claim，相同 event-id 仅允许除 seq/timestamp 外完整稳定语义一致的重试，terminal/approval 恢复先复用既有确定性 evidence。第十四轮离线全量、fresh PostgreSQL、eval 与 local/service smoke 已通过，尚待更新合同与代码的 1+2 审查。
 - AC-064、AC-065：model/embedding 完整 evidence 与 local fake run 时延门禁尚未实现。
 - AC-015、AC-016：现有 delegation 只有 registry/summary seam，真实 child run 与 parent aggregation 尚未实现。
 - AC-038、AC-066：现有 SSE 只有 formatter，HTTP transport、Last-Event-ID 和首 frame 时延尚未实现。
@@ -709,7 +709,7 @@ Phase 1 Monorepo / quality spine
 ## Phase 13.6A: Canonical Run Trace Correlation
 
 **交付内容**：
-- 在 trace 开发前先完成聚焦 change `embedding-cache-tenant-isolation`：以插入式 revision `0012a_embedding_cache_tenant_scope` 修正 Phase 6 cache 的 tenant identity、跨租户 `vector_ref` 和持久化 hit/miss metadata，并把物理表切换为 `tenant_embedding_cache`，让旧 binary 在新 schema 上因旧表不存在而 fail closed；`0013` 直接依赖该 revision，不重编号后续迁移。
+- 在 trace 开发前先完成聚焦 change `embedding-cache-tenant-isolation`：以插入式 revision `0012a_embedding_cache_tenant_scope` 修正 Phase 6 cache 的 tenant identity、跨租户 `vector_ref` 和持久化 hit/miss metadata，并把物理表切换为 `tenant_embedding_cache`，让旧 binary 在新 schema 上因旧表不存在而 fail closed；`0013` 直接依赖该 revision，已发布 `0013` 的事件 shape 漂移由线性后继 `0013a_run_trace_event_hardening` 收敛。
 - 创建聚焦 change `run-trace-correlation`，收口 Product FLOW-003、ApprovalRecord 与 ModelUsageEvidence 对 `trace_id` 必填性的冲突。
 - 每个新 root run 在任何事件、enqueue、tool/model/provider 副作用前绑定唯一 canonical trace；调用方缺失时由 runtime 生成，合法显式值保留，冲突值 fail closed。
 - 把 canonical trace 持久化到 run execution context，并传播到 checkpoint/resume、worker、approval/audit、run-scoped CanonicalEvent 和后续 usage/delegation evidence。
@@ -726,13 +726,15 @@ Phase 1 Monorepo / quality spine
 
 **验收标准**：
 - API、CLI、内部入口缺失 trace 时生成；HTTP `X-Trace-Id` 与 CLI `--trace-id` 共用同一格式/冲突 normalizer，非法或已绑定其他 root run 的 trace 在业务副作用前返回稳定错误，CLI 只向 stderr 写稳定 code 并非零退出。
+- 不同 tenant 或不同 idempotency key 并发竞争同一 trace 时，只有一个请求可进入 guardrail/root claim；失败方的 audit、event、queue 与 provider 副作用均为零。
 - local、service worker、checkpoint/resume、approve/deny 与 terminal evidence 对同一 run 使用同一 trace，即使 request_id 改变。
 - ApprovalRecord 与所有 run-scoped CanonicalEvent trace 非空且等于 persisted run context；调用方 body/metadata 无法覆盖。
+- 相同 event-id 只有完整稳定事件语义一致时才可重放；除 seq/timestamp 外任一 envelope 差异都在 artifact/fan-out 前脱敏拒绝，terminal/approval 恢复只在既有 evidence 缺失时补写。
 - SQLite/PostgreSQL backfill 幂等；单一合法历史 trace 不改写，全空 lineage 确定生成，非法单值、多值、全局碰撞、孤立记录和跨租户 parent edge 整批 fail closed；新 parent/child 与 trace binding 也有数据库租户门禁，migration 不删除历史 evidence。
 - local manifest bundle 完整预检；中断后恢复全旧或继续全新，未登记路径与 `--file-only` 模式中的 run-scoped record 不得被声称已迁移。
 - 定向 contracts、`make quality`、`make test`、local/service smoke、build、license、pre-commit、strict OpenSpec 与 diff check 通过。
 
-**状态**：待实现；依赖 Phase 13.6，Phase 13.7 再依赖本 Phase 的 canonical trace；完成后只到 `ready-to-archive`。
+**状态**：第十三轮第一名代码 reviewer 在冻结摘要上复现两项 Stage 1 阻断：跨 tenant 已绑定 trace 的冲突发生在 guardrail audit 之后；相同 event-id、相同隔离边界但不同 type/payload 被误判为幂等成功。两项合同先稳定复现失败，再通过全局 trace 锁、非泄露存在性门禁、完整稳定事件指纹，以及 terminal/approval 既有 evidence 恢复转绿。第十四轮 `make quality`、492 passed/106 skipped、fresh PostgreSQL 10 文件/241 项、同一嵌套 bundle 连续两次真实 eval、local smoke、迁移头 `0013a_run_trace_event_hardening` 的真实 service smoke、build 与 license 已通过；合同补丁后的 quick gates 通过后冻结共同摘要，先重走全部相关 change 的联合合同 1+2，再重启 Phase 代码 1+2。`embedding-cache-tenant-isolation` 为 7/8 tasks，`run-trace-correlation` 为 17/17 tasks；最终摘要三审全部通过后才可更新为 `ready-to-archive` 并进入 Phase 13.7。
 
 ---
 
@@ -742,7 +744,7 @@ Phase 1 Monorepo / quality spine
 - 创建聚焦 change `model-usage-evidence`，实现 API Contract MOD-001 和 Product Spec AC-064/065。
 - 为 model/embedding adapter 输出统一 `ModelUsageEvidence`，记录 `tenant_id`、provider/model、非负有限 token/cost/latency、cost availability、route/fallback/cache/budget decision 与 run/agent/trace；bool、负数、NaN/Infinity 和不一致的 `cost_status` 在持久化/聚合前拒绝。
 - 通过 EventBus/TelemetryFacade 持久化 provider-neutral evidence；local fake run smoke 记录入口到 terminal 的总时延并执行 5 秒门禁。
-- 增加 `0014` durable evidence outbox/usage settlement：provider 结果按 `usage_call_id` 幂等封闭，approval resolution 与 terminal 也按先前置 evidence、后 terminal 的稳定顺序恢复，绝不重放 provider/tool 副作用。
+- 以 `0013a_run_trace_event_hardening` 为直接前置增加 `0014` durable evidence outbox/usage settlement：provider 结果按 `usage_call_id` 幂等封闭，approval resolution 与 terminal 也按先前置 evidence、后 terminal 的稳定顺序恢复，绝不重放 provider/tool 副作用。
 
 **关键文件**：
 - `packages/agent-harness/src/agent_harness/models/providers.py`、`models/router.py`、新增 `models/usage.py` - 统一 evidence DTO 与路由语义。
@@ -947,7 +949,7 @@ Phase 1 Monorepo / quality spine
 - 同一目标的多个 OpenSpec change 只要共享 run/event/config/测试或验收，就必须在任何实现开始前完成逐 change 严格校验，并由 3 个 fresh code-reviewer 按 1+2 执行同一冻结范围的联合审查：第 1 名对每个 change 及组合范围给出 Stage 1/2 PASS 后，才并行派第 2、3 名；三名都必须同时给出逐 change 与联合 PASS。任一 finding、修复或受审 diff 都使既有 PASS 失效并从第 1 名重启，不再重复建立一套与联合审查分离的逐 change reviewer 队列。本轮 13.5-13.9 的七个 active change 不得声称彼此独立，其中 `embedding-cache-tenant-isolation` 是 Phase 13.6A 的强制前置。
 - Phase 13.5-13.9 实现严格按 `13.5 -> 13.6 -> 13.6A -> 13.7 -> 13.8 -> 13.9` 串行。后序 change 在前序未归档 diff 上继续工作并必须重跑全部受影响合同；不得并行编辑共享文件，也不得用后序 change 覆盖前序已通过行为。
 - 共享文件按接力所有权收口：`app/api/routes/runs.py` 由 13.5 建立精确 response map、13.6A 固定 trace header/生成、13.8 扩展 detail、13.9 最终加入 SSE并保留累计合同；`app/api/schemas.py` 由 13.8 建立 delegation schema、13.9 只追加 SSE 所需 schema；`app/runtime.py` 依次承接 13.6 startup、13.6A trace、13.7 usage、13.8 delegation；`app/main.py` 由 13.5 先接入窄化 OpenAPI factory、13.6 固定 startup、13.6A 接入 trace normalizer、13.9 再装配 SSE；`scripts/smoke_local.py` 由 13.6A 先固定 run trace、13.7 再固定 fake latency、13.9 最终追加首 frame 门禁。每次 Phase 接力后的 1+2 审查覆盖累计行为。
-- 共享 storage/event 文件同样按串行接力：`storage/models.py`、`storage/repositories.py`、`storage/migrations/versions` 与 migration contracts 先以 `0012a_embedding_cache_tenant_scope` 闭环 Phase 6 cache 租户隔离并把物理表切换为 `tenant_embedding_cache`，使旧 binary 在新 schema 上查询旧表即失败；再由 13.6A 的 `0013` 建立 trace binding/backfill，13.7 在 `0014` 增加 durable evidence outbox/usage settlement与 event capacity reservation并把 approval resolution/terminal 纳入有序恢复，13.8 在 `0015` 追加 delegation/aggregation/budget reservation且保留前序约束；`events/types.py`、`events/bus.py`、local/PostgreSQL sinks 与 audit repository 由 13.6A 固定 canonical trace 门禁，13.7 追加 usage event、terminal 前置 outbox 与 envelope 上限，13.9 只增加读取 transport。`0012a` 至 `0015` 的 downgrade 都必须同时满足 evidence 全空和 Alembic `-x allow_empty_evidence_downgrade=true`，并测试缺失/重复/非法 opt-in、有 evidence 即使 opt-in 也阻断、兼容读取和无 DDL 部分提交。
+- 共享 storage/event 文件同样按串行接力：`storage/models.py`、`storage/repositories.py`、`storage/migrations/versions` 与 migration contracts 先以 `0012a_embedding_cache_tenant_scope` 闭环 Phase 6 cache 租户隔离并把物理表切换为 `tenant_embedding_cache`；再由 13.6A 的 `0013` 建立 trace binding/backfill，并以 `0013a_run_trace_event_hardening` 在不改写已应用 revision 的前提下统一旧/fresh 事件 shape；13.7 的 `0014` 必须直接依赖 `0013a`，增加 durable evidence outbox/usage settlement与 event capacity reservation并把 approval resolution/terminal 纳入有序恢复，13.8 在 `0015` 追加 delegation/aggregation/budget reservation且保留前序约束。`0013a -> 0013` 只回退 stamp并保留硬化 schema；其余破坏性 downgrade 仍必须满足 evidence 全空和精确 Alembic opt-in。
 - 每完成一个 Phase 执行四步走：Code Review -> 测试完整性 -> 编译验证 -> 功能测试。
 - 四步走全部通过后才能 commit；commit message 用 `feat`、`fix`、`refactor`、`chore` 前缀。
 - `packages/agent-harness` 不依赖 `templates/*` 或 `examples/*`；模板只能通过 path dependency 或 wheel 使用核心包。
@@ -974,7 +976,7 @@ Phase 1 Monorepo / quality spine
 | Eval 只用已知 case 做优化会过拟合，尤其是示例 agent 数量少时。 | Eval experiment、harness prompt/tool description/config 变更、release gate。 | Phase 12.5、Phase 15 | 部分缓解 | Phase 12.5 已按 behavior tags 拆分 optimization / holdout、保留 regression subset，并用人工 review 拦截无意义或过拟合的 harness 变更；Phase 15 仍需把这些证据接入 release gate，并持续扩充生产分布 case。 |
 | Prompt injection / tool output injection 如果后补，会污染所有 agent 和 eval 证据。 | Access input、MCP、tools、retrieval、context assembly、audit。 | Phase 2、Phase 4、Phase 6、Phase 8、Phase 9 | 已缓解 | Phase 2 已定义 trust marker/source_ref/context ref 和 guardrail decision DTO；Phase 6 已在 ContextAssembler 保留 per-fragment source/trust/token/truncation trace；Phase 8 已处理 tool/MCP output；Phase 9 已让 retrieval chunk 进入 context 前保留 citation/source_ref/trust_level，prompt injection 文本只作为 untrusted citation 内容。 |
 | Docker secret file 若直接当普通路径读取，会引入 symlink/越界、冲突优先级和错误泄密。 | settings、API/worker/migration startup、doctor/health/log。 | Phase 13.6 | 已缓解 | CFG-001 已实现受信 root、普通文件、64 KiB、direct/file 冲突、四入口结构化失败；真实 service smoke 扫描 health、doctor、logs、PostgreSQL 与 artifacts，并证明成功、失败和中断清理。 |
-| Run/approval/event 允许空 trace 会让审计、usage 与 delegation 产生不兼容关联。 | runtime、worker、checkpoint、approval、CanonicalEvent、model usage。 | Phase 13.6A | 未处理 | `run-trace-correlation` 在副作用前生成 canonical trace，跨进程传播并对历史 nullable 数据确定性 backfill。 |
+| Run/approval/event 允许空 trace 或宽松 event-id 重放会让审计、usage 与 delegation 产生不兼容关联。 | runtime、worker、checkpoint、approval、CanonicalEvent、model usage。 | Phase 13.6A | 审查中 | `run-trace-correlation` 已在副作用前生成 canonical trace，以全局锁覆盖跨 tenant/不同 key 竞争，跨进程传播并确定性 backfill；合法 non-run evidence 保留独立 nullable trace，数据库三列复合外键守住 run/tenant/trace 联合归属，完整事件指纹与既有 evidence 恢复守住 event-id 语义，并以 `0013a` 前滚旧 shape。第十四轮核心门禁已通过，待更新合同与代码在同 digest 上分别完成 1+2。 |
 | Provider usage 若由业务 agent 手工拼接，delegation budget 与 trace/eval 证据不可审计。 | model/embedding adapter、event/trace、parent aggregation。 | Phase 13.7、13.8 | 未处理 | MOD-001 先建立 durable provider-neutral evidence，DLG-001 只从持久化 child evidence 聚合。 |
 | 真实 delegation 容易造成循环、跨租户、预算放大、重复 child run 和 service crash 后双计费。 | registry、policy、runtime、RunQueue、storage、events。 | Phase 13.8 | 未处理 | edge + policy + cycle/depth/budget 前置门禁，parent/target idempotency，service crash/reclaim 与 durable aggregation tests。 |
 | SSE 若复用 JSON route 或引入第二套事件状态，会造成 resume 漂移、visibility 泄漏和代理缓冲。 | Access、CanonicalEvent、OpenAPI、service deployment。 | Phase 13.9 | 未处理 | RUN-006 只映射现有 event store，Last-Event-ID 为唯一 SSE 续读输入，握手前/后错误分离并验证首 frame 时延。 |

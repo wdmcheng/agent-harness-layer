@@ -12,6 +12,7 @@ from agent_harness.approvals import ApprovalStateConflict
 from agent_harness.events import LocalJsonlEventSink
 from agent_harness.identity import IdentityContext
 from agent_harness.runtime import ApprovalGrant, InvalidRunTransition, RunStatus
+from agent_harness.storage import run_migrations
 from app.main import create_app
 from app.runtime import RuntimeComponents, build_runtime_components
 
@@ -32,6 +33,7 @@ def _components(
 ) -> tuple[RuntimeComponents, Path, Path]:
     db_path = tmp_path / f"{name}.db"
     events_path = tmp_path / f"{name}-events.jsonl"
+    run_migrations(_dsn(db_path))
     components = build_runtime_components(
         profile="local",
         profiles_dir=PROFILES,
@@ -283,6 +285,7 @@ async def test_terminal_run_before_approval_finalize_recovers_existing_claim(
                 approval_id=approval.approval_id,
                 run_id=approval.run_id,
                 tenant_id=approval.tenant_id,
+                request_id="req-dev-approval-lease",
             )
             await uow.commit()
         grant = ApprovalGrant(

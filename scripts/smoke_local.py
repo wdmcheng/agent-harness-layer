@@ -10,9 +10,11 @@ from __future__ import annotations
 import importlib
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from agent_harness.config import load_settings
+from agent_harness.storage import run_migrations
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVICE_APP = ROOT / "templates" / "service-app"
@@ -101,21 +103,29 @@ def check_doctor() -> int:
 def check_agents_list() -> int:
     """确认 local registry smoke agent 可离线枚举。"""
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "agent_harness.cli",
-            "agents",
-            "list",
-            "--agents-dir",
-            str(SERVICE_APP / "agents"),
-        ],
-        cwd=ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    with tempfile.TemporaryDirectory(prefix="agent-harness-agents-list-") as directory:
+        dsn = f"sqlite+aiosqlite:///{Path(directory) / 'agents-list.db'}"
+        # smoke setup 显式迁移隔离数据库；被测 agents list 本身仍只读校验 head。
+        run_migrations(dsn)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "agent_harness.cli",
+                "agents",
+                "list",
+                "--agents-dir",
+                str(SERVICE_APP / "agents"),
+                "--profiles-dir",
+                str(SERVICE_APP / "configs" / "profiles"),
+                "--storage-dsn",
+                dsn,
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
     if result.returncode != 0:
         return _fail(f"agents list failed: {result.stderr.strip()}")
     if "examples.basic" not in result.stdout:

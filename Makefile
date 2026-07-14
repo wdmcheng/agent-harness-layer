@@ -1,5 +1,6 @@
 SHELL := /bin/sh
 UV ?= uv
+EVAL_STATE_DIR ?= $(CURDIR)/templates/service-app/.agent-harness/eval
 
 .PHONY: sync quality test smoke-local smoke-service eval build license-check format
 
@@ -18,7 +19,12 @@ test:
 	$(UV) run pytest
 
 eval:
-	$(UV) run python templates/service-app/scripts/run_example_evals.py
+	$(UV) run python templates/service-app/app/migrate.py \
+		--profile local \
+		--profiles-dir "$(CURDIR)/templates/service-app/configs/profiles" \
+		--storage-dsn "sqlite+aiosqlite:///$(EVAL_STATE_DIR)/eval.db"
+	$(UV) run python templates/service-app/scripts/run_example_evals.py \
+		--state-dir "$(EVAL_STATE_DIR)"
 
 # local smoke 只证明离线 profile 和 CLI/template shell 可用，不替代 service smoke。
 smoke-local:

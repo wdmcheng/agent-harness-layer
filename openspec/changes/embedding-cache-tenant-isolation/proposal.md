@@ -14,7 +14,7 @@
 - **BREAKING**：把物理表切换为 `tenant_embedding_cache`，移除旧 `embedding_cache` 名称，并把 cache identity 收紧为 `(tenant_id, provider, model, input_hash)`；所有读取、写入、幂等复用和唯一约束都必须按已认证 tenant 隔离，旧 binary 在新 schema 上查询即 fail closed。
 - 为不同租户的相同输入生成不同 `vector_ref`，不得以相同 URI/ref 暗中复用跨租户向量。
 - 统一 local 与 OpenAI-compatible adapter 的持久化 cache metadata，记录最近一次 cache outcome、`vector_ref` 和首次 provider latency；新写入必须以 `provider_latency_status=recorded` 携带非负数值，旧合同允许但无法确定 latency 的历史 row 以 `provider_latency_status=unavailable` 与 `provider_latency_ms=null` 无损表达；命中不得伪造一次新的 provider 调用或 latency。
-- 新增插入式 Alembic revision `0012a_embedding_cache_tenant_scope`，接在 `0012_service_runtime_execution_context` 后；它保留既有 metadata 键并确定性补齐 `cache_status`、`vector_ref`、`provider_latency_status` 与 nullable `provider_latency_ms`，后续 trace revision 仍使用 `0013` 但显式依赖本 revision。
+- 新增插入式 Alembic revision `0012a_embedding_cache_tenant_scope`，接在 `0012_service_runtime_execution_context` 后；它保留既有 metadata 键并确定性补齐 `cache_status`、`vector_ref`、`provider_latency_status` 与 nullable `provider_latency_ms`，后续 trace revision `0013` 显式依赖本 revision，并由 `0013a_run_trace_event_hardening` 作为线性硬化 head。
 - 新旧 application/schema 组合通过物理表名双向不兼容在读取前 fail closed；downgrade 同时要求没有任何 tenant cache evidence，且操作者显式传入 Alembic `-x allow_empty_evidence_downgrade=true`，才恢复旧表名与三列约束。参数缺失/重复/非法或存在记录时都在 DDL 前拒绝。
 
 ## Non-Goals

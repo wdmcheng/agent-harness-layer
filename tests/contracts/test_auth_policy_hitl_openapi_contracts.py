@@ -32,6 +32,12 @@ def test_api_contract_documents_auth_policy_approval_endpoints() -> None:
     assert "### POL-001 policy check" in contract
     assert "### 5.12 `PolicyCheckRequest`" in contract
     assert "### 5.15 `ApprovalRecord`" in contract
+    assert (
+        "当前生产 DTO、OpenAPI 与 `0013_run_trace_correlation -> "
+        "0013a_run_trace_event_hardening` schema 均要求 `trace_id` 必填且非空" in contract
+    )
+    assert "当前生产 DTO/OpenAPI 仍允许 `trace_id=null`" not in contract
+    assert "| `trace_id` | string | 目标 Yes；当前 No |" not in contract
     assert "GET /api/v1/agents" in contract
     assert "认证/策略/HITL contract tests 还必须覆盖 401/403 和身份可见性过滤" in contract
     assert "| `APR-001` | 规划中 | Auth / Policy / HITL |" not in contract
@@ -56,12 +62,36 @@ def test_openapi_exposes_auth_policy_hitl_paths_security_and_error_envelopes(
     approval_resolve_run_schema = openapi["components"]["schemas"]["ApprovalResolveResponse"][
         "properties"
     ]["run"]
+    approval_public_schema = openapi["components"]["schemas"]["ApprovalPublicRecord"]
+    canonical_event_schema = openapi["components"]["schemas"]["CanonicalEvent"]
     policy_response_schema = openapi["components"]["schemas"]["PolicyDecisionResponse"]
 
     assert "HTTPBearer" in openapi["components"]["securitySchemes"]
     assert "resume_token" not in run_response_properties
     assert "RunCreateResponse" in json.dumps(approval_resolve_run_schema)
     assert "RunResult" not in json.dumps(approval_resolve_run_schema)
+    assert "trace_id" in approval_public_schema["required"]
+    assert approval_public_schema["properties"]["trace_id"]["type"] == "string"
+    assert "anyOf" not in approval_public_schema["properties"]["trace_id"]
+    assert canonical_event_schema["properties"]["record_scope"]["enum"] == [
+        "run",
+        "non_run",
+    ]
+    assert {
+        branch.get("type") for branch in canonical_event_schema["properties"]["trace_id"]["anyOf"]
+    } == {
+        "string",
+        "null",
+    }
+    assert any("if" in branch and "then" in branch for branch in canonical_event_schema["allOf"])
+    for response_schema in (
+        "ApprovalListResponse",
+        "ApprovalDetailResponse",
+        "ApprovalResolveResponse",
+    ):
+        assert "ApprovalPublicRecord" in json.dumps(
+            openapi["components"]["schemas"][response_schema]
+        )
     assert "audit_ref" in policy_response_schema["required"]
     assert "get" in paths["/api/v1/agents"]
     assert "get" in paths["/api/v1/runs/{run_id}/approvals"]
@@ -229,6 +259,7 @@ async def test_env_example_local_profile_uses_default_identity_without_authoriza
     (service_root / "agents").symlink_to(ROOT / "templates" / "service-app" / "agents")
     dsn = sqlite_dsn(tmp_path / "env-example-local.db")
     events_path = tmp_path / "env-example-events.jsonl"
+    run_migrations(dsn)
     app = create_app(
         profile="local",
         profiles_dir=service_root / "configs" / "profiles",

@@ -25,6 +25,7 @@ from agent_harness.storage.models import (
     PolicyRuleModel,
     ToolInvocationModel,
 )
+from agent_harness.storage.run_trace_gate import require_canonical_run_trace
 from agent_harness.storage.service_approval_repositories import (
     ServiceApprovalResolutionRepositoryMixin,
 )
@@ -86,6 +87,14 @@ def _policy_rule_record(model: PolicyRuleModel) -> PolicyRuleRecord:
         decision=model.decision,
         payload=model.payload_json,
     )
+
+
+def _required_resolution_request_id(model: ApprovalModel) -> str:
+    """恢复私有仲裁状态时拒绝猜测已经丢失的首次请求关联。"""
+
+    if not model.resolution_request_id:
+        raise RuntimeError(f"approval resolution request id missing: {model.id}")
+    return model.resolution_request_id
 
 
 class ApiKeyRepository:
@@ -167,6 +176,13 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
     async def create(self, data: ApprovalCreate) -> ApprovalRecord:
         """创建初始 waiting approval，resolve 只能走 `resolve()`。"""
 
+        trace_id = await require_canonical_run_trace(
+            self._session,
+            tenant_id=data.tenant_id,
+            run_id=data.run_id,
+            trace_id=data.trace_id,
+        )
+
         model = ApprovalModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
@@ -178,7 +194,7 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
             status="waiting",
             resume_token=data.resume_token,
             requested_by=data.requested_by,
-            trace_id=data.trace_id,
+            trace_id=trace_id,
             request_id=data.request_id,
             metadata_json=data.metadata,
         )
@@ -237,8 +253,9 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
         approval_id: str,
         run_id: str,
         tenant_id: str,
+        request_id: str,
     ) -> ApprovalResolutionLease:
-        """为 waiting approval 的 approve continuation 原子取得 lease。"""
+        """原子取得 approve lease，并冻结首次 resolution 请求关联。"""
 
         lease_id = str(uuid4())
         now = datetime.now(tz=UTC)
@@ -257,6 +274,7 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
                     resolution_lease_id=lease_id,
                     resolution_state="claimed",
                     resolution_claimed_at=now,
+                    resolution_request_id=request_id,
                 )
             ),
         )
@@ -269,6 +287,7 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
             approval=approval_record(model),
             lease_id=lease_id,
             state="claimed",
+            resolution_request_id=request_id,
             claimed_at=now,
         )
 
@@ -313,6 +332,7 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
             approval=approval_record(model),
             lease_id=lease_id,
             state="claimed",
+            resolution_request_id=_required_resolution_request_id(model),
             claimed_at=now,
         )
 
@@ -352,9 +372,10 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
         run_id: str,
         tenant_id: str,
         resolved_by: str,
+        request_id: str,
         metadata: dict[str, Any] | None = None,
     ) -> ApprovalRecord:
-        """仅在 approve lease 尚未赢得仲裁时原子 deny。"""
+        """原子 deny，并冻结首次 resolution 请求关联。"""
 
         now = datetime.now(tz=UTC)
         result = cast(
@@ -374,6 +395,7 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
                     resolved_at=now,
                     resolution_state="denied_pending",
                     resolution_finalized_at=now,
+                    resolution_request_id=request_id,
                 )
             ),
         )
@@ -525,6 +547,12 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
         model = await self._session.get(ApprovalModel, approval_id)
         return None if model is None else model.resolution_state
 
+    async def get_resolution_request_id(self, approval_id: str) -> str | None:
+        """读取审批仲裁事务冻结的首次请求关联。"""
+
+        model = await self._session.get(ApprovalModel, approval_id)
+        return None if model is None else model.resolution_request_id
+
     async def get_resolution(
         self,
         approval_id: str,
@@ -538,6 +566,7 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
             approval=approval_record(model),
             lease_id=model.resolution_lease_id,
             state=model.resolution_state or "claimed",
+            resolution_request_id=_required_resolution_request_id(model),
             claimed_at=model.resolution_claimed_at,
         )
 

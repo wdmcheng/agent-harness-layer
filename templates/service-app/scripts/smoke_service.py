@@ -306,7 +306,7 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
         raise RuntimeError("deny executed the protected tool handler")
 
     evidence: dict[str, object] = {
-        "migration": "0012_service_runtime_execution_context",
+        "migration": "0013a_run_trace_event_hardening",
         "secret_file": {
             "consumers": ["migration", "api", "worker"],
             "postgres_password_file": True,
@@ -395,7 +395,7 @@ def main() -> int:
             env["SERVICE_APP_SMOKE_BOUNDARY"] = "migration"
             compose(env, "run", "--rm", "migration")
             evidence: dict[str, object] = {
-                "migration": "0012_service_runtime_execution_context",
+                "migration": "0013a_run_trace_event_hardening",
                 "secret_file": {
                     "consumers": ["migration"],
                     "postgres_password_file": True,

@@ -45,6 +45,13 @@ from agent_harness.runtime.queue import (
     build_resume_approval_message as build_resume_approval_message,
 )
 from agent_harness.runtime.state import RunStatus as RunStatus
+from agent_harness.runtime.trace import RunTraceConflict as RunTraceConflict
+from agent_harness.runtime.trace import RunTraceError as RunTraceError
+from agent_harness.runtime.trace import (
+    RunTraceIdempotencyConflict as RunTraceIdempotencyConflict,
+)
+from agent_harness.runtime.trace import RunTraceValidationError as RunTraceValidationError
+from agent_harness.runtime.trace import normalize_trace_id as normalize_trace_id
 
 _CHECKPOINT_EXPORTS = [
     "ApprovalWaitState",
@@ -58,6 +65,11 @@ _ORCHESTRATOR_EXPORTS = [
     "RunOrchestrator",
     "RunResult",
     "RunEnqueueUnavailable",
+    "RunTraceConflict",
+    "RunTraceError",
+    "RunTraceIdempotencyConflict",
+    "RunTraceValidationError",
+    "normalize_trace_id",
 ]
 
 _EXECUTOR_EXPORTS = [

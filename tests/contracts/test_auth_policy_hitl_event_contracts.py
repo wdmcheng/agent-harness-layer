@@ -44,6 +44,8 @@ async def test_internal_run_events_require_policy_permission(tmp_path: Path) -> 
         checkpoint_state={"reason": "manual"},
         identity=owner,
     )
+    persisted_events = await LocalJsonlEventSink(events_path).read(run_id=waiting.run_id)
+    canonical_trace = persisted_events[0].trace_id
     await event_bus.publish(
         tenant_id=owner.tenant_id,
         run_id=waiting.run_id,
@@ -51,6 +53,7 @@ async def test_internal_run_events_require_policy_permission(tmp_path: Path) -> 
         user_id=owner.user_id,
         event_type=CanonicalEventType.REASONING_DELTA,
         payload={"delta": "internal thought"},
+        trace_id=canonical_trace,
     )
     app = create_app(
         orchestrator=orchestrator,

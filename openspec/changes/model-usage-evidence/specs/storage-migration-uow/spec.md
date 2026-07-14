@@ -1,12 +1,12 @@
 ## ADDED Requirements
 
 ### Requirement: Evidence outbox migration downgrade 不删除结算事实
-Alembic revision `0014` SHALL 只在 SQLite/PostgreSQL 数据库不存在任何 usage settlement、approval resolution、terminal、event capacity reservation 或其他 `run_evidence_outbox` evidence，且操作者显式传入 Alembic `-x allow_empty_evidence_downgrade=true` 时允许 downgrade 到 `0013`。参数缺失、重复、值不是精确小写 `true` 或存在任一历史/活跃 outbox、settlement、capacity evidence 时，downgrade MUST 在 DDL 前 fail closed、保留兼容读取且不得删除、重排或伪造 evidence；SQLite 与 PostgreSQL MUST 遵守相同结果。
+Alembic revision `0014` SHALL 以 `0013a_run_trace_event_hardening` 为直接前置，并只在 SQLite/PostgreSQL 数据库不存在任何 usage settlement、approval resolution、terminal、event capacity reservation 或其他 `run_evidence_outbox` evidence，且操作者显式传入 Alembic `-x allow_empty_evidence_downgrade=true` 时允许 downgrade 到 `0013a_run_trace_event_hardening`。参数缺失、重复、值不是精确小写 `true` 或存在任一历史/活跃 outbox、settlement、capacity evidence 时，downgrade MUST 在 DDL 前 fail closed、保留兼容读取且不得删除、重排或伪造 evidence；SQLite 与 PostgreSQL MUST 遵守相同结果。
 
 Upgrade MUST 在 API/worker writers 已停的窗口，先完整预检既有 run/event/checkpoint/approval/tool durable state。已有 terminal 的 run 不建立预约；每个非 terminal run MUST 建立一个 terminal reservation，并把该 run 已持久化的最大 `seq`（无 event 时为 `0`）回填为可信 high-water mark，不能使用 event row count。只有能从持久化状态映射到封闭、版本化 `operation_kind` registry 的活跃 operation 才能按对应最大 prerequisite event 数回填 outstanding reservation；未知 operation kind、矛盾状态、已有 seq 越界、high-water mark 与最大已持久化 `seq` 不一致，或 `highest_persisted_seq + outstanding + terminal` 超限 MUST 在任何 DDL/UPDATE 前整批 fail closed。完成后 repository MUST 以数据库约束或同事务 CAS 维护 high-water/outstanding/terminal 容量不变量，并在同一 run 锁/事务内消费预约、插入 event 和推进 high-water mark。
 
 #### Scenario: 空且可丢弃数据库允许回退
-- **WHEN** 操作者对不存在任何 outbox/settlement/capacity evidence 的数据库以 `-x allow_empty_evidence_downgrade=true` 执行 `0014 -> 0013` downgrade
+- **WHEN** 操作者对不存在任何 outbox/settlement/capacity evidence 的数据库以 `-x allow_empty_evidence_downgrade=true` 执行 `0014 -> 0013a_run_trace_event_hardening` downgrade
 - **THEN** migration 移除空的 `0014` schema，并由 SQLite/PostgreSQL contract 验证没有删除业务 evidence
 
 #### Scenario: 任一结算 evidence 阻断破坏性回退

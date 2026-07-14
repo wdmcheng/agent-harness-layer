@@ -15,8 +15,18 @@ from agent_harness.runtime.evidence import publish_terminal_evidence
 from agent_harness.runtime.executor import AgentExecutionRequest, RunResult, build_execution_context
 from agent_harness.runtime.queue import RunQueueMessage, build_execute_message
 from agent_harness.runtime.state import TERMINAL_STATUSES, RunStatus
+from agent_harness.runtime.trace import (
+    PreparedRunTrace,
+    RunTraceConflict,
+    RunTraceIdempotencyConflict,
+    normalize_trace_id,
+)
 from agent_harness.security.redaction import redact_secrets
-from agent_harness.storage.repositories import RunCreate, SessionCreate
+from agent_harness.storage.repositories import (
+    RunCreate,
+    RunTraceRepositoryConflict,
+    SessionCreate,
+)
 
 
 def _validated_execution_identity(
@@ -58,38 +68,90 @@ class QueuedRunOrchestration(OrchestratorState):
         active_identity = identity or self._identity
         first_request_id = request_id or str(uuid4())
         idempotency_key_value = idempotency_value(idempotency_key)
-        async with self._storage.uow() as uow:
-            tenant = await uow.tenants.ensure(active_identity.tenant_id)
-            session = await uow.sessions.ensure(
-                SessionCreate(
-                    session_id=active_identity.session_id,
-                    tenant_id=tenant.id,
-                    user_id=active_identity.user_id,
-                    agent_id=agent_id,
+        caller_trace_id = (
+            trace_id.caller_trace_id if isinstance(trace_id, PreparedRunTrace) else trace_id
+        )
+        try:
+            async with self._storage.uow() as uow:
+                tenant = await uow.tenants.ensure(active_identity.tenant_id)
+                session = await uow.sessions.ensure(
+                    SessionCreate(
+                        session_id=active_identity.session_id,
+                        tenant_id=tenant.id,
+                        user_id=active_identity.user_id,
+                        agent_id=agent_id,
+                    )
                 )
-            )
-            run = await uow.runs.create_queued(
-                RunCreate(
-                    tenant_id=tenant.id,
-                    session_id=session.id,
-                    agent_id=agent_id,
-                    idempotency_key=idempotency_key_value,
-                    input=input,
-                ),
-                execution_context={
-                    "identity": active_identity.to_payload(),
-                    "request_id": first_request_id,
-                    "trace_id": trace_id,
-                    "checkpoint_state": checkpoint_state,
-                },
-                operation_id="run:pending:execute",
-                request_id=first_request_id,
-                effective_idempotency_key=idempotency_key_value,
-            )
-            private = await uow.runs.get_execution(run.id)
-            if private is None:
-                raise RuntimeError("idempotent run is not a service queued run")
-            await uow.commit()
+                existing = None
+                if idempotency_key_value is not None:
+                    existing = await uow.runs.get_by_idempotency_key(
+                        tenant_id=tenant.id,
+                        session_id=session.id,
+                        agent_id=agent_id,
+                        idempotency_key=idempotency_key_value,
+                    )
+                if existing is not None:
+                    if caller_trace_id is not None and existing.trace_id != caller_trace_id:
+                        raise RunTraceIdempotencyConflict
+                    run = existing
+                else:
+                    canonical_trace = normalize_trace_id(
+                        str(trace_id) if trace_id is not None else None
+                    )
+                    run = await uow.runs.create_queued(
+                        RunCreate(
+                            tenant_id=tenant.id,
+                            session_id=session.id,
+                            agent_id=agent_id,
+                            idempotency_key=idempotency_key_value,
+                            trace_id=canonical_trace,
+                            input=input,
+                        ),
+                        execution_context={
+                            "identity": active_identity.to_payload(),
+                            "request_id": first_request_id,
+                            "trace_id": canonical_trace,
+                            "checkpoint_state": checkpoint_state,
+                        },
+                        operation_id="run:pending:execute",
+                        request_id=first_request_id,
+                        effective_idempotency_key=idempotency_key_value,
+                        caller_trace_id=caller_trace_id,
+                    )
+                private = await uow.runs.get_execution(run.id)
+                if private is None:
+                    raise RuntimeError("idempotent run is not a service queued run")
+                await uow.commit()
+        except RunTraceRepositoryConflict as exc:
+            if exc.code == "trace.idempotency_conflict":
+                raise RunTraceIdempotencyConflict from exc
+            if exc.code in {"trace.conflict", "trace.idempotency_race"} and (
+                idempotency_key_value is not None
+            ):
+                # 首次查询与 trace claim 之间可能已有同 key 的 queued run 提交。
+                # 回读首次记录后再区分同 trace replay 与异 trace 幂等冲突。
+                async with self._storage.uow() as uow:
+                    run = await uow.runs.get_by_idempotency_key(
+                        tenant_id=active_identity.tenant_id,
+                        session_id=active_identity.session_id,
+                        agent_id=agent_id,
+                        idempotency_key=idempotency_key_value,
+                    )
+                    if run is None:
+                        if exc.code == "trace.conflict":
+                            raise RunTraceConflict from exc
+                        raise
+                    if caller_trace_id is not None and run.trace_id != caller_trace_id:
+                        raise RunTraceIdempotencyConflict from exc
+                    private = await uow.runs.get_execution(run.id)
+                    if private is None:
+                        raise RuntimeError("idempotent run is not a service queued run") from exc
+                    # replay 只使用首次 run 的 durable request/operation evidence；
+                    # 后续 enqueue/reconcile 由 operation/event-id 幂等收敛。
+            elif exc.code == "trace.conflict":
+                raise RunTraceConflict from exc
+            else:
+                raise
 
         message = build_execute_message(
             request_id=private.request_id,
@@ -134,7 +196,6 @@ class QueuedRunOrchestration(OrchestratorState):
                 message_id=message_id,
             )
             await uow.commit()
-        trace_id = queued.execution_context.get("trace_id")
         await self._event_bus.publish(
             tenant_id=identity.tenant_id,
             run_id=run.id,
@@ -144,7 +205,7 @@ class QueuedRunOrchestration(OrchestratorState):
             payload={"agent_id": run.agent_id, **run_correlation(run.input)},
             visibility="public",
             request_id=queued.request_id,
-            trace_id=trace_id if isinstance(trace_id, str) else None,
+            trace_id=run.trace_id,
             event_id=f"run-queued:{run.id}",
         )
 
@@ -191,9 +252,8 @@ class QueuedRunOrchestration(OrchestratorState):
 
         context_payload = private.execution_context
         request_id = context_payload.get("request_id")
-        trace_id = context_payload.get("trace_id")
         request_id_value = request_id if isinstance(request_id, str) else None
-        trace_id_value = trace_id if isinstance(trace_id, str) else None
+        trace_id_value = run.trace_id
         await self._event_bus.publish(
             tenant_id=execution_identity.tenant_id,
             run_id=run_id,

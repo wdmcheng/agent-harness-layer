@@ -64,7 +64,13 @@ def test_api_contract_declares_tool_execution_seam_and_no_http_route() -> None:
 def test_openapi_does_not_expose_undocumented_tools_route() -> None:
     """当前只开放 CLI/runtime/module seam，不偷偷加 HTTP tools route。"""
 
-    app = create_app(registry=cast(Any, object()))
+    # 这个测试只检查静态 OpenAPI；显式注入 runtime seam，避免把数据库启动门禁
+    # 混入路由表合同，也避免读取开发者工作区的默认本地数据库。
+    app = create_app(
+        orchestrator=cast(Any, object()),
+        event_sink=cast(Any, object()),
+        registry=cast(Any, object()),
+    )
     paths = set(app.openapi()["paths"])
 
     assert "/api/v1/tools" not in paths
@@ -83,7 +89,7 @@ def test_local_migration_creates_workspace_and_tool_invocation_tables(tmp_path: 
         revision = connection.execute("select version_num from alembic_version").fetchone()
 
     assert {"workspaces", "tool_invocations"} <= tables
-    assert revision == ("0012_service_runtime_execution_context",)
+    assert revision == ("0013a_run_trace_event_hardening",)
 
 
 @pytest.mark.asyncio

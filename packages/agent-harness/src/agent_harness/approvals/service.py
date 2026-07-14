@@ -90,6 +90,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
             run = await uow.runs.get(run_id)
             if run is None or run.tenant_id != actor.tenant_id:
                 raise LookupError(f"run not found: {run_id}")
+            canonical_trace = run.trace_id
             record = await uow.approvals.create(
                 ApprovalCreate(
                     tenant_id=actor.tenant_id,
@@ -100,7 +101,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
                     reason=redact_secrets(reason),
                     resume_token=token_value,
                     requested_by=actor.user_id,
-                    trace_id=trace_id,
+                    trace_id=canonical_trace,
                     request_id=request_id,
                     metadata=redact_secrets(metadata or {}),
                 )
@@ -114,7 +115,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
             event_type=CanonicalEventType.APPROVAL_REQUIRED,
             payload=approval_evidence(record),
             request_id=request_id,
-            trace_id=trace_id,
+            trace_id=canonical_trace,
         )
         if self._audit is not None:
             await self._audit.record(
@@ -133,11 +134,22 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
         async with self._storage.uow() as uow:
             rows = await uow.approvals.list_by_run(run_id, tenant_id=actor.tenant_id)
         if self._audit is not None:
+            audit_payload: dict[str, Any] = {
+                "requested_run_id": run_id,
+                "count": len(rows),
+            }
+            if rows:
+                audit_payload.update(
+                    {
+                        "run_id": rows[0].run_id,
+                        "trace_id": rows[0].trace_id,
+                    }
+                )
             await self._audit.record(
                 actor=actor,
                 action="approval.list",
                 resource=f"run:{run_id}",
-                payload={"run_id": run_id, "count": len(rows)},
+                payload=audit_payload,
             )
         return rows
 
@@ -202,12 +214,13 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
 
         if not can_resolve_approval(actor):
             raise PolicyDeniedError("approval resolve permission missing")
+        resolution_request_id = request_id or str(uuid4())
         if self._queue is not None:
             return await self._enqueue_approval(
                 actor=actor,
                 run_id=run_id,
                 approval_id=approval_id,
-                request_id=request_id or str(uuid4()),
+                request_id=resolution_request_id,
                 comment=comment,
             )
         try:
@@ -216,6 +229,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
                     approval_id=approval_id,
                     run_id=run_id,
                     tenant_id=actor.tenant_id,
+                    request_id=resolution_request_id,
                 )
                 await uow.commit()
         except ApprovalResolutionRepositoryConflict as exc:
@@ -230,7 +244,6 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
         return await self._continue_with_recovery_marker(
             actor=actor,
             lease=lease,
-            request_id=request_id,
             comment=comment,
         )
 
@@ -247,6 +260,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
 
         if not can_resolve_approval(actor):
             raise PolicyDeniedError("approval resolve permission missing")
+        resolution_request_id = request_id or str(uuid4())
         try:
             async with self._storage.uow() as uow:
                 record = await uow.approvals.deny_waiting(
@@ -254,6 +268,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
                     run_id=run_id,
                     tenant_id=actor.tenant_id,
                     resolved_by=actor.user_id,
+                    request_id=resolution_request_id,
                     metadata={"comment": redact_secrets(comment)} if comment else None,
                 )
                 if self._audit is not None:
@@ -264,7 +279,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
                             resource=record.resource,
                             payload={
                                 **approval_evidence(record),
-                                "request_id": request_id,
+                                "request_id": resolution_request_id,
                                 "approval_request_id": record.request_id,
                             },
                         )
@@ -284,6 +299,6 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
             self._orchestrator,
             actor=actor,
             record=record,
-            request_id=request_id,
+            resolution_request_id=resolution_request_id,
         )
         return ApprovalResolveResult(approval=record, run=run_result)

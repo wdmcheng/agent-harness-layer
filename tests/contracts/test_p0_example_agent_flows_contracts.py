@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from agent_harness.identity import IdentityContext
 from agent_harness.registry import AgentRegistry, RegistryLoadError
 from agent_harness.runtime import AgentExecutionContext, AgentExecutionResult, RunStatus
+from agent_harness.storage import run_migrations
 from app.main import create_app
 from app.runtime import RuntimeComponents, build_runtime_components
 
@@ -42,6 +43,7 @@ def _components(
 ) -> tuple[RuntimeComponents, Path, Path]:
     db_path = tmp_path / f"{name}.db"
     events_path = tmp_path / f"{name}-events.jsonl"
+    run_migrations(_dsn(db_path))
     components = build_runtime_components(
         profile="local",
         profiles_dir=PROFILES,
@@ -181,6 +183,8 @@ def test_registry_and_cli_expose_four_descriptors_without_executor_leak(tmp_path
         assert descriptor.output_schema_ref.startswith("agents.examples.")
         assert descriptor.eval_dataset and descriptor.eval_dataset.endswith("/evals")
 
+    agents_list_db = tmp_path / "agents-list.db"
+    run_migrations(_dsn(agents_list_db))
     result = subprocess.run(
         [
             sys.executable,
@@ -190,6 +194,10 @@ def test_registry_and_cli_expose_four_descriptors_without_executor_leak(tmp_path
             "list",
             "--agents-dir",
             str(AGENTS),
+            "--profiles-dir",
+            str(PROFILES),
+            "--storage-dsn",
+            _dsn(agents_list_db),
         ],
         cwd=ROOT,
         text=True,
@@ -201,6 +209,7 @@ def test_registry_and_cli_expose_four_descriptors_without_executor_leak(tmp_path
         assert agent_id in result.stdout
 
     run_db = tmp_path / "ticket-cli.db"
+    run_migrations(_dsn(run_db))
     run_result = subprocess.run(
         [
             sys.executable,
@@ -231,6 +240,7 @@ def test_registry_and_cli_expose_four_descriptors_without_executor_leak(tmp_path
     assert "fake-ok" not in json.dumps(output)
 
     api_db = tmp_path / "ticket-api.db"
+    run_migrations(_dsn(api_db))
     api = create_app(
         profile="local",
         profiles_dir=PROFILES,
@@ -250,6 +260,65 @@ def test_registry_and_cli_expose_four_descriptors_without_executor_leak(tmp_path
             connection.execute("select output_json from agent_runs").fetchone()[0]
         )
     assert api_output["category"] == "access"
+
+
+def test_agents_list_honors_policy_visibility_and_records_denial(tmp_path: Path) -> None:
+    """CLI 枚举必须先走 identity/policy/audit，拒绝时不得输出 descriptor。"""
+
+    policy_path = tmp_path / "deny-agents-list.yaml"
+    policy_path.write_text(
+        """provider: yaml
+require_approval_actions: []
+deny_actions:
+  - agents.list
+""",
+        encoding="utf-8",
+    )
+    profiles_dir = tmp_path / "profiles"
+    profiles_dir.mkdir()
+    profile_text = (
+        (PROFILES / "local.yaml")
+        .read_text(encoding="utf-8")
+        .replace(
+            "path: configs/policy/default.yaml",
+            f"path: {policy_path}",
+        )
+    )
+    (profiles_dir / "local.yaml").write_text(profile_text, encoding="utf-8")
+    db_path = tmp_path / "agents-list-denied.db"
+    run_migrations(_dsn(db_path))
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_harness.cli",
+            "agents",
+            "list",
+            "--agents-dir",
+            str(AGENTS),
+            "--profiles-dir",
+            str(profiles_dir),
+            "--storage-dsn",
+            _dsn(db_path),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "policy.denied:" in result.stderr
+    with sqlite3.connect(db_path) as connection:
+        audits = connection.execute(
+            "select action, payload_json from audit_logs order by created_at"
+        ).fetchall()
+    assert len(audits) == 1
+    assert audits[0][0] == "policy.decision"
+    assert "agents.list" in str(audits[0][1])
+    assert '"decision": "deny"' in str(audits[0][1])
 
 
 @pytest.mark.asyncio

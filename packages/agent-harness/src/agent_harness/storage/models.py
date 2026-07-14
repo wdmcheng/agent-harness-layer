@@ -8,9 +8,11 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     String,
     Text,
@@ -79,6 +81,27 @@ class AgentRunModel(TimestampMixin, Base):
             "idempotency_key",
             name="uq_agent_runs_idempotency",
         ),
+        UniqueConstraint("id", "tenant_id", name="uq_agent_runs_id_tenant"),
+        UniqueConstraint(
+            "id",
+            "tenant_id",
+            "trace_id",
+            name="uq_agent_runs_id_tenant_trace",
+        ),
+        ForeignKeyConstraint(
+            ["parent_run_id", "tenant_id"],
+            ["agent_runs.id", "agent_runs.tenant_id"],
+            name="fk_agent_runs_parent_tenant",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
+            ["trace_id", "tenant_id"],
+            ["run_trace_bindings.trace_id", "run_trace_bindings.tenant_id"],
+            name="fk_agent_runs_trace_binding_tenant",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -87,6 +110,7 @@ class AgentRunModel(TimestampMixin, Base):
     agent_id: Mapped[str] = mapped_column(String(255), index=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="created", index=True)
     parent_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    trace_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     input_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     output_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
@@ -101,6 +125,31 @@ class AgentRunModel(TimestampMixin, Base):
     execution_workflow_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RunTraceBindingModel(Base):
+    """root lineage 的全局 trace claim 与直接 tenant 归属。"""
+
+    __tablename__ = "run_trace_bindings"
+    __table_args__ = (
+        UniqueConstraint("root_run_id", name="uq_run_trace_bindings_root_run_id"),
+        UniqueConstraint(
+            "trace_id",
+            "tenant_id",
+            name="uq_run_trace_bindings_trace_tenant",
+        ),
+        ForeignKeyConstraint(
+            ["root_run_id", "tenant_id"],
+            ["agent_runs.id", "agent_runs.tenant_id"],
+            name="fk_run_trace_bindings_root_tenant",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+    )
+
+    trace_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), nullable=False)
+    root_run_id: Mapped[str] = mapped_column(String(36), nullable=False)
 
 
 class CheckpointModel(Base):
@@ -149,15 +198,16 @@ class ContextAssemblyModel(TimestampMixin, Base):
 
 
 class EmbeddingCacheModel(TimestampMixin, Base):
-    """按 provider/model/input_hash 去重的 embedding cache。"""
+    """按 tenant/provider/model/input_hash 隔离的 embedding cache。"""
 
-    __tablename__ = "embedding_cache"
+    __tablename__ = "tenant_embedding_cache"
     __table_args__ = (
         UniqueConstraint(
+            "tenant_id",
             "provider",
             "model",
             "input_hash",
-            name="uq_embedding_cache_provider_model_hash",
+            name="uq_tenant_embedding_cache_tenant_provider_model_hash",
         ),
     )
 
@@ -287,11 +337,42 @@ class CanonicalEventModel(Base):
     """CanonicalEvent 的数据库持久化形状。"""
 
     __tablename__ = "canonical_events"
-    __table_args__ = (UniqueConstraint("run_id", "seq", name="uq_canonical_events_run_seq"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "stream_id",
+            "seq",
+            name="uq_canonical_events_tenant_stream_seq",
+        ),
+        CheckConstraint(
+            "record_scope IN ('run', 'non_run')",
+            name="ck_canonical_events_record_scope",
+        ),
+        CheckConstraint(
+            "record_scope != 'run' OR (run_id IS NOT NULL AND trace_id IS NOT NULL)",
+            name="ck_canonical_events_run_ownership",
+        ),
+        CheckConstraint(
+            "record_scope != 'non_run' OR run_id IS NULL",
+            name="ck_canonical_events_non_run_ownership",
+        ),
+        ForeignKeyConstraint(
+            ["run_id", "tenant_id", "trace_id"],
+            ["agent_runs.id", "agent_runs.tenant_id", "agent_runs.trace_id"],
+            name="fk_canonical_events_run_owner",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
-    run_id: Mapped[str] = mapped_column(String(36), ForeignKey("agent_runs.id"), index=True)
+    # DB run_id 只表示真实 AgentRun ownership；non-run telemetry 的合成
+    # envelope run_id 保存在 stream_id/envelope_json，不能伪造 lineage。
+    run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("agent_runs.id"), nullable=True, index=True
+    )
+    stream_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     agent_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     event_type: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     seq: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -301,6 +382,7 @@ class CanonicalEventModel(Base):
     payload_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    record_scope: Mapped[str] = mapped_column(String(16), nullable=False, default="run")
     envelope_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -321,6 +403,7 @@ class TraceRefModel(TimestampMixin, Base):
     )
     provider: Mapped[str] = mapped_column(String(64), nullable=False)
     external_trace_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
 
@@ -381,6 +464,7 @@ class EvalRunModel(TimestampMixin, Base):
     run_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("agent_runs.id"), nullable=True
     )
+    trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     score_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     score_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     provider_status_json: Mapped[list[dict[str, Any]]] = mapped_column(
@@ -469,7 +553,7 @@ class ApprovalModel(TimestampMixin, Base):
     resolution_message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     resolution_workflow_owner_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
     resolution_workflow_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    trace_id: Mapped[str] = mapped_column(String(128), nullable=False)
     request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
@@ -478,6 +562,12 @@ class AuditLogModel(Base):
     """policy、approval、认证和危险动作的结构化审计记录。"""
 
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        CheckConstraint(
+            "record_scope IN ('run', 'non_run')",
+            name="ck_audit_logs_record_scope",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
@@ -485,6 +575,7 @@ class AuditLogModel(Base):
     action: Mapped[str] = mapped_column(String(255), nullable=False)
     resource: Mapped[str | None] = mapped_column(String(255), nullable=True)
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    record_scope: Mapped[str] = mapped_column(String(16), nullable=False, default="non_run")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

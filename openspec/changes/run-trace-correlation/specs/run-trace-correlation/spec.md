@@ -3,7 +3,7 @@
 ### Requirement: 每个新 root run 在副作用前绑定 canonical trace
 系统 SHALL 为每个新 root run 绑定一个非空、全局唯一的 canonical `trace_id`。调用方提供合法且未冲突的 trace 时 MUST 保留；缺失时 MUST 由受控 runtime composition 在创建 run、发布 lifecycle event、enqueue 或调用 tool/model/provider 前生成。任何下游组件 MUST NOT 为同一 run 生成第二个 trace。
 
-Caller trace MUST 匹配 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`，不做 trim 或大小写折叠；缺失时生成 lowercase RFC 4122 UUID 字符串。系统 MUST 通过 `run_trace_bindings(trace_id PK, tenant_id NOT NULL, root_run_id UNIQUE)` 原子声明 root lineage 全局唯一性，直接持久化 tenant，并以复合外键或等价数据库约束保证 `(root_run_id, tenant_id)` 与 `agent_runs(id, tenant_id)` 一致；claim/conflict 查询 MUST 使用已认证 tenant 限定，但 `trace_id` 仍全局唯一。`agent_runs.trace_id` 是允许 root/child 重复的非唯一投影，并与 `execution_context.trace_id` 双写。非法格式返回 `422 validation_error`；已绑定其他 root run 返回 `409 trace.conflict`。
+Caller trace MUST 匹配 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`，不做 trim 或大小写折叠；缺失时生成 lowercase RFC 4122 UUID 字符串。系统 MUST 通过 `run_trace_bindings(trace_id PK, tenant_id NOT NULL, root_run_id UNIQUE)` 原子声明 root lineage 全局唯一性，直接持久化 tenant，并以复合外键或等价数据库约束保证 `(root_run_id, tenant_id)` 与 `agent_runs(id, tenant_id)` 一致。绑定归属读取与诊断 MUST 使用已认证 tenant 限定；副作用前的全局碰撞门禁只能返回存在/不存在，不得返回其他 tenant/root 信息。系统 MUST 用全局 trace 锁覆盖锁内复检、permission、guardrail/audit 与 root claim，使不同 tenant 或不同 idempotency key 的同 trace 竞争在业务副作用前串行收敛。`agent_runs.trace_id` 是允许 root/child 重复的非唯一投影，并与 `execution_context.trace_id` 双写。非法格式返回 `422 validation_error`；已绑定其他 root run 返回 `409 trace.conflict`。
 
 `agent_runs` MUST 以 `(parent_run_id, tenant_id)` 复合自外键拒绝跨租户父子边，并以可延迟的 `(trace_id, tenant_id)` 复合外键或等价事务安全数据库门禁保证每个 root/child 投影属于同租户 binding。为引用完整性增加的复合唯一键 MUST NOT 改变 `trace_id` 全局唯一和 `agent_runs.trace_id` 非唯一语义。
 
@@ -17,7 +17,11 @@ Caller trace MUST 匹配 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`，不做 trim 或
 
 #### Scenario: 冲突 trace 零副作用失败
 - **WHEN** caller trace 已绑定到另一个 root run 或不满足稳定格式
-- **THEN** 系统返回结构化 validation/conflict 错误，且不创建 run、event、queue message、approval 或 provider side effect
+- **THEN** 系统返回结构化 validation/conflict 错误，且不创建 run、event、queue message、approval、guardrail audit 或 provider side effect
+
+#### Scenario: 不同幂等键并发竞争同一 trace
+- **WHEN** 两个 tenant 或同一 tenant 的两个不同 idempotency key 并发提交同一合法 caller trace
+- **THEN** 全局 trace 锁只允许一个请求进入 permission/guardrail 与 root claim，另一请求在锁内复检时返回 `trace.conflict`，且其 audit/event/queue/provider 副作用均为零
 
 ### Requirement: CLI run 暴露同一 caller trace normalizer
 系统 SHALL 为 `agent-harness run <agent_id>` 提供可选 `--trace-id <value>`。该 option MUST 原样进入 RUN-001/内部 run create 共用的 normalizer；缺失时生成 canonical trace，提供时使用相同正则、全局 binding 和 idempotency 规则。非法格式 MUST 只向 stderr 写稳定 `validation_error` 并非零退出；已绑定其他 root run MUST 使用 `trace.conflict`，同一 idempotency key 后续提供不同 trace MUST 使用 `trace.idempotency_conflict`。以上失败 MUST 在 run/event/queue/approval/tool/model/provider 副作用前发生，stdout 不得回显其他 root/tenant 的绑定信息。

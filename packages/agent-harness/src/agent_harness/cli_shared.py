@@ -13,8 +13,13 @@ from agent_harness.config import (
     load_settings,
     settings_error_lines,
 )
+from agent_harness.local_state import LocalStateMigrationError, require_local_state_ready
 from agent_harness.policy import DatabasePolicyProvider, PolicyEngine, YamlPolicyProvider
-from agent_harness.storage import SQLAlchemyStorage
+from agent_harness.storage import (
+    SchemaMigrationRequiredError,
+    SQLAlchemyStorage,
+    require_migration_head,
+)
 
 
 def load_settings_or_exit(profile: str, profiles_dir: Path | None) -> HarnessSettings:
@@ -25,6 +30,38 @@ def load_settings_or_exit(profile: str, profiles_dir: Path | None) -> HarnessSet
     except SettingsLoadError as exc:
         for line in settings_error_lines(exc):
             typer.echo(line, err=True)
+        raise typer.Exit(1) from exc
+
+
+def require_schema_or_exit(dsn: str) -> None:
+    """普通 CLI 只校验 schema；旧库必须由显式离线命令推进。"""
+
+    try:
+        require_migration_head(dsn)
+    except SchemaMigrationRequiredError as exc:
+        typer.echo(
+            "storage.migration_required: run the explicit migration command before retrying",
+            err=True,
+        )
+        raise typer.Exit(1) from exc
+
+
+def require_local_state_ready_or_exit(
+    *,
+    event_paths: tuple[Path, ...] = (),
+    score_paths: tuple[Path, ...] = (),
+    state_dir: Path | None = None,
+) -> None:
+    """普通 CLI 在任何业务副作用前只读校验 local-state bundle。"""
+
+    try:
+        require_local_state_ready(
+            event_paths=event_paths,
+            score_paths=score_paths,
+            state_dir=state_dir,
+        )
+    except LocalStateMigrationError as exc:
+        typer.echo(f"{exc.code}: {exc}", err=True)
         raise typer.Exit(1) from exc
 
 

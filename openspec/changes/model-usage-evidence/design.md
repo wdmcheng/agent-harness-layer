@@ -60,7 +60,7 @@
 
 ## Migration Plan
 
-先引入 DTO 与 red contract tests，再在 trace revision `0013` 后以 Alembic revision `0014` 增加 `run_evidence_outbox`/usage settlement、event capacity reservation及其唯一键、顺序和恢复状态。Migration 必须在 writers/worker 已停的窗口预检旧 run：terminal run 不建预约；非 terminal run 建一个 terminal reservation；只允许能从持久化 checkpoint/approval/tool 状态映射到封闭 operation kind 的活跃状态，并按 registry 回填 outstanding reservation，未知或矛盾状态在 DDL/UPDATE 前整批拒绝。随后让 fake/model/embedding adapters 产出 evidence，接入 EventBus/TelemetryFacade、approval continuation 与 service runtime，最后启用 local latency smoke。`0014` downgrade 同时要求 outbox/settlement/capacity evidence 全空和 Alembic x 参数精确为 `allow_empty_evidence_downgrade=true`；缺失/重复/非法 opt-in 或存在 evidence 都在 DDL 前拒绝并保留兼容读取。旧 `ModelResponse.token_usage` 可在内部适配期读取，但公共 evidence 必须由统一 DTO 生成；迁移完成后禁止业务 agent 拼 raw usage。本 change 不自动归档。
+先引入 DTO 与 red contract tests，再以 `0013a_run_trace_event_hardening` 为直接前置增加 Alembic revision `0014`，实现 `run_evidence_outbox`/usage settlement、event capacity reservation及其唯一键、顺序和恢复状态。Migration 必须在 writers/worker 已停的窗口预检旧 run：terminal run 不建预约；非 terminal run 建一个 terminal reservation；只允许能从持久化 checkpoint/approval/tool 状态映射到封闭 operation kind 的活跃状态，并按 registry 回填 outstanding reservation，未知或矛盾状态在 DDL/UPDATE 前整批拒绝。随后让 fake/model/embedding adapters 产出 evidence，接入 EventBus/TelemetryFacade、approval continuation 与 service runtime，最后启用 local latency smoke。`0014` downgrade 同时要求 outbox/settlement/capacity evidence 全空和 Alembic x 参数精确为 `allow_empty_evidence_downgrade=true`；缺失/重复/非法 opt-in 或存在 evidence 都在 DDL 前拒绝并保留兼容读取。旧 `ModelResponse.token_usage` 可在内部适配期读取，但公共 evidence 必须由统一 DTO 生成；迁移完成后禁止业务 agent 拼 raw usage。本 change 不自动归档。
 
 ## Open Questions
 

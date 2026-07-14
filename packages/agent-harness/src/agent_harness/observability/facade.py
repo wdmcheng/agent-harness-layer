@@ -10,6 +10,7 @@ from pydantic import Field
 
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.contracts.run_trace import RunTraceValidationError
 from agent_harness.events import CanonicalEvent, CanonicalEventType
 from agent_harness.events.sinks.base import EventSink
 from agent_harness.observability.context import TelemetryContext
@@ -128,6 +129,8 @@ class TelemetryFacade:
         *,
         event_type: CanonicalEventType,
     ) -> TelemetryStatus:
+        if record.context.run_id is not None and record.context.trace_id is None:
+            raise RunTraceValidationError
         run_id = record.context.run_id or record.context.trace_id or "telemetry"
         seq = await self._local_sink.latest_seq(run_id) + 1
         event = CanonicalEvent(
@@ -149,6 +152,7 @@ class TelemetryFacade:
             raw_event_ref=record.raw_event_ref,
             request_id=record.context.request_id,
             trace_id=record.context.trace_id,
+            record_scope="run" if record.context.run_id is not None else "non_run",
             span_id=record.context.span_id,
         )
         await self._local_sink.write(event)

@@ -36,7 +36,12 @@ from agent_harness.storage.eval_repositories import EvalRunCreate as EvalRunCrea
 from agent_harness.storage.eval_repositories import EvalRunRecord as EvalRunRecord
 from agent_harness.storage.eval_repositories import EvalScoreCreate as EvalScoreCreate
 from agent_harness.storage.eval_repositories import EvalScoreRecord as EvalScoreRecord
+from agent_harness.storage.migrations.runner import (
+    SchemaMigrationRequiredError as SchemaMigrationRequiredError,
+)
 from agent_harness.storage.migrations.runner import get_current_revision as get_current_revision
+from agent_harness.storage.migrations.runner import get_head_revision as get_head_revision
+from agent_harness.storage.migrations.runner import require_migration_head as require_migration_head
 from agent_harness.storage.migrations.runner import run_migrations as run_migrations
 from agent_harness.storage.repositories import (
     ApiKeyCreate as ApiKeyCreate,

@@ -29,7 +29,12 @@ from agent_harness.evals import (
 from agent_harness.events import EventSink
 from agent_harness.policy import InputGuardrail, PolicyDeniedError, PolicyEngine
 from agent_harness.registry import RegistryLoadError
-from agent_harness.runtime import InvalidRunTransition, RunEnqueueUnavailable, RunOrchestrator
+from agent_harness.runtime import (
+    InvalidRunTransition,
+    RunEnqueueUnavailable,
+    RunOrchestrator,
+    RunTraceError,
+)
 from agent_harness.security.redaction import redact_secrets
 from app.api.dependencies import (
     get_acceptance_service,
@@ -176,6 +181,15 @@ def create_app(
             status_code=503,
         )
 
+    async def run_trace_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        trace_exc = cast(RunTraceError, exc)
+        return api_error_response(
+            request_id=request_id_from(request),
+            code=trace_exc.code,
+            message=str(trace_exc),
+            status_code=trace_exc.status_code,
+        )
+
     async def auth_error_handler(request: Request, exc: Exception) -> JSONResponse:
         auth_exc = cast(AuthError, exc)
         return api_error_response(
@@ -287,6 +301,7 @@ def create_app(
     app.add_exception_handler(LookupError, lookup_error_handler)
     app.add_exception_handler(InvalidRunTransition, invalid_transition_handler)
     app.add_exception_handler(RunEnqueueUnavailable, run_enqueue_error_handler)
+    app.add_exception_handler(RunTraceError, run_trace_error_handler)
     app.add_exception_handler(RegistryLoadError, registry_load_error_handler)
     app.add_exception_handler(Exception, internal_error_handler)
 

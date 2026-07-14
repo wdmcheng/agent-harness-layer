@@ -251,6 +251,7 @@ async def test_service_worker_rejects_forged_execution_identity_before_side_effe
                     session_id=session.id,
                     agent_id="fake-agent",
                     idempotency_key="forged-key",
+                    trace_id="trace-forged",
                 ),
                 execution_context={
                     "identity": {
@@ -262,6 +263,7 @@ async def test_service_worker_rejects_forged_execution_identity_before_side_effe
                         "auth_method": "api-key",
                     },
                     "request_id": "request-forged",
+                    "trace_id": "trace-forged",
                 },
                 operation_id="run:pending:execute",
                 request_id="request-forged",

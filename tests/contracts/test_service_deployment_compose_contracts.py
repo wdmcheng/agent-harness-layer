@@ -11,6 +11,7 @@ from typing import Any, cast
 
 import pytest
 import yaml
+from tests.contracts.run_trace_contract_helpers import seed_persisted_run
 
 from agent_harness.auth import ApiKeyVerifier, hash_token
 from agent_harness.storage import ApiKeyCreate, SQLAlchemyStorage, run_migrations
@@ -51,6 +52,15 @@ def _smoke_service(monkeypatch: pytest.MonkeyPatch) -> Any:
     monkeypatch.setitem(sys.modules, "service_secret_smoke", secret_module)
     path = TEMPLATE / "scripts" / "smoke_service.py"
     spec = importlib.util.spec_from_file_location("service_smoke_contract", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _service_admin() -> Any:
+    path = TEMPLATE / "scripts" / "service_admin.py"
+    spec = importlib.util.spec_from_file_location("service_admin_contract", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -440,14 +450,14 @@ def test_postgres_terminal_evidence_correlates_applicable_fields() -> None:
     completed = {
         **expected,
         "workflow_id": "workflow-1",
-        "trace_id": None,
+        "trace_id": "trace-1",
         "events": [
             {
                 "event_id": "event-1",
                 "type": "run.completed",
                 "terminal": True,
                 "request_id": "request-1",
-                "trace_id": None,
+                "trace_id": "trace-1",
             }
         ],
     }
@@ -460,6 +470,27 @@ def test_postgres_terminal_evidence_correlates_applicable_fields() -> None:
 
     assert evidence["execution"] == expected
     assert evidence["terminal_event"]["request_id"] == "request-1"
+    assert evidence["terminal_event"]["trace_id"] == "trace-1"
+
+
+@pytest.mark.asyncio
+async def test_service_admin_inspect_run_returns_persisted_trace(tmp_path: Path) -> None:
+    """service smoke 的 DBOS evidence 读取器必须返回 run canonical trace。"""
+
+    dsn = f"sqlite+aiosqlite:///{tmp_path / 'inspect-run.db'}"
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    try:
+        run_id = await seed_persisted_run(storage, trace_id="trace-inspect")
+    finally:
+        await storage.dispose()
+
+    admin = _service_admin()
+    admin.storage_dsn = lambda: dsn
+    inspected = await admin.inspect_run(run_id)
+
+    assert inspected["run_id"] == run_id
+    assert inspected["trace_id"] == "trace-inspect"
 
 
 def test_service_profile_keeps_application_dsn_out_of_committed_config() -> None:

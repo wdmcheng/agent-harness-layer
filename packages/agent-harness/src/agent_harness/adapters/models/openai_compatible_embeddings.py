@@ -46,6 +46,7 @@ class OpenAICompatibleEmbeddingProvider:
 
         input_hash = hashlib.sha256(request.input.encode("utf-8")).hexdigest()
         cached = await self._cache.get(
+            tenant_id=request.tenant_id,
             provider=self.provider,
             model=self.model,
             input_hash=input_hash,
@@ -68,7 +69,8 @@ class OpenAICompatibleEmbeddingProvider:
         payload = await self._post_embedding(request.input)
         vector = _extract_embedding_vector(payload)
         latency_ms = int((perf_counter() - started) * 1000)
-        vector_ref = f"embedding://{self.provider}/{self.model}/{input_hash}"
+        tenant_hash = hashlib.sha256(request.tenant_id.encode("utf-8")).hexdigest()
+        vector_ref = f"embedding://{self.provider}/{self.model}/{tenant_hash}/{input_hash}"
         await self._cache.put(
             EmbeddingCacheCreate(
                 tenant_id=request.tenant_id,
@@ -77,8 +79,10 @@ class OpenAICompatibleEmbeddingProvider:
                 input_hash=input_hash,
                 vector_ref=vector_ref,
                 metadata={
-                    "cache": "miss",
-                    "latency_ms": latency_ms,
+                    "cache_status": "miss",
+                    "vector_ref": vector_ref,
+                    "provider_latency_status": "recorded",
+                    "provider_latency_ms": latency_ms,
                     "dimensions": len(vector),
                 },
             )

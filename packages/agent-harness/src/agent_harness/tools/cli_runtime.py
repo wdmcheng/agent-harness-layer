@@ -17,7 +17,7 @@ from agent_harness.storage import (
     SQLAlchemyStorage,
     ToolInvocationCreate,
     WorkspaceCreate,
-    run_migrations,
+    require_migration_head,
     storage_dsn_from_settings,
 )
 from agent_harness.tools.file_tool import FileTool
@@ -66,7 +66,7 @@ async def visible_tool_descriptors(
     """通过 ToolRegistry 和 PolicyEngine 列出当前 actor/agent 可见工具。"""
 
     resolved_dsn = storage_dsn_from_settings(settings)
-    run_migrations(resolved_dsn)
+    require_migration_head(resolved_dsn)
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
     audit = AuditService(storage=storage)
     policy = _policy_engine(settings, storage, audit, profiles_dir)
@@ -114,7 +114,7 @@ async def call_and_record_tool(
     """通过 ToolRegistry 调用工具，并写入 workspace/tool_invocation 证据。"""
 
     resolved_dsn = storage_dsn_from_settings(settings)
-    run_migrations(resolved_dsn)
+    require_migration_head(resolved_dsn)
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
     resolved_audit = audit or AuditService(storage=storage)
     resolved_policy = policy or _policy_engine(settings, storage, resolved_audit, profiles_dir)

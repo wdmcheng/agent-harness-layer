@@ -206,12 +206,12 @@ class ApprovalQueueResolutionMixin:
             approval=record,
             lease_id=state.lease_id,
             state=state.resolution_state,
+            resolution_request_id=state.request_id,
             claimed_at=state.claimed_at,
         )
         return await self._continue_with_recovery_marker(
             actor=actor,
             lease=lease,
-            request_id=state.request_id,
             comment=state.comment,
         )
 
@@ -242,12 +242,12 @@ class ApprovalQueueResolutionMixin:
                 approval=record,
                 lease_id=state.lease_id,
                 state=state.resolution_state,
+                resolution_request_id=state.request_id,
                 claimed_at=state.claimed_at,
             )
             return await self._continue_with_recovery_marker(
                 actor=actor,
                 lease=lease,
-                request_id=state.request_id,
                 comment=state.comment,
             )
         if record.status == "waiting" and state.resolution_state == "execution_owned":
@@ -366,7 +366,6 @@ class ApprovalQueueResolutionMixin:
         *,
         actor: IdentityContext,
         lease: ApprovalResolutionLease,
-        request_id: str | None,
         comment: str | None,
     ) -> ApprovalResolveResult:
         raise NotImplementedError

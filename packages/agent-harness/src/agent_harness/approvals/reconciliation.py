@@ -5,8 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from agent_harness.events import CanonicalEventType, EventBus
+from agent_harness.events.sinks.base import EventSinkReplayConflict
 from agent_harness.identity import IdentityContext
 from agent_harness.runtime import InvalidRunTransition, RunOrchestrator, RunResult, RunStatus
+from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage import ApprovalRecord, SQLAlchemyStorage
 from agent_harness.storage.access_repositories import ApprovalResolutionLease
 
@@ -37,18 +39,49 @@ async def publish_resolution_evidence(
     record: ApprovalRecord,
     request_id: str | None,
 ) -> None:
-    """用 approval 级稳定 id 发布唯一 public resolution event。"""
+    """用 approval 级稳定 id 发布或复用唯一 resolution event。
 
+    状态已提交而首次响应丢失时，后续请求的 ``request_id`` 属于恢复调用，不得
+    改写首次 resolution evidence；先验证已存在事件与持久化 approval 语义一致，
+    只有 evidence 确实缺失时才补写。
+    """
+
+    event_id = f"approval-resolution:{record.approval_id}"
+    payload = redact_secrets(approval_evidence(record))
+    existing = await event_bus.event_by_id(run_id=record.run_id, event_id=event_id)
+    if existing is not None:
+        stable_semantics = (
+            existing.tenant_id == record.tenant_id
+            and existing.run_id == record.run_id
+            and existing.agent_id == record.agent_id
+            and existing.user_id == record.resolved_by
+            and existing.event_type == CanonicalEventType.APPROVAL_RESOLVED
+            and existing.event_version == "1.0"
+            and existing.payload == payload
+            and existing.payload_ref is None
+            and existing.payload_checksum is None
+            and existing.raw_event_ref is None
+            and existing.terminal is False
+            and existing.visibility == "internal"
+            and existing.trace_id == record.trace_id
+            and existing.record_scope == "run"
+            and existing.parent_run_id is None
+            and existing.span_id is None
+            and existing.request_id == request_id
+        )
+        if not stable_semantics:
+            raise EventSinkReplayConflict("event replay envelope does not match persisted event")
+        return
     await event_bus.publish(
-        tenant_id=actor.tenant_id,
+        tenant_id=record.tenant_id,
         run_id=record.run_id,
         agent_id=record.agent_id,
-        user_id=actor.user_id,
+        user_id=record.resolved_by or actor.user_id,
         event_type=CanonicalEventType.APPROVAL_RESOLVED,
-        payload=approval_evidence(record),
+        payload=payload,
         request_id=request_id,
         trace_id=record.trace_id,
-        event_id=f"approval-resolution:{record.approval_id}",
+        event_id=event_id,
     )
 
 
@@ -76,7 +109,7 @@ async def reconcile_denied(
     *,
     actor: IdentityContext,
     record: ApprovalRecord,
-    request_id: str | None,
+    resolution_request_id: str,
 ) -> RunResult:
     """补齐 denied terminal/resolution，重复执行仍只保留一份 evidence。"""
 
@@ -98,7 +131,7 @@ async def reconcile_denied(
         event_bus,
         actor=actor,
         record=record,
-        request_id=request_id,
+        request_id=resolution_request_id,
     )
     async with storage.uow() as uow:
         await uow.approvals.mark_denied_evidence_complete(

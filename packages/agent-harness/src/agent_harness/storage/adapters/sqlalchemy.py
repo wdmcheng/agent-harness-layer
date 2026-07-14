@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
+import fcntl
+import hashlib
+import os
+import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
+from weakref import WeakKeyDictionary
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -39,7 +47,7 @@ from agent_harness.storage.retrieval_repositories import (
     RetrievalChunkRepository,
     RetrievalDocumentRepository,
 )
-from agent_harness.storage.settings import normalize_async_dsn
+from agent_harness.storage.settings import normalize_async_dsn, sqlite_database_path
 from agent_harness.storage.tool_repositories import (
     ToolInvocationRepository,
     WorkspaceRepository,
@@ -118,6 +126,10 @@ class SQLAlchemyStorage:
             self.engine,
             expire_on_commit=False,
         )
+        self._loop_idempotency_locks: WeakKeyDictionary[
+            asyncio.AbstractEventLoop, dict[str, asyncio.Lock]
+        ] = WeakKeyDictionary()
+        self._loop_idempotency_locks_guard = threading.Lock()
 
     @classmethod
     def from_dsn(cls, dsn: str, *, cross_event_loop: bool = False) -> SQLAlchemyStorage:
@@ -129,5 +141,62 @@ class SQLAlchemyStorage:
         async with unit:
             yield unit
 
+    @asynccontextmanager
+    async def idempotency_request_lock(self, scope: str) -> AsyncGenerator[None]:
+        """跨 guardrail/runtime 事务串行化同一 idempotency scope。"""
+
+        digest = hashlib.sha256(scope.encode("utf-8")).digest()
+        if self.engine.dialect.name == "postgresql":
+            # Session-level advisory lock 跨越 prepare、policy/audit 与 run create 的
+            # 多个事务；连接在 finally 中显式解锁，API 多进程也共享同一门禁。
+            advisory_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
+            async with self.engine.connect() as connection:
+                await connection.execute(
+                    text("select pg_advisory_lock(:lock_key)"),
+                    {"lock_key": advisory_key},
+                )
+                try:
+                    yield
+                finally:
+                    await connection.execute(
+                        text("select pg_advisory_unlock(:lock_key)"),
+                        {"lock_key": advisory_key},
+                    )
+            return
+
+        sqlite_path = sqlite_database_path(self.dsn)
+        if sqlite_path is not None:
+            lock_path = sqlite_path.with_name(
+                f".{sqlite_path.name}.idempotency-{digest.hex()[:24]}.lock"
+            )
+            descriptor = await asyncio.to_thread(_acquire_file_lock, lock_path)
+            try:
+                yield
+            finally:
+                await asyncio.to_thread(_release_file_lock, descriptor)
+            return
+
+        # In-memory SQLite 没有跨进程共享状态；按 event loop 共享 storage 内锁。
+        loop = asyncio.get_running_loop()
+        with self._loop_idempotency_locks_guard:
+            locks = self._loop_idempotency_locks.setdefault(loop, {})
+            lock = locks.setdefault(scope, asyncio.Lock())
+        async with lock:
+            yield
+
     async def dispose(self) -> None:
         await self.engine.dispose()
+
+
+def _acquire_file_lock(path: Path) -> int:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(descriptor, fcntl.LOCK_EX)
+    return descriptor
+
+
+def _release_file_lock(descriptor: int) -> None:
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+    finally:
+        os.close(descriptor)

@@ -37,7 +37,7 @@ Alembic revision `0012a_embedding_cache_tenant_scope` SHALL 从 `0012_service_ru
 
 #### Scenario: 后续 trace migration 保持单一线性 head
 - **WHEN** 数据库从当前 head 继续升级 Phase 13.6A trace revision `0013`
-- **THEN** Alembic revision 链严格为 `0012_service_runtime_execution_context -> 0012a_embedding_cache_tenant_scope -> 0013`，不存在并行 head 或跳过 tenant 修复的路径
+- **THEN** Alembic revision 链严格为 `0012_service_runtime_execution_context -> 0012a_embedding_cache_tenant_scope -> 0013_run_trace_correlation -> 0013a_run_trace_event_hardening`，不存在并行 head、改写已应用 revision 或跳过 tenant 修复的路径
 
 #### Scenario: 新旧 application/schema 组合双向 fail closed
 - **WHEN** 旧 binary 在 `0012a` schema 查询 `embedding_cache`，或新 binary/repository 在未升级的 `0012` schema 查询 `tenant_embedding_cache`

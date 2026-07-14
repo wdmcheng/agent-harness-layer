@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from argparse import Namespace
 from pathlib import Path
 
 import pytest
@@ -42,7 +43,7 @@ def test_0009_migration_creates_eval_experiment_schema(tmp_path: Path) -> None:
             """
         ).fetchone()
 
-    assert get_current_revision(dsn) == "0012_service_runtime_execution_context"
+    assert get_current_revision(dsn) == "0013a_run_trace_event_hardening"
     assert {
         "eval_dataset_splits",
         "eval_experiments",
@@ -144,7 +145,7 @@ def test_0011_upgrades_existing_0009_experiment_without_rewriting_terminal_evide
     assert get_current_revision(dsn) == "0009_eval_experiment_loop"
     run_migrations(dsn)
 
-    assert get_current_revision(dsn) == "0012_service_runtime_execution_context"
+    assert get_current_revision(dsn) == "0013a_run_trace_event_hardening"
     with sqlite3.connect(db_path) as connection:
         row = connection.execute(
             """
@@ -178,7 +179,9 @@ def test_0009_downgrade_is_empty_only_and_preserves_nonempty_evidence(
 
     empty_dsn = sqlite_dsn(tmp_path / "empty-downgrade.db")
     run_migrations(empty_dsn)
-    command.downgrade(alembic_config(empty_dsn), "0008_agent_execution_approval_claims")
+    empty_config = alembic_config(empty_dsn)
+    empty_config.cmd_opts = Namespace(x=["allow_empty_evidence_downgrade=true"])
+    command.downgrade(empty_config, "0008_agent_execution_approval_claims")
     assert get_current_revision(empty_dsn) == "0008_agent_execution_approval_claims"
 
     used_db = tmp_path / "used-downgrade.db"
@@ -206,7 +209,9 @@ def test_0009_downgrade_is_empty_only_and_preserves_nonempty_evidence(
         connection.commit()
 
     with pytest.raises(RuntimeError, match="0011 downgrade refused"):
-        command.downgrade(alembic_config(used_dsn), "0008_agent_execution_approval_claims")
+        used_config = alembic_config(used_dsn)
+        used_config.cmd_opts = Namespace(x=["allow_empty_evidence_downgrade=true"])
+        command.downgrade(used_config, "0008_agent_execution_approval_claims")
     # 0012 没有 durable execution evidence 时可先安全回退；随后 0011 在 eval evidence 处拒绝。
     assert get_current_revision(used_dsn) == "0011_eval_experiment_legacy_created_review"
     with sqlite3.connect(used_db) as connection:

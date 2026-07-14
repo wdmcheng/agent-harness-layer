@@ -16,11 +16,13 @@ from tests.contracts.auth_policy_hitl_contract_helpers import (
     table_count,
     table_json_payloads,
 )
+from tests.contracts.run_trace_contract_helpers import seed_persisted_run
 
 from agent_harness.events import LocalJsonlEventSink
 from agent_harness.identity import IdentityContext
 from agent_harness.observability import ProviderTelemetryAdapter, TelemetryStatus
 from agent_harness.storage import SQLAlchemyStorage, run_migrations
+from agent_harness.storage.run_trace_gate import StorageRunTraceResolver
 
 
 class FailingScoreProvider(ProviderTelemetryAdapter):
@@ -59,7 +61,7 @@ def test_local_migration_creates_eval_gate_schema(tmp_path: Path) -> None:
         revision = connection.execute("select version_num from alembic_version").fetchone()
 
     assert "eval_scores" in tables
-    assert revision == ("0012_service_runtime_execution_context",)
+    assert revision == ("0013a_run_trace_event_hardening",)
     assert {
         "agent_id",
         "run_id",
@@ -108,7 +110,10 @@ async def test_eval_service_drafts_approves_runs_and_scores_without_secret_leaks
     score_sink = ScoreSink(
         local_path=local_scores,
         telemetry=TelemetryFacade(
-            local_sink=LocalJsonlEventSink(telemetry_events),
+            local_sink=LocalJsonlEventSink(
+                telemetry_events,
+                run_trace_resolver=StorageRunTraceResolver(storage),
+            ),
             providers=[FailingScoreProvider()],
         ),
     )
@@ -128,11 +133,12 @@ async def test_eval_service_drafts_approves_runs_and_scores_without_secret_leaks
     )
 
     try:
+        source_run_id = await seed_persisted_run(storage, trace_id="trace-1")
         draft = await service.draft_from_trace(
             EvalTraceSource(
                 tenant_id="default",
                 agent_id="examples.basic",
-                run_id="run-1",
+                run_id=source_run_id,
                 trace_id="trace-1",
                 trigger="failed_run",
                 input={"prompt": "api_key=eval-secret-12345"},
@@ -221,11 +227,12 @@ async def test_eval_approve_dataset_failure_keeps_draft_reviewable(
     )
 
     try:
+        source_run_id = await seed_persisted_run(storage, trace_id="trace-rollback")
         draft = await service.draft_from_trace(
             EvalTraceSource(
                 tenant_id="default",
                 agent_id="examples.basic",
-                run_id="run-rollback",
+                run_id=source_run_id,
                 trace_id="trace-rollback",
                 trigger="failed_run",
                 input={"prompt": "hello"},
@@ -264,6 +271,7 @@ def test_eval_cli_draft_and_approve_use_storage_and_audit(tmp_path: Path) -> Non
     dsn = sqlite_dsn(db_path)
     dataset_dir = tmp_path / "eval-cases"
     scores_path = tmp_path / "scores.jsonl"
+    run_migrations(dsn)
 
     draft = subprocess.run(
         [
@@ -279,10 +287,6 @@ def test_eval_cli_draft_and_approve_use_storage_and_audit(tmp_path: Path) -> Non
             dsn,
             "--scores-path",
             str(scores_path),
-            "--run-id",
-            "run-cli",
-            "--trace-id",
-            "trace-cli",
             "--prompt",
             "hello",
             "--score",

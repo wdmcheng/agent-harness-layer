@@ -49,7 +49,7 @@ def test_0012_adds_service_runtime_private_columns_and_terminal_index(
             row[1] for row in connection.execute("pragma index_list(canonical_events)").fetchall()
         }
 
-    assert revision == ("0012_service_runtime_execution_context",)
+    assert revision == ("0013a_run_trace_event_hardening",)
     assert {
         "execution_context_json",
         "queue_operation_id",
@@ -99,6 +99,7 @@ async def test_run_repository_keeps_queue_state_private_and_fences_execution(
                     session_id=session.id,
                     agent_id="agent-1",
                     idempotency_key="client-key",
+                    trace_id="trace-client-key",
                     input={"source_ref": "source://one", "trust_level": "trusted"},
                 ),
                 execution_context={
@@ -110,7 +111,7 @@ async def test_run_repository_keeps_queue_state_private_and_fences_execution(
                         "auth_method": "api-key",
                     },
                     "request_id": "req-1",
-                    "trace_id": "trace-1",
+                    "trace_id": "trace-client-key",
                 },
                 operation_id="run:placeholder:execute",
                 request_id="req-1",
@@ -176,6 +177,7 @@ async def test_service_approval_private_state_is_mutually_exclusive(tmp_path: Pa
                     tenant_id="tenant-1",
                     session_id=session.id,
                     agent_id="agent-1",
+                    trace_id="trace-approval-private",
                 )
             )
             approval = await uow.approvals.create(
@@ -186,6 +188,7 @@ async def test_service_approval_private_state_is_mutually_exclusive(tmp_path: Pa
                     action="shell.execute",
                     resource="tool:shell",
                     reason="dangerous",
+                    trace_id="trace-approval-private",
                 )
             )
             state = await uow.approvals.claim_service_resolution(
@@ -321,6 +324,7 @@ async def test_matching_service_approve_takes_over_expired_execution_owner(
                     tenant_id=identity.tenant_id,
                     session_id=session.id,
                     agent_id="agent-1",
+                    trace_id="trace-approval-recovery",
                 )
             )
             approval = await uow.approvals.create(
@@ -331,6 +335,7 @@ async def test_matching_service_approve_takes_over_expired_execution_owner(
                     action="shell.execute",
                     resource="tool:shell",
                     reason="dangerous",
+                    trace_id="trace-approval-recovery",
                 )
             )
             await uow.commit()
@@ -439,6 +444,7 @@ async def test_service_approve_only_queues_and_keeps_public_waiting(tmp_path: Pa
                     tenant_id=actor.tenant_id,
                     session_id=session.id,
                     agent_id="agent-approval",
+                    trace_id="trace-approval-service",
                 )
             )
             approval = await uow.approvals.create(
@@ -449,6 +455,7 @@ async def test_service_approve_only_queues_and_keeps_public_waiting(tmp_path: Pa
                     action="shell.execute",
                     resource="tool:shell",
                     reason="dangerous",
+                    trace_id="trace-approval-service",
                 )
             )
             await uow.commit()

@@ -276,7 +276,10 @@ async def test_approval_api_and_cli_share_service_seam(tmp_path: Path) -> None:
         in cli_list.stdout
     )
     assert f"{approval.approval_id}\tapproved\tshell.execute\ttool:shell" in cli_list.stdout
-    assert f"\tdefault\texamples.basic\t{waiting.run_id}\t\treq-seed" in cli_list.stdout
+    assert (
+        f"\tdefault\texamples.basic\t{waiting.run_id}\t{approval.trace_id}\treq-seed"
+        in cli_list.stdout
+    )
     assert table_count(db_path, "audit_logs") > audit_before
 
     cli_approve = subprocess.run(
@@ -336,6 +339,7 @@ async def test_approval_api_and_cli_share_service_seam(tmp_path: Path) -> None:
     assert "run: failed" in cli_deny.stdout
 
     cli_run_db = tmp_path / "cli-run.db"
+    run_migrations(sqlite_dsn(cli_run_db))
     cli_run_result = subprocess.run(
         [
             sys.executable,

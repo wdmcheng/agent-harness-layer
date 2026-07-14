@@ -103,7 +103,7 @@
 | `Accept` | No | 默认 `application/json`；P0 待实现 RUN-006 SSE 使用 `text/event-stream`。 |
 | `Content-Type` | Conditional | JSON mutating request 使用 `application/json`。 |
 | `X-Request-Id` | No | 调用方可传；服务端没有收到时生成 UUID，并写入响应 body 的 `request_id`。 |
-| `X-Trace-Id` | No | 当前 RUN-001 仅透传调用方值，缺失时仍可能产生 nullable trace。`run-trace-correlation` 目标：调用方值必须匹配 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`，不 trim、不折叠大小写；缺失时 runtime 在业务副作用前生成 lowercase RFC 4122 UUID canonical trace；非法格式返回 `422 validation_error`，已绑定其他 root run 返回 `409 trace.conflict`。change 未实施前不得把目标校验/生成/冲突行为当作当前能力。 |
+| `X-Trace-Id` | No | RUN-001 使用 provider-neutral normalizer：调用方值必须匹配 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`，不 trim、不折叠大小写；缺失时 runtime 在业务副作用前生成 lowercase RFC 4122 UUID canonical trace；非法格式返回 `422 validation_error`，已绑定其他 root run 返回 `409 trace.conflict`。同一 idempotency key 缺失 trace 或提供首次 canonical trace 时复用首次 run；提供不同 trace 返回 `409 trace.idempotency_conflict`。 |
 | `Authorization` | Conditional | 认证 profile 启用 verifier 时必填 `Bearer <token>` 或等价 API key；local/dev profile 未配置 verifier 时由服务端注入默认身份。 |
 
 ### 4.4 通用响应格式
@@ -326,6 +326,7 @@
   "seq": 2,
   "timestamp": "2026-07-07T00:00:00Z",
   "trace_id": "trace_123",
+  "record_scope": "run",
   "payload": {
     "status": "completed"
   },
@@ -337,8 +338,9 @@
 硬约束：
 
 - 同一 `run_id` 内 `seq` 单调递增。
+- 相同 `event_id` 仅在除 sink 分配的 `seq` 与调用方重建重试时不稳定的 `timestamp` 外，其余稳定 envelope 语义完全一致时视为幂等重试并返回原事件。`event_type`、版本、payload/ref/checksum、identity、parent、request/span/raw ref、scope、terminal、visibility、run/tenant/trace 任一不同都必须在 artifact materialize 与 fan-out 前返回脱敏 replay conflict，不得吞掉新 evidence。状态已提交后的 terminal/approval 恢复先读取并校验既有确定性 evidence，只有缺失时才补写，新的 `request_id` 不得重构同一 event-id。
 - CanonicalEvent `seq` 的持久化范围固定为 `1..2147483647`。run 创建时先持久化一个 terminal capacity reservation；provider/tool/approval/delegation 等操作必须在外部副作用前，由受信、版本化、封闭的 `operation_kind -> max_prerequisite_events` registry 派生预约数，并通过 `0014` durable evidence outbox 的 run 级锁/CAS 原子预留，业务 agent/HTTP 调用方不得自报容量。容量不变量固定为 `highest_persisted_seq + outstanding_reserved_event_count + terminal_reservation <= 2147483647`；`highest_persisted_seq` 是该 run 已持久化的最大 `seq`，没有 event 时为 `0`，不得用 event row count 替代。预约消费、event 插入与 high-water mark 推进必须在同一 run 锁/事务内原子完成。容量不足时以稳定 `event.sequence_exhausted` 零业务副作用拒绝，不消费 seq。预约只在对应 prerequisite evidence 已持久化或确定不会产生时按实耗结算/释放，未知结果保持预约并阻止 terminal；terminal 消费最后保留的预约且仍是最后一条 event。若历史状态已越过容量不变量、high-water mark 与最大已持久化 `seq` 不一致，或 `seq=2147483647` 不是 terminal，任何新写入以 `event.sequence_state_invalid` 零变更拒绝并要求人工处置。SQLite/local 与 PostgreSQL 必须使用相同规则；稀疏高 seq（例如 `{1, 2147483646}`）必须按最大值拒绝新的 operation reservation并保住 terminal 容量。
-- 当前生产 DTO/OpenAPI 仍允许 run-scoped `trace_id=null`；`run-trace-correlation` 落地时必须原子切换为必填，并与该 run 的 persisted canonical trace 逐值一致。RUN-003 和后续 RUN-006 SSE 使用同一字段，不生成第二 trace；change 未实施前不得把目标必填状态当作当前能力。
+- `record_scope` 是只允许 `run|non_run` 的 typed discriminator。当前生产 DTO/OpenAPI 对 `record_scope=run` 要求 `trace_id` 必填、格式合法并与该 run 的 persisted canonical trace 逐值一致；`record_scope=non_run` 允许 `trace_id` 缺失或为 null，持久化与迁移都不得为它生成假的 lineage。RUN-003 和后续 RUN-006 SSE 使用同一字段，不生成第二 trace。
 - terminal event 只能有一个，类型为 `run.completed`、`run.failed` 或 `run.cancelled`；三种 run terminal event 的 `visibility` 必须为 `public`，EventBus 与 local/PostgreSQL sink 必须在持久化前拒绝 `terminal=true` 且 `visibility!=public` 的 envelope，不能依赖 DTO 的 `internal` 默认值。
 - terminal event 是同一 run 的最后一条 CanonicalEvent；持久化后 EventBus/sink 必须拒绝 terminal 和 non-terminal 的任何后续业务事件，不能让已结束的 SSE/JSON 消费者漏掉晚到 evidence。
 - terminal 由 durable evidence outbox 协调：usage 结算与 `approval.resolved` 等必需前置 evidence 先按稳定 event id 幂等发布，terminal 最后发布；terminal 一旦可见，恢复不得再补写前置 evidence或重放 provider/tool 副作用。
@@ -480,7 +482,7 @@
 
 ### 5.15 `ApprovalRecord`
 
-当前生产 DTO/OpenAPI 仍允许 `trace_id=null`；`run-trace-correlation` 的目标契约是在迁移和运行时传播落地后将其收紧为必填。change 未实施前不得把目标必填状态当作当前能力。
+当前生产 DTO、OpenAPI 与 `0013_run_trace_correlation -> 0013a_run_trace_event_hardening` schema 均要求 `trace_id` 必填且非空；它必须等于关联 run 的 persisted canonical trace。历史 nullable 数据只允许通过显式迁移回填，普通运行入口不得继续写入 null，也不得让调用方覆盖该值。
 
 ```json
 {
@@ -513,7 +515,7 @@
 | `action` | string | Yes | 被审批动作。 |
 | `resource` | string | Yes | 被审批资源。 |
 | `reason` | string | Yes | 脱敏后的审批原因。 |
-| `trace_id` | string | 目标 Yes；当前 No | run canonical trace；由 approval 从持久化 run context 继承，调用方不得覆盖。历史 nullable 数据由 `run-trace-correlation` 迁移收口。 |
+| `trace_id` | string | Yes | run canonical trace；由 approval 从持久化 run context 继承，调用方不得覆盖。历史 nullable 数据由 `run-trace-correlation` 迁移收口。 |
 | `request_id` | string | No | 创建审批时的请求关联 ID。 |
 | `requested_by` | string | No | 创建审批的 actor user id。 |
 | `resolved_by` | string | No | 审批人 user id。 |
@@ -849,7 +851,7 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 方法 | `POST` |
 | 路径 | `/api/v1/agents/{agent_id}/runs` |
 | 认证 | 已接入 `IdentityContext` dependency；local/dev 未配置 verifier 时注入默认身份，service/API key profile 要求 `Authorization: Bearer <token>` 或等价 API key；创建前必须通过 `run.create` policy check。 |
-| 请求头 | `Content-Type: application/json`；可选 `Accept: application/json`、`X-Request-Id`、`X-Trace-Id`；认证 profile 启用 verifier 时必填 `Authorization: Bearer <token>` 或等价 API key。`run-trace-correlation` 实现后，缺失 trace 由服务端生成。 |
+| 请求头 | `Content-Type: application/json`；可选 `Accept: application/json`、`X-Request-Id`、`X-Trace-Id`；认证 profile 启用 verifier 时必填 `Authorization: Bearer <token>` 或等价 API key。缺失 trace 由服务端在业务副作用前生成。 |
 | Path 参数 | `agent_id: string`，稳定 agent ID。Agent Registry 能力落地后必须由 `AgentRegistry` 校验存在性和重复性。 |
 | URL 参数 | none |
 | 请求体 | `AgentRunCreateRequest` |
@@ -858,7 +860,7 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 成功响应码 | local profile `200`；service profile queued成功 `202`。 |
 | 响应头 | 当前只保证 `Content-Type: application/json`；不保证 `X-Request-Id` response header。 |
 | 响应体 | `RunCreateResponse`。 |
-| 错误响应码 | 当前：`400 api.http_error`、`401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied` / `guardrail.denied`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition`、`422 validation_error` / `registry.invalid_config`、`503 run.enqueue_unavailable`、`500 api.internal_error`。`run-trace-correlation` 新增 `409 trace.conflict` 与 `409 trace.idempotency_conflict`。 |
+| 错误响应码 | `400 api.http_error`、`401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied` / `guardrail.denied`、`404 registry.agent_not_found` / `api.not_found`、`409 run.invalid_transition` / `trace.conflict` / `trace.idempotency_conflict`、`422 validation_error` / `registry.invalid_config`、`503 run.enqueue_unavailable`、`500 api.internal_error`。 |
 | 状态语义 | service 202 返回 `created`，且只有 Redis接受、repository保存 queued/message ref并发布唯一 `run.queued` 后才算成功；enqueue任一步失败返回503并保留可补投私有状态。同客户端 key重试复用原 run/operation/首次 request id；无客户端 key的新请求仍非幂等，但原 pending run由worker startup/pickup recovery补投。`completed/failed/cancelled` 表示 terminal；`waiting` 表示需要 approval 或 resume。私有 queue字段不进入响应/OpenAPI。 |
 | 安全规则 | API route 不得直接操作 ORM session、DBOS API 或 provider SDK；input 进入 runtime 前必须经过 `run.create` policy check 和 guardrail/trust 标注；无效 token 或缺少 `run.create` 权限不得创建 run。 |
 | 验证要求 | legacy route/OpenAPI 由 `tests/contracts/test_runtime_checkpoint_runs_contracts.py` 锁定；service enqueue、身份 fencing 与 worker recovery 分别由 `test_split_runtime_execution_contracts.py`、`test_split_runtime_worker_recovery_contracts.py` 锁定；`make smoke-service` 必须在 workspace 外以真实 API key、PostgreSQL、Redis 和独立 worker证明 HTTP-to-worker、hard crash/reclaim、唯一 terminal 与重复提交同 run。认证/策略/HITL tests 必须覆盖无效 token 零 run/queue/audit、guardrail deny 和 require_approval。 |
@@ -868,7 +870,7 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `CLI-RUN-001` |
-| 状态 | 当前命令已实现；`run-trace-correlation` 目标增加可选 `--trace-id` 并收紧错误语义。 |
+| 状态 | 已实现可选 `--trace-id`、canonical trace 生成与稳定冲突错误。 |
 | 命令 | `agent-harness run <agent_id> [--trace-id <value>]`，其余 profile/storage/events/agents/idempotency/prompt 选项保持既有语义。 |
 | Trace 输入 | `--trace-id` 缺失时在业务副作用前生成 lowercase RFC 4122 UUID；提供时必须原样匹配 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`，不 trim、不折叠大小写，并与 RUN-001 使用同一 normalizer。 |
 | 幂等与冲突 | 同一 idempotency key 缺失 trace 或提供首次 canonical trace 时复用首次 run；提供不同 trace 返回 `trace.idempotency_conflict`。已绑定其他 root run 返回 `trace.conflict`；格式非法返回 `validation_error`。 |

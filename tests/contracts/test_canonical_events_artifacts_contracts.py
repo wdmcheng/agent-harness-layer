@@ -1,20 +1,16 @@
-"""CanonicalEvent、artifact 和 local evidence 的公开契约测试。
-
-这些测试锁的是 runtime/API/eval 后续都会消费的事件脊柱：事件 envelope、
-per-run seq、terminal 唯一性、payload_ref、redaction、OTel 映射和 SSE 格式。
-它们不证明真实观测 provider、模型调用或多进程 worker；那些属于后续能力。
-"""
+"""CanonicalEvent schema、本地序列与 replay 的公开契约测试。"""
 
 from __future__ import annotations
 
 import asyncio
-import json
+import multiprocessing
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
+from pydantic import ValidationError
+from tests.contracts.canonical_event_artifact_test_helpers import ContractRunTraceResolver
 
-from agent_harness.artifacts import FileArtifactStore
-from agent_harness.contracts import GuardrailDecision, SourceRef, TrustLevel
 from agent_harness.events import (
     CanonicalEvent,
     CanonicalEventType,
@@ -22,11 +18,99 @@ from agent_harness.events import (
     LocalJsonlEventSink,
     TerminalEventError,
 )
-from agent_harness.observability.otel import map_event_to_otel
-from agent_harness.security.guardrails import guardrail_event_payload
-from app.api.sse import format_sse_event
 
-ROOT = Path(__file__).resolve().parents[2]
+
+def test_canonical_event_scope_is_typed_and_trace_is_conditionally_required() -> None:
+    """non-run 可保留 nullable trace；run 与未知 scope 在 DTO 边界失败。"""
+
+    non_run = CanonicalEvent(
+        tenant_id="telemetry",
+        run_id="telemetry",
+        event_type=CanonicalEventType.ARTIFACT_CREATED,
+        seq=1,
+        trace_id=None,
+        record_scope="non_run",
+    )
+    assert non_run.trace_id is None
+    assert "trace_id" not in non_run.to_payload()
+    missing_trace = CanonicalEvent(
+        tenant_id="telemetry",
+        run_id="telemetry",
+        event_type=CanonicalEventType.ARTIFACT_CREATED,
+        seq=2,
+        record_scope="non_run",
+    )
+    assert missing_trace.trace_id is None
+
+    with pytest.raises(ValidationError):
+        CanonicalEvent(
+            tenant_id="tenant-a",
+            run_id="run-a",
+            event_type=CanonicalEventType.RUN_STARTED,
+            seq=1,
+            trace_id=None,
+        )
+    with pytest.raises(ValidationError):
+        CanonicalEvent(
+            tenant_id="tenant-a",
+            run_id="run-a",
+            event_type=CanonicalEventType.RUN_STARTED,
+            seq=1,
+            trace_id="trace-a",
+            record_scope=cast(Any, "other"),
+        )
+
+    schema = CanonicalEvent.model_json_schema()
+    assert schema["properties"]["record_scope"]["enum"] == ["run", "non_run"]
+    assert any("if" in branch and "then" in branch for branch in schema["allOf"])
+
+
+@pytest.mark.asyncio
+async def test_local_direct_sink_rejects_untyped_scope_without_side_effect(
+    tmp_path: Path,
+) -> None:
+    """DTO 被刻意绕过时，local 持久化 seam 仍拒绝第三种 scope。"""
+
+    path = tmp_path / "typed-scope.jsonl"
+    sink = LocalJsonlEventSink(path)
+    non_run = CanonicalEvent(
+        event_id="non-run-null-trace",
+        tenant_id="telemetry",
+        run_id="telemetry",
+        event_type=CanonicalEventType.ARTIFACT_CREATED,
+        seq=0,
+        trace_id=None,
+        record_scope="non_run",
+    )
+    persisted = await sink.write(non_run)
+    assert persisted.trace_id is None
+
+    invalid_path = tmp_path / "invalid-scope.jsonl"
+    invalid_sink = LocalJsonlEventSink(invalid_path)
+    invalid = non_run.model_copy(update={"event_id": "invalid-scope"})
+    object.__setattr__(invalid, "record_scope", "other")
+    with pytest.raises(ValueError, match="record_scope must be run or non_run"):
+        await invalid_sink.write(invalid)
+    assert not invalid_path.exists()
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
+
+
+def _write_local_event_in_process(
+    path: str,
+    payload: dict[str, Any],
+    start: Any,
+    results: Any,
+) -> None:
+    """子进程从同一闸门竞争同一个 JSONL event-id。"""
+
+    start.wait()
+    try:
+        event = asyncio.run(
+            LocalJsonlEventSink(Path(path)).write(CanonicalEvent.model_validate(payload))
+        )
+        results.put(("ok", event.seq))
+    except Exception as exc:  # pragma: no cover - 父进程会把异常转成断言证据
+        results.put(("error", type(exc).__name__))
 
 
 def test_event_bus_coordinates_each_event_loop_without_cross_loop_lock_binding() -> None:
@@ -56,7 +140,10 @@ def test_event_bus_coordinates_each_event_loop_without_cross_loop_lock_binding()
             return any(event.run_id == run_id and event.terminal for event in self.events)
 
     sink = YieldingSink()
-    bus = EventBus(sink=sink)
+    bus = EventBus(
+        sink=sink,
+        run_trace_resolver=ContractRunTraceResolver({("tenant-loop", "run-loop"): "trace-loop"}),
+    )
 
     async def burst(prefix: str) -> None:
         await asyncio.gather(
@@ -66,6 +153,7 @@ def test_event_bus_coordinates_each_event_loop_without_cross_loop_lock_binding()
                     run_id="run-loop",
                     event_type=CanonicalEventType.RUN_STARTED,
                     event_id=f"{prefix}-{index}",
+                    trace_id="trace-loop",
                 )
                 for index in range(2)
             )
@@ -125,7 +213,10 @@ async def test_event_bus_assigns_seq_and_rejects_second_terminal(tmp_path: Path)
     # EventBus 是 runtime 的写入 seam：调用方不手动分配 seq，也不能绕过 terminal 规则。
     # 这里用 local jsonl sink 证明断线续读语义；不声明它已经支持多进程并发队列。
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
-    bus = EventBus(sink=sink)
+    bus = EventBus(
+        sink=sink,
+        run_trace_resolver=ContractRunTraceResolver({("default", "run-1"): "trace-1"}),
+    )
 
     first = await bus.publish(
         tenant_id="default",
@@ -146,6 +237,8 @@ async def test_event_bus_assigns_seq_and_rejects_second_terminal(tmp_path: Path)
         event_type=CanonicalEventType.RUN_COMPLETED,
         payload={"status": "completed"},
         terminal=True,
+        visibility="public",
+        trace_id="trace-1",
     )
 
     # Envelope 字段是外部 adapter 之间的稳定协议；这里锁字段名，避免实现
@@ -169,124 +262,151 @@ async def test_event_bus_assigns_seq_and_rejects_second_terminal(tmp_path: Path)
             event_type=CanonicalEventType.RUN_FAILED,
             payload={"status": "failed"},
             terminal=True,
+            visibility="public",
+            trace_id="trace-1",
         )
 
 
 @pytest.mark.asyncio
-async def test_large_payload_is_written_to_artifact_ref(tmp_path: Path) -> None:
-    # 大 payload 不能塞进事件正文；事件只保存摘要、payload_ref 和 checksum。
-    # artifact store 保留脱敏后的完整证据，后续 eval/debug 可以按 ref 取回。
-    sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
-    store = FileArtifactStore(tmp_path / "artifacts")
-    bus = EventBus(sink=sink, artifact_store=store, inline_payload_bytes=32)
-    payload = {"text": "x" * 200}
+async def test_local_sink_replay_is_global_idempotent_and_boundary_safe(tmp_path: Path) -> None:
+    """direct local sink 的 event-id claim 跨 run/tenant，且错误不泄露已有事件。"""
 
-    event = await bus.publish(
-        tenant_id="default",
-        run_id="run-large",
-        agent_id="fake-agent",
-        event_type=CanonicalEventType.ARTIFACT_CREATED,
-        payload=payload,
+    path = tmp_path / "events.jsonl"
+    sink = LocalJsonlEventSink(
+        path,
+        run_trace_resolver=ContractRunTraceResolver({("tenant-a", "run-a"): "trace-a"}),
+    )
+    event = CanonicalEvent(
+        event_id="shared-event-id",
+        tenant_id="tenant-a",
+        run_id="run-a",
+        event_type=CanonicalEventType.RUN_STARTED,
+        seq=0,
+        trace_id="trace-a",
+        record_scope="non_run",
+    )
+    persisted = await sink.write(event)
+    assert await sink.write(event) == persisted
+    assert (
+        await asyncio.gather(*(LocalJsonlEventSink(path).write(event) for _ in range(6)))
+        == [persisted] * 6
     )
 
-    assert event.payload_ref is not None
-    assert event.payload_checksum is not None
-    assert event.payload == {"artifact": {"size_bytes": len(json.dumps(payload).encode())}}
-    assert store.read_json(event.payload_ref) == payload
+    invalid_replays = [
+        event.model_copy(update={"tenant_id": "tenant-b"}),
+        event.model_copy(update={"run_id": "run-b"}),
+        event.model_copy(update={"trace_id": "trace-b"}),
+        event.model_copy(update={"record_scope": "run"}),
+        event.model_copy(update={"terminal": True, "visibility": "public"}),
+        event.model_copy(update={"visibility": "public"}),
+        event.model_copy(update={"event_type": CanonicalEventType.TOOL_CALL_COMPLETED}),
+        event.model_copy(update={"event_version": "2.0"}),
+        event.model_copy(update={"user_id": "other-user"}),
+        event.model_copy(update={"agent_id": "other-agent"}),
+        event.model_copy(update={"parent_run_id": "other-parent"}),
+        event.model_copy(update={"payload": {"operation": "different"}}),
+        event.model_copy(update={"payload_ref": "artifact://different"}),
+        event.model_copy(update={"payload_checksum": "different-checksum"}),
+        event.model_copy(update={"raw_event_ref": "provider://different"}),
+        event.model_copy(update={"request_id": "different-request"}),
+        event.model_copy(update={"span_id": "different-span"}),
+    ]
+    for replay in invalid_replays:
+        with pytest.raises(
+            ValueError,
+            match="event replay envelope does not match persisted event",
+        ) as error:
+            await sink.write(replay)
+        assert "tenant-a" not in str(error.value)
+        assert "run-a" not in str(error.value)
+        assert "trace-a" not in str(error.value)
+
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
+    assert await sink.read(run_id="run-b") == []
 
 
 @pytest.mark.asyncio
-async def test_guardrail_payload_redacts_secret_metadata(tmp_path: Path) -> None:
-    # guardrail/context assembly 事件只允许摘要和来源元数据，secret-like 字段必须脱敏。
-    # 这里直接通过 helper + EventBus 持久化，证明写入证据前就已经 redaction。
-    source = SourceRef(kind="user", uri="prompt://local", label="local prompt")
-    payload = guardrail_event_payload(
-        decision=GuardrailDecision.deny(
-            "blocked",
-            metadata={
-                "api_key": "sk-secret",
-                "nested": {"password": "p@ss"},
-                "raw_tool_output": "token=tool-secret-12345 and sk-abcdef1234567890",
-            },
-        ),
-        source_ref=source,
-        trust_level=TrustLevel.UNTRUSTED,
-        summary="user prompt blocked token=summary-secret-12345",
-        truncated=True,
-    )
-    sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
-    bus = EventBus(sink=sink)
+async def test_event_bus_replay_matrix_delegates_to_atomic_local_claim(tmp_path: Path) -> None:
+    """EventBus 不预查盲返，所有 replay 边界都由同一个 local claim 校验。"""
 
-    event = await bus.publish(
-        tenant_id="default",
-        run_id="run-guardrail",
-        agent_id="fake-agent",
-        event_type=CanonicalEventType.INPUT_GUARDRAIL_BLOCKED,
-        payload=payload,
-        terminal=True,
+    path = tmp_path / "events.jsonl"
+    bus = EventBus(
+        sink=LocalJsonlEventSink(path),
+        run_trace_resolver=ContractRunTraceResolver({("tenant-a", "run-a"): "trace-a"}),
     )
 
-    persisted = event.to_payload()
-    assert "sk-secret" not in json.dumps(persisted)
-    assert "p@ss" not in json.dumps(persisted)
-    assert "tool-secret-12345" not in json.dumps(persisted)
-    assert "sk-abcdef1234567890" not in json.dumps(persisted)
-    assert "summary-secret-12345" not in json.dumps(persisted)
-    assert "[REDACTED]" in persisted["payload"]["summary"]
-    assert persisted["payload"]["decision"]["metadata"]["api_key"] == "[REDACTED]"
-    assert persisted["payload"]["trust_level"] == "untrusted"
+    async def publish(**updates: Any) -> CanonicalEvent:
+        values: dict[str, Any] = {
+            "tenant_id": "tenant-a",
+            "run_id": "run-a",
+            "trace_id": "trace-a",
+            "record_scope": "non_run",
+            "terminal": False,
+            "visibility": "internal",
+        }
+        values.update(updates)
+        return await bus.publish(
+            tenant_id=values["tenant_id"],
+            run_id=values["run_id"],
+            event_type=CanonicalEventType.RUN_STARTED,
+            event_id="bus-matrix-event",
+            trace_id=values["trace_id"],
+            record_scope=values["record_scope"],
+            terminal=values["terminal"],
+            visibility=values["visibility"],
+        )
+
+    persisted = await publish()
+    assert await publish() == persisted
+    invalid_updates = [
+        {"tenant_id": "tenant-b"},
+        {"run_id": "run-b"},
+        {"trace_id": "trace-b"},
+        {"record_scope": "run"},
+        {"terminal": True, "visibility": "public"},
+        {"visibility": "public"},
+    ]
+    for updates in invalid_updates:
+        with pytest.raises(
+            ValueError,
+            match="event replay envelope does not match persisted event",
+        ) as error:
+            await publish(**updates)
+        assert str(error.value) == "event replay envelope does not match persisted event"
+
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
 
 
-@pytest.mark.asyncio
-async def test_artifact_payload_is_redacted_before_disk_write(tmp_path: Path) -> None:
-    # 大 payload 会进入 artifact，而 artifact 是长期证据文件。这里直接读回磁盘内容，
-    # 证明 secret 不只是从事件摘要中消失，也没有落到 artifact 本体。
-    sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
-    store = FileArtifactStore(tmp_path / "artifacts")
-    bus = EventBus(sink=sink, artifact_store=store, inline_payload_bytes=32)
-    payload = {
-        "api_key": "sk-abcdef1234567890",
-        "text": "large-secret-payload token=artifact-secret-12345" * 8,
-    }
+def test_local_sink_same_id_race_is_idempotent_across_processes(tmp_path: Path) -> None:
+    """两个独立进程同时 append 同 ID，最终只能有一条 evidence。"""
 
-    event = await bus.publish(
-        tenant_id="default",
-        run_id="run-artifact-secret",
-        agent_id="fake-agent",
-        event_type=CanonicalEventType.ARTIFACT_CREATED,
-        payload=payload,
+    path = tmp_path / "events.jsonl"
+    event = CanonicalEvent(
+        event_id="process-race-event",
+        tenant_id="tenant-process",
+        run_id="run-process",
+        event_type=CanonicalEventType.RUN_STARTED,
+        seq=0,
+        trace_id="trace-process",
+        record_scope="non_run",
     )
+    context = multiprocessing.get_context("spawn")
+    start = context.Event()
+    results = context.Queue()
+    processes = [
+        context.Process(
+            target=_write_local_event_in_process,
+            args=(str(path), event.to_payload(), start, results),
+        )
+        for _ in range(2)
+    ]
+    for process in processes:
+        process.start()
+    start.set()
+    outcomes = [results.get(timeout=15) for _ in processes]
+    for process in processes:
+        process.join(timeout=15)
+        assert process.exitcode == 0
 
-    assert event.payload_ref is not None
-    artifact = store.read_json(event.payload_ref)
-    serialized = json.dumps(artifact)
-    assert "sk-abcdef1234567890" not in serialized
-    assert "artifact-secret-12345" not in serialized
-    assert artifact["api_key"] == "[REDACTED]"
-
-
-@pytest.mark.asyncio
-async def test_otel_mapping_and_sse_format_are_provider_neutral(tmp_path: Path) -> None:
-    # OTel facade 和 SSE adapter 都消费 CanonicalEvent JSON，不允许暴露 provider SDK、
-    # ORM model 或内部 Python 对象。真实 exporter 和 FastAPI route 在后续能力中接入。
-    sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
-    event = await EventBus(sink=sink).publish(
-        tenant_id="default",
-        run_id="run-sse",
-        agent_id="fake-agent",
-        event_type=CanonicalEventType.RUN_COMPLETED,
-        payload={"status": "completed"},
-        terminal=True,
-        trace_id="trace-1",
-    )
-
-    otel = map_event_to_otel(event)
-    sse = format_sse_event(event)
-
-    assert otel.name == "agent_harness.run.completed"
-    assert otel.attributes["event_id"] == event.event_id
-    assert otel.attributes["run_id"] == "run-sse"
-    assert otel.attributes["event_type"] == "run.completed"
-    assert "id: 1" in sse
-    assert "event: run.completed" in sse
-    assert '"run_id":"run-sse"' in sse
+    assert outcomes == [("ok", 1), ("ok", 1)]
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1

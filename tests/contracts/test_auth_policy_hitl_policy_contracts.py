@@ -15,6 +15,7 @@ from tests.contracts.auth_policy_hitl_contract_helpers import (
     table_count,
     table_json_payloads,
 )
+from tests.contracts.run_trace_contract_helpers import seed_persisted_run
 
 from agent_harness.events import EventBus, LocalJsonlEventSink
 from agent_harness.identity import IdentityContext
@@ -212,12 +213,13 @@ async def test_policy_engine_guardrail_approval_and_audit_flow(tmp_path: Path) -
     policy = PolicyEngine(provider=YamlPolicyProvider.default(), audit=audit)
 
     try:
+        policy_run_id = await seed_persisted_run(storage, trace_id="trace-1")
         allowed = await policy.evaluate(
             PolicyCheck(
                 actor=identity,
                 resource="run:read",
                 action="run.read",
-                context={"run_id": "run-1"},
+                context={"run_id": policy_run_id},
             )
         )
         shell = await policy.evaluate(
@@ -225,7 +227,7 @@ async def test_policy_engine_guardrail_approval_and_audit_flow(tmp_path: Path) -
                 actor=identity,
                 resource="tool:shell",
                 action="shell.execute",
-                context={"run_id": "run-1", "trace_id": "trace-1"},
+                context={"run_id": policy_run_id, "trace_id": "trace-1"},
             )
         )
         guardrail = InputGuardrail(policy=policy, audit=audit)
@@ -300,5 +302,5 @@ async def test_policy_engine_guardrail_approval_and_audit_flow(tmp_path: Path) -
     assert any(payload["session_id"] == "auth-policy-hitl-session" for payload in audit_payloads)
     assert any(payload["decision"] == "require_approval" for payload in audit_payloads)
     assert any(payload["run_id"] == waiting.run_id for payload in audit_payloads)
-    assert any(payload["trace_id"] == "trace-approval" for payload in audit_payloads)
+    assert any(payload["trace_id"] == approval.trace_id for payload in audit_payloads)
     assert any(payload["request_id"] == "req-approve" for payload in audit_payloads)

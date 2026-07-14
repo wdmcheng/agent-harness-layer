@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import os
+from argparse import Namespace
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 from alembic import command
+from alembic.config import Config
 from tests.contracts.test_eval_experiment_storage_contracts import (
     acceptance_create,
     experiment_create,
@@ -40,12 +42,18 @@ async def test_eval_experiment_postgresql_repository_and_downgrade_contract() ->
     await admin_engine.dispose()
 
     dsn = test_url.render_as_string(hide_password=False)
+
+    def downgrade_config() -> Config:
+        config = alembic_config(dsn)
+        config.cmd_opts = Namespace(x=["allow_empty_evidence_downgrade=true"])
+        return config
+
     storage: SQLAlchemyStorage | None = None
     try:
         await asyncio.to_thread(run_migrations, dsn)
         await asyncio.to_thread(
             command.downgrade,
-            alembic_config(dsn),
+            downgrade_config(),
             "0008_agent_execution_approval_claims",
         )
         assert (
@@ -98,12 +106,11 @@ async def test_eval_experiment_postgresql_repository_and_downgrade_contract() ->
         with pytest.raises(RuntimeError, match="0011 downgrade refused"):
             await asyncio.to_thread(
                 command.downgrade,
-                alembic_config(dsn),
+                downgrade_config(),
                 "0008_agent_execution_approval_claims",
             )
         assert (
-            await asyncio.to_thread(get_current_revision, dsn)
-            == "0012_service_runtime_execution_context"
+            await asyncio.to_thread(get_current_revision, dsn) == "0013a_run_trace_event_hardening"
         )
         storage = SQLAlchemyStorage.from_dsn(dsn)
         async with storage.uow() as uow:

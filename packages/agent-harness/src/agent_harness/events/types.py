@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, model_validator
 
 from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.contracts.run_trace import TRACE_ID_PATTERN
+
+EventRecordScope = Literal["run", "non_run"]
 
 
 class CanonicalEventType(StrEnum):
@@ -53,6 +56,20 @@ class CanonicalEventType(StrEnum):
 class CanonicalEvent(HarnessDTO):
     """跨 runtime、API、SSE、trace 和 eval 的稳定事件 envelope。"""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "allOf": [
+                {
+                    "if": {"properties": {"record_scope": {"const": "run"}}},
+                    "then": {
+                        "properties": {"trace_id": {"type": "string"}},
+                        "required": ["trace_id"],
+                    },
+                }
+            ]
+        }
+    )
+
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     tenant_id: str
     run_id: str
@@ -71,4 +88,15 @@ class CanonicalEvent(HarnessDTO):
     visibility: str = "internal"
     request_id: str | None = None
     trace_id: str | None = None
+    record_scope: EventRecordScope = "run"
     span_id: str | None = None
+
+    @model_validator(mode="after")
+    def validate_run_scope_trace(self) -> CanonicalEvent:
+        """run evidence 必须携带合法 canonical trace；non-run 保留 nullable 语义。"""
+
+        if self.record_scope == "run" and (
+            self.trace_id is None or TRACE_ID_PATTERN.fullmatch(self.trace_id) is None
+        ):
+            raise ValueError("run-scoped event requires a canonical trace")
+        return self

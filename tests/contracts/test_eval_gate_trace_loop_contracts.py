@@ -20,6 +20,7 @@ from tests.contracts.auth_policy_hitl_contract_helpers import (
     sqlite_dsn,
     table_count,
 )
+from tests.contracts.run_trace_contract_helpers import seed_persisted_run
 
 from agent_harness.events import LocalJsonlEventSink
 from agent_harness.identity import IdentityContext
@@ -265,11 +266,12 @@ async def test_eval_approve_api_policy_denied_has_no_side_effects(tmp_path: Path
     )
 
     try:
+        source_run_id = await seed_persisted_run(storage, trace_id="trace-policy-deny")
         draft = await service.draft_from_trace(
             EvalTraceSource(
                 tenant_id="default",
                 agent_id="examples.basic",
-                run_id="run-policy-deny",
+                run_id=source_run_id,
                 trace_id="trace-policy-deny",
                 trigger="failed_run",
                 input={"prompt": "hello"},
@@ -330,11 +332,12 @@ async def test_eval_approve_api_returns_audit_ref(tmp_path: Path) -> None:
     )
 
     try:
+        source_run_id = await seed_persisted_run(storage, trace_id="trace-api-approve")
         draft = await service.draft_from_trace(
             EvalTraceSource(
                 tenant_id="default",
                 agent_id="examples.basic",
-                run_id="run-api-approve",
+                run_id=source_run_id,
                 trace_id="trace-api-approve",
                 trigger="failed_run",
                 input={"prompt": "hello"},
@@ -372,6 +375,7 @@ async def test_eval_run_api_returns_local_refs_and_degraded_provider_status(
     from agent_harness.auth import StaticTokenVerifier
     from agent_harness.evals import EvalCaseFactory, EvalService, EvalTraceSource, ScoreSink
     from agent_harness.observability import TelemetryFacade
+    from agent_harness.storage.run_trace_gate import StorageRunTraceResolver
     from app.main import create_app
 
     db_path = tmp_path / "eval-api-run.db"
@@ -385,7 +389,10 @@ async def test_eval_run_api_returns_local_refs_and_degraded_provider_status(
         score_sink=ScoreSink(
             local_path=local_scores,
             telemetry=TelemetryFacade(
-                local_sink=LocalJsonlEventSink(tmp_path / "telemetry.jsonl"),
+                local_sink=LocalJsonlEventSink(
+                    tmp_path / "telemetry.jsonl",
+                    run_trace_resolver=StorageRunTraceResolver(storage),
+                ),
                 providers=[FailingScoreProvider()],
             ),
         ),
@@ -402,11 +409,12 @@ async def test_eval_run_api_returns_local_refs_and_degraded_provider_status(
     reviewer = IdentityContext.local_default()
 
     try:
+        source_run_id = await seed_persisted_run(storage, trace_id="trace-api-eval")
         draft = await service.draft_from_trace(
             EvalTraceSource(
                 tenant_id="default",
                 agent_id="examples.basic",
-                run_id="run-api-eval",
+                run_id=source_run_id,
                 trace_id="trace-api-eval",
                 trigger="failed_run",
                 input={"prompt": "hello"},

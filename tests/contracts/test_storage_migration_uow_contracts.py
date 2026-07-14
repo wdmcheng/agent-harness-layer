@@ -53,7 +53,8 @@ def assert_core_schema(db_path: Path) -> None:
             "policy_rules",
             "audit_logs",
             "context_assemblies",
-            "embedding_cache",
+            "tenant_embedding_cache",
+            "run_trace_bindings",
             "retrieval_documents",
             "retrieval_chunks",
             "api_keys",
@@ -65,7 +66,7 @@ def assert_core_schema(db_path: Path) -> None:
             "harness_acceptance_records",
         } <= tables
         revision = connection.execute("select version_num from alembic_version").fetchone()
-        assert revision == ("0012_service_runtime_execution_context",)
+        assert revision == ("0013a_run_trace_event_hardening",)
 
 
 def test_local_sqlite_migration_creates_core_schema(tmp_path: Path) -> None:
@@ -104,6 +105,7 @@ async def test_repository_contract_uses_uow_and_rolls_back(tmp_path: Path) -> No
                     session_id=session.id,
                     agent_id="fake-agent",
                     idempotency_key="idem-1",
+                    trace_id="trace-idem-1",
                     input={"prompt": "hello"},
                 )
             )
@@ -113,7 +115,7 @@ async def test_repository_contract_uses_uow_and_rolls_back(tmp_path: Path) -> No
                     run_id=run.id,
                     sequence=1,
                     resume_token="resume-1",
-                    state={"step": "created"},
+                    state={"step": "created", "trace_id": "trace-idem-1"},
                 )
             )
             await uow.commit()
@@ -131,7 +133,7 @@ async def test_repository_contract_uses_uow_and_rolls_back(tmp_path: Path) -> No
         assert same_run.id == run.id
         assert latest is not None
         assert latest.id == checkpoint.id
-        assert latest.state == {"step": "created"}
+        assert latest.state == {"step": "created", "trace_id": "trace-idem-1"}
 
         async with storage.uow() as uow:
             rolled_back = await uow.runs.create(
@@ -140,6 +142,7 @@ async def test_repository_contract_uses_uow_and_rolls_back(tmp_path: Path) -> No
                     session_id=session.id,
                     agent_id="fake-agent",
                     idempotency_key="rollback",
+                    trace_id="trace-rollback",
                     input={},
                 )
             )
@@ -219,6 +222,7 @@ async def test_repository_contract_postgresql_service_adapter() -> None:
                     session_id=session.id,
                     agent_id="fake-agent",
                     idempotency_key="pg-idem",
+                    trace_id="trace-pg-idem",
                     input={"profile": "service"},
                 )
             )
@@ -264,7 +268,7 @@ def test_doctor_cli_reports_local_storage_migration_and_eval_status(tmp_path: Pa
 
     assert result.returncode == 0, result.stderr
     assert "storage: sqlite" in result.stdout
-    assert "migration: 0012_service_runtime_execution_context" in result.stdout
+    assert "migration: 0013a_run_trace_event_hardening" in result.stdout
     assert "redis: not required" in result.stdout
     assert "eval directory:" in result.stdout
 

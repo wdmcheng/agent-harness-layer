@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from time import perf_counter
 from typing import Protocol
 
 from agent_harness.contracts.dto import HarnessDTO
@@ -62,6 +63,7 @@ class LocalEmbeddingProvider:
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         input_hash = hashlib.sha256(request.input.encode("utf-8")).hexdigest()
         cached = await self._cache.get(
+            tenant_id=request.tenant_id,
             provider=self.provider,
             model=self.model,
             input_hash=input_hash,
@@ -79,8 +81,11 @@ class LocalEmbeddingProvider:
                     vector_ref=cached.vector_ref,
                 ),
             )
+        started = perf_counter()
         vector = _deterministic_vector(input_hash)
-        vector_ref = f"embedding://{self.provider}/{self.model}/{input_hash}"
+        latency_ms = int((perf_counter() - started) * 1000)
+        tenant_hash = hashlib.sha256(request.tenant_id.encode("utf-8")).hexdigest()
+        vector_ref = f"embedding://{self.provider}/{self.model}/{tenant_hash}/{input_hash}"
         await self._cache.put(
             EmbeddingCacheCreate(
                 tenant_id=request.tenant_id,
@@ -88,7 +93,13 @@ class LocalEmbeddingProvider:
                 model=self.model,
                 input_hash=input_hash,
                 vector_ref=vector_ref,
-                metadata={"latency_ms": 0, "dimensions": len(vector)},
+                metadata={
+                    "cache_status": "miss",
+                    "vector_ref": vector_ref,
+                    "provider_latency_status": "recorded",
+                    "provider_latency_ms": latency_ms,
+                    "dimensions": len(vector),
+                },
             )
         )
         return EmbeddingResponse(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from pydantic import Field
 
 from agent_harness.approvals import ApprovalService
@@ -123,68 +123,90 @@ async def create_run_with_orchestrator(
 ) -> RunCreateResponse:
     """API 和测试共用的 run create 适配逻辑。"""
 
-    # route 必须保持薄适配层。idempotency、状态转换、事件写入和 storage
-    # transaction boundary 都归 runtime 管。
-    checkpoint_state: dict[str, Any] | None = None
-    guardrail_payload: dict[str, Any] | None = None
-    if identity is not None:
-        await _check_run_create_permission(
-            policy=policy,
-            identity=identity,
-            agent_id=request.agent_id,
-            request_id=request_id,
-        )
-    if identity is not None and input_guardrail is not None:
-        guardrail = await input_guardrail.check(
-            actor=identity,
-            agent_id=request.agent_id,
-            input=request.input,
-        )
-        guardrail_payload = guardrail.to_payload()
-        if guardrail.decision == GuardrailDecisionStatus.DENY.value:
-            raise PolicyDeniedError(guardrail.reason)
-        if guardrail.decision == GuardrailDecisionStatus.REQUIRE_APPROVAL.value:
-            checkpoint_state = {
-                "reason": guardrail.reason,
-                "policy": guardrail_payload,
-            }
-
     run_method = orchestrator.submit_run if orchestrator.uses_queue else orchestrator.start_run
-    result = await run_method(
+    preflight_trace = await orchestrator.prepare_trace(
         agent_id=request.agent_id,
-        input=request.input,
-        idempotency_key=request.idempotency_key,
-        checkpoint_state=checkpoint_state,
         identity=identity,
-        request_id=request_id,
+        idempotency_key=request.idempotency_key,
         trace_id=trace_id,
     )
-    if identity is not None and guardrail_payload is not None:
-        await orchestrator.record_guardrail_check(
-            run_id=result.run_id,
+    async with orchestrator.coordinate_run_submission(
+        agent_id=request.agent_id,
+        idempotency_key=request.idempotency_key,
+        trace_id=preflight_trace,
+        identity=identity,
+    ):
+        # 必须在锁内重新 prepare。并发 loser 看到首次 run 后只走 runtime replay，
+        # 不重复 permission、guardrail、audit、approval 或 queue/provider 副作用。
+        canonical_trace = await orchestrator.prepare_trace(
             agent_id=request.agent_id,
             identity=identity,
-            payload=guardrail_payload,
-            request_id=request_id,
-            trace_id=trace_id,
+            idempotency_key=request.idempotency_key,
+            trace_id=preflight_trace,
         )
-    if (
-        identity is not None
-        and approval_service is not None
-        and checkpoint_state is not None
-        and result.resume_token is not None
-    ):
-        await approval_service.require_approval(
-            actor=identity,
-            run_id=result.run_id,
+        checkpoint_state: dict[str, Any] | None = None
+        guardrail_payload: dict[str, Any] | None = None
+        if not canonical_trace.replays_existing and identity is not None:
+            await _check_run_create_permission(
+                policy=policy,
+                identity=identity,
+                agent_id=request.agent_id,
+                request_id=request_id,
+            )
+        if (
+            not canonical_trace.replays_existing
+            and identity is not None
+            and input_guardrail is not None
+        ):
+            guardrail = await input_guardrail.check(
+                actor=identity,
+                agent_id=request.agent_id,
+                input=request.input,
+            )
+            guardrail_payload = guardrail.to_payload()
+            if guardrail.decision == GuardrailDecisionStatus.DENY.value:
+                raise PolicyDeniedError(guardrail.reason)
+            if guardrail.decision == GuardrailDecisionStatus.REQUIRE_APPROVAL.value:
+                checkpoint_state = {
+                    "reason": guardrail.reason,
+                    "policy": guardrail_payload,
+                }
+
+        result = await run_method(
             agent_id=request.agent_id,
-            action="input.prompt_injection",
-            resource=f"agent:{request.agent_id}:input",
-            reason=checkpoint_state["reason"],
-            resume_token=result.resume_token,
+            input=request.input,
+            idempotency_key=request.idempotency_key,
+            checkpoint_state=checkpoint_state,
+            identity=identity,
             request_id=request_id,
-            trace_id=trace_id,
+            trace_id=canonical_trace,
         )
+        if identity is not None and guardrail_payload is not None:
+            await orchestrator.record_guardrail_check(
+                run_id=result.run_id,
+                agent_id=request.agent_id,
+                identity=identity,
+                payload=guardrail_payload,
+                request_id=request_id,
+                trace_id=canonical_trace,
+            )
+        if (
+            identity is not None
+            and approval_service is not None
+            and checkpoint_state is not None
+            and result.resume_token is not None
+        ):
+            await approval_service.require_approval(
+                actor=identity,
+                run_id=result.run_id,
+                agent_id=request.agent_id,
+                action="input.prompt_injection",
+                resource=f"agent:{request.agent_id}:input",
+                reason=checkpoint_state["reason"],
+                resume_token=result.resume_token,
+                request_id=request_id,
+                trace_id=canonical_trace,
+            )
     return RunCreateResponse(
         request_id=request_id,
         run_id=result.run_id,
@@ -230,6 +252,7 @@ async def create_agent_run(
     input_guardrail: Annotated[InputGuardrail | None, Depends(get_input_guardrail)],
     approval_service: Annotated[ApprovalService | None, Depends(get_optional_approval_service)],
     policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
+    trace_id: Annotated[str | None, Header(alias="X-Trace-Id")] = None,
 ) -> RunCreateResponse:
     """创建 agent-scoped run，agent_id 来自稳定 URL 边界。"""
 
@@ -246,7 +269,7 @@ async def create_agent_run(
         input_guardrail=input_guardrail,
         approval_service=approval_service,
         request_id=request_id_from(http_request),
-        trace_id=http_request.headers.get("x-trace-id"),
+        trace_id=trace_id,
     )
     if orchestrator.uses_queue and result.status == RunStatus.CREATED:
         response.status_code = 202

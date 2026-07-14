@@ -9,6 +9,7 @@ from threading import Thread
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -20,6 +21,15 @@ from agent_harness.storage.settings import (
 )
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent
+
+
+class SchemaMigrationRequiredError(RuntimeError):
+    """普通运行入口发现 schema 未到当前 head 时的稳定失败。"""
+
+    code = "storage.migration_required"
+
+    def __init__(self) -> None:
+        super().__init__("database schema requires explicit migration")
 
 
 def alembic_config(dsn: str) -> Config:
@@ -36,6 +46,17 @@ def run_migrations(dsn: str, revision: str = "head") -> None:
         _run_in_thread(lambda: command.upgrade(alembic_config(resolved), revision))
     else:
         command.upgrade(alembic_config(resolved), revision)
+
+
+def get_head_revision() -> str:
+    """返回代码随附 migration 的唯一 head，不访问业务数据库。"""
+
+    head = ScriptDirectory.from_config(
+        alembic_config("sqlite+aiosqlite:///:memory:")
+    ).get_current_head()
+    if head is None:
+        raise RuntimeError("migration head is unavailable")
+    return head
 
 
 def _has_running_loop() -> bool:
@@ -83,4 +104,16 @@ async def _current_revision(dsn: str) -> str | None:
 
 
 def get_current_revision(dsn: str) -> str | None:
+    if _has_running_loop():
+        return _run_in_thread(lambda: asyncio.run(_current_revision(dsn)))
     return asyncio.run(_current_revision(dsn))
+
+
+def require_migration_head(dsn: str) -> str:
+    """只校验 schema，不创建数据库、不自动执行 migration。"""
+
+    expected = get_head_revision()
+    current = get_current_revision(dsn)
+    if current != expected:
+        raise SchemaMigrationRequiredError
+    return expected

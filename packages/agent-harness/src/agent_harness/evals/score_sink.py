@@ -9,6 +9,7 @@ from pydantic import Field
 
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.events import CanonicalEventType
+from agent_harness.local_state import register_local_state_file
 from agent_harness.observability import (
     TelemetryContext,
     TelemetryFacade,
@@ -34,14 +35,26 @@ class ScoreSinkResult(HarnessDTO):
 class ScoreSink:
     """先写本地 JSONL score，再发布 provider-neutral telemetry record。"""
 
-    def __init__(self, *, local_path: Path, telemetry: TelemetryFacade | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        local_path: Path,
+        telemetry: TelemetryFacade | None = None,
+        state_dir: Path | None = None,
+    ) -> None:
         self._local_path = local_path
         self._telemetry = telemetry
+        self._state_dir = state_dir
 
     async def write_score(self, score: EvalScoreCreate) -> ScoreSinkResult:
         """写入已脱敏 score evidence；provider failure 不抛给 eval runner。"""
 
         payload = redact_secrets(score.to_payload())
+        register_local_state_file(
+            self._local_path,
+            kind="scores",
+            state_dir=self._state_dir,
+        )
         self._local_path.parent.mkdir(parents=True, exist_ok=True)
         with self._local_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")

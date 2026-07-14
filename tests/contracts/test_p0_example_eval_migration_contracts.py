@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import sqlite3
 import subprocess
 import sys
+from argparse import Namespace
 from pathlib import Path
 
 import pytest
 from alembic import command
+from alembic.config import Config
 
 from agent_harness.identity import IdentityContext
 from agent_harness.storage import run_migrations
@@ -24,8 +28,15 @@ def _dsn(path: Path) -> str:
     return f"sqlite+aiosqlite:///{path}"
 
 
+def _downgrade_config(dsn: str) -> Config:
+    config = alembic_config(dsn)
+    config.cmd_opts = Namespace(x=["allow_empty_evidence_downgrade=true"])
+    return config
+
+
 def _components(tmp_path: Path, *, name: str) -> tuple[RuntimeComponents, Path]:
     db_path = tmp_path / f"{name}.db"
+    run_migrations(_dsn(db_path))
     components = build_runtime_components(
         profile="local",
         profiles_dir=PROFILES,
@@ -39,12 +50,15 @@ def _components(tmp_path: Path, *, name: str) -> tuple[RuntimeComponents, Path]:
 def test_four_approved_datasets_run_deterministically(tmp_path: Path) -> None:
     """四个 dataset 真实执行，draft 跳过，score/trace evidence 本地落盘。"""
 
+    state_dir = tmp_path / "eval-state"
+    state_dir.mkdir()
+    run_migrations(_dsn(state_dir / "eval.db"))
     result = subprocess.run(
         [
             sys.executable,
             str(SERVICE_APP / "scripts" / "run_example_evals.py"),
             "--state-dir",
-            str(tmp_path / "eval-state"),
+            str(state_dir),
         ],
         cwd=ROOT,
         text=True,
@@ -62,8 +76,87 @@ def test_four_approved_datasets_run_deterministically(tmp_path: Path) -> None:
     assert "agent=examples.rag_assistant" in result.stdout
     assert "drafts_skipped=1" in result.stdout
     assert "example-eval: status=ok failures=0" in result.stdout
-    assert (tmp_path / "eval-state" / "scores.jsonl").exists()
-    assert (tmp_path / "eval-state" / "traces.jsonl").exists()
+    assert (state_dir / "scores.jsonl").exists()
+    assert (state_dir / "traces.jsonl").exists()
+
+
+def test_nested_default_shaped_eval_state_replays_with_one_explicit_manifest(
+    tmp_path: Path,
+) -> None:
+    """显式 `.agent-harness/eval` bundle 连续运行时不得把 manifest 折叠到父目录。"""
+
+    state_dir = tmp_path / ".agent-harness" / "eval"
+    state_dir.mkdir(parents=True)
+    run_migrations(_dsn(state_dir / "eval.db"))
+    command_line = [
+        sys.executable,
+        str(SERVICE_APP / "scripts" / "run_example_evals.py"),
+        "--state-dir",
+        str(state_dir),
+        "--agent",
+        "examples.ticket_triage",
+    ]
+
+    results = [
+        subprocess.run(
+            command_line,
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        for _ in range(2)
+    ]
+
+    assert [result.returncode for result in results] == [0, 0], [
+        result.stderr for result in results
+    ]
+    assert all("example-eval: status=ok failures=0" in result.stdout for result in results)
+    manifest_path = state_dir / "local-state-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert not (state_dir.parent / "local-state-manifest.json").exists()
+    assert {Path(item["path"]) for item in manifest["files"]} == {
+        (state_dir / "scores.jsonl").resolve(),
+        (state_dir / "traces.jsonl").resolve(),
+    }
+    assert {item["state_dir"] for item in manifest["files"]} == {str(state_dir.resolve())}
+
+
+def test_example_eval_rejects_legacy_score_before_run_or_event_side_effects(
+    tmp_path: Path,
+) -> None:
+    """脚本显式 inventory 包含 score；legacy score 不能等到首个 run 后才失败。"""
+
+    state_dir = tmp_path / "eval-state"
+    state_dir.mkdir()
+    database = state_dir / "eval.db"
+    run_migrations(_dsn(database))
+    scores_path = state_dir / "scores.jsonl"
+    original = b'{"run_id":"legacy-run","value":1}\n'
+    scores_path.write_bytes(original)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SERVICE_APP / "scripts" / "run_example_evals.py"),
+            "--state-dir",
+            str(state_dir),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "local_state.migration_required" in result.stderr
+    assert result.stdout == ""
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("select count(*) from agent_runs").fetchone() == (0,)
+        assert connection.execute("select count(*) from run_trace_bindings").fetchone() == (0,)
+        assert connection.execute("select count(*) from audit_logs").fetchone() == (0,)
+    assert scores_path.read_bytes() == original
+    assert not (state_dir / "traces.jsonl").exists()
 
 
 @pytest.mark.asyncio
@@ -74,7 +167,7 @@ async def test_0008_downgrade_only_allows_empty_disposable_data(tmp_path: Path) 
     run_migrations(empty_dsn)
     await asyncio.to_thread(
         command.downgrade,
-        alembic_config(empty_dsn),
+        _downgrade_config(empty_dsn),
         "0007_eval_gate_trace_loop",
     )
     assert await asyncio.to_thread(get_current_revision, empty_dsn) == "0007_eval_gate_trace_loop"
@@ -96,18 +189,19 @@ async def test_0008_downgrade_only_allows_empty_disposable_data(tmp_path: Path) 
                 approval_id=approval.approval_id,
                 run_id=approval.run_id,
                 tenant_id=approval.tenant_id,
+                request_id="req-example-eval-resolution",
             )
             await uow.commit()
     finally:
         await components.close()
 
-    with pytest.raises(RuntimeError, match="downgrade refused"):
+    with pytest.raises(RuntimeError, match="0013 downgrade refused"):
         await asyncio.to_thread(
             command.downgrade,
-            alembic_config(_dsn(db_path)),
+            _downgrade_config(_dsn(db_path)),
             "0007_eval_gate_trace_loop",
         )
+    # 0013a 的无损步骤先回退 stamp；真正触碰 schema 的 0013 降级随后拒绝。
     assert (
-        await asyncio.to_thread(get_current_revision, _dsn(db_path))
-        == "0008_agent_execution_approval_claims"
+        await asyncio.to_thread(get_current_revision, _dsn(db_path)) == "0013_run_trace_correlation"
     )

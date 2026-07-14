@@ -85,6 +85,7 @@ async def inspect_run(run_id: str) -> dict[str, object]:
             "run_id": run.id,
             "tenant_id": run.tenant_id,
             "status": run.status,
+            "trace_id": run.trace_id,
             "owner_id": None if private is None else private.owner_id,
             "workflow_id": None if private is None else private.workflow_id,
             "operation_id": None if private is None else private.operation_id,

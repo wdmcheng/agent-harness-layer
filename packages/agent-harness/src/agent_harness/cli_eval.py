@@ -7,13 +7,16 @@ from pathlib import Path
 
 import typer
 
-from agent_harness.cli_shared import load_settings_or_exit
+from agent_harness.cli_shared import (
+    load_settings_or_exit,
+    require_local_state_ready_or_exit,
+    require_schema_or_exit,
+)
 from agent_harness.config import HarnessSettings
 from agent_harness.evals import EvalCaseFactory, EvalService, EvalTraceSource, ScoreSink
 from agent_harness.storage import (
     EvalCaseRecord,
     SQLAlchemyStorage,
-    run_migrations,
     storage_dsn_from_settings,
 )
 
@@ -117,7 +120,8 @@ def _eval_service_from_cli(
 ) -> tuple[HarnessSettings, SQLAlchemyStorage, EvalService]:
     settings = load_settings_or_exit(profile, profiles_dir)
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
-    run_migrations(resolved_dsn)
+    require_schema_or_exit(resolved_dsn)
+    require_local_state_ready_or_exit(score_paths=(scores_path,))
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
     service = EvalService(
         storage=storage,

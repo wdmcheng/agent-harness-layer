@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 from tests.contracts.auth_policy_hitl_contract_helpers import sqlite_dsn
+from tests.contracts.run_trace_contract_helpers import seed_persisted_run
 
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.config import load_settings
@@ -28,7 +29,8 @@ from agent_harness.observability import (
     TelemetryStatus,
     redact_telemetry_payload,
 )
-from agent_harness.storage import run_migrations
+from agent_harness.storage import SQLAlchemyStorage, run_migrations
+from agent_harness.storage.run_trace_gate import StorageRunTraceResolver
 
 ROOT = Path(__file__).resolve().parents[2]
 PROFILES = ROOT / "templates" / "service-app" / "configs" / "profiles"
@@ -51,31 +53,66 @@ class RecordingProviderAdapter(ProviderTelemetryAdapter):
 
 
 @pytest.mark.asyncio
+async def test_non_run_telemetry_facade_preserves_nullable_trace(tmp_path: Path) -> None:
+    """没有真实 run 归属的 telemetry 不生成假的 canonical trace。"""
+
+    events_path = tmp_path / "non-run-telemetry.jsonl"
+    facade = TelemetryFacade(local_sink=LocalJsonlEventSink(events_path))
+    result = await facade.publish_record(
+        TelemetryRecord(
+            name="agent_harness.audit.policy",
+            record_type="event",
+            context=TelemetryContext(tenant_id="default"),
+            payload={"decision": "deny"},
+        )
+    )
+
+    persisted = json.loads(events_path.read_text(encoding="utf-8"))
+    assert result.local_status.status == "written"
+    assert persisted["record_scope"] == "non_run"
+    assert "trace_id" not in persisted
+    assert "trace_id" not in persisted["payload"]["telemetry"]["context"]
+
+
+@pytest.mark.asyncio
 async def test_telemetry_facade_writes_local_first_and_fans_out_redacted_provider_payload(
     tmp_path: Path,
 ) -> None:
     """local/jsonl 是长期证据；provider 只收到 provider-neutral 且已脱敏的 DTO。"""
 
     events_path = tmp_path / "telemetry.jsonl"
-    event_bus = EventBus(sink=LocalJsonlEventSink(events_path))
-    provider = RecordingProviderAdapter()
-    facade = TelemetryFacade(local_sink=LocalJsonlEventSink(events_path), providers=[provider])
-    source_event = await event_bus.publish(
-        tenant_id="default",
-        user_id="user-1",
-        agent_id="agent-1",
-        run_id="run-1",
-        event_type=CanonicalEventType.TOOL_CALL_COMPLETED,
-        payload={
-            "tool_name": "shell.execute",
-            "api_key": "sk-abcdef1234567890",
-            "stdout": "token=provider-secret-12345",
-        },
-        trace_id="trace-1",
-        span_id="span-1",
+    dsn = sqlite_dsn(tmp_path / "telemetry.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    run_id = await seed_persisted_run(storage, trace_id="trace-1")
+    resolver = StorageRunTraceResolver(storage)
+    event_bus = EventBus(
+        sink=LocalJsonlEventSink(events_path, run_trace_resolver=resolver),
+        run_trace_resolver=resolver,
     )
-
-    result = await facade.publish_event(source_event)
+    provider = RecordingProviderAdapter()
+    facade = TelemetryFacade(
+        local_sink=LocalJsonlEventSink(events_path, run_trace_resolver=resolver),
+        providers=[provider],
+    )
+    try:
+        source_event = await event_bus.publish(
+            tenant_id="default",
+            user_id="user-1",
+            agent_id="agent-1",
+            run_id=run_id,
+            event_type=CanonicalEventType.TOOL_CALL_COMPLETED,
+            payload={
+                "tool_name": "shell.execute",
+                "api_key": "sk-abcdef1234567890",
+                "stdout": "token=provider-secret-12345",
+            },
+            trace_id="trace-1",
+            span_id="span-1",
+        )
+        result = await facade.publish_event(source_event)
+    finally:
+        await storage.dispose()
 
     assert result.local_status.status == "written"
     assert [status.status for status in result.provider_statuses] == ["sent"]
@@ -94,13 +131,23 @@ async def test_provider_failure_is_degraded_and_does_not_drop_local_evidence(
     """外部 provider 异常不能反向破坏 local trace/audit evidence。"""
 
     events_path = tmp_path / "telemetry.jsonl"
+    dsn = sqlite_dsn(tmp_path / "telemetry.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    run_id = await seed_persisted_run(storage, trace_id="trace-1")
     provider = RecordingProviderAdapter(
         fail_with=RuntimeError(
             "provider Authorization: Bearer leaked-secret-12345; "
             "Cookie: sessionid=raw-cookie-12345 failed"
         )
     )
-    facade = TelemetryFacade(local_sink=LocalJsonlEventSink(events_path), providers=[provider])
+    facade = TelemetryFacade(
+        local_sink=LocalJsonlEventSink(
+            events_path,
+            run_trace_resolver=StorageRunTraceResolver(storage),
+        ),
+        providers=[provider],
+    )
     record = TelemetryRecord(
         name="agent_harness.audit.policy",
         record_type="event",
@@ -108,13 +155,16 @@ async def test_provider_failure_is_degraded_and_does_not_drop_local_evidence(
             tenant_id="default",
             user_id="user-1",
             agent_id="agent-1",
-            run_id="run-1",
+            run_id=run_id,
             trace_id="trace-1",
         ),
         payload={"decision": "deny", "password": "p@ss"},
     )
 
-    result = await facade.publish_record(record)
+    try:
+        result = await facade.publish_record(record)
+    finally:
+        await storage.dispose()
 
     assert result.local_status.status == "written"
     assert result.provider_statuses[0].provider == "recording"
@@ -135,10 +185,17 @@ async def test_large_payload_is_written_as_artifact_ref_before_local_or_provider
     """大 payload 只能以 artifact/ref 进入 trace，不内联塞进 local/provider。"""
 
     events_path = tmp_path / "telemetry.jsonl"
+    dsn = sqlite_dsn(tmp_path / "telemetry.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    run_id = await seed_persisted_run(storage, trace_id="trace-large")
     artifact_store = FileArtifactStore(tmp_path / "artifacts")
     provider = RecordingProviderAdapter()
     facade = TelemetryFacade(
-        local_sink=LocalJsonlEventSink(events_path),
+        local_sink=LocalJsonlEventSink(
+            events_path,
+            run_trace_resolver=StorageRunTraceResolver(storage),
+        ),
         providers=[provider],
         artifact_store=artifact_store,
         inline_payload_bytes=128,
@@ -147,14 +204,21 @@ async def test_large_payload_is_written_as_artifact_ref_before_local_or_provider
     record = TelemetryRecord(
         name="agent_harness.tool.call.completed",
         record_type="event",
-        context=TelemetryContext(tenant_id="default", run_id="run-large"),
+        context=TelemetryContext(
+            tenant_id="default",
+            run_id=run_id,
+            trace_id="trace-large",
+        ),
         payload={
             "stdout": large_output,
             "authorization": "Bearer raw-auth-token-12345",
         },
     )
 
-    result = await facade.publish_record(record)
+    try:
+        result = await facade.publish_record(record)
+    finally:
+        await storage.dispose()
 
     assert result.local_status.status == "written"
     persisted = events_path.read_text(encoding="utf-8")

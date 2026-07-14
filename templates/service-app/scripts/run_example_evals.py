@@ -14,6 +14,10 @@ if str(APP_ROOT) not in sys.path:
 
 from agent_harness.evals import EvalRunner, ScoreSink  # noqa: E402
 from agent_harness.identity import IdentityContext  # noqa: E402
+from agent_harness.local_state import (  # noqa: E402
+    LocalStateMigrationError,
+    require_local_state_ready,
+)
 from agent_harness.observability import TelemetryFacade  # noqa: E402
 from app.evals import ExampleEvalAdapter  # noqa: E402
 from app.runtime import build_runtime_components  # noqa: E402
@@ -37,6 +41,11 @@ async def run(args: argparse.Namespace) -> int:
     """共用同一 runtime composition，并把 score/trace 先写 local evidence。"""
 
     state_dir = args.state_dir.resolve()
+    require_local_state_ready(
+        event_paths=(state_dir / "traces.jsonl",),
+        score_paths=(state_dir / "scores.jsonl",),
+        state_dir=state_dir,
+    )
     state_dir.mkdir(parents=True, exist_ok=True)
     components = build_runtime_components(
         profile="local",
@@ -44,6 +53,7 @@ async def run(args: argparse.Namespace) -> int:
         storage_dsn=f"sqlite+aiosqlite:///{state_dir / 'eval.db'}",
         events_path=state_dir / "traces.jsonl",
         artifact_root=state_dir / "artifacts",
+        local_state_dir=state_dir,
     )
     identity = IdentityContext.local_default(session_id="example-eval")
     adapter = ExampleEvalAdapter(
@@ -56,6 +66,7 @@ async def run(args: argparse.Namespace) -> int:
         score_sink=ScoreSink(
             local_path=state_dir / "scores.jsonl",
             telemetry=TelemetryFacade(local_sink=components.event_sink),
+            state_dir=state_dir,
         )
     )
     failures = 0
@@ -83,7 +94,11 @@ async def run(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    return asyncio.run(run(parse_args()))
+    try:
+        return asyncio.run(run(parse_args()))
+    except LocalStateMigrationError as exc:
+        print(f"{exc.code}: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

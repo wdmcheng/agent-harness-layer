@@ -125,7 +125,7 @@ def test_fastapi_worker_and_migration_fail_before_external_side_effects(
         raise AssertionError("配置失败后不得运行 migration")
 
     monkeypatch.setattr(app_main, "build_runtime_components", fail_runtime_build)
-    monkeypatch.setattr(app_runtime, "run_migrations", fail_migration)
+    monkeypatch.setattr(app_runtime, "require_migration_head", fail_migration)
     monkeypatch.setattr(migrate, "run_migrations", fail_migration)
     ready_file = tmp_path / "worker-ready"
     monkeypatch.setenv("SERVICE_APP_READY_FILE", str(ready_file))
@@ -184,7 +184,7 @@ def test_service_process_entrypoints_render_the_same_safe_diagnostic(
 
     monkeypatch.setattr(service_cli.uvicorn, "run", fail_uvicorn)
     monkeypatch.setattr(app_main, "build_runtime_components", fail_runtime_build)
-    monkeypatch.setattr(app_runtime, "run_migrations", fail_migration)
+    monkeypatch.setattr(app_runtime, "require_migration_head", fail_migration)
     monkeypatch.setattr(migrate, "run_migrations", fail_migration)
     with pytest.raises(typer.Exit):
         service_cli.serve(profile="service", profiles_dir=profiles_dir)

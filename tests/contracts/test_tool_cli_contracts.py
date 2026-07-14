@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from agent_harness.storage import run_migrations
+
 ROOT = Path(__file__).resolve().parents[2]
 PROFILES = ROOT / "templates" / "service-app" / "configs" / "profiles"
 
@@ -46,10 +48,14 @@ def test_tools_cli_group_is_available(tmp_path: Path) -> None:
 
     workspace = tmp_path / "workspace"
     workspace.mkdir()
+    db_path = tmp_path / "agent_harness.db"
     profiles_dir = _profile_with_agent_allowlist(
         tmp_path,
         ["file.read_file", "shell.execute"],
+        storage_root=tmp_path / "state",
+        db_path=db_path,
     )
+    run_migrations(f"sqlite+aiosqlite:///{db_path}")
     result = subprocess.run(
         [
             sys.executable,
@@ -84,9 +90,12 @@ def test_tools_cli_list_includes_configured_mcp_allowlist(tmp_path: Path) -> Non
 
     workspace = tmp_path / "workspace"
     workspace.mkdir()
+    db_path = tmp_path / "agent_harness.db"
     profiles_dir = _profile_with_agent_allowlist(
         tmp_path,
         ["mcp.demo.unsafe"],
+        storage_root=tmp_path / "state",
+        db_path=db_path,
         extra="""
 tools:
   mcp_servers:
@@ -97,6 +106,7 @@ tools:
         - unsafe
 """,
     )
+    run_migrations(f"sqlite+aiosqlite:///{db_path}")
     result = subprocess.run(
         [
             sys.executable,
@@ -135,6 +145,7 @@ def test_tools_cli_call_records_workspace_and_invocation(tmp_path: Path) -> None
         storage_root=state_root,
         db_path=db_path,
     )
+    run_migrations(f"sqlite+aiosqlite:///{db_path}")
 
     result = subprocess.run(
         [
@@ -201,6 +212,7 @@ def test_tools_cli_call_denies_default_empty_agent_allowlist(tmp_path: Path) -> 
         f"dsn: sqlite+aiosqlite:///{db_path}",
     )
     (profiles_dir / "local.yaml").write_text(profile_text, encoding="utf-8")
+    run_migrations(f"sqlite+aiosqlite:///{db_path}")
 
     result = subprocess.run(
         [

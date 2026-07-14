@@ -47,14 +47,12 @@ class ApprovalContinuationMixin:
         *,
         actor: IdentityContext,
         lease: ApprovalResolutionLease,
-        request_id: str | None,
         comment: str | None,
     ) -> ApprovalResolveResult:
         try:
             return await self._continue_claimed_approval(
                 actor=actor,
                 lease=lease,
-                request_id=request_id,
                 comment=comment,
             )
         except ApprovalStateConflict:
@@ -90,7 +88,7 @@ class ApprovalContinuationMixin:
                 self._event_bus,
                 actor=actor,
                 record=lease.approval,
-                request_id=request_id,
+                request_id=lease.resolution_request_id,
             )
             return ApprovalResolveResult(approval=lease.approval, run=run_result)
         if lease.approval.status != "waiting" or lease.state not in {
@@ -104,7 +102,6 @@ class ApprovalContinuationMixin:
         return await self._continue_claimed_approval(
             actor=actor,
             lease=lease,
-            request_id=request_id,
             comment=comment,
         )
 
@@ -113,7 +110,6 @@ class ApprovalContinuationMixin:
         *,
         actor: IdentityContext,
         lease: ApprovalResolutionLease,
-        request_id: str | None,
         comment: str | None,
     ) -> ApprovalResolveResult:
         approval = lease.approval
@@ -169,7 +165,7 @@ class ApprovalContinuationMixin:
                         resource=record.resource,
                         payload={
                             **approval_evidence(record),
-                            "request_id": request_id,
+                            "request_id": lease.resolution_request_id,
                             "approval_request_id": record.request_id,
                             "comment": redact_secrets(comment) if comment else None,
                         },
@@ -180,7 +176,7 @@ class ApprovalContinuationMixin:
             self._event_bus,
             actor=actor,
             record=record,
-            request_id=request_id,
+            request_id=lease.resolution_request_id,
         )
         return ApprovalResolveResult(approval=record, run=run_result)
 
@@ -197,17 +193,20 @@ class ApprovalContinuationMixin:
         async with self._storage.uow() as uow:
             record = await uow.approvals.get(approval_id)
             state = await uow.approvals.get_resolution_state(approval_id)
+            resolution_request_id = await uow.approvals.get_resolution_request_id(approval_id)
             lease = await uow.approvals.get_resolution(approval_id)
         if record is None or record.run_id != run_id or record.tenant_id != actor.tenant_id:
             return
         if record.status == "denied" and state == "denied_pending":
+            if not resolution_request_id:
+                raise RuntimeError(f"approval resolution request id missing: {approval_id}")
             await reconcile_denied(
                 self._storage,
                 self._event_bus,
                 self._orchestrator,
                 actor=actor,
                 record=record,
-                request_id=request_id,
+                resolution_request_id=resolution_request_id,
             )
             return
         if record.status == "approved" or (
@@ -242,7 +241,6 @@ class ApprovalContinuationMixin:
             await self._continue_with_recovery_marker(
                 actor=actor,
                 lease=takeover,
-                request_id=request_id,
                 comment=None,
             )
             return

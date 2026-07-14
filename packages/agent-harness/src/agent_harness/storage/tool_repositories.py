@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.storage.models import ToolInvocationModel, WorkspaceModel
+from agent_harness.storage.run_trace_gate import project_canonical_run_trace
 
 
 class WorkspaceCreate(HarnessDTO):
@@ -93,6 +94,14 @@ class ToolInvocationRepository:
         self._session = session
 
     async def create(self, data: ToolInvocationCreate) -> ToolInvocationRecord:
+        trace_id = data.trace_id
+        if data.run_id is not None:
+            trace_id = await project_canonical_run_trace(
+                self._session,
+                tenant_id=data.tenant_id,
+                run_id=data.run_id,
+                trace_id=data.trace_id,
+            )
         model = ToolInvocationModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
@@ -106,7 +115,7 @@ class ToolInvocationRepository:
             execution_state=data.execution_state,
             status=data.status,
             duration_ms=data.duration_ms,
-            trace_id=data.trace_id,
+            trace_id=trace_id,
             request_id=data.request_id,
             metadata_json=data.metadata,
         )

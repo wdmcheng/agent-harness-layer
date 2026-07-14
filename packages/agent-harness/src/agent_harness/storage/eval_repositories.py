@@ -12,6 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.storage.models import EvalCaseModel, EvalRunModel, EvalScoreModel
+from agent_harness.storage.run_trace_gate import (
+    canonical_trace_for_run,
+    project_canonical_run_trace,
+)
 
 
 def _empty_provider_status_payloads() -> list[dict[str, object]]:
@@ -64,6 +68,7 @@ class EvalRunRecord(EvalRunCreate):
     """已持久化 eval run 记录。"""
 
     eval_run_id: str
+    trace_id: str | None = None
 
 
 class EvalScoreCreate(HarnessDTO):
@@ -122,6 +127,7 @@ def _run_record(model: EvalRunModel) -> EvalRunRecord:
         status=model.status,
         eval_case_id=model.eval_case_id,
         run_id=model.run_id,
+        trace_id=model.trace_id,
         case_count=model.case_count,
         score_summary=model.score_summary_json or model.score_json or {},
         provider_statuses=model.provider_status_json or [],
@@ -156,12 +162,21 @@ class EvalCaseRepository:
     async def create(self, data: EvalCaseCreate) -> EvalCaseRecord:
         """创建 draft case；approved 写入必须走 approve。"""
 
+        trace_id = data.trace_id
+        if data.run_id is not None:
+            trace_id = await project_canonical_run_trace(
+                self._session,
+                tenant_id=data.tenant_id,
+                run_id=data.run_id,
+                trace_id=data.trace_id,
+            )
+
         model = EvalCaseModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
             agent_id=data.agent_id,
             run_id=data.run_id,
-            trace_id=data.trace_id,
+            trace_id=trace_id,
             name=data.name,
             status="draft",
             trigger=data.trigger,
@@ -237,6 +252,13 @@ class EvalRunRepository:
         self._session = session
 
     async def create(self, data: EvalRunCreate) -> EvalRunRecord:
+        trace_id = None
+        if data.run_id is not None:
+            trace_id = await canonical_trace_for_run(
+                self._session,
+                tenant_id=data.tenant_id,
+                run_id=data.run_id,
+            )
         model = EvalRunModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
@@ -244,6 +266,7 @@ class EvalRunRepository:
             dataset=data.dataset,
             eval_case_id=data.eval_case_id,
             run_id=data.run_id,
+            trace_id=trace_id,
             score_json=data.score_summary,
             score_summary_json=data.score_summary,
             provider_status_json=data.provider_statuses,
@@ -282,6 +305,14 @@ class EvalScoreRepository:
         self._session = session
 
     async def create(self, data: EvalScoreCreate) -> EvalScoreRecord:
+        trace_id = data.trace_id
+        if data.run_id is not None:
+            trace_id = await project_canonical_run_trace(
+                self._session,
+                tenant_id=data.tenant_id,
+                run_id=data.run_id,
+                trace_id=data.trace_id,
+            )
         model = EvalScoreModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
@@ -289,7 +320,7 @@ class EvalScoreRepository:
             case_id=data.case_id,
             agent_id=data.agent_id,
             run_id=data.run_id,
-            trace_id=data.trace_id,
+            trace_id=trace_id,
             metric=data.metric,
             value=data.value,
             label=data.label,

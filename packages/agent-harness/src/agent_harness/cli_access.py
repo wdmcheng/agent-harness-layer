@@ -10,13 +10,19 @@ import typer
 from agent_harness.approvals import ApprovalService
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
-from agent_harness.cli_shared import event_path, load_settings_or_exit, policy_engine
+from agent_harness.cli_shared import (
+    event_path,
+    load_settings_or_exit,
+    policy_engine,
+    require_local_state_ready_or_exit,
+    require_schema_or_exit,
+)
 from agent_harness.events import EventBus, LocalJsonlEventSink
 from agent_harness.policy import PolicyCheck
 from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator
 from agent_harness.runtime.services import build_agent_execution_services
-from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
+from agent_harness.storage import SQLAlchemyStorage, storage_dsn_from_settings
 
 policy_app = typer.Typer(no_args_is_help=True)
 approvals_app = typer.Typer(no_args_is_help=True)
@@ -41,7 +47,7 @@ def check_policy(
 
     settings = load_settings_or_exit(profile, profiles_dir)
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
-    run_migrations(resolved_dsn)
+    require_schema_or_exit(resolved_dsn)
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
     audit = AuditService(storage=storage)
     engine = policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
@@ -77,9 +83,11 @@ def list_approvals(
 
     settings = load_settings_or_exit(profile, profiles_dir)
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
-    run_migrations(resolved_dsn)
+    require_schema_or_exit(resolved_dsn)
+    resolved_events_path = event_path(settings, None)
+    require_local_state_ready_or_exit(event_paths=(resolved_events_path,))
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
-    event_bus = EventBus(sink=LocalJsonlEventSink(event_path(settings, None)))
+    event_bus = EventBus(sink=LocalJsonlEventSink(resolved_events_path))
     orchestrator = RunOrchestrator(
         storage=storage,
         event_bus=event_bus,
@@ -202,9 +210,10 @@ def resolve_approval(
 
     settings = load_settings_or_exit(profile, profiles_dir)
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
-    run_migrations(resolved_dsn)
-    storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
+    require_schema_or_exit(resolved_dsn)
     resolved_events_path = event_path(settings, events_path)
+    require_local_state_ready_or_exit(event_paths=(resolved_events_path,))
+    storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
     service_root = agents_dir.resolve().parent
     configured_artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
     artifact_root = (

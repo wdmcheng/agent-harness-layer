@@ -240,6 +240,7 @@ async def test_approve_and_deny_repository_updates_have_one_winner(tmp_path: Pat
                 approval_id=first.approval_id,
                 run_id=first.run_id,
                 tenant_id=first.tenant_id,
+                request_id="req-first-resolution-lease",
             )
             await uow.commit()
         with pytest.raises(ApprovalResolutionRepositoryConflict) as in_progress:
@@ -249,6 +250,7 @@ async def test_approve_and_deny_repository_updates_have_one_winner(tmp_path: Pat
                     run_id=first.run_id,
                     tenant_id=first.tenant_id,
                     resolved_by=identity.user_id,
+                    request_id="req-losing-deny",
                 )
         assert in_progress.value.code == "approval.resolution_in_progress"
         recovered = await service.recover_claimed(
@@ -269,6 +271,7 @@ async def test_approve_and_deny_repository_updates_have_one_winner(tmp_path: Pat
                 run_id=second.run_id,
                 tenant_id=second.tenant_id,
                 resolved_by=identity.user_id,
+                request_id="req-winning-deny",
             )
             await uow.commit()
         with pytest.raises(ApprovalResolutionRepositoryConflict) as invalid:
@@ -277,6 +280,7 @@ async def test_approve_and_deny_repository_updates_have_one_winner(tmp_path: Pat
                     approval_id=second.approval_id,
                     run_id=second.run_id,
                     tenant_id=second.tenant_id,
+                    request_id="req-invalid-resolution-lease",
                 )
         assert invalid.value.code == "approval.invalid_transition"
     finally:
@@ -311,6 +315,7 @@ async def test_forged_grants_and_denial_never_call_handler(tmp_path: Path) -> No
                 approval_id=approval.approval_id,
                 run_id=approval.run_id,
                 tenant_id=approval.tenant_id,
+                request_id="req-approved-continuation-lease",
             )
             await uow.commit()
         base = ApprovalGrant(

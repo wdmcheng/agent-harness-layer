@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from tests.contracts.auth_policy_hitl_contract_helpers import sqlite_dsn
+from tests.contracts.run_trace_contract_helpers import seed_persisted_run
 
 from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
@@ -43,6 +44,7 @@ async def test_tool_registry_public_seam_enforces_errors_policy_and_output_metad
     )
     artifacts = FileArtifactStore(tmp_path / "artifacts")
     identity = IdentityContext.local_default()
+    run_id = await seed_persisted_run(storage, trace_id="trace-tool")
 
     def echo(arguments: dict[str, Any]) -> dict[str, Any]:
         return {"text": arguments["text"]}
@@ -87,7 +89,7 @@ async def test_tool_registry_public_seam_enforces_errors_policy_and_output_metad
     context = ToolRuntimeContext(
         actor=identity,
         agent_id="examples.basic",
-        run_id="run-tool",
+        run_id=run_id,
         request_id="req-tool",
         trace_id="trace-tool",
     )

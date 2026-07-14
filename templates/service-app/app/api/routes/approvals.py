@@ -40,7 +40,7 @@ class ApprovalPublicRecord(HarnessDTO):
     action: str
     resource: str
     reason: str
-    trace_id: str | None = None
+    trace_id: str
     request_id: str | None = None
     requested_by: str | None = None
     resolved_by: str | None = None

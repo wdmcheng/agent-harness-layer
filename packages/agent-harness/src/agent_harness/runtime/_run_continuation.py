@@ -70,7 +70,7 @@ class RunContinuation(OrchestratorState):
                 output={"resumed": True},
                 identity=active_identity,
                 request_id=optional_state_text(state, "request_id"),
-                trace_id=optional_state_text(state, "trace_id"),
+                trace_id=run.trace_id,
                 input=run.input,
             )
             return RunResult(
@@ -96,7 +96,7 @@ class RunContinuation(OrchestratorState):
                     **run_correlation(run.input),
                 },
                 request_id=optional_state_text(checkpoint.state, "request_id"),
-                trace_id=optional_state_text(checkpoint.state, "trace_id"),
+                trace_id=run.trace_id,
                 event_id=f"run-resumed:{run.id}:{approval_grant.approval_id}",
             )
             terminal = await self._complete(
@@ -105,7 +105,7 @@ class RunContinuation(OrchestratorState):
                 output={"resumed": True},
                 identity=execution_identity,
                 request_id=optional_state_text(checkpoint.state, "request_id"),
-                trace_id=optional_state_text(checkpoint.state, "trace_id"),
+                trace_id=run.trace_id,
                 input=run.input,
             )
             return RunResult(
@@ -121,7 +121,7 @@ class RunContinuation(OrchestratorState):
             identity=execution_identity,
             services=self._executor_services,
             request_id=optional_state_text(checkpoint.state, "request_id"),
-            trace_id=optional_state_text(checkpoint.state, "trace_id"),
+            trace_id=run.trace_id,
         )
         request = AgentExecutionRequest(
             agent_id=run.agent_id,

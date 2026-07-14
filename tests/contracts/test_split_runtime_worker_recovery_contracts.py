@@ -42,6 +42,9 @@ async def test_worker_reconciles_queued_evidence_after_api_ack_loss(tmp_path: Pa
             self._delegate = LocalJsonlEventSink(path)
             self._failed = False
 
+        def bind_run_trace_resolver(self, resolver: Any) -> None:
+            self._delegate.bind_run_trace_resolver(resolver)
+
         async def write(self, event: CanonicalEvent) -> CanonicalEvent:
             if not self._failed and event.event_type == CanonicalEventType.RUN_QUEUED:
                 self._failed = True

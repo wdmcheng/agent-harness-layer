@@ -211,10 +211,11 @@ async def test_resume_rejects_mismatched_path_before_mutating_token_run(tmp_path
 
 
 def test_cli_run_fake_agent_returns_terminal_event(tmp_path: Path) -> None:
-    # CLI 是 app developer 的最小可运行入口；它可以初始化本地 SQLite schema，
-    # 但不能要求真实 provider key。输出必须包含 run id 和 terminal status。
+    # CLI 是 app developer 的最小可运行入口，但 schema 必须由显式 migration
+    # 先初始化；运行命令本身不要求真实 provider key。
     db_path = tmp_path / "cli.db"
     events_path = tmp_path / "cli-events.jsonl"
+    run_migrations(sqlite_dsn(db_path))
     result = subprocess.run(
         [
             sys.executable,
@@ -386,6 +387,7 @@ async def test_runtime_worker_shell_uses_runtime_components(tmp_path: Path) -> N
     # `run_once` 用临时 profile/DB/events 证明 worker shell 可以创建 fake run。
     db_path = tmp_path / "worker.db"
     events_path = tmp_path / "worker-events.jsonl"
+    run_migrations(sqlite_dsn(db_path))
 
     run_id = await worker_run_once(
         profile="local",
@@ -476,12 +478,18 @@ async def test_events_api_filter_hides_reasoning_delta_by_default(tmp_path: Path
     # `reasoning.delta` 可以进 internal evidence，但普通用户 event stream 默认
     # 只能看到显式 public 的 lifecycle event。
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
-    bus = EventBus(sink=sink)
+
+    async def resolve_trace(*, tenant_id: str, run_id: str) -> str:
+        assert (tenant_id, run_id) == ("default", "run-reasoning")
+        return "trace-reasoning"
+
+    bus = EventBus(sink=sink, run_trace_resolver=resolve_trace)
     await bus.publish(
         tenant_id="default",
         run_id="run-reasoning",
         event_type=CanonicalEventType.REASONING_DELTA,
         payload={"text": "hidden reasoning"},
+        trace_id="trace-reasoning",
     )
     await bus.publish(
         tenant_id="default",
@@ -490,6 +498,7 @@ async def test_events_api_filter_hides_reasoning_delta_by_default(tmp_path: Path
         payload={"status": "completed"},
         terminal=True,
         visibility="public",
+        trace_id="trace-reasoning",
     )
     events = await sink.read(run_id="run-reasoning")
 

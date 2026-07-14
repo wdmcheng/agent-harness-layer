@@ -20,6 +20,7 @@ from agent_harness.evals import (
     ScoreSink,
 )
 from agent_harness.events import EventBus, EventSink, LocalJsonlEventSink, PostgreSQLEventSink
+from agent_harness.local_state import require_local_state_ready
 from agent_harness.observability import TelemetryFacade
 from agent_harness.policy import (
     DatabasePolicyProvider,
@@ -30,7 +31,11 @@ from agent_harness.policy import (
 from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator, RunQueue
 from agent_harness.runtime.services import build_agent_execution_services
-from agent_harness.storage import SQLAlchemyStorage, run_migrations, storage_dsn_from_settings
+from agent_harness.storage import (
+    SQLAlchemyStorage,
+    require_migration_head,
+    storage_dsn_from_settings,
+)
 
 
 @dataclass(slots=True)
@@ -64,21 +69,13 @@ def build_runtime_components(
     events_path: Path | None = None,
     workspace_root: Path | None = None,
     artifact_root: Path | None = None,
+    local_state_dir: Path | None = None,
 ) -> RuntimeComponents:
-    """从 profile 构造 API/worker 共享的 runtime 组件。
-
-    这里允许执行 migration，因为调用方显式启动的是 service/app runtime，而不是
-    单纯 import 配置模块。测试可直接注入 orchestrator/event_sink 跳过真实依赖。
-    """
+    """从 profile 构造 API/worker 共享组件，旧 schema 必须先显式迁移。"""
 
     settings = load_settings(profile=profile, profiles_dir=profiles_dir)
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
-    run_migrations(resolved_dsn)
-
-    storage = SQLAlchemyStorage.from_dsn(
-        resolved_dsn,
-        cross_event_loop=profile == "service",
-    )
+    require_migration_head(resolved_dsn)
     resolved_events_path = events_path or Path(
         settings.observability.path or ".agent-harness/traces.jsonl"
     )
@@ -94,8 +91,33 @@ def build_runtime_components(
         else service_root / configured_artifact_root
     )
     service_mode = profile == "service"
+    resolved_local_state_dir = (
+        local_state_dir.expanduser().resolve() if local_state_dir is not None else None
+    )
+    if service_mode and resolved_local_state_dir is not None:
+        raise ValueError("service profile cannot use a local state bundle")
+    resolved_scores_path = (
+        resolved_local_state_dir / "scores.jsonl"
+        if resolved_local_state_dir is not None
+        else service_root / "eval-results" / "scores.jsonl"
+    )
+    if not service_mode:
+        require_local_state_ready(
+            event_paths=(resolved_events_path,),
+            score_paths=(resolved_scores_path,),
+            state_dir=resolved_local_state_dir,
+        )
+    storage = SQLAlchemyStorage.from_dsn(
+        resolved_dsn,
+        cross_event_loop=service_mode,
+    )
     event_sink: EventSink = (
-        PostgreSQLEventSink(storage) if service_mode else LocalJsonlEventSink(resolved_events_path)
+        PostgreSQLEventSink(storage)
+        if service_mode
+        else LocalJsonlEventSink(
+            resolved_events_path,
+            state_dir=resolved_local_state_dir,
+        )
     )
     queue: RunQueue | None = None
     if service_mode:
@@ -171,8 +193,9 @@ def build_runtime_components(
         storage=storage,
         factory=EvalCaseFactory(),
         score_sink=ScoreSink(
-            local_path=service_root / "eval-results" / "scores.jsonl",
+            local_path=resolved_scores_path,
             telemetry=TelemetryFacade(local_sink=event_sink),
+            state_dir=resolved_local_state_dir,
         ),
         drafts_dir=service_root / "eval-cases" / "drafts",
         approved_dir=service_root / "eval-cases" / "approved",
