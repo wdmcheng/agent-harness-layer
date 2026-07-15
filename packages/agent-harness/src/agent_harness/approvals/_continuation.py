@@ -13,9 +13,12 @@ from agent_harness.approvals._contracts import (
 )
 from agent_harness.approvals.reconciliation import (
     approval_evidence,
+    complete_approval_evidence_group,
     mark_recovery_pending,
     publish_resolution_evidence,
     reconcile_denied,
+    resolved_approval_record,
+    stage_approval_evidence_group,
 )
 from agent_harness.audit import AuditService, build_audit_log
 from agent_harness.events import EventBus
@@ -82,15 +85,108 @@ class ApprovalContinuationMixin:
             or lease.approval.tenant_id != actor.tenant_id
         ):
             raise LookupError(f"approval resolution not found: {approval_id}")
-        if lease.approval.status == "approved" and lease.state in {"completed", "failed"}:
-            run_result = await self._orchestrator.get_run(run_id, identity=actor)
+        if lease.approval.status in {"waiting", "approved"} and lease.state in {
+            "completed",
+            "failed",
+        }:
+            evidence_record = resolved_approval_record(lease.approval, status="approved")
+            async with self._storage.uow() as uow:
+                persisted_run = await uow.runs.get(run_id)
+                if persisted_run is None:
+                    raise LookupError(f"run not found: {run_id}")
+                await stage_approval_evidence_group(
+                    uow,
+                    record=lease.approval,
+                    resolution_status="approved",
+                    run_status=RunStatus(persisted_run.status),
+                )
+                await uow.commit()
             await publish_resolution_evidence(
                 self._event_bus,
                 actor=actor,
-                record=lease.approval,
+                record=evidence_record,
                 request_id=lease.resolution_request_id,
             )
-            return ApprovalResolveResult(approval=lease.approval, run=run_result)
+            run_result = await self._orchestrator.get_run(run_id, identity=actor)
+            await complete_approval_evidence_group(
+                self._storage,
+                self._event_bus,
+                record=lease.approval,
+            )
+            record = lease.approval
+            if record.status == "waiting":
+                async with self._storage.uow() as uow:
+                    record = await uow.approvals.mark_approved_evidence_complete(
+                        approval_id=record.approval_id,
+                        run_id=record.run_id,
+                        tenant_id=record.tenant_id,
+                        lease_id=lease.lease_id,
+                    )
+                    await uow.commit()
+            return ApprovalResolveResult(approval=record, run=run_result)
+        if lease.approval.status == "waiting" and lease.state == "recovery_pending":
+            async with self._storage.uow() as uow:
+                run = await uow.runs.get(run_id)
+            if run is not None and RunStatus(run.status) in {
+                RunStatus.COMPLETED,
+                RunStatus.FAILED,
+            }:
+                evidence_record = resolved_approval_record(
+                    lease.approval,
+                    status="approved",
+                )
+                async with self._storage.uow() as uow:
+                    await stage_approval_evidence_group(
+                        uow,
+                        record=lease.approval,
+                        resolution_status="approved",
+                        run_status=RunStatus(run.status),
+                    )
+                    await uow.commit()
+                if self._audit is not None:
+                    async with self._storage.uow() as uow:
+                        audits = await uow.audit_logs.list_for_tenant(actor.tenant_id)
+                        if not any(
+                            item.action == "approval.approved"
+                            and isinstance(item.payload.get("evidence"), dict)
+                            and item.payload["evidence"].get("approval_id")
+                            == lease.approval.approval_id
+                            for item in audits
+                        ):
+                            await uow.audit_logs.create(
+                                build_audit_log(
+                                    actor=actor,
+                                    action="approval.approved",
+                                    resource=lease.approval.resource,
+                                    payload={
+                                        **approval_evidence(evidence_record),
+                                        "request_id": lease.resolution_request_id,
+                                        "approval_request_id": lease.approval.request_id,
+                                    },
+                                )
+                            )
+                            await uow.commit()
+                await publish_resolution_evidence(
+                    self._event_bus,
+                    actor=actor,
+                    record=evidence_record,
+                    request_id=lease.resolution_request_id,
+                )
+                run_result = await self._orchestrator.get_run(run_id, identity=actor)
+                await complete_approval_evidence_group(
+                    self._storage,
+                    self._event_bus,
+                    record=lease.approval,
+                )
+                async with self._storage.uow() as uow:
+                    record = await uow.approvals.mark_approved_evidence_complete(
+                        approval_id=lease.approval.approval_id,
+                        run_id=run_id,
+                        tenant_id=actor.tenant_id,
+                        lease_id=lease.lease_id,
+                    )
+                    await uow.commit()
+                return ApprovalResolveResult(approval=record, run=run_result)
         if lease.approval.status != "waiting" or lease.state not in {
             "claimed",
             "recovery_pending",
@@ -132,6 +228,7 @@ class ApprovalContinuationMixin:
                     expected_run_id=approval.run_id,
                     identity=actor,
                     approval_grant=grant,
+                    defer_terminal=True,
                 )
         except AgentExecutionLeaseLost as exc:
             raise ApprovalStateConflict(
@@ -157,6 +254,13 @@ class ApprovalContinuationMixin:
                 result_state=result_state,
                 metadata={"comment": redact_secrets(comment)} if comment else None,
             )
+            evidence_record = resolved_approval_record(record, status="approved")
+            await stage_approval_evidence_group(
+                uow,
+                record=record,
+                resolution_status="approved",
+                run_status=(RunStatus.FAILED if result_state == "failed" else RunStatus.COMPLETED),
+            )
             if self._audit is not None:
                 await uow.audit_logs.create(
                     build_audit_log(
@@ -164,7 +268,7 @@ class ApprovalContinuationMixin:
                         action="approval.approved",
                         resource=record.resource,
                         payload={
-                            **approval_evidence(record),
+                            **approval_evidence(evidence_record),
                             "request_id": lease.resolution_request_id,
                             "approval_request_id": record.request_id,
                             "comment": redact_secrets(comment) if comment else None,
@@ -175,9 +279,27 @@ class ApprovalContinuationMixin:
         await publish_resolution_evidence(
             self._event_bus,
             actor=actor,
-            record=record,
+            record=evidence_record,
             request_id=lease.resolution_request_id,
         )
+        if run_result is not None and run_result.status in {RunStatus.COMPLETED, RunStatus.FAILED}:
+            run_result = await self._orchestrator.get_run(
+                approval.run_id,
+                identity=actor,
+            )
+            await complete_approval_evidence_group(
+                self._storage,
+                self._event_bus,
+                record=record,
+            )
+            async with self._storage.uow() as uow:
+                record = await uow.approvals.mark_approved_evidence_complete(
+                    approval_id=record.approval_id,
+                    run_id=record.run_id,
+                    tenant_id=record.tenant_id,
+                    lease_id=lease.lease_id,
+                )
+                await uow.commit()
         return ApprovalResolveResult(approval=record, run=run_result)
 
     async def _reconcile_conflicted_resolution(
@@ -197,7 +319,7 @@ class ApprovalContinuationMixin:
             lease = await uow.approvals.get_resolution(approval_id)
         if record is None or record.run_id != run_id or record.tenant_id != actor.tenant_id:
             return
-        if record.status == "denied" and state == "denied_pending":
+        if record.status == "waiting" and state == "denied_pending":
             if not resolution_request_id:
                 raise RuntimeError(f"approval resolution request id missing: {approval_id}")
             await reconcile_denied(
@@ -210,7 +332,7 @@ class ApprovalContinuationMixin:
             )
             return
         if record.status == "approved" or (
-            record.status == "waiting" and state == "recovery_pending"
+            record.status == "waiting" and state in {"recovery_pending", "completed", "failed"}
         ):
             await self.recover_claimed(
                 actor=actor,

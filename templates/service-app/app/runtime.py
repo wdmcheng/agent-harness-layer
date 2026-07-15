@@ -128,6 +128,7 @@ def build_runtime_components(
     event_bus = EventBus(
         sink=event_sink,
         artifact_store=artifact_store,
+        capacity_storage=storage if not service_mode else None,
     )
     audit = AuditService(storage=storage)
     if settings.policy.provider == "db":
@@ -169,6 +170,7 @@ def build_runtime_components(
         policy=policy_engine,
         audit=audit,
         event_sink=event_sink,
+        event_bus=event_bus,
         artifact_store=artifact_store,
         service_root=service_root,
         workspace_root=workspace_root,

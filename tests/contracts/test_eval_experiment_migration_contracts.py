@@ -43,7 +43,7 @@ def test_0009_migration_creates_eval_experiment_schema(tmp_path: Path) -> None:
             """
         ).fetchone()
 
-    assert get_current_revision(dsn) == "0013a_run_trace_event_hardening"
+    assert get_current_revision(dsn) == "0014_run_evidence_outbox"
     assert {
         "eval_dataset_splits",
         "eval_experiments",
@@ -145,7 +145,7 @@ def test_0011_upgrades_existing_0009_experiment_without_rewriting_terminal_evide
     assert get_current_revision(dsn) == "0009_eval_experiment_loop"
     run_migrations(dsn)
 
-    assert get_current_revision(dsn) == "0013a_run_trace_event_hardening"
+    assert get_current_revision(dsn) == "0014_run_evidence_outbox"
     with sqlite3.connect(db_path) as connection:
         row = connection.execute(
             """

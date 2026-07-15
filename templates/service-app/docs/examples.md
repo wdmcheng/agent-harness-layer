@@ -18,7 +18,7 @@ make eval
 
 | Agent | 真实验证链 | 安全降级 |
 |---|---|---|
-| `examples.rag_assistant` | `RetrievalProvider -> ContextFragment -> ContextAssemblyService -> ModelProvider`，返回 citation 和 assembly trace | SQLite FTS5/BM25；无命中返回 `no_source`；retrieval chunk 始终为 `untrusted` |
+| `examples.rag_assistant` | query 先经过 `EmbeddingInvocationService` 留下 usage evidence，再执行 `RetrievalProvider -> ContextFragment -> ContextAssemblyService -> ModelInvocationService`，返回 citation 和 assembly trace | SQLite FTS5/BM25；无命中返回 `no_source`；retrieval chunk 始终为 `untrusted` |
 | `examples.ticket_triage` | typed schema、确定性分类规则、fake model evidence | 低 confidence 返回 `unknown`、`needs_review=true`，不伪造分类 |
 | `examples.repo_analyst` | 仅 allowlisted file read/search/list，经 `WorkspacePolicy` 与 artifact store | 越界或 `.agentignore` 命中返回 `tool.workspace_denied`；长结果只内联摘要并保留 `artifact_ref`；shell 不可见 |
 | `examples.dev_assistant` | file/shell `ToolRegistry`、PolicyEngine、checkpoint、ApprovalService、ApprovalGrant、唯一 execution claim、audit/trace | 危险动作先 waiting；公开 resume token 不能代替审批；deny 不执行；不确定 executing claim 进入人工复核 |

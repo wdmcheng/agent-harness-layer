@@ -97,6 +97,7 @@ class RunLifecycle(OrchestratorState):
         identity: IdentityContext | None = None,
         request_id: str | None = None,
         trace_id: str | None = None,
+        pre_run_events: list[tuple[CanonicalEventType, dict[str, Any]]] | None = None,
     ) -> RunResult:
         """创建 local run，执行 executor，必要时停在 checkpoint。"""
 
@@ -189,6 +190,17 @@ class RunLifecycle(OrchestratorState):
             request_id=request_id,
             trace_id=canonical_trace,
         )
+        for event_type, payload in pre_run_events or []:
+            await self._event_bus.publish(
+                tenant_id=active_identity.tenant_id,
+                run_id=run.id,
+                agent_id=agent_id,
+                user_id=active_identity.user_id,
+                event_type=event_type,
+                payload={**payload, **run_correlation(run.input)},
+                request_id=request_id,
+                trace_id=canonical_trace,
+            )
         if checkpoint_state is not None:
             state = policy_checkpoint_state(
                 run_id=run.id,
@@ -221,6 +233,8 @@ class RunLifecycle(OrchestratorState):
         context = build_execution_context(
             identity=active_identity,
             services=self._executor_services,
+            agent_id=agent_id,
+            run_id=run.id,
             request_id=request_id,
             trace_id=canonical_trace,
         )
@@ -350,6 +364,7 @@ class RunLifecycle(OrchestratorState):
         request_id: str | None = None,
         trace_id: str | None = None,
         input: dict[str, Any] | None = None,
+        defer_terminal: bool = False,
     ) -> RunResult:
         """把非 terminal run 转为 failed，并公开脱敏失败 evidence。"""
 
@@ -367,21 +382,23 @@ class RunLifecycle(OrchestratorState):
                 error={"reason": safe_reason},
             )
             await uow.commit()
-        terminal = await publish_terminal_evidence(
-            self._event_bus,
-            run_id=run_id,
-            agent_id=run.agent_id,
-            status=RunStatus.FAILED,
-            identity=active_identity,
-            error={"reason": safe_reason},
-            request_id=request_id,
-            trace_id=run.trace_id,
-            correlation=run_correlation(input or run.input),
-        )
+        terminal = None
+        if not defer_terminal:
+            terminal = await publish_terminal_evidence(
+                self._event_bus,
+                run_id=run_id,
+                agent_id=run.agent_id,
+                status=RunStatus.FAILED,
+                identity=active_identity,
+                error={"reason": safe_reason},
+                request_id=request_id,
+                trace_id=run.trace_id,
+                correlation=run_correlation(input or run.input),
+            )
         return RunResult(
             run_id=run_id,
             status=RunStatus.FAILED,
-            terminal_event=terminal.event_type.value,
+            terminal_event=terminal.event_type.value if terminal is not None else None,
         )
 
     async def _fail_execution(
@@ -394,6 +411,7 @@ class RunLifecycle(OrchestratorState):
         request_id: str | None = None,
         trace_id: str | None = None,
         input: dict[str, Any] | None = None,
+        defer_terminal: bool = False,
     ) -> RunResult:
         async with self._storage.uow() as uow:
             run = await uow.runs.get(run_id)
@@ -409,6 +427,7 @@ class RunLifecycle(OrchestratorState):
             request_id=request_id,
             trace_id=run.trace_id,
             correlation=run_correlation(input or {}),
+            publish_terminal=not defer_terminal,
         )
 
     async def _checkpoint(
@@ -487,13 +506,16 @@ class RunLifecycle(OrchestratorState):
         request_id: str | None = None,
         trace_id: str | None = None,
         input: dict[str, Any] | None = None,
-    ) -> CanonicalEvent:
+        defer_terminal: bool = False,
+    ) -> CanonicalEvent | None:
         async with self._storage.uow() as uow:
             run = await uow.runs.get(run_id)
             if run is None or run.tenant_id != identity.tenant_id:
                 raise LookupError(f"run not found: {run_id}")
             await uow.runs.set_status(run_id, RunStatus.COMPLETED.value, output=output)
             await uow.commit()
+        if defer_terminal:
+            return None
         return await publish_terminal_evidence(
             self._event_bus,
             run_id=run_id,

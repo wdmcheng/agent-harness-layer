@@ -35,9 +35,13 @@ Provider 报告的非负有限 USD cost SHALL 写入 `cost_usd` 并标记 `repor
 - **THEN** DTO/repository/EventBus 在持久化或 delegation 预算聚合前以稳定 validation/state error fail closed，不发布可信 usage、不更新预算且不回显 provider raw value
 
 ### Requirement: 调用生命周期和失败 evidence 可关联
-系统 SHALL 在 provider 副作用前生成稳定 `usage_call_id` 并发布 `model.request.started`，在完成、受控拒绝或 provider 失败后发布恰好一条调用级最终 `model.usage.updated`。Model 与 embedding 精确复用这两个 event type，并以 `ModelUsageEvidence.usage_kind` 区分，不得新增等价 embedding event。Started 与最终 usage event MUST 逐值共享 tenant/run/request/agent/trace、provider/model 和 `usage_call_id` correlation；`model.usage.updated` 只结束该 `usage_call_id`，其 `CanonicalEvent.terminal` MUST 为 false，run terminal marker 仍只允许 `run.completed`、`run.failed`、`run.cancelled`。`usage_call_id` 只属于 CanonicalEvent/telemetry metadata，不扩张 `ModelUsageEvidence` public 字段。失败 event MUST 保留已知 latency、usage 和 route/budget decision，并通过 CanonicalEvent envelope 使用稳定、脱敏 error code/summary。
+系统 SHALL 在 provider 副作用前生成稳定 `usage_call_id` 并发布 `model.request.started`，在完成、受控拒绝或 provider 失败后发布恰好一条调用级最终 `model.usage.updated`。Composition MUST 从 durable tenant/run/request/agent/trace 关联与稳定的语义调用槽位生成该 ID；invocation seam MUST NOT 随机回退，也 MUST NOT 接受 prompt、embedding input、secret 或其他敏感业务输入作为调用槽位。Model 与 embedding 精确复用这两个 event type，并以 `ModelUsageEvidence.usage_kind` 区分，不得新增等价 embedding event。Started 与最终 usage event MUST 逐值共享 tenant/run/request/agent/trace、provider/model 和 `usage_call_id` correlation；`model.usage.updated` 只结束该 `usage_call_id`，其 `CanonicalEvent.terminal` MUST 为 false，run terminal marker 仍只允许 `run.completed`、`run.failed`、`run.cancelled`。`usage_call_id` 只属于 CanonicalEvent/telemetry metadata，不扩张 `ModelUsageEvidence` public 字段。失败 event MUST 保留已知 latency、usage 和 route/budget decision，并通过 CanonicalEvent envelope 使用稳定、脱敏 error code/summary。
 
-每次 started 调用 MUST 在 provider 副作用前建立以 `(tenant_id, usage_call_id)` 唯一的 durable settlement/outbox 与稳定 usage event id；provider 结果、脱敏 usage 摘要或确定性失败 MUST 只写入该状态一次。sink 写入失败、确认丢失或进程重启后，恢复 MUST 从已持久化结果幂等补投同一 event id，MUST NOT 重新调用 provider。每条 run-scoped `model.usage.updated` 的 `seq` MUST 小于同一 run 的 terminal event `seq`；runtime 发布 terminal 前 MUST 恢复或确定性封闭所有已开始的 usage 调用，未知结果 MUST 保持 pending/needs_review并阻止 terminal，EventBus/sink MUST 拒绝 terminal 后的任何后续业务事件。
+每次 started 调用 MUST 在 provider 副作用前建立以 `(tenant_id, usage_call_id)` 唯一的 durable settlement/outbox 与稳定 usage event id；provider 结果、脱敏 usage 摘要或确定性失败 MUST 只写入该状态一次。sink 写入失败、确认丢失或进程重启后，恢复 MUST 从已持久化结果幂等补投同一 event id，MUST NOT 重新调用 provider。Service worker MUST 在 DBOS runtime 启动前恢复全部已有确定结果，并在 queued run 重放或执行前再次执行 run-scoped recovery；两处恢复都 MUST 只处理 model/embedding operation kind，不得误消费 approval 等共享 outbox 项。每条 run-scoped `model.usage.updated` 的 `seq` MUST 小于同一 run 的 terminal event `seq`；runtime 发布 terminal 前 MUST 恢复或确定性封闭所有已开始的 usage 调用，未知结果 MUST 保持 pending/needs_review并阻止 terminal，EventBus/sink MUST 拒绝 terminal 后的任何后续业务事件。
+
+#### Scenario: Composition 生成稳定且不含敏感输入的调用 ID
+- **WHEN** 同一 durable run 的相同语义调用槽位因进程重启、DBOS 重放或请求重试再次进入 model/embedding invocation
+- **THEN** composition 生成与首次逐字一致的 `usage_call_id` 并复用既有 settlement；不同槽位生成不同 ID，调用方不能传入随机 ID，也不能把 prompt、embedding input 或 secret 纳入 ID
 
 #### Scenario: 完成路径恰好一次结算
 - **WHEN** provider 调用成功完成
@@ -62,6 +66,10 @@ Provider 报告的非负有限 USD cost SHALL 写入 `cost_usd` 并标记 `repor
 #### Scenario: Usage sink 失败由 durable settlement 恢复
 - **WHEN** provider 结果已经持久化，但最终 usage sink 在写前失败、写后确认丢失或进程随即退出
 - **THEN** recovery 使用同一 `usage_call_id`、稳定 event id和既有脱敏结果幂等补投唯一 usage，provider 调用次数保持一次；补投完成前 run terminal 不可见
+
+#### Scenario: Worker 启动与 queued run 执行前分层恢复
+- **WHEN** service worker 启动，或即将重放/执行某个 queued run，且共享 outbox 含 model、embedding 与 approval 等不同 operation kind 的确定结果
+- **THEN** worker 在 DBOS runtime 启动前补投全部 model/embedding 确定结果，并在该 queued run 执行前再次只补投其 run-scoped model/embedding 结果；approval 项不被 usage recovery 消费，provider 不重放
 
 ### Requirement: Local fake run 满足入口时延门禁
 local profile SHALL 使用无网络依赖的 fake provider，从公开单 agent run 入口到唯一 terminal 记录 monotonic 总时延并执行小于 5 秒的稳定门禁。验证 evidence MUST 输出可定位的阶段时延和 run/trace 关联，单元测试内部微步骤墙钟不得替代该入口证据。

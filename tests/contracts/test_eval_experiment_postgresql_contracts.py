@@ -29,7 +29,12 @@ async def test_eval_experiment_postgresql_repository_and_downgrade_contract() ->
     from sqlalchemy.engine import make_url
     from sqlalchemy.ext.asyncio import create_async_engine
 
-    from agent_harness.storage import SQLAlchemyStorage, get_current_revision, run_migrations
+    from agent_harness.storage import (
+        SQLAlchemyStorage,
+        get_current_revision,
+        get_head_revision,
+        run_migrations,
+    )
     from agent_harness.storage.migrations.runner import alembic_config
 
     base_url = make_url(os.environ["AGENT_HARNESS_TEST_POSTGRES_DSN"])
@@ -109,9 +114,7 @@ async def test_eval_experiment_postgresql_repository_and_downgrade_contract() ->
                 downgrade_config(),
                 "0008_agent_execution_approval_claims",
             )
-        assert (
-            await asyncio.to_thread(get_current_revision, dsn) == "0013a_run_trace_event_hardening"
-        )
+        assert await asyncio.to_thread(get_current_revision, dsn) == get_head_revision()
         storage = SQLAlchemyStorage.from_dsn(dsn)
         async with storage.uow() as uow:
             assert await uow.eval_dataset_splits.get("tenant-a", "split-1") is not None

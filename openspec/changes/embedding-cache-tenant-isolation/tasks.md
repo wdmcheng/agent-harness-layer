@@ -13,4 +13,4 @@
 ## 3. 联合回归与收口
 
 - [x] 3.1 运行 embedding、storage、migration 定向 unit/contract/integration tests，以及真实 PostgreSQL/Redis service smoke 中的 migration/cache 证据，分别记录离线与 service 结果。
-- [ ] 3.2 运行 import/secret scans、`make quality`、`make test`、`make build`、`make license-check`、pre-commit、`git diff --check`、本 change 和 `openspec validate --all --strict`；完成同 digest 的 3 个 fresh code-reviewer Stage 1/2 PASS 后只停在 `ready-to-archive`。
+- [x] 3.2 运行 import/secret scans、`make quality`、`make test`、`make build`、`make license-check`、pre-commit、`git diff --check`、本 change 和 `openspec validate --all --strict`；完成同 digest 的 3 个 fresh code-reviewer Stage 1/2 PASS 后只停在 `ready-to-archive`。

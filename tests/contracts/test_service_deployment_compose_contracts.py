@@ -11,10 +11,20 @@ from typing import Any, cast
 
 import pytest
 import yaml
+from tests.contracts.embedding_cache_postgresql_migration_contract_helpers import (
+    isolated_database,
+)
 from tests.contracts.run_trace_contract_helpers import seed_persisted_run
 
 from agent_harness.auth import ApiKeyVerifier, hash_token
-from agent_harness.storage import ApiKeyCreate, SQLAlchemyStorage, run_migrations
+from agent_harness.storage import (
+    ApiKeyCreate,
+    RunCreate,
+    SessionCreate,
+    SQLAlchemyStorage,
+    run_migrations,
+)
+from agent_harness.storage.evidence_repositories import EvidenceOperationKind
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = ROOT / "templates" / "service-app"
@@ -50,6 +60,15 @@ def _smoke_service(monkeypatch: pytest.MonkeyPatch) -> Any:
     secret_module = importlib.util.module_from_spec(secret_spec)
     secret_spec.loader.exec_module(secret_module)
     monkeypatch.setitem(sys.modules, "service_secret_smoke", secret_module)
+    approval_path = TEMPLATE / "scripts" / "service_approval_smoke.py"
+    approval_spec = importlib.util.spec_from_file_location(
+        "service_approval_smoke_contract",
+        approval_path,
+    )
+    assert approval_spec is not None and approval_spec.loader is not None
+    approval_module = importlib.util.module_from_spec(approval_spec)
+    approval_spec.loader.exec_module(approval_module)
+    monkeypatch.setitem(sys.modules, "service_approval_smoke", approval_module)
     path = TEMPLATE / "scripts" / "smoke_service.py"
     spec = importlib.util.spec_from_file_location("service_smoke_contract", path)
     assert spec is not None and spec.loader is not None
@@ -140,6 +159,9 @@ def test_container_build_requires_core_wheel_and_does_not_copy_workspace_source(
 def test_service_smoke_uses_http_auth_crash_reclaim_checkpoint_and_scoped_cleanup() -> None:
     template_smoke = (TEMPLATE / "scripts" / "smoke_service.py").read_text(encoding="utf-8")
     secret_smoke = (TEMPLATE / "scripts" / "service_secret_smoke.py").read_text(encoding="utf-8")
+    approval_smoke = (TEMPLATE / "scripts" / "service_approval_smoke.py").read_text(
+        encoding="utf-8"
+    )
     root_smoke = (ROOT / "scripts" / "smoke_service.py").read_text(encoding="utf-8")
 
     for marker in (
@@ -168,7 +190,7 @@ def test_service_smoke_uses_http_auth_crash_reclaim_checkpoint_and_scoped_cleanu
         '"postgres_password_file": True',
         '"compose_config_redacted": True',
     ):
-        assert marker in template_smoke or marker in secret_smoke
+        assert marker in template_smoke or marker in secret_smoke or marker in approval_smoke
     for marker in (
         '"unreadable": True',
         '"api_worker_readiness_blocked": True',
@@ -453,13 +475,49 @@ def test_postgres_terminal_evidence_correlates_applicable_fields() -> None:
         "trace_id": "trace-1",
         "events": [
             {
-                "event_id": "event-1",
-                "type": "run.completed",
-                "terminal": True,
+                "event_id": "usage-started",
+                "type": "model.request.started",
+                "seq": 1,
+                "terminal": False,
+                "visibility": "internal",
                 "request_id": "request-1",
                 "trace_id": "trace-1",
+                "payload": {"correlation": {"usage_call_id": "usage-1"}},
+            },
+            {
+                "event_id": "usage-final",
+                "type": "model.usage.updated",
+                "seq": 2,
+                "terminal": False,
+                "visibility": "internal",
+                "request_id": "request-1",
+                "trace_id": "trace-1",
+                "payload": {"correlation": {"usage_call_id": "usage-1"}},
+            },
+            {
+                "event_id": "event-1",
+                "type": "run.completed",
+                "seq": 3,
+                "terminal": True,
+                "visibility": "public",
+                "request_id": "request-1",
+                "trace_id": "trace-1",
+                "payload": None,
+            },
+        ],
+        "outbox": [
+            {
+                "event_id": "usage-final",
+                "usage_call_id": "usage-1",
+                "operation_kind": "model_usage",
+                "state": "published",
             }
         ],
+        "capacity": {
+            "highest_persisted_seq": 3,
+            "outstanding_reserved_event_count": 0,
+            "terminal_reservation": 0,
+        },
     }
 
     evidence = support.postgres_terminal_evidence(
@@ -471,6 +529,8 @@ def test_postgres_terminal_evidence_correlates_applicable_fields() -> None:
     assert evidence["execution"] == expected
     assert evidence["terminal_event"]["request_id"] == "request-1"
     assert evidence["terminal_event"]["trace_id"] == "trace-1"
+    assert evidence["usage"]["usage_call_id"] == "usage-1"
+    assert evidence["usage"]["outbox_state"] == "published"
 
 
 @pytest.mark.asyncio
@@ -491,6 +551,91 @@ async def test_service_admin_inspect_run_returns_persisted_trace(tmp_path: Path)
 
     assert inspected["run_id"] == run_id
     assert inspected["trace_id"] == "trace-inspect"
+
+
+@pytest.mark.skipif(
+    not os.environ.get("AGENT_HARNESS_TEST_POSTGRES_DSN"),
+    reason="真实 PostgreSQL service admin 合同需要测试 DSN。",
+)
+@pytest.mark.asyncio
+async def test_service_admin_inspect_run_reads_postgresql_capacity_and_outbox() -> None:
+    """inspect seam 必须能读取 0014 PostgreSQL 空 outbox 与初始容量。"""
+
+    async with isolated_database("service_admin_inspect") as dsn:
+        run_migrations(dsn)
+        storage = SQLAlchemyStorage.from_dsn(dsn)
+        try:
+            async with storage.uow() as uow:
+                await uow.tenants.ensure("inspect-pg")
+                session = await uow.sessions.create(
+                    SessionCreate(
+                        tenant_id="inspect-pg",
+                        user_id="user-pg",
+                        agent_id="examples.basic",
+                    )
+                )
+                run = await uow.runs.create(
+                    RunCreate(
+                        tenant_id="inspect-pg",
+                        session_id=session.id,
+                        agent_id="examples.basic",
+                        trace_id="trace-inspect-pg",
+                    )
+                )
+                await uow.commit()
+            run_id = run.id
+            async with storage.uow() as uow:
+                reserved = await uow.event_capacity.reserve(
+                    run_id=run_id,
+                    operation_kind=EvidenceOperationKind.MODEL_USAGE,
+                )
+                await uow.evidence_outbox.start_usage(
+                    tenant_id="inspect-pg",
+                    run_id=run_id,
+                    usage_call_id="usage-inspect-pg",
+                    event_id="usage:inspect-pg:usage-inspect-pg:final",
+                    reserved_event_count=reserved,
+                    started_evidence={
+                        "usage_kind": "model",
+                        "tenant_id": "inspect-pg",
+                        "provider": "fake",
+                        "model": "fake-basic",
+                        "input_tokens": None,
+                        "output_tokens": None,
+                        "cost_usd": None,
+                        "cost_status": "unavailable",
+                        "latency_ms": 0,
+                        "decision": {"provider_called": False},
+                        "run_id": run_id,
+                        "agent_id": "examples.basic",
+                        "request_id": None,
+                        "trace_id": "trace-inspect-pg",
+                    },
+                )
+                await uow.commit()
+        finally:
+            await storage.dispose()
+
+        admin = _service_admin()
+        admin.storage_dsn = lambda: dsn
+        inspected = await admin.inspect_run(run_id)
+
+        assert inspected["outbox"] == [
+            {
+                "event_id": "usage:inspect-pg:usage-inspect-pg:final",
+                "usage_call_id": "usage-inspect-pg",
+                "operation_kind": "model_usage",
+                "state": "started",
+                "reserved_event_count": 2,
+                "group_id": None,
+                "sequence_in_group": None,
+            }
+        ]
+        assert inspected["capacity"] == {
+            "highest_persisted_seq": 0,
+            "outstanding_reserved_event_count": 2,
+            "terminal_reservation": 1,
+        }
 
 
 def test_service_profile_keeps_application_dsn_out_of_committed_config() -> None:

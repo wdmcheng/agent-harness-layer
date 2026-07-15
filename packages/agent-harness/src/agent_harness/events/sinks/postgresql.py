@@ -4,10 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from sqlalchemy import func, insert, select, text
+from sqlalchemy import func, insert, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agent_harness.events.capacity import (
+    UsageCapacitySettlement,
+    usage_capacity_binding,
+    validate_usage_capacity_outbox,
+)
+from agent_harness.events.serialization import canonical_event_bytes, validate_persisted_event_bytes
 from agent_harness.events.sinks.base import (
     EventSinkTerminalConflict,
     validate_event_replay,
@@ -16,11 +22,23 @@ from agent_harness.events.sinks.base import (
 )
 from agent_harness.events.types import CanonicalEvent, CanonicalEventType
 from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
-from agent_harness.storage.models import AgentRunModel, CanonicalEventModel
+from agent_harness.storage.evidence_repositories import (
+    MAX_EVENT_SEQ,
+    EvidenceOperationKind,
+    operation_event_capacity,
+)
+from agent_harness.storage.models import (
+    AgentRunModel,
+    CanonicalEventModel,
+    RunEventCapacityModel,
+    RunEvidenceOutboxModel,
+)
 
 
 class PostgreSQLEventSink:
     """锁定 run row 串行分配 seq，并由数据库唯一约束守住 terminal。"""
+
+    manages_event_capacity = True
 
     def __init__(self, storage: SQLAlchemyStorage) -> None:
         self._storage = storage
@@ -33,6 +51,7 @@ class PostgreSQLEventSink:
     ) -> CanonicalEvent:
         validate_event_scope(event)
         validate_terminal_visibility(event)
+        canonical_event_bytes(event)
         try:
             async with self._storage.engine.begin() as connection:
                 existing = await connection.execute(
@@ -86,25 +105,150 @@ class PostgreSQLEventSink:
                         text("SELECT pg_advisory_xact_lock(hashtextextended(:stream, 0))"),
                         {"stream": f"{len(event.tenant_id)}:{event.tenant_id}{event.run_id}"},
                     )
-                if event.terminal:
-                    terminal = await connection.execute(
-                        select(CanonicalEventModel.id).where(
-                            CanonicalEventModel.tenant_id == event.tenant_id,
-                            CanonicalEventModel.stream_id == event.run_id,
-                            CanonicalEventModel.terminal.is_(True),
-                        )
+                # non-run envelope 的 stream 可能与真实 run id 同名。它不获得
+                # AgentRun ownership，但仍占用同一 tenant-scoped seq 空间，因此
+                # 必须与 run writer 共锁容量行并推进同一 high-water mark。
+                capacity = await connection.execute(
+                    select(
+                        RunEventCapacityModel.highest_persisted_seq,
+                        RunEventCapacityModel.outstanding_reserved_event_count,
+                        RunEventCapacityModel.terminal_reservation,
                     )
-                    if terminal.first() is not None:
-                        raise EventSinkTerminalConflict(
-                            f"run already has terminal event: {event.run_id}"
-                        )
+                    .where(
+                        RunEventCapacityModel.run_id == event.run_id,
+                        RunEventCapacityModel.tenant_id == event.tenant_id,
+                    )
+                    .with_for_update()
+                )
+                capacity_row = capacity.one_or_none()
+                if event.record_scope == "run" and capacity_row is None:
+                    raise RuntimeError("run event capacity is not initialized")
+                terminal = await connection.execute(
+                    select(CanonicalEventModel.id).where(
+                        CanonicalEventModel.tenant_id == event.tenant_id,
+                        CanonicalEventModel.stream_id == event.run_id,
+                        CanonicalEventModel.terminal.is_(True),
+                    )
+                )
+                if terminal.first() is not None:
+                    raise EventSinkTerminalConflict(
+                        f"run already has terminal event: {event.run_id}"
+                    )
                 latest = await connection.execute(
                     select(func.max(CanonicalEventModel.seq)).where(
                         CanonicalEventModel.tenant_id == event.tenant_id,
                         CanonicalEventModel.stream_id == event.run_id,
                     )
                 )
-                persisted = event.model_copy(update={"seq": (latest.scalar_one() or 0) + 1})
+                latest_seq = int(latest.scalar_one() or 0)
+                persisted = event.model_copy(update={"seq": latest_seq + 1})
+                if persisted.seq > MAX_EVENT_SEQ:
+                    raise RuntimeError("event.sequence_exhausted")
+                if capacity_row is not None:
+                    if capacity_row.highest_persisted_seq != latest_seq:
+                        raise RuntimeError("run event capacity high-water mark is invalid")
+                    outstanding = capacity_row.outstanding_reserved_event_count
+                    terminal_reservation = capacity_row.terminal_reservation
+                    usage_binding = usage_capacity_binding(event)
+                    if usage_binding is not None:
+                        usage_outbox = await connection.execute(
+                            select(
+                                RunEvidenceOutboxModel.tenant_id,
+                                RunEvidenceOutboxModel.run_id,
+                                RunEvidenceOutboxModel.usage_call_id,
+                                RunEvidenceOutboxModel.event_id,
+                                RunEvidenceOutboxModel.operation_kind,
+                                RunEvidenceOutboxModel.state,
+                                RunEvidenceOutboxModel.reserved_event_count,
+                                RunEvidenceOutboxModel.result_json,
+                                RunEvidenceOutboxModel.error_code,
+                            )
+                            .where(
+                                RunEvidenceOutboxModel.tenant_id == event.tenant_id,
+                                RunEvidenceOutboxModel.usage_call_id == usage_binding.usage_call_id,
+                            )
+                            .with_for_update()
+                        )
+                        usage_outbox_row = usage_outbox.one_or_none()
+                        usage_settlement = (
+                            UsageCapacitySettlement(
+                                tenant_id=str(usage_outbox_row[0]),
+                                run_id=str(usage_outbox_row[1]),
+                                usage_call_id=(
+                                    str(usage_outbox_row[2])
+                                    if usage_outbox_row[2] is not None
+                                    else None
+                                ),
+                                event_id=str(usage_outbox_row[3]),
+                                operation_kind=str(usage_outbox_row[4]),
+                                state=str(usage_outbox_row[5]),
+                                reserved_event_count=int(usage_outbox_row[6]),
+                                result_json=usage_outbox_row[7],
+                                error_code=(
+                                    str(usage_outbox_row[8])
+                                    if usage_outbox_row[8] is not None
+                                    else None
+                                ),
+                            )
+                            if usage_outbox_row is not None
+                            else None
+                        )
+                        usage_reserved_event_count = validate_usage_capacity_outbox(
+                            event=event,
+                            binding=usage_binding,
+                            outbox=usage_settlement,
+                            expected_reserved_event_count=operation_event_capacity(
+                                EvidenceOperationKind(usage_binding.operation_kind)
+                            ),
+                        )
+                        if usage_binding.phase == "final":
+                            started_event = await connection.execute(
+                                select(CanonicalEventModel.id).where(
+                                    CanonicalEventModel.id == usage_binding.started_event_id,
+                                    CanonicalEventModel.tenant_id == event.tenant_id,
+                                    CanonicalEventModel.stream_id == event.run_id,
+                                )
+                            )
+                            if started_event.scalar_one_or_none() is None:
+                                raise RuntimeError(
+                                    "usage final event requires a persisted started event"
+                                )
+                    else:
+                        usage_reserved_event_count = 0
+                    outbox = await connection.execute(
+                        select(
+                            RunEvidenceOutboxModel.operation_kind,
+                            RunEvidenceOutboxModel.reserved_event_count,
+                        ).where(RunEvidenceOutboxModel.event_id == event.event_id)
+                    )
+                    outbox_row = outbox.one_or_none()
+                    if event.record_scope == "run":
+                        if event.terminal:
+                            if terminal_reservation != 1 or outstanding != 0:
+                                raise RuntimeError("pending evidence blocks terminal")
+                            terminal_reservation = 0
+                        elif usage_binding is not None:
+                            if outstanding < usage_reserved_event_count:
+                                raise RuntimeError("usage event has no capacity reservation")
+                            outstanding -= usage_reserved_event_count
+                        elif outbox_row is not None and outbox_row.reserved_event_count:
+                            if outstanding < outbox_row.reserved_event_count:
+                                raise RuntimeError("outbox event has no capacity reservation")
+                            outstanding -= outbox_row.reserved_event_count
+                    if persisted.seq + outstanding + terminal_reservation > MAX_EVENT_SEQ:
+                        raise RuntimeError("event.sequence_exhausted")
+                    await connection.execute(
+                        update(RunEventCapacityModel)
+                        .where(
+                            RunEventCapacityModel.run_id == event.run_id,
+                            RunEventCapacityModel.tenant_id == event.tenant_id,
+                        )
+                        .values(
+                            highest_persisted_seq=persisted.seq,
+                            outstanding_reserved_event_count=outstanding,
+                            terminal_reservation=terminal_reservation,
+                        )
+                    )
                 await connection.execute(
                     insert(CanonicalEventModel).values(
                         id=persisted.event_id,
@@ -193,11 +337,13 @@ class PostgreSQLEventSink:
     @staticmethod
     def _event_from_row(model: CanonicalEventModel) -> CanonicalEvent:
         if model.envelope_json is not None:
-            return CanonicalEvent.model_validate(model.envelope_json)
+            event = CanonicalEvent.model_validate(model.envelope_json)
+            validate_persisted_event_bytes(event)
+            return event
         # 0012前的 legacy row 只能恢复旧列已有字段，不能伪造缺失 correlation。
         if model.run_id is None:
             raise RuntimeError("non-run canonical event requires a persisted envelope")
-        return CanonicalEvent(
+        event = CanonicalEvent(
             event_id=model.id,
             tenant_id=model.tenant_id,
             run_id=model.run_id,
@@ -212,6 +358,8 @@ class PostgreSQLEventSink:
             request_id=model.request_id,
             trace_id=model.trace_id,
         )
+        validate_persisted_event_bytes(event)
+        return event
 
 
 __all__ = ["PostgreSQLEventSink"]

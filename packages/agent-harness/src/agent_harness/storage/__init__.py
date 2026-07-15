@@ -36,6 +36,15 @@ from agent_harness.storage.eval_repositories import EvalRunCreate as EvalRunCrea
 from agent_harness.storage.eval_repositories import EvalRunRecord as EvalRunRecord
 from agent_harness.storage.eval_repositories import EvalScoreCreate as EvalScoreCreate
 from agent_harness.storage.eval_repositories import EvalScoreRecord as EvalScoreRecord
+from agent_harness.storage.evidence_repositories import (
+    EventCapacityExceeded as EventCapacityExceeded,
+)
+from agent_harness.storage.evidence_repositories import (
+    EventCapacityRepository as EventCapacityRepository,
+)
+from agent_harness.storage.evidence_repositories import (
+    EvidenceOutboxRepository as EvidenceOutboxRepository,
+)
 from agent_harness.storage.migrations.runner import (
     SchemaMigrationRequiredError as SchemaMigrationRequiredError,
 )

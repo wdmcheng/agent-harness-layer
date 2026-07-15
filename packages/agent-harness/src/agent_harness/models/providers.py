@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+import math
+from typing import Literal, Protocol, cast
+
+from pydantic import field_validator
 
 from agent_harness.contracts.dto import HarnessDTO
 
@@ -26,6 +29,8 @@ class ModelDecision(HarnessDTO):
     max_tokens: int | None = None
     fallback_model: str | None = None
     reason: str | None = None
+    price_source_ref: str | None = None
+    price_source_version: str | None = None
 
 
 class ModelResponse(HarnessDTO):
@@ -37,6 +42,44 @@ class ModelResponse(HarnessDTO):
     decision: ModelDecision
     token_usage: dict[str, int]
     latency_ms: int = 0
+    cost_usd: float | None = None
+    cost_status: Literal["reported", "estimated", "unavailable"] = "unavailable"
+
+    @field_validator("token_usage", mode="before")
+    @classmethod
+    def validate_token_usage(cls, value: object) -> object:
+        """拒绝负数、bool 与隐式字符串，避免无效 adapter 结果进入结算。"""
+
+        if not isinstance(value, dict):
+            return value
+        token_usage = cast(dict[object, object], value)
+        if any(
+            isinstance(item, bool) or not isinstance(item, int) or item < 0
+            for item in token_usage.values()
+        ):
+            raise ValueError("model token usage must contain non-negative integers")
+        return token_usage
+
+    @field_validator("latency_ms", mode="before")
+    @classmethod
+    def validate_latency(cls, value: object) -> object:
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError("model latency must be a non-negative integer")
+        return value
+
+    @field_validator("cost_usd", mode="before")
+    @classmethod
+    def validate_cost(cls, value: object) -> object:
+        if value is None:
+            return value
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not math.isfinite(value)
+            or value < 0
+        ):
+            raise ValueError("model cost must be finite and non-negative")
+        return value
 
 
 class ModelProvider(Protocol):

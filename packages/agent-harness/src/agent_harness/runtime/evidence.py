@@ -65,6 +65,7 @@ async def persist_failed_execution(
     request_id: str | None = None,
     trace_id: str | None = None,
     correlation: dict[str, Any] | None = None,
+    publish_terminal: bool = True,
 ) -> RunResult:
     """先持久化确定性失败，再用稳定 event id 发布可补偿证据。"""
 
@@ -73,19 +74,21 @@ async def persist_failed_execution(
     async with storage.uow() as uow:
         await uow.runs.set_status(run_id, RunStatus.FAILED.value, error=error)
         await uow.commit()
-    terminal = await publish_terminal_evidence(
-        event_bus,
-        run_id=run_id,
-        agent_id=agent_id,
-        status=RunStatus.FAILED,
-        identity=identity,
-        error=error,
-        request_id=request_id,
-        trace_id=trace_id,
-        correlation=correlation,
-    )
+    terminal = None
+    if publish_terminal:
+        terminal = await publish_terminal_evidence(
+            event_bus,
+            run_id=run_id,
+            agent_id=agent_id,
+            status=RunStatus.FAILED,
+            identity=identity,
+            error=error,
+            request_id=request_id,
+            trace_id=trace_id,
+            correlation=correlation,
+        )
     return RunResult(
         run_id=run_id,
         status=RunStatus.FAILED,
-        terminal_event=terminal.event_type.value,
+        terminal_event=terminal.event_type.value if terminal is not None else None,
     )

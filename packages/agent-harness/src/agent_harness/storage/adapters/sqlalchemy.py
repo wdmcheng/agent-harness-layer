@@ -31,6 +31,10 @@ from agent_harness.storage.eval_repositories import (
     EvalRunRepository,
     EvalScoreRepository,
 )
+from agent_harness.storage.evidence_repositories import (
+    EventCapacityRepository,
+    EvidenceOutboxRepository,
+)
 from agent_harness.storage.repositories import (
     ApiKeyRepository,
     ApprovalRepository,
@@ -86,6 +90,8 @@ class SQLAlchemyUnitOfWork:
         self.harness_acceptance_records = HarnessAcceptanceRepository(self.session)
         self.workspaces = WorkspaceRepository(self.session)
         self.tool_invocations = ToolInvocationRepository(self.session)
+        self.event_capacity = EventCapacityRepository(self.session)
+        self.evidence_outbox = EvidenceOutboxRepository(self.session)
         return self
 
     async def __aexit__(

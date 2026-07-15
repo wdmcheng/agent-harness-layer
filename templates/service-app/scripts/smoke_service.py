@@ -11,9 +11,7 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
 
-from service_http_smoke import (
-    approval_id as _approval_id,
-)
+from service_approval_smoke import run_approval_smoke
 from service_http_smoke import (
     request as _request,
 )
@@ -124,8 +122,8 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
     submitted = _submit(
         base_url,
         token,
-        agent_id="examples.basic",
-        input_payload={"source_ref": "source://compose-smoke", "trust_level": "trusted"},
+        agent_id="examples.ticket_triage",
+        input_payload={"text": "production outage: checkout is down"},
         idempotency_key=idempotency_key,
         request_id=request_id,
     )
@@ -215,98 +213,42 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
     ):
         raise RuntimeError("worker A stale receipt was not rejected")
     (Path(env["SERVICE_APP_SMOKE_DIR"]) / "reclaim-release").touch()
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "dbos-event"
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "dbos-event-wait-completed"
     _wait_run_status(base_url, token, run_id, "completed")
-    completed = inspect_run(env, run_id)
-    postgres_evidence = postgres_terminal_evidence(
-        execution_expected,
-        completed,
-        workflow_id=marker["workflow_id"],
-    )
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "dbos-event-inspect"
+    try:
+        completed = inspect_run(env, run_id)
+    except RuntimeError as exc:
+        if str(exc).startswith("service.inspect."):
+            env["SERVICE_APP_SMOKE_BOUNDARY"] = str(exc)
+        raise
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "dbos-event-usage"
+    try:
+        postgres_evidence = postgres_terminal_evidence(
+            execution_expected,
+            completed,
+            workflow_id=marker["workflow_id"],
+        )
+    except RuntimeError as exc:
+        if str(exc).startswith("service.evidence."):
+            env["SERVICE_APP_SMOKE_BOUNDARY"] = str(exc)
+        raise
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "idempotency-replay"
     replay = _submit(
         base_url,
         token,
-        agent_id="examples.basic",
-        input_payload={"source_ref": "source://compose-smoke", "trust_level": "trusted"},
+        agent_id="examples.ticket_triage",
+        input_payload={"text": "production outage: checkout is down"},
         idempotency_key=idempotency_key,
         request_id=f"retry-{uuid4()}",
     )
     if replay["run_id"] != run_id:
         raise RuntimeError("idempotent HTTP retry created another run")
 
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "checkpoint-approval"
-    approval_submit = _submit(
-        base_url,
-        token,
-        agent_id="examples.dev_assistant",
-        input_payload={
-            "operation": "write",
-            "path": "approved.txt",
-            "content": "approved-once",
-        },
-        idempotency_key=f"approval-{uuid4()}",
-        request_id=f"approval-submit-{uuid4()}",
-    )
-    approval_run = cast(str, approval_submit["run_id"])
-    _wait_run_status(base_url, token, approval_run, "waiting")
-    approval_id = _approval_id(base_url, token, approval_run)
-    compose(env, "stop", "worker", "redis")
-    approve_status, _ = _request(
-        base_url,
-        "POST",
-        f"/api/v1/runs/{approval_run}/approvals/{approval_id}",
-        token=token,
-        body={"decision": "approved", "comment": "reviewed sk-secret-value"},
-    )
-    if approve_status != 503:
-        raise RuntimeError(f"approval enqueue outage must return 503, got {approve_status}")
-    compose(env, "start", "redis")
-    _wait_for(
-        "Redis restart", lambda: compose(env, "exec", "-T", "redis", "redis-cli", "PING") == "PONG"
-    )
-    compose(env, "up", "-d", "--wait", "worker")
-    _wait_run_status(base_url, token, approval_run, "completed")
-    approval_state = inspect_run(env, approval_run)
-    if (
-        approval_state["checkpoint_id"] is None
-        or approval_state["approvals"][0]["status"] != "approved"
-    ):
-        raise RuntimeError("approval continuation did not use shared checkpoint/evidence")
-    approved_path = Path(env["SERVICE_APP_SMOKE_DIR"]) / "workspace" / "approved.txt"
-    if approved_path.read_text(encoding="utf-8") != "approved-once":
-        raise RuntimeError("approved tool side effect was missing or duplicated")
-
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "checkpoint-deny"
-    deny_submit = _submit(
-        base_url,
-        token,
-        agent_id="examples.dev_assistant",
-        input_payload={"operation": "write", "path": "denied.txt", "content": "never"},
-        idempotency_key=f"deny-{uuid4()}",
-        request_id=f"deny-submit-{uuid4()}",
-    )
-    deny_run = cast(str, deny_submit["run_id"])
-    _wait_run_status(base_url, token, deny_run, "waiting")
-    deny_id = _approval_id(base_url, token, deny_run)
-    stream_before_deny = _stream_length(env)
-    deny_status, _ = _request(
-        base_url,
-        "POST",
-        f"/api/v1/runs/{deny_run}/approvals/{deny_id}",
-        token=token,
-        body={"decision": "denied", "comment": "deny smoke"},
-    )
-    if deny_status != 200:
-        raise RuntimeError(f"deny must close synchronously, got {deny_status}")
-    _wait_run_status(base_url, token, deny_run, "failed")
-    if _stream_length(env) != stream_before_deny:
-        raise RuntimeError("deny created a continuation queue operation")
-    if (Path(env["SERVICE_APP_SMOKE_DIR"]) / "workspace" / "denied.txt").exists():
-        raise RuntimeError("deny executed the protected tool handler")
+    approval_evidence = run_approval_smoke(env, base_url=base_url, token=token)
 
     evidence: dict[str, object] = {
-        "migration": "0013a_run_trace_event_hardening",
+        "migration": "0014_run_evidence_outbox",
         "secret_file": {
             "consumers": ["migration", "api", "worker"],
             "postgres_password_file": True,
@@ -329,13 +271,7 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
         },
         "run": {"run_id": run_id, "status": "completed", "terminal_count": 1},
         "postgresql": postgres_evidence,
-        "approval": {
-            "run_id": approval_run,
-            "checkpoint_id": approval_state["checkpoint_id"],
-            "status": "approved",
-            "enqueue_recovery": "ok",
-        },
-        "deny": {"run_id": deny_run, "status": "failed", "continuations": 0},
+        **approval_evidence,
     }
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "secret-evidence-scan"
     assert_configuration_secret_absent(
@@ -374,6 +310,8 @@ def main() -> int:
     credential_cleanup_confirmed = args.migrate_only
     credential_cleanup_needed = False
     worker_a = f"{project}-worker-a"
+    approval_write_worker = f"{project}-approval-write-fail"
+    approval_ack_worker = f"{project}-approval-ack-fail"
     try:
         smoke_dir.mkdir(parents=True, exist_ok=True)
         (smoke_dir / "workspace").mkdir(exist_ok=True)
@@ -395,7 +333,7 @@ def main() -> int:
             env["SERVICE_APP_SMOKE_BOUNDARY"] = "migration"
             compose(env, "run", "--rm", "migration")
             evidence: dict[str, object] = {
-                "migration": "0013a_run_trace_event_hardening",
+                "migration": "0014_run_evidence_outbox",
                 "secret_file": {
                     "consumers": ["migration"],
                     "postgres_password_file": True,
@@ -433,7 +371,18 @@ def main() -> int:
                 credential_cleanup_confirmed=credential_cleanup_confirmed,
             )
             try:
-                run(["docker", "rm", "-f", worker_a], env=env, check=False)
+                run(
+                    [
+                        "docker",
+                        "rm",
+                        "-f",
+                        worker_a,
+                        approval_write_worker,
+                        approval_ack_worker,
+                    ],
+                    env=env,
+                    check=False,
+                )
             finally:
                 try:
                     cleanup_project(env, preserve_volume=preserve_volume)

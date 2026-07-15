@@ -10,11 +10,12 @@ import httpx
 
 from agent_harness.embeddings.provider import (
     EmbeddingCacheInfo,
+    EmbeddingCacheStore,
     EmbeddingProvider,
     EmbeddingRequest,
     EmbeddingResponse,
 )
-from agent_harness.storage.repositories import EmbeddingCacheCreate, EmbeddingCacheRepository
+from agent_harness.storage.repositories import EmbeddingCacheCreate
 
 
 class OpenAICompatibleEmbeddingProvider:
@@ -25,7 +26,7 @@ class OpenAICompatibleEmbeddingProvider:
     def __init__(
         self,
         *,
-        cache: EmbeddingCacheRepository,
+        cache: EmbeddingCacheStore,
         base_url: str,
         model: str,
         api_key: str | None = None,
@@ -45,6 +46,7 @@ class OpenAICompatibleEmbeddingProvider:
         """读取或创建 embedding vector ref，避免调用方处理 provider 原始响应。"""
 
         input_hash = hashlib.sha256(request.input.encode("utf-8")).hexdigest()
+        lookup_started = perf_counter()
         cached = await self._cache.get(
             tenant_id=request.tenant_id,
             provider=self.provider,
@@ -63,6 +65,7 @@ class OpenAICompatibleEmbeddingProvider:
                     input_hash=input_hash,
                     vector_ref=cached.vector_ref,
                 ),
+                latency_ms=int((perf_counter() - lookup_started) * 1000),
             )
 
         started = perf_counter()
@@ -93,6 +96,7 @@ class OpenAICompatibleEmbeddingProvider:
             vector_ref=vector_ref,
             vector=vector,
             cache=EmbeddingCacheInfo(hit=False, input_hash=input_hash, vector_ref=vector_ref),
+            latency_ms=latency_ms,
         )
 
     async def _post_embedding(self, input_text: str) -> dict[str, Any]:

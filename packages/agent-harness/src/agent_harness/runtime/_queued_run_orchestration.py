@@ -250,6 +250,7 @@ class QueuedRunOrchestration(OrchestratorState):
                 raise InvalidRunTransition("run execution owner mismatch")
             await uow.commit()
 
+        await self.recover_pending_usage_evidence(run_id=run_id)
         context_payload = private.execution_context
         request_id = context_payload.get("request_id")
         request_id_value = request_id if isinstance(request_id, str) else None
@@ -325,6 +326,8 @@ class QueuedRunOrchestration(OrchestratorState):
         context = build_execution_context(
             identity=execution_identity,
             services=self._executor_services,
+            agent_id=run.agent_id,
+            run_id=run.id,
             request_id=request_id_value,
             trace_id=trace_id_value,
         )
@@ -342,7 +345,14 @@ class QueuedRunOrchestration(OrchestratorState):
             )
         return await self._apply_execution_result(request, result, context=context)
 
-    async def fail_queued_run(self, *, run_id: str, tenant_id: str, reason: str) -> RunResult:
+    async def fail_queued_run(
+        self,
+        *,
+        run_id: str,
+        tenant_id: str,
+        reason: str,
+        defer_terminal: bool = False,
+    ) -> RunResult:
         """用持久化身份把 DBOS 确定性失败收口为 application terminal。"""
 
         async with self._storage.uow() as uow:
@@ -367,22 +377,24 @@ class QueuedRunOrchestration(OrchestratorState):
         request_id_value = request_id if isinstance(request_id, str) else None
         trace_id_value = trace_id if isinstance(trace_id, str) else None
         if status in TERMINAL_STATUSES:
-            terminal = await publish_terminal_evidence(
-                self._event_bus,
-                run_id=run_id,
-                agent_id=run.agent_id,
-                status=status,
-                identity=identity,
-                output=run.output,
-                error=run.error,
-                request_id=request_id_value,
-                trace_id=trace_id_value,
-                correlation=run_correlation(run.input),
-            )
+            terminal = None
+            if not defer_terminal:
+                terminal = await publish_terminal_evidence(
+                    self._event_bus,
+                    run_id=run_id,
+                    agent_id=run.agent_id,
+                    status=status,
+                    identity=identity,
+                    output=run.output,
+                    error=run.error,
+                    request_id=request_id_value,
+                    trace_id=trace_id_value,
+                    correlation=run_correlation(run.input),
+                )
             return RunResult(
                 run_id=run_id,
                 status=status,
-                terminal_event=terminal.event_type.value,
+                terminal_event=terminal.event_type.value if terminal is not None else None,
             )
         return await self.fail_run(
             run_id,
@@ -391,4 +403,5 @@ class QueuedRunOrchestration(OrchestratorState):
             request_id=request_id_value,
             trace_id=trace_id_value,
             input=run.input,
+            defer_terminal=defer_terminal,
         )

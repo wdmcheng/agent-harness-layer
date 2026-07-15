@@ -290,6 +290,7 @@ async def test_service_worker_keeps_one_runtime_open_until_cancelled(
     monkeypatch.setattr(runtime_worker, "build_runtime_components", build_components)
     monkeypatch.setattr(runtime_worker, "DBOSServiceRuntimeAdapter", Adapter)
     monkeypatch.setattr(runtime_worker, "_recover_pending_enqueue", no_recovery)
+    monkeypatch.setattr(runtime_worker, "_recover_pending_usage", no_recovery)
     monkeypatch.setattr(runtime_worker, "consume_one", consume)
     task = asyncio.create_task(runtime_worker.run_forever())
     await asyncio.wait_for(consumed_twice.wait(), timeout=1)

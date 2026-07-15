@@ -43,8 +43,8 @@ def test_old_sqlite_0013_is_rejected_before_side_effect_then_hardened(tmp_path: 
         require_migration_head(dsn)
     assert sqlite_snapshot(path) == before
 
-    run_migrations(dsn)
-    assert require_migration_head(dsn) == REVISION_0013A
+    run_migrations(dsn, REVISION_0013A)
+    assert get_current_revision(dsn) == REVISION_0013A
     with sqlite3.connect(path) as connection:
         rows = connection.execute(
             "select id, run_id, stream_id, trace_id, record_scope from canonical_events order by id"
@@ -112,7 +112,7 @@ def test_current_0013_shape_is_verified_noop_and_downgrade_preserves_schema(
     dsn = sqlite_dsn(path)
     run_migrations(dsn, REVISION_0013)
     before = sqlite_snapshot(path)
-    run_migrations(dsn)
+    run_migrations(dsn, REVISION_0013A)
     after = sqlite_snapshot(path)
     assert after[:3] == before[:3]
     assert after[3] == (REVISION_0013A,)

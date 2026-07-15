@@ -257,10 +257,10 @@ async def test_concurrent_approve_creates_one_lease_claim_and_terminal(tmp_path:
 
 
 @pytest.mark.asyncio
-async def test_terminal_run_before_approval_finalize_recovers_existing_claim(
+async def test_deterministic_run_result_before_approval_finalize_recovers_existing_claim(
     tmp_path: Path,
 ) -> None:
-    """tool result/run terminal 已落库但 approval 未 finalize 时只读既有 claim 收口。"""
+    """tool result 已落库但 ordered evidence 未完成时只读既有 claim 收口。"""
 
     workspace = tmp_path / "finalize-window-workspace"
     workspace.mkdir()
@@ -304,6 +304,7 @@ async def test_terminal_run_before_approval_finalize_recovers_existing_claim(
             expected_run_id=approval.run_id,
             identity=IdentityContext.local_default(),
             approval_grant=grant,
+            defer_terminal=True,
         )
         async with components.storage.uow() as uow:
             before_finalize = await uow.approvals.get(approval.approval_id)

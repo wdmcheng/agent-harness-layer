@@ -78,6 +78,40 @@ async def inspect_run(run_id: str) -> dict[str, object]:
             private = await uow.runs.get_execution(run_id)
             approvals = await uow.approvals.list_by_run(run_id)
             checkpoint = await uow.checkpoints.get_latest(run_id)
+            capacity = await uow.event_capacity.snapshot(run_id)
+            outbox = await uow.evidence_outbox.list_for_run(run_id=run_id)
+            outbox_evidence = [
+                {
+                    "event_id": item.event_id,
+                    "usage_call_id": item.usage_call_id,
+                    "operation_kind": item.operation_kind,
+                    "state": item.state,
+                    "reserved_event_count": item.reserved_event_count,
+                    "group_id": item.group_id,
+                    "sequence_in_group": item.sequence_in_group,
+                }
+                for item in outbox
+            ]
+            approval_evidence: list[dict[str, object]] = []
+            for item in approvals:
+                invocation = await uow.tool_invocations.get_by_approval_id(item.approval_id)
+                approval_evidence.append(
+                    {
+                        "approval_id": item.approval_id,
+                        "status": item.status,
+                        "action": item.action,
+                        "tool_invocation": (
+                            None
+                            if invocation is None
+                            else {
+                                "invocation_id": invocation.id,
+                                "execution_state": invocation.execution_state,
+                                "status": invocation.status,
+                                "result_ref": invocation.result_ref,
+                            }
+                        ),
+                    }
+                )
         events = await PostgreSQLEventSink(storage).read(run_id=run_id)
         if run is None:
             raise LookupError(f"run not found: {run_id}")
@@ -93,22 +127,23 @@ async def inspect_run(run_id: str) -> dict[str, object]:
             "idempotency_key": (None if private is None else private.effective_idempotency_key),
             "message_id": None if private is None else private.message_id,
             "checkpoint_id": None if checkpoint is None else checkpoint.id,
-            "approvals": [
-                {
-                    "approval_id": item.approval_id,
-                    "status": item.status,
-                    "action": item.action,
-                }
-                for item in approvals
-            ],
+            "capacity": {
+                "highest_persisted_seq": capacity.highest_persisted_seq,
+                "outstanding_reserved_event_count": capacity.outstanding_reserved_event_count,
+                "terminal_reservation": capacity.terminal_reservation,
+            },
+            "outbox": outbox_evidence,
+            "approvals": approval_evidence,
             "events": [
                 {
                     "event_id": event.event_id,
                     "type": event.event_type.value,
                     "seq": event.seq,
                     "terminal": event.terminal,
+                    "visibility": event.visibility,
                     "request_id": event.request_id,
                     "trace_id": event.trace_id,
+                    "payload": event.payload,
                 }
                 for event in events
             ],
@@ -163,22 +198,35 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if args.command == "bootstrap":
-        payload = asyncio.run(bootstrap())
-    elif args.command == "cleanup-credential":
-        payload = asyncio.run(cleanup_credential())
-    elif args.command == "assert-stale-receipt":
-        payload = asyncio.run(
-            assert_stale_receipt(
-                args.stream,
-                args.group,
-                args.message_id,
-                args.consumer_id,
-                args.delivery_count,
+    try:
+        if args.command == "bootstrap":
+            payload = asyncio.run(bootstrap())
+        elif args.command == "cleanup-credential":
+            payload = asyncio.run(cleanup_credential())
+        elif args.command == "assert-stale-receipt":
+            payload = asyncio.run(
+                assert_stale_receipt(
+                    args.stream,
+                    args.group,
+                    args.message_id,
+                    args.consumer_id,
+                    args.delivery_count,
+                )
+            )
+        else:
+            payload = asyncio.run(inspect_run(args.run_id))
+    except Exception as exc:  # noqa: BLE001 - 管理脚本只输出脱敏错误分类
+        print(
+            json.dumps(
+                {
+                    "error_code": getattr(exc, "code", None),
+                    "error_type": type(exc).__name__,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
             )
         )
-    else:
-        payload = asyncio.run(inspect_run(args.run_id))
+        return 1
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     return 0
 

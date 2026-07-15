@@ -11,7 +11,7 @@ from pydantic import Field
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.contracts.run_trace import RunTraceValidationError
-from agent_harness.events import CanonicalEvent, CanonicalEventType
+from agent_harness.events import CanonicalEvent, CanonicalEventType, canonical_event_bytes
 from agent_harness.events.sinks.base import EventSink
 from agent_harness.observability.context import TelemetryContext
 from agent_harness.observability.redaction import redact_telemetry_payload
@@ -90,6 +90,30 @@ class TelemetryFacade:
             payload_ref=event.payload_ref,
             raw_event_ref=event.raw_event_ref,
         )
+        if event.event_type in {
+            CanonicalEventType.MODEL_REQUEST_STARTED,
+            CanonicalEventType.MODEL_USAGE_UPDATED,
+        }:
+            persisted = await self._local_sink.read(run_id=event.run_id)
+            persisted_event = next(
+                (item for item in persisted if item.event_id == event.event_id),
+                None,
+            )
+            if persisted_event is None or canonical_event_bytes(
+                persisted_event
+            ) != canonical_event_bytes(event):
+                raise ValueError(
+                    "canonical usage must match the EventBus-persisted envelope before fan-out"
+                )
+            redacted_record = prepare_telemetry_record(
+                record,
+                artifact_store=self._artifact_store,
+                inline_payload_bytes=self._inline_payload_bytes,
+            )
+            return await self._fan_out(
+                redacted_record,
+                local_status=TelemetryStatus(provider="local-jsonl", status="already_written"),
+            )
         return await self.publish_record(record, event_type=event.event_type)
 
     async def publish_record(
@@ -106,10 +130,21 @@ class TelemetryFacade:
             inline_payload_bytes=self._inline_payload_bytes,
         )
         local_status = await self._write_local(redacted_record, event_type=event_type)
+        return await self._fan_out(
+            redacted_record,
+            local_status=local_status,
+        )
+
+    async def _fan_out(
+        self,
+        record: TelemetryRecord,
+        *,
+        local_status: TelemetryStatus,
+    ) -> TelemetryPublishResult:
         provider_statuses: list[TelemetryStatus] = []
         for provider in self._providers:
             try:
-                provider_statuses.append(await provider.send(redacted_record))
+                provider_statuses.append(await provider.send(record))
             except Exception as exc:  # noqa: BLE001 - provider failure must degrade, not crash runs
                 provider_statuses.append(
                     TelemetryStatus(
@@ -193,7 +228,13 @@ def _externalize_large_payload(
     artifact_store: FileArtifactStore | None,
     inline_payload_bytes: int,
 ) -> tuple[dict[str, Any], str | None]:
-    payload_bytes = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()
+    payload_bytes = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
     if len(payload_bytes) <= inline_payload_bytes:
         return payload, payload_ref
 

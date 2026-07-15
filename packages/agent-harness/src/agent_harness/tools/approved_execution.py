@@ -19,6 +19,10 @@ from agent_harness.runtime.executor import (
 )
 from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage import SQLAlchemyStorage, ToolInvocationCreate
+from agent_harness.storage.evidence_repositories import (
+    EvidenceOperationKind,
+    operation_event_capacity,
+)
 from agent_harness.tools.execution_support import (
     error_result,
     invoke_handler,
@@ -143,7 +147,8 @@ class ApprovedToolExecutor:
             raise ApprovedToolGrantError("approval grant lease is no longer executable")
 
         arguments_hash = hash_tool_arguments(request.arguments)
-        args_ref = self._artifact_store.write_json({"arguments": request.arguments}).ref
+        args_payload = {"arguments": request.arguments}
+        args_artifact = self._artifact_store.reference_json(args_payload)
         created = False
         try:
             async with self._storage.uow() as uow:
@@ -157,20 +162,27 @@ class ApprovedToolExecutor:
                     raise ApprovedToolLeaseLost(
                         f"approval lease is no longer active: {grant.approval_id}"
                     )
+                reserved_event_count = await uow.event_capacity.reserve(
+                    run_id=grant.run_id,
+                    operation_kind=EvidenceOperationKind.TOOL_INVOCATION,
+                )
                 await uow.tool_invocations.create(
                     ToolInvocationCreate(
                         tenant_id=context.actor.tenant_id,
                         agent_id=context.agent_id,
                         run_id=context.run_id,
                         tool_name=request.tool_name,
-                        args_ref=args_ref,
+                        args_ref=args_artifact.ref,
                         status="executing",
                         approval_id=grant.approval_id,
                         arguments_hash=arguments_hash,
                         execution_state="executing",
                         trace_id=context.trace_id or request.trace_id,
                         request_id=context.request_id or request.request_id,
-                        metadata={"lease_id": grant.lease_id},
+                        metadata={
+                            "lease_id": grant.lease_id,
+                            "reserved_event_count": reserved_event_count,
+                        },
                     )
                 )
                 await uow.commit()
@@ -194,6 +206,9 @@ class ApprovedToolExecutor:
                 f"approved tool execution needs review: {grant.approval_id}"
             )
 
+        materialized_args = self._artifact_store.write_json(args_payload)
+        if materialized_args != args_artifact:
+            raise RuntimeError("tool argument artifact does not match reserved content reference")
         approved_context = context.model_copy(deep=True).authorize_approved_call(grant.approval_id)
         result = await self._call_handler(request, context=approved_context, tool=tool)
         result_ref = self._artifact_store.write_json(result.to_payload()).ref
@@ -204,6 +219,13 @@ class ApprovedToolExecutor:
                 result_ref=result_ref,
                 execution_state=execution_state,
                 status=result.status,
+            )
+            await uow.event_capacity.settle(
+                run_id=grant.run_id,
+                reserved_event_count=operation_event_capacity(
+                    EvidenceOperationKind.TOOL_INVOCATION
+                ),
+                consumed=0,
             )
             await uow.commit()
         return result

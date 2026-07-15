@@ -11,6 +11,8 @@ from agent_harness.runtime import InvalidRunTransition, RunOrchestrator, RunResu
 from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage import ApprovalRecord, SQLAlchemyStorage
 from agent_harness.storage.access_repositories import ApprovalResolutionLease
+from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyUnitOfWork
+from agent_harness.storage.evidence_repositories import EvidenceOperationKind
 
 
 def approval_evidence(record: ApprovalRecord) -> dict[str, Any]:
@@ -30,6 +32,121 @@ def approval_evidence(record: ApprovalRecord) -> dict[str, Any]:
         "trace_id": record.trace_id,
         "request_id": record.request_id,
     }
+
+
+def resolved_approval_record(record: ApprovalRecord, *, status: str) -> ApprovalRecord:
+    """构造只用于 resolution evidence 的终态视图，不提前公开 repository 状态。"""
+
+    if status not in {"approved", "denied"}:
+        raise ValueError("approval resolution status must be approved or denied")
+    return record.model_copy(update={"status": status})
+
+
+def approval_evidence_group_id(approval_id: str) -> str:
+    """返回 resolution 与 terminal 共用的稳定 ordered group id。"""
+
+    return f"approval:{approval_id}:resolution"
+
+
+async def stage_approval_evidence_group(
+    uow: SQLAlchemyUnitOfWork,
+    *,
+    record: ApprovalRecord,
+    resolution_status: str,
+    run_status: RunStatus | None,
+) -> None:
+    """在公开状态前原子预约并写入 resolution -> terminal 两项。"""
+
+    group_id = approval_evidence_group_id(record.approval_id)
+    result = {
+        "approval_id": record.approval_id,
+        "resolution_status": resolution_status,
+        "run_status": run_status.value if run_status is not None else "pending",
+    }
+    existing = await uow.evidence_outbox.ordered_group(group_id=group_id)
+    if existing:
+        current = existing[0].result_json
+        if current == result:
+            return
+        if (
+            isinstance(current, dict)
+            and current.get("approval_id") == record.approval_id
+            and current.get("resolution_status") == resolution_status
+            and current.get("run_status") == "pending"
+            and run_status is not None
+        ):
+            await uow.evidence_outbox.update_group_result(
+                group_id=group_id,
+                result=result,
+            )
+            return
+        raise RuntimeError("ordered approval evidence result is inconsistent")
+    reserved = await uow.event_capacity.reserve(
+        run_id=record.run_id,
+        operation_kind=EvidenceOperationKind.APPROVAL_RESOLUTION,
+    )
+    await uow.evidence_outbox.stage_ordered_group(
+        tenant_id=record.tenant_id,
+        run_id=record.run_id,
+        group_id=group_id,
+        items=[
+            {
+                "event_id": f"approval-resolution:{record.approval_id}",
+                "operation_kind": "approval_resolution",
+                "sequence_in_group": 1,
+                "reserved_event_count": reserved,
+                "result": result,
+            },
+            {
+                "event_id": f"run-terminal:{record.run_id}",
+                "operation_kind": "run_terminal",
+                "sequence_in_group": 2,
+                "reserved_event_count": 0,
+                "result": result,
+            },
+        ],
+    )
+
+
+async def complete_approval_evidence_group(
+    storage: SQLAlchemyStorage,
+    event_bus: EventBus,
+    *,
+    record: ApprovalRecord,
+) -> None:
+    """两项已按序 durable 后完成 group，并为 local sink 对账真实 seq。"""
+
+    group_id = approval_evidence_group_id(record.approval_id)
+    resolution = await event_bus.event_by_id(
+        run_id=record.run_id,
+        event_id=f"approval-resolution:{record.approval_id}",
+    )
+    terminal = await event_bus.event_by_id(
+        run_id=record.run_id,
+        event_id=f"run-terminal:{record.run_id}",
+    )
+    if resolution is None or terminal is None or not terminal.terminal:
+        raise RuntimeError("ordered approval evidence is incomplete")
+    if resolution.seq >= terminal.seq:
+        raise RuntimeError("approval resolution must precede run terminal")
+    async with storage.uow() as uow:
+        group = await uow.evidence_outbox.ordered_group(group_id=group_id)
+        if [item.event_id for item in group] != [resolution.event_id, terminal.event_id]:
+            raise RuntimeError("ordered approval evidence group is invalid")
+        states = {item.state for item in group}
+        if states == {"published"}:
+            return
+        if states != {"result_persisted"}:
+            raise RuntimeError("ordered approval evidence group state is invalid")
+        if not event_bus.capacity_managed:
+            await uow.event_capacity.record_local_published(
+                run_id=record.run_id,
+                reserved_event_count=sum(item.reserved_event_count for item in group),
+                highest_persisted_seq=terminal.seq,
+                terminal=True,
+            )
+        await uow.evidence_outbox.mark_group_published(group_id=group_id)
+        await uow.commit()
 
 
 async def publish_resolution_evidence(
@@ -113,7 +230,19 @@ async def reconcile_denied(
 ) -> RunResult:
     """补齐 denied terminal/resolution，重复执行仍只保留一份 evidence。"""
 
-    run_result = await orchestrator.get_run(record.run_id, identity=actor)
+    evidence_record = resolved_approval_record(record, status="denied")
+    async with storage.uow() as uow:
+        await stage_approval_evidence_group(
+            uow,
+            record=record,
+            resolution_status="denied",
+            run_status=RunStatus.FAILED,
+        )
+        run = await uow.runs.get(record.run_id)
+        await uow.commit()
+    if run is None or run.tenant_id != actor.tenant_id:
+        raise LookupError(f"run not found: {record.run_id}")
+    run_result = RunResult(run_id=run.id, status=RunStatus(run.status))
     if run_result.status != RunStatus.FAILED:
         if run_result.status in {RunStatus.COMPLETED, RunStatus.CANCELLED}:
             raise RuntimeError(f"denied approval has incompatible terminal run: {record.run_id}")
@@ -122,6 +251,7 @@ async def reconcile_denied(
                 record.run_id,
                 reason="approval denied",
                 identity=actor,
+                defer_terminal=True,
             )
         except InvalidRunTransition:
             run_result = await orchestrator.get_run(record.run_id, identity=actor)
@@ -130,8 +260,14 @@ async def reconcile_denied(
     await publish_resolution_evidence(
         event_bus,
         actor=actor,
-        record=record,
+        record=evidence_record,
         request_id=resolution_request_id,
+    )
+    run_result = await orchestrator.get_run(record.run_id, identity=actor)
+    await complete_approval_evidence_group(
+        storage,
+        event_bus,
+        record=record,
     )
     async with storage.uow() as uow:
         await uow.approvals.mark_denied_evidence_complete(

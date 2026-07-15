@@ -9,8 +9,18 @@ from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
 from agent_harness.config import HarnessSettings
 from agent_harness.context import ContextAssemblyService
-from agent_harness.events import EventSink
-from agent_harness.models import FakeModelProvider
+from agent_harness.embeddings import (
+    EmbeddingInvocationService,
+    LocalEmbeddingProvider,
+    StorageEmbeddingCache,
+)
+from agent_harness.events import EventBus, EventSink
+from agent_harness.models import (
+    FakeModelProvider,
+    ModelInvocationService,
+    ModelRouter,
+    ModelRouterConfig,
+)
 from agent_harness.observability import TelemetryFacade
 from agent_harness.policy import PolicyEngine
 from agent_harness.retrieval import (
@@ -80,6 +90,7 @@ def build_agent_execution_services(
     policy: PolicyEngine,
     audit: AuditService,
     event_sink: EventSink,
+    event_bus: EventBus,
     artifact_store: FileArtifactStore,
     service_root: Path,
     workspace_root: Path | None = None,
@@ -97,18 +108,40 @@ def build_agent_execution_services(
         else PostgreSQLRetrievalProvider(dsn=storage_dsn)
     )
     resolved_workspace = (workspace_root or service_root).resolve()
+    telemetry = TelemetryFacade(
+        local_sink=event_sink,
+        artifact_store=artifact_store,
+    )
+    model_invocation = ModelInvocationService(
+        router=ModelRouter(
+            config=ModelRouterConfig(
+                default_provider="fake",
+                default_model=settings.model.default_model or "fake-basic",
+                timeout_seconds=settings.model.timeout_seconds,
+                max_tokens_per_call=settings.budget.max_tokens_per_run,
+            ),
+            providers={"fake": FakeModelProvider()},
+        ),
+        storage=storage,
+        event_bus=event_bus,
+        telemetry=telemetry,
+    )
+    embedding_invocation = EmbeddingInvocationService(
+        provider=LocalEmbeddingProvider(cache=StorageEmbeddingCache(storage)),
+        storage=storage,
+        event_bus=event_bus,
+        telemetry=telemetry,
+    )
     return {
         "artifact_store": artifact_store,
         "context_assembly": ContextAssemblyService(
             storage=storage,
             artifact_store=artifact_store,
         ),
-        "model_provider": FakeModelProvider(),
+        "embedding_invocation": embedding_invocation,
+        "model_invocation": model_invocation,
         "retrieval_provider": retrieval,
-        "telemetry": TelemetryFacade(
-            local_sink=event_sink,
-            artifact_store=artifact_store,
-        ),
+        "telemetry": telemetry,
         "tool_registry_factory": ToolRegistryFactory(
             settings=settings,
             storage=storage,
@@ -118,5 +151,4 @@ def build_agent_execution_services(
             workspace_root=resolved_workspace,
         ),
         "service_root": service_root.resolve(),
-        "storage": storage,
     }

@@ -136,3 +136,34 @@ async def test_openai_compatible_embedding_adapter_posts_and_reuses_cache(tmp_pa
     assert second.cache.hit is True
     assert second.vector == []
     assert second.vector_ref == first.vector_ref
+
+
+@pytest.mark.asyncio
+async def test_storage_embedding_cache_survives_provider_composition_uow_boundaries(
+    tmp_path: Path,
+) -> None:
+    from agent_harness.embeddings import (
+        EmbeddingRequest,
+        LocalEmbeddingProvider,
+        StorageEmbeddingCache,
+    )
+
+    db_path = tmp_path / "storage-backed-embedding.db"
+    dsn = sqlite_dsn(db_path)
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    try:
+        async with storage.uow() as uow:
+            await uow.tenants.ensure("tenant-a")
+            await uow.commit()
+        provider = LocalEmbeddingProvider(cache=StorageEmbeddingCache(storage))
+
+        first = await provider.embed(EmbeddingRequest(input="repeat me", tenant_id="tenant-a"))
+        second = await provider.embed(EmbeddingRequest(input="repeat me", tenant_id="tenant-a"))
+
+        assert first.cache.hit is False
+        assert second.cache.hit is True
+        assert second.vector_ref == first.vector_ref
+        assert second.vector == []
+    finally:
+        await storage.dispose()

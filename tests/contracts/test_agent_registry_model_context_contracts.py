@@ -445,6 +445,13 @@ def test_pydantic_ai_adapter_invokes_agent_run_sync_without_leaking_sdk_types() 
     class Result:
         output = "adapter output"
 
+        class Usage:
+            input_tokens = 7
+            output_tokens = 4
+
+        def usage(self) -> Usage:
+            return self.Usage()
+
     class SpyAgent:
         def __init__(self, model: str) -> None:
             self.model = model
@@ -476,7 +483,7 @@ def test_pydantic_ai_adapter_invokes_agent_run_sync_without_leaking_sdk_types() 
     assert response.provider == "pydantic-ai"
     assert response.output_text == "adapter output"
     assert response.decision.action == "call"
-    assert response.token_usage == {"input_tokens": 3, "output_tokens": 2}
+    assert response.token_usage == {"input_tokens": 7, "output_tokens": 4}
 
 
 @pytest.mark.asyncio

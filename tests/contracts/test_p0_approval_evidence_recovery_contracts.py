@@ -78,6 +78,12 @@ async def test_terminal_event_failure_keeps_claim_recoverable_without_replaying_
         async with storage.uow() as uow:
             public = await uow.approvals.get(approval.approval_id)
             audits = await uow.audit_logs.list_for_tenant(identity.tenant_id)
+            ordered_group = [
+                (item.event_id, item.sequence_in_group, item.state)
+                for item in await uow.evidence_outbox.ordered_group(
+                    group_id=f"approval:{approval.approval_id}:resolution"
+                )
+            ]
     finally:
         await storage.dispose()
 
@@ -90,6 +96,10 @@ async def test_terminal_event_failure_keeps_claim_recoverable_without_replaying_
     assert sum(event.terminal for event in events) == 1
     assert sum(event.event_type == CanonicalEventType.APPROVAL_RESOLVED for event in events) == 1
     assert sum(record.action == "approval.approved" for record in audits) == 1
+    assert ordered_group == [
+        (f"approval-resolution:{approval.approval_id}", 1, "published"),
+        (f"run-terminal:{waiting.run_id}", 2, "published"),
+    ]
 
 
 @pytest.mark.parametrize("mode", ["before", "after"])
@@ -354,11 +364,7 @@ async def test_public_resolve_retry_reconciles_pending_evidence_before_returning
 
     expected_status = "approved" if decision == "approved" else "denied"
     expected_run = "completed" if decision == "approved" else "failed"
-    expected_code = (
-        "approval.resolution_in_progress"
-        if decision == "approved" and failure_point == "terminal"
-        else "approval.invalid_transition"
-    )
+    expected_code = "approval.resolution_in_progress"
     assert response.status_code == 409
     assert response.json()["error"]["code"] == expected_code
     assert public is not None and public.status == expected_status

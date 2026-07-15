@@ -16,7 +16,12 @@ from agent_harness.approvals._contracts import (
     resume_token_value,
 )
 from agent_harness.approvals._queue_resolution import ApprovalQueueResolutionMixin
-from agent_harness.approvals.reconciliation import approval_evidence, reconcile_denied
+from agent_harness.approvals.reconciliation import (
+    approval_evidence,
+    reconcile_denied,
+    resolved_approval_record,
+    stage_approval_evidence_group,
+)
 from agent_harness.audit import AuditService, build_audit_log
 from agent_harness.events import CanonicalEventType, EventBus
 from agent_harness.identity import IdentityContext
@@ -24,6 +29,7 @@ from agent_harness.policy import PolicyDeniedError
 from agent_harness.runtime.checkpoints import ResumeToken
 from agent_harness.runtime.orchestrator import RunOrchestrator
 from agent_harness.runtime.queue import RunQueue
+from agent_harness.runtime.state import RunStatus
 from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage import ApprovalCreate, ApprovalRecord, SQLAlchemyStorage
 from agent_harness.storage.access_repositories import ApprovalResolutionRepositoryConflict
@@ -84,6 +90,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
     ) -> ApprovalRecord:
         """创建 waiting approval，并同步发布 event/audit 证据。"""
 
+        await self._event_bus.reconcile_local_capacity(run_id=run_id)
         token_value = resume_token_value(resume_token)
         async with self._storage.uow() as uow:
             await uow.tenants.ensure(actor.tenant_id)
@@ -214,6 +221,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
 
         if not can_resolve_approval(actor):
             raise PolicyDeniedError("approval resolve permission missing")
+        await self._event_bus.reconcile_local_capacity(run_id=run_id)
         resolution_request_id = request_id or str(uuid4())
         if self._queue is not None:
             return await self._enqueue_approval(
@@ -230,6 +238,12 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
                     run_id=run_id,
                     tenant_id=actor.tenant_id,
                     request_id=resolution_request_id,
+                )
+                await stage_approval_evidence_group(
+                    uow,
+                    record=lease.approval,
+                    resolution_status="approved",
+                    run_status=None,
                 )
                 await uow.commit()
         except ApprovalResolutionRepositoryConflict as exc:
@@ -260,6 +274,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
 
         if not can_resolve_approval(actor):
             raise PolicyDeniedError("approval resolve permission missing")
+        await self._event_bus.reconcile_local_capacity(run_id=run_id)
         resolution_request_id = request_id or str(uuid4())
         try:
             async with self._storage.uow() as uow:
@@ -271,6 +286,13 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
                     request_id=resolution_request_id,
                     metadata={"comment": redact_secrets(comment)} if comment else None,
                 )
+                evidence_record = resolved_approval_record(record, status="denied")
+                await stage_approval_evidence_group(
+                    uow,
+                    record=record,
+                    resolution_status="denied",
+                    run_status=RunStatus.FAILED,
+                )
                 if self._audit is not None:
                     await uow.audit_logs.create(
                         build_audit_log(
@@ -278,7 +300,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
                             action="approval.denied",
                             resource=record.resource,
                             payload={
-                                **approval_evidence(record),
+                                **approval_evidence(evidence_record),
                                 "request_id": resolution_request_id,
                                 "approval_request_id": record.request_id,
                             },
@@ -301,4 +323,8 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
             record=record,
             resolution_request_id=resolution_request_id,
         )
-        return ApprovalResolveResult(approval=record, run=run_result)
+        async with self._storage.uow() as uow:
+            completed = await uow.approvals.get(approval_id)
+        if completed is None:
+            raise LookupError(f"approval not found: {approval_id}")
+        return ApprovalResolveResult(approval=completed, run=run_result)

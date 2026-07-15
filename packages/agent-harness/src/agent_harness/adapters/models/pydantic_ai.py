@@ -18,6 +18,10 @@ from agent_harness.models.providers import ModelDecision, ModelRequest, ModelRes
 class _AgentRunResult(Protocol):
     output: object
 
+    def usage(self) -> object:
+        """返回 provider SDK usage；只允许本 adapter 读取。"""
+        ...
+
 
 class _PydanticAgent(Protocol):
     def run_sync(self, prompt: str) -> _AgentRunResult:
@@ -54,22 +58,10 @@ class PydanticAIModelProvider:
 
         started = perf_counter()
         agent = self._agent_factory(model)
-        try:
-            result = _run_sync_with_timeout(agent, request)
-        except TimeoutError:
-            return ModelResponse(
-                provider=self.provider_id,
-                model=model,
-                output_text="",
-                decision=ModelDecision(
-                    action="policy_required",
-                    estimated_tokens=request.estimated_input_tokens + request.max_output_tokens,
-                    reason="pydantic-ai invocation timed out",
-                ),
-                token_usage={"input_tokens": request.estimated_input_tokens, "output_tokens": 0},
-            )
+        result = _run_sync_with_timeout(agent, request)
 
         output_text = str(result.output)
+        token_usage = _provider_token_usage(result)
         return ModelResponse(
             provider=self.provider_id,
             model=model,
@@ -78,10 +70,7 @@ class PydanticAIModelProvider:
                 action="call",
                 estimated_tokens=request.estimated_input_tokens + request.max_output_tokens,
             ),
-            token_usage={
-                "input_tokens": request.estimated_input_tokens,
-                "output_tokens": min(request.max_output_tokens, len(output_text.split())),
-            },
+            token_usage=token_usage,
             latency_ms=int((perf_counter() - started) * 1000),
         )
 
@@ -106,3 +95,23 @@ def _run_sync_with_timeout(agent: _PydanticAgent, request: ModelRequest) -> _Age
         raise TimeoutError("pydantic-ai invocation timed out") from exc
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _provider_token_usage(
+    result: _AgentRunResult,
+) -> dict[str, int]:
+    """只收敛 provider 明确报告的合法 token；缺失时保持 unknown。"""
+
+    usage_reader = getattr(result, "usage", None)
+    if callable(usage_reader):
+        usage = usage_reader()
+        normalized: dict[str, int] = {}
+        for field in ("input_tokens", "output_tokens"):
+            value = getattr(usage, field, None)
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError("provider token usage must be a non-negative integer or null")
+            normalized[field] = value
+        return normalized
+    return {}

@@ -344,9 +344,9 @@
 - terminal event 只能有一个，类型为 `run.completed`、`run.failed` 或 `run.cancelled`；三种 run terminal event 的 `visibility` 必须为 `public`，EventBus 与 local/PostgreSQL sink 必须在持久化前拒绝 `terminal=true` 且 `visibility!=public` 的 envelope，不能依赖 DTO 的 `internal` 默认值。
 - terminal event 是同一 run 的最后一条 CanonicalEvent；持久化后 EventBus/sink 必须拒绝 terminal 和 non-terminal 的任何后续业务事件，不能让已结束的 SSE/JSON 消费者漏掉晚到 evidence。
 - terminal 由 durable evidence outbox 协调：usage 结算与 `approval.resolved` 等必需前置 evidence 先按稳定 event id 幂等发布，terminal 最后发布；terminal 一旦可见，恢复不得再补写前置 evidence或重放 provider/tool 副作用。
-- 当前生产 approval 补偿仍可能在 run terminal 后写 `approval.resolved`，尚不满足上述 terminal-last 目标；`model-usage-evidence` 必须以 `0014` 有序 outbox 原子切换 usage、approval resolution 与 terminal 恢复语义，实施前不得把该目标写成当前能力。
+- `model-usage-evidence` 的目标是通过 `0014` 有序 outbox 原子切换 usage、approval resolution 与 terminal 恢复语义；完整验证与代码审核通过前不得把目标描述为已交付能力。
 - `reasoning.delta` 默认不对普通用户可见。
-- 当前 CanonicalEvent catalog 已声明 `model.request.started`、`model.usage.updated`，但当前 model/embedding 调用尚未发布完整的 started/usage 关联 evidence。`model-usage-evidence` 目标：model 与 embedding 精确复用这两个 type，并以 `ModelUsageEvidence.usage_kind` 区分，不新增等价 embedding event type；单次调用关联固定写在 `payload.correlation.usage_call_id`，类型为非空 string。该值不得新增为 CanonicalEvent envelope 顶层字段，也不得进入 `ModelUsageEvidence`；TelemetryFacade 必须把同一值保留在 `TelemetryRecord.payload.correlation.usage_call_id`。`model.usage.updated` 只结束调用级 usage 生命周期，`CanonicalEvent.terminal=false`，不得关闭 run stream。
+- `model-usage-evidence` SHALL 让 model 与 embedding 精确复用 `model.request.started`、`model.usage.updated`，并以 `ModelUsageEvidence.usage_kind` 区分，不新增等价 embedding event type；单次调用关联固定写在 `payload.correlation.usage_call_id`，类型为非空 string。该值不进入 CanonicalEvent envelope 顶层字段或 `ModelUsageEvidence`；TelemetryFacade 保留相同路径和值。`model.usage.updated` 只结束调用级 usage 生命周期，`CanonicalEvent.terminal=false`，不得关闭 run stream。
 - CanonicalEvent envelope 的唯一字节定义为公共 `canonical_event_bytes()`：先取 `CanonicalEvent.to_payload()`，再以 UTF-8、`ensure_ascii=false`、`sort_keys=true`、紧凑 separators `(',', ':')`、`allow_nan=false` 生成 JSON bytes；不计 JSONL 末尾换行、SSE `data:`/frame 分隔符或传输压缩。EventBus、local JSONL、SQLite/PostgreSQL legacy 校验和 SSE byte page 必须调用同一实现，不能各自使用默认 `json.dumps`。正常 envelope 最多 `65536` bytes；大 payload 必须先使用 `payload_ref` 并保留 checksum 或 artifact reference，artifact 化后 envelope 仍超限时，EventBus 以 `event.envelope_too_large` 在持久化和 fan-out 前拒绝。历史或 direct-write 超限 row 读取时返回稳定 `event.envelope_state_invalid`，SSE 转换为一个脱敏 `stream.error` 后关闭，不得返回无 cursor 的空页并忙循环。边界合同必须覆盖恰好等于/超过 `65536` 与 `1048576` bytes、中文/转义字符、不同键插入顺序和 NaN 拒绝。
 - `event.sequence_exhausted`、`event.sequence_state_invalid`、`event.envelope_too_large` 与 `event.envelope_state_invalid` 是 EventBus/repository 内部稳定错误码，不新增公开 HTTP status。RUN-006 已握手后遇到非法历史 envelope 时，`stream.error` 的公开 `data.code` 固定为 `stream.event_state_invalid`；握手前若预检即可发现，则使用既有 `500 api.internal_error` envelope，不回显内部行、payload 或 seq 细节。
 
@@ -1117,12 +1117,12 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | URL 参数 | none |
 | 请求体 | `ApprovalResolveRequest` |
 | 幂等性 | public resolve 非幂等；service approve仅在私有 `resolution_state=claimed`、`enqueue_pending|queued`、无tool claim且本次 reviewer/decision/规范化request hash与私有fingerprint一致时复用原lease/operation：pending补投，queued不重投。worker startup只恢复 fingerprint完整、无claim的 `claimed+enqueue_pending`。`execution_owned`过期无claim时仅matching真实APR-002可换新lease/new operation，并以本次request id建立新operation首次correlation；其他重复resolve仍返回既有409。 |
-| 副作用 | deny 仍在API/repository原子取得仲裁，零lease/queue/DBOS/handler。service approve只写private lease/fingerprint/enqueue state并投递 `resume_approval` refs，public保持waiting，API不执行executor/tool；worker pickup CAS为 `execution_owned`并保存DBOS owner/ref后恢复。旧lease/operation按fencing fail closed；`model-usage-evidence` 落地后，确定性结果把 `approval.resolved` 与对应 terminal 写入 durable ordered outbox，resolution 先于 terminal，二者完成后才公开 resolution。 |
+| 副作用 | deny 仍在API/repository原子取得仲裁，零lease/queue/DBOS/handler。service approve只写private lease/fingerprint/enqueue state并投递 `resume_approval` refs，public保持waiting，API不执行executor/tool；worker pickup CAS为 `execution_owned`并保存DBOS owner/ref后恢复。旧lease/operation按fencing fail closed；目标实现必须让确定性结果把 `approval.resolved` 与对应 terminal 写入 durable ordered outbox，resolution 先于 terminal，二者完成后才公开 resolution。 |
 | 成功响应码 | local inline `200`；service approve queued/in-progress `202`；deny `200`。 |
 | 响应头 | 当前只保证 `Content-Type: application/json`。 |
 | 响应体 | `ApprovalResolveResponse` |
 | 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`409 approval.invalid_transition`、`409 approval.resolution_in_progress`、`409 approval.execution_needs_review`、`409 run.invalid_transition`、`422 validation_error`、`503 approval.enqueue_unavailable`、`500 api.internal_error`。approve lease 已存在时，并发 deny/第二个 public resolve 使用 `approval.resolution_in_progress`；execution claim 状态不确定且无结果时使用 `approval.execution_needs_review`。 |
-| 状态语义 | `approved` 表示人工允许原动作执行，不保证动作执行成功；completed 或确定性 failed result 先产生唯一 approved resolution evidence，再产生对应 run terminal，二者 durable 后完成 public approved resolution。`denied` 表示原动作不得执行，并遵守同一 resolution-before-terminal 证据顺序。结果不确定时 public approval 保持 waiting，`run.status` 保持非伪造的 waiting/failed 摘要，private state 可进入 needs_review。当前生产仍采用 terminal 后补偿 resolution 的旧顺序，必须由 `model-usage-evidence` 原子切换后才能宣称满足本目标。 |
+| 状态语义 | `approved` 表示人工允许原动作执行，不保证动作执行成功；completed 或确定性 failed result 先产生唯一 approved resolution evidence，再产生对应 run terminal，二者 durable 后完成 public approved resolution。`denied` 表示原动作不得执行，并遵守同一 resolution-before-terminal 证据顺序。结果不确定时 public approval 保持 waiting，`run.status` 保持非伪造的 waiting/failed 摘要，private state 可进入 needs_review。该有序恢复目标未通过完整验证与代码审核前不得描述为已交付。 |
 | 安全规则 | path 中的 `run_id` 必须与 approval 归属一致；错误 URL 不得推进其他 run。response、OpenAPI、event 和 audit 不得泄漏 resume token、private lease/internal state、arguments 原文、secret 或原始危险 payload。仲裁失败方只允许写 conflict audit，不得发布第二个有效 resolution event。 |
 | 验证要求 | contract tests 必须覆盖 deny 先赢时 approve 无 lease且 handler 为零、approve lease 先赢时并发 deny 返回 in-progress 409且 public waiting不变、过期 raw claimed lease 由真实 APR-002 route 换发 fencing id并继续、未过期 lease与已有 claim不被抢占、旧 owner fencing失败、completed/确定性 failed 各自的 resolution-before-terminal 与最终 approved、executing-without-result 的 needs-review 409、重复 public resolve 409、跨 run拒绝、单一 resolution/audit、request_id和 OpenAPI 不公开 private state；还必须注入 approve/deny 的 `run.resumed`、`approval.resolved`、terminal sink 写前失败、写后确认丢失和进程重启，证明 outbox 使用稳定 event id按 resolution-before-terminal 恢复、public resolution不早于 prerequisite evidence、handler 0/1 次且 audit/resolution/terminal 各唯一。SQLite/PostgreSQL repository tests 均需覆盖 lease takeover、fencing、unique claim与 ordered outbox recovery。 |
 
@@ -1208,10 +1208,10 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 | 字段 | 约束 |
 |---|---|
-| 状态 | 规划中（P0）；当前 response/metadata 只有部分 token/latency 字段。 |
+| 状态 | 验收中；当前 change 保持 active，完整验证与代码审核通过前不标记 `ready-to-archive`，不自动归档。 |
 | 入口 | provider adapter -> model/embedding router/facade -> EventBus/TelemetryFacade；业务 agent 只消费输出和稳定 DTO。 |
-| 生命周期 | model 与 embedding 调用前都发布 `model.request.started`，完成或受控失败后都发布恰好一条调用级最终 `model.usage.updated`，并以 `ModelUsageEvidence.usage_kind` 区分；不得新增等价 embedding event type。`model.usage.updated` 必须 `CanonicalEvent.terminal=false`，run terminal marker 仍只属于三种 run terminal event。 |
-| terminal 顺序 | 每次 started 调用先写 durable settlement/outbox 状态；provider 结果只写入该状态一次，再按稳定 `usage_call_id`/event id 幂等发布最终 usage。runtime 收口前恢复所有 pending settlement，最终 usage 必须先于同一 run terminal；不得重放 provider。`approval.resolved` 等其他前置 evidence 与 terminal 复用同一有序 outbox，EventBus/sink 拒绝 terminal 后的任何业务事件。 |
+| 生命周期 | model 与 embedding 调用前都发布 `model.request.started`，完成或受控失败后都发布恰好一条调用级最终 `model.usage.updated`，并以 `ModelUsageEvidence.usage_kind` 区分；不得新增等价 embedding event type。`usage_call_id` 必须由 durable tenant/run/request/agent/trace 关联与稳定语义调用槽位生成，invocation seam 不提供随机回退，也不得把 prompt、embedding input 等敏感业务输入纳入 ID。`model.usage.updated` 必须 `CanonicalEvent.terminal=false`，run terminal marker 仍只属于三种 run terminal event。 |
+| terminal 顺序 | 每次 started 调用先写 durable settlement/outbox 状态；provider 结果只写入该状态一次，再按稳定 `usage_call_id`/event id 幂等发布最终 usage。service worker 在 DBOS runtime 启动前恢复全部已有确定结果，queued run 重放或执行前再做 run-scoped recovery；恢复只补投 model/embedding evidence，不得误消费 approval 等共享 outbox 项。runtime 收口前恢复所有 pending settlement，最终 usage 必须先于同一 run terminal；不得重放 provider。`approval.resolved` 等其他前置 evidence 与 terminal 复用同一有序 outbox，EventBus/sink 拒绝 terminal 后的任何业务事件。 |
 | 证据 | 每次调用产生 `ModelUsageEvidence`，包含 provider/model、token、cost 可用性、latency、route/fallback/cache/budget decision、run/agent/trace；所有数值在持久化和聚合前拒绝 bool、负数与非有限值。 |
 | cost | `reported|estimated` 必须带非负有限 `cost_usd`，`unavailable` 必须为 null；provider 未返回且无可验证价目配置时不得写 0，估算值必须标 `estimated`。 |
 | cache hit | embedding cache hit 仍发布 started/final evidence，记录本次 lookup latency、null token/cost、`unavailable` 与 `cache_status=hit/provider_called=false`；不复用首次 provider latency且 provider 调用次数为零。 |
@@ -1637,7 +1637,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
 - [x] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致，并由局部双向 drift contract 持续校验。
 - [x] 已明确当前 events JSON seam、P0 待实现 RUN-006 SSE 与 P1 可选 WS 的边界。
-- [x] 已固定 DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；CFG-001 当前已实现，DLG-001 与 MOD-001 保持待实现。
+- [x] 已固定 DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；CFG-001 已实现，MOD-001 验收中，DLG-001 保持待实现。
 - [x] 已明确 `reasoning.delta` 默认不可见。
 - [x] 已明确 API route 不得暴露 ORM、DBOS、provider SDK 或进程内 handle。
 - [x] 已明确新增/修改 endpoint 必须先改本契约，再做局部 OpenAPI drift 检查。

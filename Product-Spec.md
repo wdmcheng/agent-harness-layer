@@ -1337,7 +1337,7 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 
 非功能验收：
 
-- [ ] AC-065: Given local profile 与 fake provider, when 从入口创建并完成单 agent run, then 稳定 smoke 记录的总时延小于 5 秒。
+- [ ] AC-065: Given local profile 与 fake provider, when 从入口创建并完成 single agent run, then 稳定 smoke 记录的总时延小于 5 秒。
 - [ ] AC-066: Given 已建立 SSE 连接且存在可见事件, when 服务开始流式响应, then 首个 event frame 在 1 秒内返回；测试必须区分握手前错误和握手后错误事件。
 
 ## 9. P0 完成定义

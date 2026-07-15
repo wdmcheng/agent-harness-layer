@@ -2,14 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
 import fcntl
 import json
 import os
-from collections.abc import Callable, Generator
-from contextlib import AbstractContextManager, contextmanager, nullcontext
+import threading
+from collections.abc import Awaitable, Callable, Generator
+from contextlib import (
+    AbstractAsyncContextManager,
+    AbstractContextManager,
+    contextmanager,
+    nullcontext,
+)
 from pathlib import Path
 from typing import TextIO
+from weakref import WeakKeyDictionary
 
+from agent_harness.events.capacity import (
+    LocalCapacityCommitUncertain,
+    usage_capacity_binding,
+)
+from agent_harness.events.serialization import canonical_event_bytes, validate_persisted_event_bytes
 from agent_harness.events.sinks.base import (
     EventSink,
     EventSinkTerminalConflict,
@@ -20,6 +33,31 @@ from agent_harness.events.sinks.base import (
 from agent_harness.events.types import CanonicalEvent
 from agent_harness.local_state import register_local_state_file
 from agent_harness.storage.run_trace_gate import RunTraceResolver, RunTraceScopeConflict
+
+CapacityClaim = Callable[[CanonicalEvent], AbstractAsyncContextManager[None]]
+ArtifactClaim = Callable[[Path, str, int], AbstractContextManager[None]]
+CapacityReconciler = Callable[[int], Awaitable[None]]
+
+_PATH_LOCKS_GUARD = threading.Lock()
+_PATH_LOCKS: WeakKeyDictionary[
+    asyncio.AbstractEventLoop,
+    dict[Path, asyncio.Lock],
+] = WeakKeyDictionary()
+
+
+def _path_lock_for_current_loop(path: Path) -> asyncio.Lock:
+    """返回当前 event loop 内按规范路径共享的异步前置锁。
+
+    ``flock`` 会阻塞调用线程，而容量 claim 会在持有文件锁时等待数据库 I/O。
+    因此同一 loop 中所有 sink 实例必须先共享这一层锁，避免第二个实例阻塞
+    event loop，令第一个实例无法恢复并释放跨进程文件锁。
+    """
+
+    loop = asyncio.get_running_loop()
+    canonical_path = path.expanduser().resolve()
+    with _PATH_LOCKS_GUARD:
+        loop_locks = _PATH_LOCKS.setdefault(loop, {})
+        return loop_locks.setdefault(canonical_path, asyncio.Lock())
 
 
 class LocalJsonlEventSink(EventSink):
@@ -35,6 +73,13 @@ class LocalJsonlEventSink(EventSink):
         self.path = path
         self.state_dir = state_dir
         self._run_trace_resolver = run_trace_resolver
+        self._capacity_claim: CapacityClaim | None = None
+
+    @property
+    def manages_event_capacity(self) -> bool:
+        """报告 direct sink 写入是否也受同一容量账本保护。"""
+
+        return self._capacity_claim is not None
 
     @property
     def run_trace_resolver(self) -> RunTraceResolver | None:
@@ -49,13 +94,24 @@ class LocalJsonlEventSink(EventSink):
             raise RuntimeError("local event sink run trace resolver is already configured")
         self._run_trace_resolver = resolver
 
+    def bind_capacity_claim(self, capacity_claim: CapacityClaim) -> None:
+        """绑定 local composition 的唯一容量 claim，禁止后续静默替换。"""
+
+        if self._capacity_claim is not None and self._capacity_claim != capacity_claim:
+            raise RuntimeError("local event sink capacity claim is already configured")
+        self._capacity_claim = capacity_claim
+
     async def write(
         self,
         event: CanonicalEvent,
         *,
         after_claim: Callable[[], None] | None = None,
     ) -> CanonicalEvent:
-        return await self._write_claimed(event, after_claim=after_claim)
+        return await self._write_claimed(
+            event,
+            after_claim=after_claim,
+            capacity_claim=self._capacity_claim,
+        )
 
     async def write_with_artifact_claim(
         self,
@@ -65,14 +121,51 @@ class LocalJsonlEventSink(EventSink):
     ) -> CanonicalEvent:
         """把可补偿 artifact claim 包在 event append 外层。"""
 
-        return await self._write_claimed(event, artifact_claim=artifact_claim)
+        return await self._write_claimed(
+            event,
+            artifact_claim=artifact_claim,
+            capacity_claim=self._capacity_claim,
+        )
+
+    async def write_with_capacity_claim(
+        self,
+        event: CanonicalEvent,
+        *,
+        capacity_claim: CapacityClaim,
+        artifact_claim: ArtifactClaim | None = None,
+    ) -> CanonicalEvent:
+        """把 SQLite 账本提交与可补偿 JSONL append 纳入同一文件锁。"""
+
+        return await self._write_claimed(
+            event,
+            capacity_claim=capacity_claim,
+            artifact_claim=artifact_claim,
+        )
+
+    async def reconcile_capacity(
+        self,
+        run_id: str,
+        *,
+        reconcile: CapacityReconciler,
+    ) -> None:
+        """在 JSONL 文件锁内把已验证前缀交给 SQLite 账本接管。"""
+
+        async with _path_lock_for_current_loop(self.path):
+            with self._file_lock():
+                events = self._load_events_unlocked()
+                highest_persisted_seq = max(
+                    (event.seq for event in events if event.run_id == run_id),
+                    default=0,
+                )
+                await reconcile(highest_persisted_seq)
 
     async def _write_claimed(
         self,
         event: CanonicalEvent,
         *,
         after_claim: Callable[[], None] | None = None,
-        artifact_claim: Callable[[Path, str, int], AbstractContextManager[None]] | None = None,
+        artifact_claim: ArtifactClaim | None = None,
+        capacity_claim: CapacityClaim | None = None,
     ) -> CanonicalEvent:
         validate_event_scope(event)
         validate_terminal_visibility(event)
@@ -88,37 +181,77 @@ class LocalJsonlEventSink(EventSink):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # 锁覆盖“查 event-id / 查 terminal / 分配 seq / append”整个临界区。
         # 这样多个 EventBus、多个 sink 实例和多个进程不会把同一 retry 追加两次。
-        with self._file_lock():
-            register_local_state_file(self.path, kind="events", state_dir=self.state_dir)
-            events = self._load_events_unlocked()
-            existing = next((item for item in events if item.event_id == event.event_id), None)
-            if existing is not None:
-                validate_event_replay(event, existing)
-                return existing
-            if event.terminal and any(
-                item.run_id == event.run_id and item.terminal for item in events
-            ):
-                raise EventSinkTerminalConflict
-            persisted = event.model_copy(
-                update={
-                    "seq": max(
-                        (item.seq for item in events if item.run_id == event.run_id),
-                        default=0,
-                    )
-                    + 1
-                }
-            )
-            event_size_before = self.path.stat().st_size if self.path.exists() else 0
-            claim_context = (
-                artifact_claim(self.path, event.event_id, event_size_before)
-                if artifact_claim is not None
-                else nullcontext()
-            )
-            with claim_context:
-                if after_claim is not None:
-                    after_claim()
-                self._append_event_unlocked(persisted)
-            return persisted
+        async with _path_lock_for_current_loop(self.path):
+            with self._file_lock():
+                register_local_state_file(self.path, kind="events", state_dir=self.state_dir)
+                events = self._load_events_unlocked()
+                usage_binding = usage_capacity_binding(event)
+                if (
+                    capacity_claim is not None
+                    and usage_binding is not None
+                    and usage_binding.phase == "final"
+                ):
+                    if not any(
+                        item.event_id == usage_binding.started_event_id
+                        and item.tenant_id == event.tenant_id
+                        and item.run_id == event.run_id
+                        for item in events
+                    ):
+                        raise RuntimeError("usage final event requires a persisted started event")
+                existing = next(
+                    (item for item in events if item.event_id == event.event_id),
+                    None,
+                )
+                if existing is not None:
+                    validate_event_replay(event, existing)
+                    if capacity_claim is not None:
+                        # JSONL append 已 fsync、SQLite commit 前硬退出时，重放命中
+                        # event-id 仍须幂等推进容量账本；否则 outbox 会被公开为
+                        # published，但 outstanding reservation 永久阻断 terminal。
+                        async with capacity_claim(existing):
+                            pass
+                    return existing
+                if any(item.run_id == event.run_id and item.terminal for item in events):
+                    raise EventSinkTerminalConflict
+                persisted = event.model_copy(
+                    update={
+                        "seq": max(
+                            (item.seq for item in events if item.run_id == event.run_id),
+                            default=0,
+                        )
+                        + 1
+                    }
+                )
+                event_existed_before = self.path.exists()
+                event_size_before = self.path.stat().st_size if event_existed_before else 0
+                claim_context = (
+                    artifact_claim(self.path, event.event_id, event_size_before)
+                    if artifact_claim is not None
+                    else nullcontext()
+                )
+                with claim_context:
+                    try:
+                        if capacity_claim is None:
+                            if after_claim is not None:
+                                after_claim()
+                            canonical_event_bytes(persisted)
+                            self._append_event_unlocked(persisted)
+                        else:
+                            async with capacity_claim(persisted):
+                                if after_claim is not None:
+                                    after_claim()
+                                canonical_event_bytes(persisted)
+                                self._append_event_unlocked(persisted)
+                    except BaseException as exc:
+                        # capacity commit 发生在 append 之后；失败时先恢复 JSONL，随后
+                        # artifact claim 才会看到异常并按“事件未提交”删除新 artifact。
+                        if not isinstance(exc, LocalCapacityCommitUncertain):
+                            self._restore_after_failed_append(
+                                existed=event_existed_before,
+                                original_size=event_size_before,
+                            )
+                        raise
+                return persisted
 
     async def write_after_claim(
         self,
@@ -137,7 +270,7 @@ class LocalJsonlEventSink(EventSink):
         original_size = self.path.stat().st_size if existed else 0
         try:
             with self.path.open("a", encoding="utf-8") as file:
-                file.write(json.dumps(event.to_payload(), ensure_ascii=False) + "\n")
+                file.write(canonical_event_bytes(event).decode("utf-8") + "\n")
                 file.flush()
                 self._fsync_event_file(file)
             if not existed:
@@ -178,16 +311,17 @@ class LocalJsonlEventSink(EventSink):
             os.close(descriptor)
 
     async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
-        if not self.path.exists():
-            return []
-        # JSONL 是 local mode 的简单证据存储。每次读取都重建 DTO，
-        # 这样 contract test 能第一时间发现 envelope 漂移。
-        with self._file_lock():
-            return [
-                event
-                for event in self._load_events_unlocked()
-                if event.run_id == run_id and event.seq > after_seq
-            ]
+        async with _path_lock_for_current_loop(self.path):
+            if not self.path.exists():
+                return []
+            # JSONL 是 local mode 的简单证据存储。每次读取都重建 DTO，
+            # 这样 contract test 能第一时间发现 envelope 漂移。
+            with self._file_lock():
+                return [
+                    event
+                    for event in self._load_events_unlocked()
+                    if event.run_id == run_id and event.seq > after_seq
+                ]
 
     async def latest_seq(self, run_id: str) -> int:
         events = await self.read(run_id=run_id)
@@ -201,11 +335,14 @@ class LocalJsonlEventSink(EventSink):
     def _load_events_unlocked(self) -> list[CanonicalEvent]:
         if not self.path.exists():
             return []
-        return [
+        events = [
             CanonicalEvent.model_validate(json.loads(line))
             for line in self.path.read_text(encoding="utf-8").splitlines()
             if line
         ]
+        for event in events:
+            validate_persisted_event_bytes(event)
+        return events
 
     @contextmanager
     def _file_lock(self) -> Generator[None, None, None]:

@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import cast
 
 from agent_harness.context import ContextAssemblyService
-from agent_harness.models import ModelProvider, ModelRequest
+from agent_harness.embeddings import BoundEmbeddingInvocationService, EmbeddingRequest
+from agent_harness.models import (
+    BoundModelInvocationService,
+    ModelRequest,
+)
 from agent_harness.retrieval import (
     RetrievalChunk,
     RetrievalDocument,
@@ -33,6 +37,17 @@ class RagAssistantExecutor:
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
         data = _input(request)
+        embedding = cast(
+            BoundEmbeddingInvocationService,
+            context.require_service("embedding_invocation"),
+        )
+        await embedding.embed(
+            EmbeddingRequest(
+                input=data.query,
+                tenant_id=context.identity.tenant_id,
+            ),
+            operation_key="examples.rag_assistant:embedding-query",
+        )
         retrieval = cast(RetrievalProvider, context.require_service("retrieval_provider"))
         if data.documents:
             await retrieval.index(_index_request(data, context=context))
@@ -75,8 +90,11 @@ class RagAssistantExecutor:
             fragments=fragments,
             token_budget=data.token_budget,
         )
-        model = cast(ModelProvider, context.require_service("model_provider"))
-        model_response = model.complete(
+        model = cast(
+            BoundModelInvocationService,
+            context.require_service("model_invocation"),
+        )
+        model_response = await model.complete(
             ModelRequest(
                 provider="fake",
                 prompt=(
@@ -87,7 +105,7 @@ class RagAssistantExecutor:
                 estimated_input_tokens=assembly.truncation_summary.get("used_tokens", 0),
                 max_output_tokens=128,
             ),
-            model="fake-rag",
+            operation_key="examples.rag_assistant:model-answer",
         )
         trace = await publish_example_trace(
             context=context,
@@ -103,7 +121,6 @@ class RagAssistantExecutor:
                 "model": {
                     "provider": model_response.provider,
                     "model": model_response.model,
-                    "token_usage": model_response.token_usage,
                 },
             },
         )

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import uuid4
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.contracts.run_trace import TRACE_ID_PATTERN
@@ -90,6 +91,24 @@ class CanonicalEvent(HarnessDTO):
     trace_id: str | None = None
     record_scope: EventRecordScope = "run"
     span_id: str | None = None
+
+    @field_validator("payload", mode="before")
+    @classmethod
+    def reject_non_finite_payload_numbers(cls, value: object) -> object:
+        """在 Pydantic 将 NaN 转成 null 前拒绝不确定的 JSON 数值。"""
+
+        def walk(item: object) -> None:
+            if isinstance(item, float) and not math.isfinite(item):
+                raise ValueError("canonical event payload numbers must be finite")
+            if isinstance(item, dict):
+                for nested in cast(dict[object, object], item).values():
+                    walk(nested)
+            elif isinstance(item, list | tuple):
+                for nested in cast(list[object] | tuple[object, ...], item):
+                    walk(nested)
+
+        walk(value)
+        return value
 
     @model_validator(mode="after")
     def validate_run_scope_trace(self) -> CanonicalEvent:

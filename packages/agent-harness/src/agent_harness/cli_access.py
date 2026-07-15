@@ -230,6 +230,7 @@ def resolve_approval(
     event_bus = EventBus(
         sink=event_sink,
         artifact_store=artifact_store,
+        capacity_storage=storage,
     )
     audit = AuditService(storage=storage)
     policy = policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
@@ -246,6 +247,7 @@ def resolve_approval(
             policy=policy,
             audit=audit,
             event_sink=event_sink,
+            event_bus=event_bus,
             artifact_store=artifact_store,
             service_root=service_root,
         ),

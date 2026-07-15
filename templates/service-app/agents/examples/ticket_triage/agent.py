@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Literal, cast
 
-from agent_harness.models import ModelProvider, ModelRequest
+from agent_harness.models import (
+    BoundModelInvocationService,
+    ModelRequest,
+)
 from agent_harness.runtime import (
     AgentExecutionContext,
     AgentExecutionRequest,
@@ -40,15 +43,18 @@ class TicketTriageExecutor:
         data = TicketTriageInput.model_validate(payload)
         category, priority, route, confidence = _classify(data.text)
         needs_review = category == "unknown"
-        model = cast(ModelProvider, context.require_service("model_provider"))
-        model_response = model.complete(
+        model = cast(
+            BoundModelInvocationService,
+            context.require_service("model_invocation"),
+        )
+        model_response = await model.complete(
             ModelRequest(
                 provider="fake",
                 prompt=f"classify ticket: {data.text}",
                 estimated_input_tokens=max(1, len(data.text) // 4),
                 max_output_tokens=32,
             ),
-            model="fake-ticket-triage",
+            operation_key="examples.ticket_triage:model-classification",
         )
         trace = await publish_example_trace(
             context=context,
@@ -63,7 +69,6 @@ class TicketTriageExecutor:
                 "model": {
                     "provider": model_response.provider,
                     "model": model_response.model,
-                    "token_usage": model_response.token_usage,
                 },
             },
         )

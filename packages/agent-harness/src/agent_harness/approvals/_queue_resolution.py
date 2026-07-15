@@ -12,7 +12,13 @@ from agent_harness.approvals._contracts import (
     ApprovalStateConflict,
     as_utc,
 )
-from agent_harness.approvals.reconciliation import approval_evidence, publish_resolution_evidence
+from agent_harness.approvals.reconciliation import (
+    approval_evidence,
+    complete_approval_evidence_group,
+    publish_resolution_evidence,
+    resolved_approval_record,
+    stage_approval_evidence_group,
+)
 from agent_harness.audit import AuditService, build_audit_log
 from agent_harness.events import EventBus
 from agent_harness.identity import IdentityContext
@@ -71,6 +77,14 @@ class ApprovalQueueResolutionMixin:
                     comment=safe_comment,
                 )
                 record = await uow.approvals.get(approval_id)
+                if record is None:
+                    raise LookupError(f"approval not found: {approval_id}")
+                await stage_approval_evidence_group(
+                    uow,
+                    record=record,
+                    resolution_status="approved",
+                    run_status=None,
+                )
                 await uow.commit()
         except ApprovalResolutionRepositoryConflict as exc:
             async with self._storage.uow() as uow:
@@ -155,6 +169,14 @@ class ApprovalQueueResolutionMixin:
                 }:
                     raise ApprovalStateConflict(str(exc), code=exc.code) from exc
                 record = await uow.approvals.get(approval_id)
+                if record is None:
+                    raise LookupError(f"approval not found: {approval_id}") from exc
+                await stage_approval_evidence_group(
+                    uow,
+                    record=record,
+                    resolution_status="approved",
+                    run_status=None,
+                )
                 await uow.commit()
         assert record is not None
         if state.enqueue_state == "queued":
@@ -238,6 +260,41 @@ class ApprovalQueueResolutionMixin:
             ),
         )
         if record.status == "waiting" and state.resolution_state == "recovery_pending":
+            async with self._storage.uow() as uow:
+                run_record = await uow.runs.get(record.run_id)
+            if run_record is not None and RunStatus(run_record.status) in {
+                RunStatus.COMPLETED,
+                RunStatus.FAILED,
+            }:
+                async with self._storage.uow() as uow:
+                    await stage_approval_evidence_group(
+                        uow,
+                        record=record,
+                        resolution_status="approved",
+                        run_status=RunStatus(run_record.status),
+                    )
+                    await uow.commit()
+                await publish_resolution_evidence(
+                    self._event_bus,
+                    actor=actor,
+                    record=resolved_approval_record(record, status="approved"),
+                    request_id=state.request_id,
+                )
+                run = await self._orchestrator.get_run(record.run_id, identity=actor)
+                await complete_approval_evidence_group(
+                    self._storage,
+                    self._event_bus,
+                    record=record,
+                )
+                async with self._storage.uow() as uow:
+                    record = await uow.approvals.mark_approved_evidence_complete(
+                        approval_id=record.approval_id,
+                        run_id=record.run_id,
+                        tenant_id=record.tenant_id,
+                        lease_id=state.lease_id,
+                    )
+                    await uow.commit()
+                return ApprovalResolveResult(approval=record, run=run)
             lease = ApprovalResolutionLease(
                 approval=record,
                 lease_id=state.lease_id,
@@ -255,6 +312,7 @@ class ApprovalQueueResolutionMixin:
                 run_id=run_id,
                 tenant_id=tenant_id,
                 reason=error_code,
+                defer_terminal=True,
             )
             result_state = "failed" if run_result.status == RunStatus.FAILED else "completed"
             async with self._storage.uow() as uow:
@@ -267,6 +325,15 @@ class ApprovalQueueResolutionMixin:
                     result_state=result_state,
                     metadata={"runtime_error_code": error_code},
                 )
+                evidence_record = resolved_approval_record(record, status="approved")
+                await stage_approval_evidence_group(
+                    uow,
+                    record=record,
+                    resolution_status="approved",
+                    run_status=(
+                        RunStatus.FAILED if result_state == "failed" else RunStatus.COMPLETED
+                    ),
+                )
                 if self._audit is not None:
                     await uow.audit_logs.create(
                         build_audit_log(
@@ -274,14 +341,14 @@ class ApprovalQueueResolutionMixin:
                             action="approval.approved",
                             resource=record.resource,
                             payload={
-                                **approval_evidence(record),
+                                **approval_evidence(evidence_record),
                                 "request_id": state.request_id,
                                 "runtime_error_code": error_code,
                             },
                         )
                     )
                 await uow.commit()
-        elif record.status != "approved" or state.resolution_state not in {
+        elif record.status not in {"waiting", "approved"} or state.resolution_state not in {
             "completed",
             "failed",
         }:
@@ -289,13 +356,38 @@ class ApprovalQueueResolutionMixin:
                 "approval deterministic failure state mismatch",
                 code="approval.resolution_in_progress",
             )
+        async with self._storage.uow() as uow:
+            persisted_run = await uow.runs.get(record.run_id)
+            if persisted_run is None:
+                raise LookupError(f"run not found: {record.run_id}")
+            await stage_approval_evidence_group(
+                uow,
+                record=record,
+                resolution_status="approved",
+                run_status=RunStatus(persisted_run.status),
+            )
+            await uow.commit()
         await publish_resolution_evidence(
             self._event_bus,
             actor=actor,
-            record=record,
+            record=resolved_approval_record(record, status="approved"),
             request_id=state.request_id,
         )
         run = await self._orchestrator.get_run(record.run_id, identity=actor)
+        await complete_approval_evidence_group(
+            self._storage,
+            self._event_bus,
+            record=record,
+        )
+        if record.status == "waiting":
+            async with self._storage.uow() as uow:
+                record = await uow.approvals.mark_approved_evidence_complete(
+                    approval_id=record.approval_id,
+                    run_id=record.run_id,
+                    tenant_id=record.tenant_id,
+                    lease_id=lease_id,
+                )
+                await uow.commit()
         return ApprovalResolveResult(approval=record, run=run)
 
     async def _load_queued_execution_actor(

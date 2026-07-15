@@ -20,6 +20,14 @@ class ModelRouterConfig(HarnessDTO):
     max_tokens_per_call: int | None = None
 
 
+class ModelRoutePlan(HarnessDTO):
+    """provider 副作用前冻结的实际路由与预算判断。"""
+
+    provider: str
+    model: str
+    decision: ModelDecision
+
+
 class ModelRouter:
     """根据 provider/model/budget 配置选择模型。
 
@@ -42,8 +50,17 @@ class ModelRouter:
         self.config = config
 
     def route(self, request: ModelRequest) -> ModelResponse:
+        """兼容既有同步调用；usage evidence 由受控 async seam 负责。"""
+
+        plan = self.plan(request)
+        return self.execute(request, plan=plan)
+
+    def plan(self, request: ModelRequest) -> ModelRoutePlan:
+        """在 provider 调用前确定实际 provider/model 与零副作用拒绝。"""
+
         provider_id = request.provider or self.config.default_provider
-        provider = self._providers[provider_id]
+        if provider_id not in self._providers:
+            raise KeyError(f"model provider is not configured: {provider_id}")
         estimated_tokens = request.estimated_input_tokens + request.max_output_tokens
         selected_model = request.model or self.config.default_model
         action = "call"
@@ -70,21 +87,37 @@ class ModelRouter:
             fallback_model=fallback_model,
             reason=reason,
         )
-        if action == "policy_required":
+        return ModelRoutePlan(
+            provider=provider_id,
+            model=selected_model,
+            decision=decision,
+        )
+
+    def execute(self, request: ModelRequest, *, plan: ModelRoutePlan) -> ModelResponse:
+        """执行已冻结 plan；调用方必须先完成 evidence 预约。"""
+
+        if plan.decision.action == "policy_required":
             return ModelResponse(
-                provider=provider_id,
-                model=selected_model,
+                provider=plan.provider,
+                model=plan.model,
                 output_text="",
-                decision=decision,
-                token_usage={
-                    "input_tokens": request.estimated_input_tokens,
-                    "output_tokens": 0,
-                },
+                decision=plan.decision,
+                token_usage={},
             )
+        provider = self._providers[plan.provider]
         routed_request = request.model_copy(
             update={"timeout_seconds": request.timeout_seconds or self.config.timeout_seconds}
         )
-        response = provider.complete(routed_request, model=selected_model)
+        response = provider.complete(routed_request, model=plan.model)
         if response.decision.action != "call":
             return response
-        return response.model_copy(update={"decision": decision})
+        normalized_decision = response.decision.model_copy(
+            update={
+                "action": plan.decision.action,
+                "estimated_tokens": plan.decision.estimated_tokens,
+                "max_tokens": plan.decision.max_tokens,
+                "fallback_model": plan.decision.fallback_model,
+                "reason": plan.decision.reason or response.decision.reason,
+            }
+        )
+        return response.model_copy(update={"decision": normalized_decision})

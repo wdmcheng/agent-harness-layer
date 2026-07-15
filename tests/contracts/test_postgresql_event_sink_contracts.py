@@ -9,6 +9,9 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
+from tests.contracts.embedding_cache_postgresql_migration_contract_helpers import (
+    isolated_database,
+)
 
 from agent_harness.events import (
     CanonicalEventType,
@@ -111,64 +114,64 @@ async def test_postgresql_event_sink_contract_round_trips_full_envelope(tmp_path
 )
 @pytest.mark.asyncio
 async def test_postgresql_event_sink_serializes_cross_instance_sequences() -> None:
-    dsn = os.environ["AGENT_HARNESS_TEST_POSTGRES_DSN"]
-    run_migrations(dsn)
-    storage = SQLAlchemyStorage.from_dsn(dsn)
-    tenant_id = f"event-{uuid4()}"
-    try:
-        async with storage.uow() as uow:
-            await uow.tenants.ensure(tenant_id)
-            session = await uow.sessions.create(
-                SessionCreate(tenant_id=tenant_id, user_id="user", agent_id="agent")
-            )
-            run = await uow.runs.create(
-                RunCreate(
-                    tenant_id=tenant_id,
-                    session_id=session.id,
-                    agent_id="agent",
-                    trace_id=f"trace-{tenant_id}",
+    async with isolated_database("event_sink_sequences") as dsn:
+        run_migrations(dsn)
+        storage = SQLAlchemyStorage.from_dsn(dsn)
+        tenant_id = f"event-{uuid4()}"
+        try:
+            async with storage.uow() as uow:
+                await uow.tenants.ensure(tenant_id)
+                session = await uow.sessions.create(
+                    SessionCreate(tenant_id=tenant_id, user_id="user", agent_id="agent")
+                )
+                run = await uow.runs.create(
+                    RunCreate(
+                        tenant_id=tenant_id,
+                        session_id=session.id,
+                        agent_id="agent",
+                        trace_id=f"trace-{tenant_id}",
+                    )
+                )
+                await uow.commit()
+            buses = [
+                EventBus(
+                    sink=PostgreSQLEventSink(storage),
+                    run_trace_resolver=StorageRunTraceResolver(storage),
+                )
+                for _ in range(6)
+            ]
+            events = await asyncio.gather(
+                *(
+                    bus.publish(
+                        tenant_id=tenant_id,
+                        run_id=run.id,
+                        event_type=CanonicalEventType.RUN_STARTED,
+                        event_id=f"event-{run.id}-{index}",
+                        trace_id=f"trace-{tenant_id}",
+                    )
+                    for index, bus in enumerate(buses)
                 )
             )
-            await uow.commit()
-        buses = [
-            EventBus(
-                sink=PostgreSQLEventSink(storage),
-                run_trace_resolver=StorageRunTraceResolver(storage),
-            )
-            for _ in range(6)
-        ]
-        events = await asyncio.gather(
-            *(
-                bus.publish(
-                    tenant_id=tenant_id,
-                    run_id=run.id,
-                    event_type=CanonicalEventType.RUN_STARTED,
-                    event_id=f"event-{run.id}-{index}",
-                    trace_id=f"trace-{tenant_id}",
-                )
-                for index, bus in enumerate(buses)
-            )
-        )
-        assert sorted(event.seq for event in events) == [1, 2, 3, 4, 5, 6]
+            assert sorted(event.seq for event in events) == [1, 2, 3, 4, 5, 6]
 
-        terminals = await asyncio.gather(
-            *(
-                bus.publish(
-                    tenant_id=tenant_id,
-                    run_id=run.id,
-                    event_type=CanonicalEventType.RUN_COMPLETED,
-                    terminal=True,
-                    visibility="public",
-                    event_id=f"terminal-{run.id}-{index}",
-                    trace_id=f"trace-{tenant_id}",
-                )
-                for index, bus in enumerate(buses[:2])
-            ),
-            return_exceptions=True,
-        )
-        assert sum(isinstance(item, TerminalEventError) for item in terminals) == 1
-    finally:
-        await storage.dispose()
+            terminals = await asyncio.gather(
+                *(
+                    bus.publish(
+                        tenant_id=tenant_id,
+                        run_id=run.id,
+                        event_type=CanonicalEventType.RUN_COMPLETED,
+                        terminal=True,
+                        visibility="public",
+                        event_id=f"terminal-{run.id}-{index}",
+                        trace_id=f"trace-{tenant_id}",
+                    )
+                    for index, bus in enumerate(buses[:2])
+                ),
+                return_exceptions=True,
+            )
+            assert sum(isinstance(item, TerminalEventError) for item in terminals) == 1
+        finally:
+            await storage.dispose()
 
 
 @pytest.mark.skipif(

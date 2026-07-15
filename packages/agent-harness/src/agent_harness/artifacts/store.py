@@ -52,10 +52,7 @@ class FileArtifactStore:
     def write_json(self, payload: dict[str, Any]) -> ArtifactRef:
         """脱敏后写入 JSON payload，并返回可验证 checksum 的引用。"""
 
-        # artifact 是 trace/eval/audit 的长期证据，写盘前再做一次 redaction。
-        # 即使上游 EventBus 漏处理，store 也不能把 secret 原样落地。
-        safe_payload = redact_secrets(payload)
-        data = json.dumps(safe_payload).encode()
+        data = self._json_bytes(payload)
         checksum = hashlib.sha256(data).hexdigest()
         self.root.mkdir(parents=True, exist_ok=True)
         path = self.root / f"{checksum}.json"
@@ -64,6 +61,13 @@ class FileArtifactStore:
         with self._content_lock(checksum):
             self._recover_checksum_pending_unlocked(checksum)
             return self._write_json_unlocked(path=path, checksum=checksum, data=data)
+
+    def reference_json(self, payload: dict[str, Any]) -> ArtifactRef:
+        """只计算脱敏内容寻址引用，不创建目录或写入 artifact。"""
+
+        data = self._json_bytes(payload)
+        checksum = hashlib.sha256(data).hexdigest()
+        return self._artifact_ref(checksum=checksum, size_bytes=len(data))
 
     def recover_pending(self) -> None:
         """显式受控操作入口；只恢复本 store 已登记的 pending claim。"""
@@ -91,8 +95,7 @@ class FileArtifactStore:
             raise ValueError("event_id is required for artifact claim")
         if event_size_before < 0:
             raise ValueError("event_size_before must be non-negative")
-        safe_payload = redact_secrets(payload)
-        data = json.dumps(safe_payload).encode()
+        data = self._json_bytes(payload)
         checksum = hashlib.sha256(data).hexdigest()
         path = self.root / f"{checksum}.json"
         with self._content_lock(checksum):
@@ -481,12 +484,29 @@ class FileArtifactStore:
                 self._fsync_directory(self.root)
             finally:
                 temporary_path.unlink(missing_ok=True)
+        return self._artifact_ref(checksum=checksum, size_bytes=len(data))
+
+    def _artifact_ref(self, *, checksum: str, size_bytes: int) -> ArtifactRef:
         return ArtifactRef(
             ref=f"artifact://{checksum}",
-            uri=str(path),
+            uri=str(self.root / f"{checksum}.json"),
             checksum_sha256=checksum,
-            size_bytes=len(data),
+            size_bytes=size_bytes,
         )
+
+    @staticmethod
+    def _json_bytes(payload: dict[str, Any]) -> bytes:
+        """统一 preview、claim 与 materialize 的脱敏 canonical JSON。"""
+
+        # artifact 是 trace/eval/audit 的长期证据，写盘前再做一次 redaction。
+        # 即使上游漏处理，store 也不能把 secret 原样落地。
+        return json.dumps(
+            redact_secrets(payload),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
 
     def read_json(self, ref: str) -> dict[str, Any]:
         """按 artifact ref 读取 JSON object；非 object payload 视为损坏数据。"""

@@ -12,7 +12,7 @@ from agent_harness.approvals import ApprovalService
 from agent_harness.contracts import ApiErrorEnvelope
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.contracts.trust import GuardrailDecisionStatus
-from agent_harness.events import CanonicalEvent, EventSink
+from agent_harness.events import CanonicalEvent, CanonicalEventType, EventSink
 from agent_harness.identity import IdentityContext
 from agent_harness.policy import (
     InputGuardrail,
@@ -172,16 +172,23 @@ async def create_run_with_orchestrator(
                     "policy": guardrail_payload,
                 }
 
-        result = await run_method(
-            agent_id=request.agent_id,
-            input=request.input,
-            idempotency_key=request.idempotency_key,
-            checkpoint_state=checkpoint_state,
-            identity=identity,
-            request_id=request_id,
-            trace_id=canonical_trace,
-        )
-        if identity is not None and guardrail_payload is not None:
+        run_arguments: dict[str, Any] = {
+            "agent_id": request.agent_id,
+            "input": request.input,
+            "idempotency_key": request.idempotency_key,
+            "checkpoint_state": checkpoint_state,
+            "identity": identity,
+            "request_id": request_id,
+            "trace_id": canonical_trace,
+        }
+        if not orchestrator.uses_queue:
+            run_arguments["pre_run_events"] = (
+                [(CanonicalEventType.INPUT_GUARDRAIL_CHECKED, guardrail_payload)]
+                if guardrail_payload is not None
+                else None
+            )
+        result = await run_method(**run_arguments)
+        if orchestrator.uses_queue and identity is not None and guardrail_payload is not None:
             await orchestrator.record_guardrail_check(
                 run_id=result.run_id,
                 agent_id=request.agent_id,

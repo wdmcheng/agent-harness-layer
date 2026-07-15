@@ -13,7 +13,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_harness.contracts.dto import HarnessDTO
-from agent_harness.storage.models import AgentRunModel, RunTraceBindingModel
+from agent_harness.storage.models import (
+    AgentRunModel,
+    RunEventCapacityModel,
+    RunTraceBindingModel,
+)
 
 
 class RunCreate(HarnessDTO):
@@ -147,6 +151,15 @@ class RunRepository:
             status="created",
         )
         self._session.add(model)
+        self._session.add(
+            RunEventCapacityModel(
+                run_id=model.id,
+                tenant_id=data.tenant_id,
+                highest_persisted_seq=0,
+                outstanding_reserved_event_count=0,
+                terminal_reservation=1,
+            )
+        )
         try:
             await self._session.flush()
         except IntegrityError as exc:
@@ -202,6 +215,15 @@ class RunRepository:
             queue_enqueue_state="enqueue_pending",
         )
         self._session.add(model)
+        self._session.add(
+            RunEventCapacityModel(
+                run_id=model.id,
+                tenant_id=data.tenant_id,
+                highest_persisted_seq=0,
+                outstanding_reserved_event_count=0,
+                terminal_reservation=1,
+            )
+        )
         try:
             await self._session.flush()
         except IntegrityError as exc:

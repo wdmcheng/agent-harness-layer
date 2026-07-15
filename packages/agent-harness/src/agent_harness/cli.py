@@ -18,7 +18,7 @@ from agent_harness.cli_access import register_access_commands
 from agent_harness.cli_eval import approve_eval_case, draft_eval_case
 from agent_harness.cli_eval_experiment import register_eval_experiment_commands
 from agent_harness.evals import EvalRunner, ScoreSink
-from agent_harness.events import EventBus, LocalJsonlEventSink
+from agent_harness.events import CanonicalEventType, EventBus, LocalJsonlEventSink
 from agent_harness.policy import InputGuardrail, PolicyCheck, PolicyDeniedError
 from agent_harness.registry import AgentRegistry, RegistryLoadError
 from agent_harness.runtime import RunOrchestrator, RunTraceError
@@ -164,6 +164,7 @@ def run(
     event_bus = EventBus(
         sink=event_sink,
         artifact_store=artifact_store,
+        capacity_storage=storage,
     )
     executor_services = build_agent_execution_services(
         settings=settings,
@@ -172,6 +173,7 @@ def run(
         policy=policy,
         audit=audit,
         event_sink=event_sink,
+        event_bus=event_bus,
         artifact_store=artifact_store,
         service_root=service_root,
     )
@@ -238,14 +240,12 @@ def run(
                 checkpoint_state=checkpoint_state,
                 identity=settings.identity.default,
                 trace_id=canonical_trace,
+                pre_run_events=(
+                    [(CanonicalEventType.INPUT_GUARDRAIL_CHECKED, decision.to_payload())]
+                    if decision is not None
+                    else None
+                ),
             )
-            if decision is not None:
-                await orchestrator.record_guardrail_check(
-                    run_id=run_result.run_id,
-                    agent_id=agent_id,
-                    identity=settings.identity.default,
-                    payload=decision.to_payload(),
-                )
             if (
                 decision is not None
                 and checkpoint_state is not None

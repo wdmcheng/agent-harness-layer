@@ -24,7 +24,7 @@ from tests.contracts.run_trace_revision_hardening_postgresql_helpers import (
     simulate_legacy_postgresql_0013,
 )
 
-from agent_harness.storage import SQLAlchemyStorage, run_migrations
+from agent_harness.storage import SQLAlchemyStorage, get_head_revision, run_migrations
 from agent_harness.storage.migrations.runner import (
     SchemaMigrationRequiredError,
     require_migration_head,
@@ -37,12 +37,13 @@ from agent_harness.storage.migrations.runner import (
 )
 @pytest.mark.asyncio
 async def test_fresh_postgresql_0012a_reaches_hardened_head() -> None:
-    """fresh PostgreSQL 必须沿 0012a -> 0013 -> 0013a 唯一链得到最终 shape。"""
+    """fresh PostgreSQL 必须沿 0012a -> 0013 -> 0013a -> 当前 head 得到最终 shape。"""
 
     async with postgres_database("agent_harness_trace_fresh") as (dsn, engine):
+        expected_head = get_head_revision()
         await asyncio.to_thread(run_migrations, dsn, "0012a_embedding_cache_tenant_scope")
         await asyncio.to_thread(run_migrations, dsn)
-        assert await asyncio.to_thread(require_migration_head, dsn) == REVISION_0013A
+        assert await asyncio.to_thread(require_migration_head, dsn) == expected_head
         async with engine.connect() as connection:
             revision = (
                 await connection.execute(sa.text("select version_num from alembic_version"))
@@ -63,7 +64,7 @@ async def test_fresh_postgresql_0012a_reaches_hardened_head() -> None:
                     )
                 ).scalars()
             )
-        assert revision == REVISION_0013A
+        assert revision == expected_head
         assert constraints == {
             "uq_agent_runs_id_tenant_trace",
             "fk_canonical_events_run_owner",
@@ -174,6 +175,7 @@ async def test_old_postgresql_0013_is_hardened_before_event_writes() -> None:
     from agent_harness.events import CanonicalEvent, CanonicalEventType, PostgreSQLEventSink
 
     async with postgres_database("agent_harness_trace_legacy") as (dsn, engine):
+        expected_head = get_head_revision()
         await asyncio.to_thread(run_migrations, dsn, REVISION_0013)
         await simulate_legacy_postgresql_0013(engine)
         await seed_legacy_postgresql_rows(engine)
@@ -183,8 +185,9 @@ async def test_old_postgresql_0013_is_hardened_before_event_writes() -> None:
             await asyncio.to_thread(require_migration_head, dsn)
         assert await postgres_side_effect_snapshot(engine) == before
 
-        await asyncio.to_thread(run_migrations, dsn)
-        assert await asyncio.to_thread(require_migration_head, dsn) == REVISION_0013A
+        await asyncio.to_thread(run_migrations, dsn, REVISION_0013A)
+        with pytest.raises(SchemaMigrationRequiredError):
+            await asyncio.to_thread(require_migration_head, dsn)
         async with engine.connect() as connection:
             rows = (
                 await connection.execute(
@@ -215,6 +218,29 @@ async def test_old_postgresql_0013_is_hardened_before_event_writes() -> None:
             ("legacy-run", "root-a", "root-a", "Trace-A", "run"),
         ]
         assert len(constraint_names) == 7
+
+        before_0013a_downgrade = await postgres_full_snapshot(engine)
+        await asyncio.to_thread(command.downgrade, migration_config(dsn), REVISION_0013)
+        after_stamp_downgrade = await postgres_full_snapshot(engine)
+        assert after_stamp_downgrade[:4] == before_0013a_downgrade[:4]
+        assert after_stamp_downgrade[4] == REVISION_0013
+
+        with pytest.raises(RuntimeError, match="0013 downgrade refused: explicit opt-in"):
+            await asyncio.to_thread(
+                command.downgrade,
+                migration_config(dsn),
+                "0012a_embedding_cache_tenant_scope",
+            )
+        with pytest.raises(RuntimeError, match="0013 downgrade refused: canonical trace evidence"):
+            await asyncio.to_thread(
+                command.downgrade,
+                migration_config(dsn, x_args=["allow_empty_evidence_downgrade=true"]),
+                "0012a_embedding_cache_tenant_scope",
+            )
+        assert await postgres_full_snapshot(engine) == after_stamp_downgrade
+
+        await asyncio.to_thread(run_migrations, dsn)
+        assert await asyncio.to_thread(require_migration_head, dsn) == expected_head
 
         storage = SQLAlchemyStorage.from_dsn(dsn)
         try:
@@ -252,22 +278,17 @@ async def test_old_postgresql_0013_is_hardened_before_event_writes() -> None:
                     )
                 )
 
-        before_downgrade = await postgres_full_snapshot(engine)
-        await asyncio.to_thread(command.downgrade, migration_config(dsn), REVISION_0013)
-        after_stamp_downgrade = await postgres_full_snapshot(engine)
-        assert after_stamp_downgrade[:4] == before_downgrade[:4]
-        assert after_stamp_downgrade[4] == REVISION_0013
-
-        with pytest.raises(RuntimeError, match="0013 downgrade refused: explicit opt-in"):
+        before_0014_downgrade = await postgres_full_snapshot(engine)
+        with pytest.raises(RuntimeError, match="0014 downgrade refused: explicit opt-in"):
             await asyncio.to_thread(
                 command.downgrade,
                 migration_config(dsn),
-                "0012a_embedding_cache_tenant_scope",
+                REVISION_0013A,
             )
-        with pytest.raises(RuntimeError, match="0013 downgrade refused: canonical trace evidence"):
+        with pytest.raises(RuntimeError, match="0014 downgrade refused: evidence exists"):
             await asyncio.to_thread(
                 command.downgrade,
                 migration_config(dsn, x_args=["allow_empty_evidence_downgrade=true"]),
-                "0012a_embedding_cache_tenant_scope",
+                REVISION_0013A,
             )
-        assert await postgres_full_snapshot(engine) == after_stamp_downgrade
+        assert await postgres_full_snapshot(engine) == before_0014_downgrade

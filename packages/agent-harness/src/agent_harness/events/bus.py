@@ -4,21 +4,25 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
 import threading
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 from weakref import WeakKeyDictionary
 
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.contracts.run_trace import TRACE_ID_PATTERN, RunTraceValidationError
+from agent_harness.events.local_capacity import LocalEventCapacityClaim
+from agent_harness.events.serialization import canonical_event_bytes, canonical_json_bytes
 from agent_harness.events.sinks.base import EventSink, EventSinkTerminalConflict
 from agent_harness.events.types import CanonicalEvent, CanonicalEventType, EventRecordScope
 from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage.run_trace_gate import RunTraceResolver, RunTraceScopeConflict
+
+if TYPE_CHECKING:
+    from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
 
 
 class TerminalEventError(RuntimeError):
@@ -35,12 +39,20 @@ class EventBus:
         artifact_store: FileArtifactStore | None = None,
         inline_payload_bytes: int = 8192,
         run_trace_resolver: RunTraceResolver | None = None,
+        capacity_storage: SQLAlchemyStorage | None = None,
     ) -> None:
         self._sink = sink
         self._artifact_store = artifact_store
         self._inline_payload_bytes = inline_payload_bytes
         inherited_resolver = getattr(sink, "run_trace_resolver", None)
         self._run_trace_resolver = run_trace_resolver or inherited_resolver
+        self._capacity_storage = capacity_storage
+        self._local_capacity_claim = (
+            LocalEventCapacityClaim(capacity_storage) if capacity_storage is not None else None
+        )
+        bind_capacity_claim = getattr(sink, "bind_capacity_claim", None)
+        if self._local_capacity_claim is not None and bind_capacity_claim is not None:
+            bind_capacity_claim(self._local_capacity_claim.claim)
         bind_resolver = getattr(sink, "bind_run_trace_resolver", None)
         if run_trace_resolver is not None and bind_resolver is not None:
             bind_resolver(run_trace_resolver)
@@ -57,6 +69,18 @@ class EventBus:
         """供 composition root 判定是否已显式提供持久化 resolver。"""
 
         return self._run_trace_resolver is not None
+
+    @property
+    def sink_manages_capacity(self) -> bool:
+        """报告 sink 是否在 event insert 事务内消费数据库预约。"""
+
+        return bool(getattr(self._sink, "manages_event_capacity", False))
+
+    @property
+    def capacity_managed(self) -> bool:
+        """报告 sink 或 local EventBus 是否维护持久化容量账本。"""
+
+        return self.sink_manages_capacity or self._capacity_storage is not None
 
     def bind_run_trace_resolver(self, resolver: RunTraceResolver) -> None:
         """在首个 run-scoped publish 前绑定 resolver，并同步到底层 local sink。"""
@@ -92,6 +116,29 @@ class EventBus:
             None,
         )
 
+    async def reconcile_local_capacity(self, *, run_id: str) -> None:
+        """新预约前接管既有 local JSONL 前缀；service sink 无需额外对账。"""
+
+        capacity_storage = self._capacity_storage
+        if capacity_storage is None:
+            return
+        reconcile_capacity = getattr(self._sink, "reconcile_capacity", None)
+        if reconcile_capacity is None:
+            raise RuntimeError("local event sink does not support capacity reconciliation")
+
+        async def reconcile(highest_persisted_seq: int) -> None:
+            async with capacity_storage.uow() as uow:
+                await uow.event_capacity.reconcile_local_prefix(
+                    run_id=run_id,
+                    highest_persisted_seq=highest_persisted_seq,
+                )
+                await uow.commit()
+
+        # ``flock`` 是阻塞式跨进程锁；同一 event loop 内必须先用 async lock
+        # 串行化，否则第二个协程会阻塞 loop，令持锁协程无法完成数据库提交。
+        async with self._lock_for_current_loop():
+            await reconcile_capacity(run_id, reconcile=reconcile)
+
     async def publish(
         self,
         *,
@@ -114,8 +161,6 @@ class EventBus:
         """发布 CanonicalEvent；带 event_id 时重试返回已写 evidence。"""
 
         async with self._lock_for_current_loop():
-            if self._artifact_store is not None:
-                self._artifact_store.recover_pending()
             if record_scope == "run":
                 if trace_id is None or TRACE_ID_PATTERN.fullmatch(trace_id) is None:
                     raise RunTraceValidationError
@@ -131,6 +176,42 @@ class EventBus:
                 raise ValueError("record_scope must be run or non_run")
             if terminal and visibility != "public":
                 raise ValueError("terminal run events must be public")
+            if (
+                terminal
+                and record_scope == "run"
+                and not self.sink_manages_capacity
+                and self._capacity_storage is not None
+                and (
+                    event_id is None
+                    or await self.event_by_id(run_id=run_id, event_id=event_id) is None
+                )
+            ):
+                async with self._capacity_storage.uow() as uow:
+                    await uow.event_capacity.assert_terminal_publishable(run_id=run_id)
+            if await self._sink.has_terminal(run_id):
+                if (
+                    event_id is None
+                    or await self.event_by_id(run_id=run_id, event_id=event_id) is None
+                ):
+                    raise TerminalEventError(f"run already has terminal event: {run_id}")
+            if event_type == CanonicalEventType.MODEL_USAGE_UPDATED:
+                if not isinstance(payload, dict) or not isinstance(payload.get("usage"), dict):
+                    raise ValueError("model usage final event requires a complete usage payload")
+                # 局部 import 避免 models -> events 的生命周期依赖形成模块环。
+                from agent_harness.models.usage import ModelUsageEvidence
+
+                evidence = ModelUsageEvidence.model_validate(payload["usage"])
+                if (
+                    evidence.tenant_id != tenant_id
+                    or evidence.run_id != run_id
+                    or evidence.agent_id != agent_id
+                    or evidence.request_id != request_id
+                    or evidence.trace_id != trace_id
+                ):
+                    raise ValueError("model usage payload does not match canonical event scope")
+                payload = {**payload, "usage": evidence.to_payload()}
+            if self._artifact_store is not None:
+                self._artifact_store.recover_pending()
             # Terminal event 会关闭 run stream。先检查再分配 seq，避免被拒绝的
             # 重复 terminal 写入消耗序号，进而干扰 SSE resume 调用方。
             if terminal and event_id is None and await self._sink.has_terminal(run_id):
@@ -141,7 +222,7 @@ class EventBus:
             payload_checksum: str | None = None
             pending_artifact_payload: dict[str, Any] | None = None
             if event_payload is not None:
-                payload_bytes = json.dumps(event_payload).encode()
+                payload_bytes = canonical_json_bytes(event_payload)
                 # 大 payload 进入 artifact store；事件本身只保留摘要、checksum
                 # 和 ref，避免 local JSONL、SSE、trace adapter 被大内容撑爆。
                 if (
@@ -175,6 +256,7 @@ class EventBus:
                 record_scope=record_scope,
                 span_id=span_id,
             )
+            canonical_event_bytes(event)
             try:
 
                 def materialize_artifact() -> None:
@@ -216,7 +298,30 @@ class EventBus:
                             )
                         yield
 
-                if pending_artifact_payload is None:
+                if (
+                    event.record_scope == "run"
+                    and not self.sink_manages_capacity
+                    and self._local_capacity_claim is not None
+                ):
+                    write_with_capacity_claim = getattr(
+                        self._sink,
+                        "write_with_capacity_claim",
+                        None,
+                    )
+                    if write_with_capacity_claim is None:
+                        raise RuntimeError(
+                            "local event sink does not support atomic capacity claim"
+                        )
+                    persisted = await write_with_capacity_claim(
+                        event,
+                        capacity_claim=self._local_capacity_claim.claim,
+                        artifact_claim=(
+                            materialize_artifact_claim
+                            if pending_artifact_payload is not None
+                            else None
+                        ),
+                    )
+                elif pending_artifact_payload is None:
                     persisted = await self._sink.write(event)
                 else:
                     write_with_artifact_claim = getattr(

@@ -18,11 +18,11 @@ def test_trace_event_hardening_is_the_unique_linear_head() -> None:
     """已发布 0013 不改写；事件 shape 修复只能追加线性后继。"""
 
     script = ScriptDirectory.from_config(alembic_config("sqlite+aiosqlite:///:memory:"))
-    assert script.get_heads() == [REVISION_0013A]
+    assert script.get_heads() == ["0014_run_evidence_outbox"]
     hardening = script.get_revision(REVISION_0013A)
     assert hardening is not None
     assert hardening.down_revision == REVISION_0013
-    assert get_head_revision() == REVISION_0013A
+    assert get_head_revision() == "0014_run_evidence_outbox"
 
 
 @pytest.mark.parametrize(

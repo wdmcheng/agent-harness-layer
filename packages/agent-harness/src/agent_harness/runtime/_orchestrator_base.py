@@ -6,8 +6,10 @@ from collections.abc import AsyncGenerator, Mapping
 from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Any
 
+from agent_harness.embeddings import EmbeddingInvocationService
 from agent_harness.events import CanonicalEvent, EventBus
 from agent_harness.identity import IdentityContext
+from agent_harness.models import ModelInvocationService
 from agent_harness.runtime.checkpoints import IdempotencyKey, ResumeToken
 from agent_harness.runtime.continuation import idempotency_value
 from agent_harness.runtime.executor import (
@@ -56,6 +58,28 @@ class OrchestratorState:
         """闭合 runtime/approval 调用环，但不持久化 service object。"""
 
         self._approval_service = service
+
+    async def recover_pending_usage_evidence(self, *, run_id: str | None = None) -> int:
+        """在 worker 启动或 run 重放前只补投已有确定性 usage 结果。"""
+
+        if run_id is None:
+            async with self._storage.uow() as uow:
+                run_ids = await uow.evidence_outbox.pending_usage_run_ids()
+        else:
+            run_ids = [run_id]
+        model = self._executor_services.get("model_invocation")
+        embedding = self._executor_services.get("embedding_invocation")
+        if model is not None and not isinstance(model, ModelInvocationService):
+            raise RuntimeError("model_invocation service does not support usage recovery")
+        if embedding is not None and not isinstance(embedding, EmbeddingInvocationService):
+            raise RuntimeError("embedding_invocation service does not support usage recovery")
+        recovered = 0
+        for pending_run_id in run_ids:
+            if isinstance(model, ModelInvocationService):
+                recovered += await model.recover_pending(run_id=pending_run_id)
+            if isinstance(embedding, EmbeddingInvocationService):
+                recovered += await embedding.recover_pending(run_id=pending_run_id)
+        return recovered
 
     @property
     def uses_queue(self) -> bool:
@@ -125,6 +149,7 @@ class OrchestratorState:
         request_id: str | None = None,
         trace_id: str | None = None,
         input: dict[str, Any] | None = None,
+        defer_terminal: bool = False,
     ) -> RunResult:
         raise NotImplementedError
 
@@ -138,7 +163,8 @@ class OrchestratorState:
         request_id: str | None = None,
         trace_id: str | None = None,
         input: dict[str, Any] | None = None,
-    ) -> CanonicalEvent:
+        defer_terminal: bool = False,
+    ) -> CanonicalEvent | None:
         raise NotImplementedError
 
     async def _apply_execution_result(
@@ -159,5 +185,6 @@ class OrchestratorState:
         request_id: str | None = None,
         trace_id: str | None = None,
         input: dict[str, Any] | None = None,
+        defer_terminal: bool = False,
     ) -> RunResult:
         raise NotImplementedError

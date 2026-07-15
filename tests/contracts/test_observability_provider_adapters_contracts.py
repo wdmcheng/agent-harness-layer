@@ -52,6 +52,27 @@ class RecordingProviderAdapter(ProviderTelemetryAdapter):
         return TelemetryStatus(provider=self.provider_name, status="sent")
 
 
+def usage_payload(*, run_id: str, trace_id: str) -> dict[str, object]:
+    """构造 Facade canonical usage 合同使用的完整统一 DTO。"""
+
+    return {
+        "usage_kind": "model",
+        "tenant_id": "default",
+        "provider": "fake",
+        "model": "fake-basic",
+        "input_tokens": 1,
+        "output_tokens": 2,
+        "cost_usd": None,
+        "cost_status": "unavailable",
+        "latency_ms": 3,
+        "decision": {"provider_called": True},
+        "run_id": run_id,
+        "agent_id": "agent-1",
+        "request_id": None,
+        "trace_id": trace_id,
+    }
+
+
 @pytest.mark.asyncio
 async def test_non_run_telemetry_facade_preserves_nullable_trace(tmp_path: Path) -> None:
     """没有真实 run 归属的 telemetry 不生成假的 canonical trace。"""
@@ -176,6 +197,240 @@ async def test_provider_failure_is_degraded_and_does_not_drop_local_evidence(
     assert "p@ss" not in persisted
     assert "leaked-secret-12345" not in persisted
     assert "raw-cookie-12345" not in persisted
+
+
+@pytest.mark.asyncio
+async def test_canonical_usage_is_written_once_then_only_fanned_out(tmp_path: Path) -> None:
+    """usage 的 local writer 只有 EventBus，Facade 不追加第二条 CanonicalEvent。"""
+
+    dsn = sqlite_dsn(tmp_path / "usage-telemetry.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    run_id = await seed_persisted_run(storage, trace_id="trace-usage")
+    resolver = StorageRunTraceResolver(storage)
+    sink = LocalJsonlEventSink(tmp_path / "usage.jsonl", run_trace_resolver=resolver)
+    provider = RecordingProviderAdapter()
+    event_bus = EventBus(sink=sink, run_trace_resolver=resolver)
+    facade = TelemetryFacade(local_sink=sink, providers=[provider])
+    try:
+        usage = await event_bus.publish(
+            tenant_id="default",
+            run_id=run_id,
+            agent_id="agent-1",
+            event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
+            payload={
+                "correlation": {"usage_call_id": "usage-a"},
+                "usage": usage_payload(run_id=run_id, trace_id="trace-usage"),
+            },
+            trace_id="trace-usage",
+            event_id="usage:default:usage-a:final",
+        )
+        result = await facade.publish_event(usage)
+        persisted = await sink.read(run_id=run_id)
+    finally:
+        await storage.dispose()
+
+    assert result.local_status.status == "already_written"
+    assert [status.status for status in result.provider_statuses] == ["sent"]
+    assert len(persisted) == 1
+    assert provider.records[0].payload["correlation"]["usage_call_id"] == "usage-a"
+
+
+@pytest.mark.asyncio
+async def test_canonical_usage_without_provider_keeps_one_local_event(tmp_path: Path) -> None:
+    """未配置 SaaS provider 时，usage local evidence 仍唯一且 provider 结果为空。"""
+
+    dsn = sqlite_dsn(tmp_path / "usage-no-provider.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    run_id = await seed_persisted_run(storage, trace_id="trace-usage-none")
+    resolver = StorageRunTraceResolver(storage)
+    sink = LocalJsonlEventSink(tmp_path / "usage-no-provider.jsonl", run_trace_resolver=resolver)
+    event_bus = EventBus(sink=sink, run_trace_resolver=resolver)
+    facade = TelemetryFacade(local_sink=sink)
+    try:
+        usage = await event_bus.publish(
+            tenant_id="default",
+            run_id=run_id,
+            agent_id="agent-1",
+            event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
+            payload={
+                "correlation": {"usage_call_id": "usage-none"},
+                "usage": usage_payload(run_id=run_id, trace_id="trace-usage-none"),
+            },
+            trace_id="trace-usage-none",
+            event_id="usage:default:usage-none:final",
+        )
+        result = await facade.publish_event(usage)
+        persisted = await sink.read(run_id=run_id)
+    finally:
+        await storage.dispose()
+
+    assert result.local_status.status == "already_written"
+    assert result.provider_statuses == []
+    assert [event.event_id for event in persisted] == ["usage:default:usage-none:final"]
+
+
+@pytest.mark.asyncio
+async def test_canonical_usage_provider_failure_is_degraded_and_redacted(tmp_path: Path) -> None:
+    """usage provider 失败不能删除 local evidence，失败摘要也不能泄漏 secret。"""
+
+    dsn = sqlite_dsn(tmp_path / "usage-provider-failure.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    run_id = await seed_persisted_run(storage, trace_id="trace-usage-degraded")
+    resolver = StorageRunTraceResolver(storage)
+    sink = LocalJsonlEventSink(
+        tmp_path / "usage-provider-failure.jsonl",
+        run_trace_resolver=resolver,
+    )
+    provider = RecordingProviderAdapter(
+        fail_with=RuntimeError("Authorization: Bearer provider-secret-12345")
+    )
+    event_bus = EventBus(sink=sink, run_trace_resolver=resolver)
+    facade = TelemetryFacade(local_sink=sink, providers=[provider])
+    try:
+        usage = await event_bus.publish(
+            tenant_id="default",
+            run_id=run_id,
+            agent_id="agent-1",
+            event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
+            payload={
+                "correlation": {"usage_call_id": "usage-degraded"},
+                "usage": usage_payload(run_id=run_id, trace_id="trace-usage-degraded"),
+            },
+            trace_id="trace-usage-degraded",
+            event_id="usage:default:usage-degraded:final",
+        )
+        result = await facade.publish_event(usage)
+        persisted = await sink.read(run_id=run_id)
+    finally:
+        await storage.dispose()
+
+    assert len(persisted) == 1
+    assert len(provider.records) == 1
+    assert result.provider_statuses[0].status == "degraded"
+    assert result.provider_statuses[0].detail is not None
+    assert "provider-secret-12345" not in result.provider_statuses[0].detail
+
+
+@pytest.mark.asyncio
+async def test_canonical_usage_local_write_failure_prevents_provider_fanout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """EventBus durable write 失败时，provider fan-out 必须保持零副作用。"""
+
+    dsn = sqlite_dsn(tmp_path / "usage-local-failure.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    run_id = await seed_persisted_run(storage, trace_id="trace-usage-failure")
+    resolver = StorageRunTraceResolver(storage)
+    sink = LocalJsonlEventSink(tmp_path / "usage-local-failure.jsonl", run_trace_resolver=resolver)
+    provider = RecordingProviderAdapter()
+    event_bus = EventBus(sink=sink, run_trace_resolver=resolver)
+    facade = TelemetryFacade(local_sink=sink, providers=[provider])
+
+    async def fail_write(_event: object) -> None:
+        raise OSError("durable sink unavailable")
+
+    monkeypatch.setattr(sink, "write", fail_write)
+    try:
+        with pytest.raises(OSError, match="durable sink unavailable"):
+            usage = await event_bus.publish(
+                tenant_id="default",
+                run_id=run_id,
+                agent_id="agent-1",
+                event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
+                payload={
+                    "correlation": {"usage_call_id": "usage-local-failure"},
+                    "usage": usage_payload(
+                        run_id=run_id,
+                        trace_id="trace-usage-failure",
+                    ),
+                },
+                trace_id="trace-usage-failure",
+                event_id="usage:default:usage-local-failure:final",
+            )
+            await facade.publish_event(usage)
+    finally:
+        await storage.dispose()
+
+    assert provider.records == []
+
+
+@pytest.mark.asyncio
+async def test_canonical_usage_fanout_rejects_same_id_with_different_envelope(
+    tmp_path: Path,
+) -> None:
+    """相同 event_id 不能授权伪造 envelope 复用已持久化身份。"""
+
+    dsn = sqlite_dsn(tmp_path / "usage-envelope-mismatch.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    run_id = await seed_persisted_run(storage, trace_id="trace-envelope")
+    resolver = StorageRunTraceResolver(storage)
+    sink = LocalJsonlEventSink(tmp_path / "usage-envelope.jsonl", run_trace_resolver=resolver)
+    event_bus = EventBus(sink=sink, run_trace_resolver=resolver)
+    provider = RecordingProviderAdapter()
+    facade = TelemetryFacade(local_sink=sink, providers=[provider])
+    try:
+        persisted = await event_bus.publish(
+            tenant_id="default",
+            run_id=run_id,
+            agent_id="agent-1",
+            event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
+            payload={
+                "correlation": {"usage_call_id": "usage-envelope"},
+                "usage": usage_payload(run_id=run_id, trace_id="trace-envelope"),
+                "outcome": "completed",
+            },
+            trace_id="trace-envelope",
+            event_id="usage:default:usage-envelope:final",
+        )
+        assert persisted.payload is not None
+        forged = persisted.model_copy(
+            update={"payload": {**persisted.payload, "outcome": "forged"}}
+        )
+        with pytest.raises(ValueError, match="canonical usage"):
+            await facade.publish_event(forged)
+    finally:
+        await storage.dispose()
+
+    assert provider.records == []
+
+
+@pytest.mark.asyncio
+async def test_canonical_usage_direct_facade_publish_is_rejected(tmp_path: Path) -> None:
+    dsn = sqlite_dsn(tmp_path / "usage-direct.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    run_id = await seed_persisted_run(storage, trace_id="trace-usage")
+    resolver = StorageRunTraceResolver(storage)
+    sink = LocalJsonlEventSink(tmp_path / "usage-direct.jsonl", run_trace_resolver=resolver)
+    event_bus = EventBus(sink=sink, run_trace_resolver=resolver)
+    provider = RecordingProviderAdapter()
+    facade = TelemetryFacade(local_sink=sink, providers=[provider])
+    try:
+        event = await event_bus.publish(
+            tenant_id="default",
+            run_id=run_id,
+            agent_id="agent-1",
+            event_type=CanonicalEventType.ARTIFACT_CREATED,
+            payload={"placeholder": True},
+            trace_id="trace-usage",
+        )
+        unpersisted_usage = event.model_copy(
+            update={
+                "event_id": "usage:not-persisted",
+                "event_type": CanonicalEventType.MODEL_USAGE_UPDATED,
+            }
+        )
+        with pytest.raises(ValueError, match="EventBus-persisted"):
+            await facade.publish_event(unpersisted_usage)
+    finally:
+        await storage.dispose()
+    assert provider.records == []
 
 
 @pytest.mark.asyncio

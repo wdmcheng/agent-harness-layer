@@ -24,6 +24,7 @@ from agent_harness.runtime import (
     build_resume_approval_message,
 )
 from app.runtime import RuntimeComponents, build_runtime_components
+from app.workers.runtime_worker_operations import execute_approval_operation
 
 EXECUTOR_ID = os.environ.get("SERVICE_APP_EXECUTOR_ID", "agent-harness-service-worker")
 RECLAIM_IDLE_SECONDS = float(os.environ.get("SERVICE_APP_RECLAIM_IDLE_SECONDS", "30"))
@@ -62,6 +63,29 @@ def _write_receipt_marker(delivery: QueueDelivery) -> None:
         json.dumps(delivery.receipt.to_payload(), sort_keys=True),
         encoding="utf-8",
     )
+
+
+def _crash_before_queue_ack(message: RunQueueMessage) -> None:
+    """仅供隔离 smoke 在应用结果/evidence durable 后、Redis ack 前硬退出。"""
+
+    selector = os.environ.get("SERVICE_APP_SMOKE_CRASH_BEFORE_ACK", "").strip()
+    if selector not in {"1", message.kind, message.run_id}:
+        return
+    marker_value = os.environ.get("SERVICE_APP_SMOKE_ACK_CRASH_MARKER", "").strip()
+    if not marker_value:
+        raise RuntimeError("ack crash failpoint requires an isolated marker path")
+    Path(marker_value).write_text(
+        json.dumps(
+            {
+                "kind": message.kind,
+                "operation_id": message.operation_id,
+                "run_id": message.run_id,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    os._exit(24)
 
 
 async def _wait_for_smoke_reclaim_release(delivery: QueueDelivery) -> None:
@@ -151,6 +175,12 @@ async def _recover_pending_enqueue(components: RuntimeComponents) -> None:
                 message_id=queued.message_id,
             )
             await uow.commit()
+
+
+async def _recover_pending_usage(components: RuntimeComponents) -> None:
+    """DBOS 接管新消息前补投确定性 usage，未知结果继续阻止 terminal。"""
+
+    await components.orchestrator.recover_pending_usage_evidence()
 
 
 async def _prepare_approval_owner(
@@ -254,6 +284,7 @@ async def consume_one(
                 tenant_id=message.tenant_id,
                 reason=error_code,
             )
+        _crash_before_queue_ack(message)
         await components.queue.ack(delivery.receipt)
         return message.run_id
     result = outcome.result
@@ -266,6 +297,7 @@ async def consume_one(
         RunStatus.WAITING.value,
     }:
         raise RuntimeError("DBOS operation did not persist a deterministic result")
+    _crash_before_queue_ack(message)
     await components.queue.ack(delivery.receipt)
     return message.run_id
 
@@ -322,18 +354,7 @@ async def _run_worker(
         return result.to_payload()
 
     async def approval_handler(operation: DBOSOperation) -> dict[str, object]:
-        assert operation.approval_id is not None
-        assert operation.resolution_lease_id is not None
-        result = await components.approval_service.execute_queued_approval(
-            approval_id=operation.approval_id,
-            tenant_id=operation.tenant_id,
-            run_id=operation.run_id,
-            operation_id=operation.operation_id,
-            lease_id=operation.resolution_lease_id,
-        )
-        if result.run is None:
-            raise RuntimeError("approval continuation did not return run result")
-        return result.run.to_payload()
+        return await execute_approval_operation(components, operation)
 
     dbos = DBOSServiceRuntimeAdapter(
         system_database_url=components.storage.dsn,
@@ -345,6 +366,7 @@ async def _run_worker(
     )
     try:
         await _recover_pending_enqueue(components)
+        await _recover_pending_usage(components)
         await dbos.start()
         if not once:
             print("runtime-worker: ready", flush=True)

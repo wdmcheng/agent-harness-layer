@@ -10,7 +10,13 @@ from tests.contracts.canonical_event_artifact_test_helpers import ContractRunTra
 
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.contracts import GuardrailDecision, SourceRef, TrustLevel
-from agent_harness.events import CanonicalEventType, EventBus, LocalJsonlEventSink
+from agent_harness.events import (
+    CanonicalEventType,
+    EventBus,
+    LocalJsonlEventSink,
+    canonical_event_bytes,
+)
+from agent_harness.events.serialization import canonical_json_bytes
 from agent_harness.observability.otel import map_event_to_otel
 from agent_harness.security.guardrails import guardrail_event_payload
 from app.api.sse import format_sse_event
@@ -41,7 +47,7 @@ async def test_large_payload_is_written_to_artifact_ref(tmp_path: Path) -> None:
 
     assert event.payload_ref is not None
     assert event.payload_checksum is not None
-    assert event.payload == {"artifact": {"size_bytes": len(json.dumps(payload).encode())}}
+    assert event.payload == {"artifact": {"size_bytes": len(canonical_json_bytes(payload))}}
     assert store.read_json(event.payload_ref) == payload
 
 
@@ -159,3 +165,4 @@ async def test_otel_mapping_and_sse_format_are_provider_neutral(tmp_path: Path) 
     assert "id: 1" in sse
     assert "event: run.completed" in sse
     assert '"run_id":"run-sse"' in sse
+    assert f"data: {canonical_event_bytes(event).decode('utf-8')}\n\n" in sse

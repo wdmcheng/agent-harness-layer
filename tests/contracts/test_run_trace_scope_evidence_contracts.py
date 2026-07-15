@@ -281,7 +281,7 @@ async def test_approval_and_event_bus_cannot_override_or_omit_persisted_trace(
             await bus.publish(
                 tenant_id="telemetry",
                 run_id="telemetry",
-                event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
+                event_type=CanonicalEventType.ARTIFACT_CREATED,
                 trace_id=None,
                 record_scope=cast(Any, "other"),
             )
@@ -289,7 +289,7 @@ async def test_approval_and_event_bus_cannot_override_or_omit_persisted_trace(
         telemetry = await bus.publish(
             tenant_id="telemetry",
             run_id="telemetry",
-            event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
+            event_type=CanonicalEventType.ARTIFACT_CREATED,
             trace_id=None,
             record_scope="non_run",
         )

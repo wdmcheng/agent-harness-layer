@@ -52,20 +52,54 @@ class AgentExecutionContext(HarnessDTO):
             ) from exc
 
 
+@runtime_checkable
+class RunBoundExecutionService(Protocol):
+    """由 composition 在业务可见前绑定可信 run 关联的服务。"""
+
+    def bind_execution(
+        self,
+        *,
+        tenant_id: str,
+        run_id: str,
+        agent_id: str,
+        request_id: str | None,
+        trace_id: str,
+    ) -> object: ...
+
+
 def build_execution_context(
     *,
     identity: IdentityContext,
     services: Mapping[str, object],
+    agent_id: str,
+    run_id: str,
     request_id: str | None = None,
     trace_id: str | None = None,
 ) -> AgentExecutionContext:
-    """构造可序列化 context，并把进程内服务留在 private mapping。"""
+    """构造 context，并把支持绑定的服务封闭到当前可信 run。"""
+
+    if not trace_id:
+        raise ValueError("agent execution context requires canonical trace_id")
+    bound_services = {
+        name: (
+            service.bind_execution(
+                tenant_id=identity.tenant_id,
+                run_id=run_id,
+                agent_id=agent_id,
+                request_id=request_id,
+                trace_id=trace_id,
+            )
+            if isinstance(service, RunBoundExecutionService)
+            else service
+        )
+        for name, service in services.items()
+    }
 
     return AgentExecutionContext(
         identity=identity,
         request_id=request_id,
         trace_id=trace_id,
-    ).bind_services(services)
+    ).bind_services(bound_services)
 
 
 class AgentApprovalRequest(HarnessDTO):

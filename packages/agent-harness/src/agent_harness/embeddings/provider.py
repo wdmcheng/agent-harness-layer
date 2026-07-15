@@ -6,8 +6,29 @@ import hashlib
 from time import perf_counter
 from typing import Protocol
 
+from pydantic import field_validator
+
 from agent_harness.contracts.dto import HarnessDTO
-from agent_harness.storage.repositories import EmbeddingCacheCreate, EmbeddingCacheRepository
+from agent_harness.storage.repositories import EmbeddingCacheCreate, EmbeddingCacheRecord
+
+
+class EmbeddingCacheStore(Protocol):
+    """provider 可长期持有的 tenant-scoped cache seam。"""
+
+    async def get(
+        self,
+        *,
+        tenant_id: str,
+        provider: str,
+        model: str,
+        input_hash: str,
+    ) -> EmbeddingCacheRecord | None:
+        """读取 cache；实现负责提交 hit evidence。"""
+        ...
+
+    async def put(self, data: EmbeddingCacheCreate) -> EmbeddingCacheRecord:
+        """持久化 miss 结果；实现负责事务边界。"""
+        ...
 
 
 class EmbeddingRequest(HarnessDTO):
@@ -24,6 +45,13 @@ class EmbeddingCacheInfo(HarnessDTO):
     input_hash: str
     vector_ref: str
 
+    @field_validator("hit", mode="before")
+    @classmethod
+    def validate_hit(cls, value: object) -> object:
+        if not isinstance(value, bool):
+            raise ValueError("embedding cache hit must be a boolean")
+        return value
+
 
 class EmbeddingResponse(HarnessDTO):
     """provider 生成或命中 cache 后返回的统一 embedding 结果。"""
@@ -33,6 +61,16 @@ class EmbeddingResponse(HarnessDTO):
     vector_ref: str
     vector: list[float]
     cache: EmbeddingCacheInfo
+    latency_ms: int = 0
+
+    @field_validator("latency_ms", mode="before")
+    @classmethod
+    def validate_latency(cls, value: object) -> object:
+        """adapter 边界拒绝会破坏 usage 聚合语义的无效延迟。"""
+
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError("embedding latency must be a non-negative integer")
+        return value
 
 
 class EmbeddingProvider(Protocol):
@@ -52,7 +90,7 @@ class LocalEmbeddingProvider:
     def __init__(
         self,
         *,
-        cache: EmbeddingCacheRepository,
+        cache: EmbeddingCacheStore,
         provider: str = "local",
         model: str = "mock-small",
     ) -> None:
@@ -62,6 +100,7 @@ class LocalEmbeddingProvider:
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         input_hash = hashlib.sha256(request.input.encode("utf-8")).hexdigest()
+        started = perf_counter()
         cached = await self._cache.get(
             tenant_id=request.tenant_id,
             provider=self.provider,
@@ -80,6 +119,7 @@ class LocalEmbeddingProvider:
                     input_hash=input_hash,
                     vector_ref=cached.vector_ref,
                 ),
+                latency_ms=int((perf_counter() - started) * 1000),
             )
         started = perf_counter()
         vector = _deterministic_vector(input_hash)
@@ -108,6 +148,7 @@ class LocalEmbeddingProvider:
             vector_ref=vector_ref,
             vector=vector,
             cache=EmbeddingCacheInfo(hit=False, input_hash=input_hash, vector_ref=vector_ref),
+            latency_ms=latency_ms,
         )
 
 

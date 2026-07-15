@@ -41,6 +41,7 @@ class RunContinuation(OrchestratorState):
         expected_run_id: str | None = None,
         identity: IdentityContext | None = None,
         approval_grant: ApprovalGrant | None = None,
+        defer_terminal: bool = False,
     ) -> RunResult:
         """用 resume token 完成等待中的 run，并校验 URL 与 token 归属。"""
 
@@ -72,11 +73,12 @@ class RunContinuation(OrchestratorState):
                 request_id=optional_state_text(state, "request_id"),
                 trace_id=run.trace_id,
                 input=run.input,
+                defer_terminal=defer_terminal,
             )
             return RunResult(
                 run_id=run.id,
                 status=RunStatus.COMPLETED,
-                terminal_event=terminal.event_type.value,
+                terminal_event=terminal.event_type.value if terminal is not None else None,
             )
         # Approval-gated token 必须在发布 resumed event、调用 executor 或改变
         # run 前验证 grant；原始 token 永远不能代替 ApprovalGrant。
@@ -107,11 +109,12 @@ class RunContinuation(OrchestratorState):
                 request_id=optional_state_text(checkpoint.state, "request_id"),
                 trace_id=run.trace_id,
                 input=run.input,
+                defer_terminal=defer_terminal,
             )
             return RunResult(
                 run_id=run.id,
                 status=RunStatus.COMPLETED,
-                terminal_event=terminal.event_type.value,
+                terminal_event=terminal.event_type.value if terminal is not None else None,
             )
         if self._executor_resolver is None:
             raise InvalidRunTransition("agent executor is not configured")
@@ -120,6 +123,8 @@ class RunContinuation(OrchestratorState):
         context = build_execution_context(
             identity=execution_identity,
             services=self._executor_services,
+            agent_id=run.agent_id,
+            run_id=run.id,
             request_id=optional_state_text(checkpoint.state, "request_id"),
             trace_id=run.trace_id,
         )
@@ -138,22 +143,24 @@ class RunContinuation(OrchestratorState):
                 approval_grant,
             )
             validate_terminal_execution_result(RunStatus(run.status), result)
-            terminal = await publish_terminal_evidence(
-                self._event_bus,
-                run_id=run.id,
-                agent_id=run.agent_id,
-                status=RunStatus(run.status),
-                identity=execution_identity,
-                output=run.output,
-                error=run.error,
-                request_id=context.request_id,
-                trace_id=context.trace_id,
-                correlation=run_correlation(run.input),
-            )
+            terminal = None
+            if not defer_terminal:
+                terminal = await publish_terminal_evidence(
+                    self._event_bus,
+                    run_id=run.id,
+                    agent_id=run.agent_id,
+                    status=RunStatus(run.status),
+                    identity=execution_identity,
+                    output=run.output,
+                    error=run.error,
+                    request_id=context.request_id,
+                    trace_id=context.trace_id,
+                    correlation=run_correlation(run.input),
+                )
             return RunResult(
                 run_id=run.id,
                 status=RunStatus(run.status),
-                terminal_event=terminal.event_type.value,
+                terminal_event=terminal.event_type.value if terminal is not None else None,
             )
 
         await self._event_bus.publish(
@@ -187,8 +194,14 @@ class RunContinuation(OrchestratorState):
                 request_id=context.request_id,
                 trace_id=context.trace_id,
                 input=run.input,
+                defer_terminal=defer_terminal,
             )
-        return await self._apply_execution_result(request, result, context=context)
+        return await self._apply_execution_result(
+            request,
+            result,
+            context=context,
+            defer_terminal=defer_terminal,
+        )
 
     async def _apply_execution_result(
         self,
@@ -196,6 +209,7 @@ class RunContinuation(OrchestratorState):
         result: AgentExecutionResult,
         *,
         context: AgentExecutionContext,
+        defer_terminal: bool = False,
     ) -> RunResult:
         if result.status == "completed":
             terminal = await self._complete(
@@ -206,11 +220,12 @@ class RunContinuation(OrchestratorState):
                 request_id=context.request_id,
                 trace_id=context.trace_id,
                 input=request.input,
+                defer_terminal=defer_terminal,
             )
             return RunResult(
                 run_id=request.run_id,
                 status=RunStatus.COMPLETED,
-                terminal_event=terminal.event_type.value,
+                terminal_event=terminal.event_type.value if terminal is not None else None,
             )
         if result.status == "failed":
             return await self._fail_execution(
@@ -221,6 +236,7 @@ class RunContinuation(OrchestratorState):
                 request_id=context.request_id,
                 trace_id=context.trace_id,
                 input=request.input,
+                defer_terminal=defer_terminal,
             )
         approval = result.approval
         if approval is None:  # DTO 已校验，持久化边界仍保留防御
@@ -232,6 +248,7 @@ class RunContinuation(OrchestratorState):
                 request_id=context.request_id,
                 trace_id=context.trace_id,
                 input=request.input,
+                defer_terminal=defer_terminal,
             )
         if self._approval_service is None:
             return await self._fail_execution(
@@ -242,6 +259,7 @@ class RunContinuation(OrchestratorState):
                 request_id=context.request_id,
                 trace_id=context.trace_id,
                 input=request.input,
+                defer_terminal=defer_terminal,
             )
         state = approval_checkpoint_state(request, approval, context)
         resume_token = await self._checkpoint(

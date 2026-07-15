@@ -20,6 +20,7 @@ from agent_harness.storage.approval_records import (
     approval_record,
 )
 from agent_harness.storage.models import (
+    AgentRunModel,
     ApiKeyModel,
     ApprovalModel,
     PolicyRuleModel,
@@ -269,6 +270,7 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
                     ApprovalModel.tenant_id == tenant_id,
                     ApprovalModel.status == "waiting",
                     ApprovalModel.resolution_lease_id.is_(None),
+                    ApprovalModel.resolution_state.is_(None),
                 )
                 .values(
                     resolution_lease_id=lease_id,
@@ -357,7 +359,13 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
                     ApprovalModel.status == "waiting",
                     ApprovalModel.resolution_lease_id == lease_id,
                     ApprovalModel.resolution_state.in_(
-                        ["claimed", "execution_owned", "recovery_pending"]
+                        [
+                            "claimed",
+                            "execution_owned",
+                            "recovery_pending",
+                            "completed",
+                            "failed",
+                        ]
                     ),
                 )
                 .values(resolution_claimed_at=datetime.now(tz=UTC))
@@ -388,9 +396,9 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
                     ApprovalModel.tenant_id == tenant_id,
                     ApprovalModel.status == "waiting",
                     ApprovalModel.resolution_lease_id.is_(None),
+                    ApprovalModel.resolution_state.is_(None),
                 )
                 .values(
-                    status="denied",
                     resolved_by=resolved_by,
                     resolved_at=now,
                     resolution_state="denied_pending",
@@ -420,7 +428,7 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
         result_state: str,
         metadata: dict[str, Any] | None = None,
     ) -> ApprovalRecord:
-        """只有确定性 terminal run result 已存在时才公开 approved。"""
+        """持久化确定性结果，但在 ordered evidence 完成前保持公开 waiting。"""
 
         now = datetime.now(tz=UTC)
         result = cast(
@@ -438,7 +446,6 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
                     ),
                 )
                 .values(
-                    status="approved",
                     resolved_by=resolved_by,
                     resolved_at=now,
                     resolution_state=result_state,
@@ -454,6 +461,43 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
         if metadata:
             model.metadata_json = {**model.metadata_json, **metadata}
             await self._session.flush()
+        return approval_record(model)
+
+    async def mark_approved_evidence_complete(
+        self,
+        *,
+        approval_id: str,
+        run_id: str,
+        tenant_id: str,
+        lease_id: str,
+    ) -> ApprovalRecord:
+        """resolution 与 terminal 均确认后才公开 approved。"""
+
+        run_status = await self._session.scalar(
+            select(AgentRunModel.status).where(AgentRunModel.id == run_id)
+        )
+        if run_status not in {"completed", "failed"}:
+            raise RuntimeError("approval terminal run result is unavailable")
+        result = cast(
+            CursorResult[Any],
+            await self._session.execute(
+                update(ApprovalModel)
+                .where(
+                    ApprovalModel.id == approval_id,
+                    ApprovalModel.run_id == run_id,
+                    ApprovalModel.tenant_id == tenant_id,
+                    ApprovalModel.status == "waiting",
+                    ApprovalModel.resolution_lease_id == lease_id,
+                    ApprovalModel.resolution_state.in_(["completed", "failed", "recovery_pending"]),
+                )
+                .values(status="approved", resolution_state=run_status)
+            ),
+        )
+        if result.rowcount != 1:
+            await self._raise_resolution_conflict(approval_id, run_id, tenant_id)
+        model = await self._session.get(ApprovalModel, approval_id)
+        if model is None:  # pragma: no cover - guarded by conditional update
+            raise LookupError(f"approval not found: {approval_id}")
         return approval_record(model)
 
     async def mark_needs_review(
@@ -508,7 +552,13 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
                     ApprovalModel.status == "waiting",
                     ApprovalModel.resolution_lease_id == lease_id,
                     ApprovalModel.resolution_state.in_(
-                        ["claimed", "execution_owned", "recovery_pending"]
+                        [
+                            "claimed",
+                            "execution_owned",
+                            "recovery_pending",
+                            "completed",
+                            "failed",
+                        ]
                     ),
                 )
                 .values(resolution_state="recovery_pending")
@@ -533,10 +583,10 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
                     ApprovalModel.id == approval_id,
                     ApprovalModel.run_id == run_id,
                     ApprovalModel.tenant_id == tenant_id,
-                    ApprovalModel.status == "denied",
+                    ApprovalModel.status == "waiting",
                     ApprovalModel.resolution_state == "denied_pending",
                 )
-                .values(resolution_state="denied")
+                .values(status="denied", resolution_state="denied")
             ),
         )
         return result.rowcount == 1
