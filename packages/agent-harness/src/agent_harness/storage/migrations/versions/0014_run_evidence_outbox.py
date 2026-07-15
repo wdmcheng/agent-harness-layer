@@ -287,6 +287,5 @@ def _table_count(connection: sa.Connection, table: str) -> int:
 
 def _require_exact_empty_evidence_opt_in() -> None:
     arguments = context.get_x_argument(as_dictionary=False)
-    matches = [item for item in arguments if item.startswith("allow_empty_evidence_downgrade")]
-    if matches != [_OPT_IN]:
+    if arguments != [_OPT_IN]:
         raise RuntimeError("0014 downgrade refused: explicit opt-in is required")

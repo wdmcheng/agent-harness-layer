@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
-from typing import Any
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from agent_harness.evals.comparison import ExperimentComparisonBuilder
 from agent_harness.evals.dataset_models import RegressionPolicy
 from agent_harness.evals.errors import EvalExperimentError
+from agent_harness.evals.experiment_execution_recovery import (
+    ExperimentExecutionClaimLost,
+    ExperimentExecutionRecoveryMixin,
+    stop_experiment_heartbeat,
+)
 from agent_harness.evals.experiment_models import (
     ExperimentComparison,
     ExperimentCreateOutcome,
@@ -28,7 +32,6 @@ from agent_harness.evals.experiment_records import (
 )
 from agent_harness.evals.experiment_validation import (
     local_refs,
-    validate_evaluation,
     validate_partial_evaluation,
 )
 from agent_harness.storage import (
@@ -42,11 +45,7 @@ from agent_harness.storage import (
 )
 
 
-class _ExperimentExecutionClaimLost(RuntimeError):
-    """heartbeat 无法证明 claim 仍有效时，禁止写入可信终态。"""
-
-
-class ExperimentExecutionCoordinator:
+class ExperimentExecutionCoordinator(ExperimentExecutionRecoveryMixin):
     """以数据库 claim 为 fencing token，保证同一 experiment 只有一个活跃执行者。"""
 
     def __init__(
@@ -219,7 +218,7 @@ class ExperimentExecutionCoordinator:
                 heartbeat=heartbeat,
                 claim_lost=claim_lost,
             )
-        except _ExperimentExecutionClaimLost:
+        except ExperimentExecutionClaimLost:
             return await self._needs_review_outcome(
                 request=request,
                 record=record,
@@ -252,7 +251,7 @@ class ExperimentExecutionCoordinator:
             )
             raise
         finally:
-            await _stop_heartbeat(heartbeat)
+            await stop_experiment_heartbeat(heartbeat)
 
     async def _evaluate_and_persist(
         self,
@@ -385,136 +384,3 @@ class ExperimentExecutionCoordinator:
             result=result_from_record(stored, split, request_id=request.request_id),
             created=created,
         )
-
-    async def _evaluate_version(
-        self,
-        *,
-        request: ExperimentRequest,
-        split: EvalDatasetSplitRecord,
-        version: Any,
-    ) -> ExperimentEvaluationResult:
-        result = await self.evaluator.evaluate(
-            tenant_id=request.tenant_id,
-            agent_id=request.agent_id,
-            dataset=request.dataset,
-            split=split,
-            harness_version=version,
-            evaluator_profile=request.evaluator_profile,
-            metric_versions=request.metric_versions,
-        )
-        validate_evaluation(
-            split=split,
-            result=result,
-            expected_version=version.version_id,
-            evaluator_profile=request.evaluator_profile,
-            metric_versions=request.metric_versions,
-        )
-        return result
-
-    async def _get_split(self, tenant_id: str, split_id: str) -> EvalDatasetSplitRecord:
-        async with self.storage.uow() as uow:
-            split = await uow.eval_dataset_splits.get(tenant_id, split_id)
-        if split is None:
-            raise EvalExperimentError(
-                "eval.experiment.split_not_found",
-                "eval dataset split is not visible",
-                status_code=404,
-            )
-        return split
-
-    async def _idempotency_winner(self, request: ExperimentRequest) -> EvalExperimentRecord | None:
-        async with self.storage.uow() as uow:
-            return await uow.eval_experiments.get_by_idempotency_key(
-                request.tenant_id, request.idempotency_key
-            )
-
-    def _claim_expiry(self) -> datetime:
-        return datetime.now(tz=UTC) + timedelta(seconds=self.claim_ttl_seconds)
-
-    async def _renew_claim_until_terminal(
-        self,
-        *,
-        tenant_id: str,
-        experiment_id: str,
-        claim_id: str,
-        claim_lost: asyncio.Event,
-    ) -> None:
-        interval = max(0.5, self.claim_ttl_seconds / 3)
-        try:
-            while True:
-                await asyncio.sleep(interval)
-                async with self.storage.uow() as uow:
-                    renewed = await uow.eval_experiments.renew_execution_claim(
-                        tenant_id=tenant_id,
-                        experiment_id=experiment_id,
-                        claim_id=claim_id,
-                        expires_at=self._claim_expiry(),
-                    )
-                    if renewed:
-                        await uow.commit()
-                if not renewed:
-                    claim_lost.set()
-                    return
-        except asyncio.CancelledError:
-            raise
-        except Exception:  # noqa: BLE001 - storage/transport failure invalidates the lease proof
-            claim_lost.set()
-
-    async def _prepare_terminal_write(
-        self,
-        heartbeat: asyncio.Task[None],
-        claim_lost: asyncio.Event,
-    ) -> None:
-        """先停止续租再判定所有权，终态写入随后由 repository 再原子校验。"""
-
-        await _stop_heartbeat(heartbeat)
-        if claim_lost.is_set():
-            raise _ExperimentExecutionClaimLost
-
-    async def _needs_review_outcome(
-        self,
-        *,
-        request: ExperimentRequest,
-        record: EvalExperimentRecord,
-        split: EvalDatasetSplitRecord,
-        claim_id: str,
-        created: bool,
-    ) -> ExperimentCreateOutcome:
-        await self._mark_needs_review(
-            tenant_id=request.tenant_id,
-            experiment_id=record.experiment_id,
-            claim_id=claim_id,
-        )
-        latest = await self._idempotency_winner(request)
-        if latest is None:
-            raise EvalExperimentError(
-                "eval.experiment.not_found",
-                "eval experiment is not visible",
-                status_code=404,
-            )
-        return ExperimentCreateOutcome(
-            result=result_from_record(latest, split, request_id=request.request_id),
-            created=created,
-        )
-
-    async def _mark_needs_review(
-        self,
-        *,
-        tenant_id: str,
-        experiment_id: str,
-        claim_id: str,
-    ) -> None:
-        async with self.storage.uow() as uow:
-            marked = await uow.eval_experiments.mark_execution_needs_review(
-                tenant_id=tenant_id,
-                experiment_id=experiment_id,
-                claim_id=claim_id,
-                reason_code="eval.experiment.execution_outcome_uncertain",
-            )
-            if marked:
-                await uow.commit()
-
-
-async def _stop_heartbeat(task: asyncio.Task[None]) -> None:
-    task.cancel()
-    await asyncio.gather(task, return_exceptions=True)

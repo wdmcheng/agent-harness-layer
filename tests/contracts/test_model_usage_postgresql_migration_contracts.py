@@ -215,6 +215,7 @@ async def test_0014_postgresql_unknown_state_fails_before_schema_mutation() -> N
         ["allow_empty_evidence_downgrade=false"],
         ["allow_empty_evidence_downgrade=True"],
         [OPT_IN, OPT_IN],
+        [OPT_IN, "unrelated_flag=1"],
     ],
 )
 @pytest.mark.asyncio

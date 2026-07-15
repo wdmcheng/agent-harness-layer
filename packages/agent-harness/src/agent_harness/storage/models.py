@@ -10,7 +10,6 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
-    Float,
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
@@ -19,28 +18,10 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
-
-class Base(AsyncAttrs, DeclarativeBase):
-    """所有 ORM model 的 metadata 根。"""
-
-
-class TimestampMixin:
-    """带 created_at/updated_at 的通用时间戳列。"""
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
+from agent_harness.storage.orm_base import Base as Base
+from agent_harness.storage.orm_base import TimestampMixin as TimestampMixin
 
 
 class TenantModel(TimestampMixin, Base):
@@ -424,83 +405,6 @@ class ArtifactModel(TimestampMixin, Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
 
-class EvalCaseModel(TimestampMixin, Base):
-    """eval case 的草稿/审核状态记录。"""
-
-    __tablename__ = "eval_cases"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
-    agent_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
-    trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
-    trigger: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    dataset: Mapped[str] = mapped_column(String(255), nullable=False, default="default", index=True)
-    source_refs_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
-    artifact_refs_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
-    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-    approved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    review_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
-class EvalRunModel(TimestampMixin, Base):
-    """eval run 与源 run / case 的关联记录。"""
-
-    __tablename__ = "eval_runs"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
-    agent_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    dataset: Mapped[str] = mapped_column(String(255), nullable=False, default="default", index=True)
-    eval_case_id: Mapped[str | None] = mapped_column(
-        String(36),
-        ForeignKey("eval_cases.id"),
-        nullable=True,
-    )
-    run_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("agent_runs.id"), nullable=True
-    )
-    trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
-    score_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    score_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-    provider_status_json: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSON,
-        nullable=False,
-        default=list,
-    )
-    case_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="created")
-
-
-class EvalScoreModel(TimestampMixin, Base):
-    """一次 eval score 的本地 evidence 与 provider 写回摘要。"""
-
-    __tablename__ = "eval_scores"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
-    eval_run_id: Mapped[str] = mapped_column(String(36), ForeignKey("eval_runs.id"), index=True)
-    case_id: Mapped[str] = mapped_column(String(36), ForeignKey("eval_cases.id"), index=True)
-    agent_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
-    trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
-    metric: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    value: Mapped[float] = mapped_column(Float, nullable=False)
-    label: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
-    provider_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-    provider_status_json: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSON,
-        nullable=False,
-        default=list,
-    )
-
-
 class PolicyRuleModel(TimestampMixin, Base):
     """DB policy provider 可读取的单条策略规则。"""
 
@@ -619,49 +523,11 @@ class RunEventCapacityModel(Base):
     )
 
 
-class RunEvidenceOutboxModel(Base):
-    """usage/approval/terminal evidence 的稳定 event-id settlement 状态。"""
-
-    __tablename__ = "run_evidence_outbox"
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["run_id", "tenant_id"],
-            ["agent_runs.id", "agent_runs.tenant_id"],
-            name="fk_run_evidence_outbox_run_tenant",
-        ),
-        UniqueConstraint(
-            "tenant_id",
-            "usage_call_id",
-            name="uq_run_evidence_outbox_tenant_usage_call",
-        ),
-        UniqueConstraint("event_id", name="uq_run_evidence_outbox_event_id"),
-        UniqueConstraint(
-            "group_id",
-            "sequence_in_group",
-            name="uq_run_evidence_outbox_group_sequence",
-        ),
-        CheckConstraint(
-            "(group_id IS NULL AND sequence_in_group IS NULL) OR "
-            "(group_id IS NOT NULL AND sequence_in_group > 0)",
-            name="ck_run_evidence_outbox_group_shape",
-        ),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), nullable=False)
-    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    usage_call_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
-    event_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    operation_kind: Mapped[str] = mapped_column(String(64), nullable=False)
-    state: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
-    result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    reserved_event_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    group_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
-    sequence_in_group: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
-    )
+# 扩展 mapper 必须在核心 run/session 表完成注册后导入；否则 SQLAlchemy UoW
+# 无法为同一 flush 中的 AgentRunModel -> capacity/outbox 建立可靠插入顺序。
+from agent_harness.storage.eval_models import EvalCaseModel as EvalCaseModel  # noqa: E402
+from agent_harness.storage.eval_models import EvalRunModel as EvalRunModel  # noqa: E402
+from agent_harness.storage.eval_models import EvalScoreModel as EvalScoreModel  # noqa: E402
+from agent_harness.storage.evidence_models import (  # noqa: E402
+    RunEvidenceOutboxModel as RunEvidenceOutboxModel,
+)

@@ -311,6 +311,7 @@ def test_0014_upgrade_rejects_unknown_active_state_before_ddl(
         ["allow_empty_evidence_downgrade=false"],
         ["allow_empty_evidence_downgrade=True"],
         ["allow_empty_evidence_downgrade=true", "allow_empty_evidence_downgrade=true"],
+        ["allow_empty_evidence_downgrade=true", "unrelated_flag=1"],
     ],
 )
 def test_0014_downgrade_requires_exact_opt_in(tmp_path: Path, x_args: list[str]) -> None:

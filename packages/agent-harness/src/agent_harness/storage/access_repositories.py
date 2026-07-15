@@ -1,4 +1,4 @@
-"""认证、策略、审批与审计 repository。"""
+"""审批 repository 与历史认证/策略导入兼容门面。"""
 
 from __future__ import annotations
 
@@ -6,169 +6,48 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import uuid4
 
-from pydantic import Field
-from sqlalchemy import delete, exists, select, update
+from sqlalchemy import exists, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.storage.access_policy_repositories import ApiKeyCreate as ApiKeyCreate
+from agent_harness.storage.access_policy_repositories import ApiKeyRecord as ApiKeyRecord
+from agent_harness.storage.access_policy_repositories import (
+    ApiKeyRepository as ApiKeyRepository,
+)
+from agent_harness.storage.access_policy_repositories import (
+    PolicyRuleCreate as PolicyRuleCreate,
+)
+from agent_harness.storage.access_policy_repositories import (
+    PolicyRuleRecord as PolicyRuleRecord,
+)
+from agent_harness.storage.access_policy_repositories import (
+    PolicyRuleRepository as PolicyRuleRepository,
+)
 from agent_harness.storage.approval_records import (
     ApprovalCreate,
     ApprovalRecord,
     ApprovalResolutionLease,
-    ApprovalResolutionRepositoryConflict,
     approval_record,
 )
-from agent_harness.storage.models import (
-    AgentRunModel,
-    ApiKeyModel,
-    ApprovalModel,
-    PolicyRuleModel,
-    ToolInvocationModel,
+from agent_harness.storage.approval_records import (
+    ApprovalResolutionRepositoryConflict as ApprovalResolutionRepositoryConflict,
 )
+from agent_harness.storage.approval_recovery_repositories import (
+    ApprovalRecoveryRepositoryMixin,
+    required_resolution_request_id,
+)
+from agent_harness.storage.models import ApprovalModel, ToolInvocationModel
 from agent_harness.storage.run_trace_gate import require_canonical_run_trace
 from agent_harness.storage.service_approval_repositories import (
     ServiceApprovalResolutionRepositoryMixin,
 )
 
 
-class ApiKeyCreate(HarnessDTO):
-    """创建 API key 记录时的脱敏输入。"""
-
-    tenant_id: str
-    user_id: str
-    name: str
-    token_hash: str
-    roles: list[str] = Field(default_factory=list)
-    permissions: list[str] = Field(default_factory=list)
-    disabled: bool = False
-
-
-class ApiKeyRecord(ApiKeyCreate):
-    """已持久化的 API key 记录，只包含 token hash。"""
-
-    id: str
-
-
-class PolicyRuleCreate(HarnessDTO):
-    """DB policy provider 的规则写入 DTO。"""
-
-    tenant_id: str
-    name: str
-    action: str
-    decision: str
-    payload: dict[str, Any] = Field(default_factory=dict)
-
-
-class PolicyRuleRecord(PolicyRuleCreate):
-    """已持久化的策略规则。"""
-
-    id: str
-
-
-def _api_key_record(model: ApiKeyModel) -> ApiKeyRecord:
-    return ApiKeyRecord(
-        id=model.id,
-        tenant_id=model.tenant_id,
-        user_id=model.user_id,
-        name=model.name,
-        token_hash=model.token_hash,
-        roles=model.roles_json,
-        permissions=model.permissions_json,
-        disabled=model.disabled,
-    )
-
-
-def _policy_rule_record(model: PolicyRuleModel) -> PolicyRuleRecord:
-    return PolicyRuleRecord(
-        id=model.id,
-        tenant_id=model.tenant_id,
-        name=model.name,
-        action=model.action,
-        decision=model.decision,
-        payload=model.payload_json,
-    )
-
-
-def _required_resolution_request_id(model: ApprovalModel) -> str:
-    """恢复私有仲裁状态时拒绝猜测已经丢失的首次请求关联。"""
-
-    if not model.resolution_request_id:
-        raise RuntimeError(f"approval resolution request id missing: {model.id}")
-    return model.resolution_request_id
-
-
-class ApiKeyRepository:
-    """API key verifier 使用的 token hash 查询 repository。"""
-
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def create(self, data: ApiKeyCreate) -> ApiKeyRecord:
-        """写入已 hash 的 API key；repository 不接收明文 token。"""
-
-        model = ApiKeyModel(
-            id=str(uuid4()),
-            tenant_id=data.tenant_id,
-            user_id=data.user_id,
-            name=data.name,
-            token_hash=data.token_hash,
-            roles_json=data.roles,
-            permissions_json=data.permissions,
-            disabled=data.disabled,
-        )
-        self._session.add(model)
-        await self._session.flush()
-        return _api_key_record(model)
-
-    async def get_by_hash(self, token_hash: str) -> ApiKeyRecord | None:
-        result = await self._session.scalars(
-            select(ApiKeyModel).where(ApiKeyModel.token_hash == token_hash)
-        )
-        model = result.first()
-        return None if model is None else _api_key_record(model)
-
-    async def delete_by_hash(self, token_hash: str) -> bool:
-        """删除精确匹配的临时 credential，不接收或记录明文 token。"""
-
-        result = cast(
-            CursorResult[Any],
-            await self._session.execute(
-                delete(ApiKeyModel).where(ApiKeyModel.token_hash == token_hash)
-            ),
-        )
-        return result.rowcount == 1
-
-
-class PolicyRuleRepository:
-    """DB-backed PolicyProvider 使用的规则 repository。"""
-
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def create(self, data: PolicyRuleCreate) -> PolicyRuleRecord:
-        """写入 DB policy provider 可读取的单条规则。"""
-
-        model = PolicyRuleModel(
-            id=str(uuid4()),
-            tenant_id=data.tenant_id,
-            name=data.name,
-            action=data.action,
-            decision=data.decision,
-            payload_json=data.payload,
-        )
-        self._session.add(model)
-        await self._session.flush()
-        return _policy_rule_record(model)
-
-    async def list_for_tenant(self, tenant_id: str) -> list[PolicyRuleRecord]:
-        result = await self._session.scalars(
-            select(PolicyRuleModel).where(PolicyRuleModel.tenant_id == tenant_id)
-        )
-        return [_policy_rule_record(model) for model in result.all()]
-
-
-class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
+class ApprovalRepository(
+    ApprovalRecoveryRepositoryMixin,
+    ServiceApprovalResolutionRepositoryMixin,
+):
     """ApprovalService 使用的 waiting/resolve 状态 repository。"""
 
     def __init__(self, session: AsyncSession) -> None:
@@ -334,7 +213,7 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
             approval=approval_record(model),
             lease_id=lease_id,
             state="claimed",
-            resolution_request_id=_required_resolution_request_id(model),
+            resolution_request_id=required_resolution_request_id(model),
             claimed_at=now,
         )
 
@@ -462,179 +341,3 @@ class ApprovalRepository(ServiceApprovalResolutionRepositoryMixin):
             model.metadata_json = {**model.metadata_json, **metadata}
             await self._session.flush()
         return approval_record(model)
-
-    async def mark_approved_evidence_complete(
-        self,
-        *,
-        approval_id: str,
-        run_id: str,
-        tenant_id: str,
-        lease_id: str,
-    ) -> ApprovalRecord:
-        """resolution 与 terminal 均确认后才公开 approved。"""
-
-        run_status = await self._session.scalar(
-            select(AgentRunModel.status).where(AgentRunModel.id == run_id)
-        )
-        if run_status not in {"completed", "failed"}:
-            raise RuntimeError("approval terminal run result is unavailable")
-        result = cast(
-            CursorResult[Any],
-            await self._session.execute(
-                update(ApprovalModel)
-                .where(
-                    ApprovalModel.id == approval_id,
-                    ApprovalModel.run_id == run_id,
-                    ApprovalModel.tenant_id == tenant_id,
-                    ApprovalModel.status == "waiting",
-                    ApprovalModel.resolution_lease_id == lease_id,
-                    ApprovalModel.resolution_state.in_(["completed", "failed", "recovery_pending"]),
-                )
-                .values(status="approved", resolution_state=run_status)
-            ),
-        )
-        if result.rowcount != 1:
-            await self._raise_resolution_conflict(approval_id, run_id, tenant_id)
-        model = await self._session.get(ApprovalModel, approval_id)
-        if model is None:  # pragma: no cover - guarded by conditional update
-            raise LookupError(f"approval not found: {approval_id}")
-        return approval_record(model)
-
-    async def mark_needs_review(
-        self,
-        *,
-        approval_id: str,
-        run_id: str,
-        tenant_id: str,
-        lease_id: str,
-    ) -> ApprovalRecord:
-        """副作用结果不确定时保持 public status waiting。"""
-
-        result = cast(
-            CursorResult[Any],
-            await self._session.execute(
-                update(ApprovalModel)
-                .where(
-                    ApprovalModel.id == approval_id,
-                    ApprovalModel.run_id == run_id,
-                    ApprovalModel.tenant_id == tenant_id,
-                    ApprovalModel.status == "waiting",
-                    ApprovalModel.resolution_lease_id == lease_id,
-                )
-                .values(resolution_state="needs_review")
-            ),
-        )
-        if result.rowcount != 1:
-            await self._raise_resolution_conflict(approval_id, run_id, tenant_id)
-        model = await self._session.get(ApprovalModel, approval_id)
-        if model is None:  # pragma: no cover - guarded by conditional update
-            raise LookupError(f"approval not found: {approval_id}")
-        return approval_record(model)
-
-    async def mark_recovery_pending(
-        self,
-        *,
-        approval_id: str,
-        run_id: str,
-        tenant_id: str,
-        lease_id: str,
-    ) -> bool:
-        """把已返回基础设施异常的 approve lease 标记为可安全补偿。"""
-
-        result = cast(
-            CursorResult[Any],
-            await self._session.execute(
-                update(ApprovalModel)
-                .where(
-                    ApprovalModel.id == approval_id,
-                    ApprovalModel.run_id == run_id,
-                    ApprovalModel.tenant_id == tenant_id,
-                    ApprovalModel.status == "waiting",
-                    ApprovalModel.resolution_lease_id == lease_id,
-                    ApprovalModel.resolution_state.in_(
-                        [
-                            "claimed",
-                            "execution_owned",
-                            "recovery_pending",
-                            "completed",
-                            "failed",
-                        ]
-                    ),
-                )
-                .values(resolution_state="recovery_pending")
-            ),
-        )
-        return result.rowcount == 1
-
-    async def mark_denied_evidence_complete(
-        self,
-        *,
-        approval_id: str,
-        run_id: str,
-        tenant_id: str,
-    ) -> bool:
-        """只在 denied terminal/resolution evidence 齐全后封存 private state。"""
-
-        result = cast(
-            CursorResult[Any],
-            await self._session.execute(
-                update(ApprovalModel)
-                .where(
-                    ApprovalModel.id == approval_id,
-                    ApprovalModel.run_id == run_id,
-                    ApprovalModel.tenant_id == tenant_id,
-                    ApprovalModel.status == "waiting",
-                    ApprovalModel.resolution_state == "denied_pending",
-                )
-                .values(status="denied", resolution_state="denied")
-            ),
-        )
-        return result.rowcount == 1
-
-    async def get_resolution_state(self, approval_id: str) -> str | None:
-        """读取不进入 public DTO 的 reconciliation 状态。"""
-
-        model = await self._session.get(ApprovalModel, approval_id)
-        return None if model is None else model.resolution_state
-
-    async def get_resolution_request_id(self, approval_id: str) -> str | None:
-        """读取审批仲裁事务冻结的首次请求关联。"""
-
-        model = await self._session.get(ApprovalModel, approval_id)
-        return None if model is None else model.resolution_request_id
-
-    async def get_resolution(
-        self,
-        approval_id: str,
-    ) -> ApprovalResolutionLease | None:
-        """只为受控崩溃恢复读取 private lease state。"""
-
-        model = await self._session.get(ApprovalModel, approval_id)
-        if model is None or model.resolution_lease_id is None:
-            return None
-        return ApprovalResolutionLease(
-            approval=approval_record(model),
-            lease_id=model.resolution_lease_id,
-            state=model.resolution_state or "claimed",
-            resolution_request_id=_required_resolution_request_id(model),
-            claimed_at=model.resolution_claimed_at,
-        )
-
-    async def _raise_resolution_conflict(
-        self,
-        approval_id: str,
-        run_id: str,
-        tenant_id: str,
-    ) -> None:
-        model = await self._session.get(ApprovalModel, approval_id)
-        if model is None or model.run_id != run_id or model.tenant_id != tenant_id:
-            raise LookupError(f"approval not found: {approval_id}")
-        if model.status != "waiting":
-            raise ApprovalResolutionRepositoryConflict(
-                "approval.invalid_transition",
-                f"approval is already {model.status}: {approval_id}",
-            )
-        raise ApprovalResolutionRepositoryConflict(
-            "approval.resolution_in_progress",
-            f"approval resolution is in progress: {approval_id}",
-        )
