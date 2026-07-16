@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
 import sys
 from pathlib import Path
@@ -17,7 +16,6 @@ from agent_harness.adapters.runtime import (
 )
 from agent_harness.config import SettingsLoadError, settings_error_lines
 from agent_harness.runtime import (
-    QueueDelivery,
     RunQueueMessage,
     RunStatus,
     build_execute_message,
@@ -25,119 +23,27 @@ from agent_harness.runtime import (
 )
 from app.runtime import RuntimeComponents, build_runtime_components
 from app.workers.runtime_worker_operations import execute_approval_operation
+from app.workers.runtime_worker_smoke import (
+    crash_after_application_owner as _crash_after_application_owner,
+)
+from app.workers.runtime_worker_smoke import (
+    crash_before_queue_ack as _crash_before_queue_ack,
+)
+from app.workers.runtime_worker_smoke import (
+    ready_file as _ready_file,
+)
+from app.workers.runtime_worker_smoke import (
+    wait_for_smoke_reclaim_release as _wait_for_smoke_reclaim_release,
+)
+from app.workers.runtime_worker_smoke import (
+    write_receipt_marker as _write_receipt_marker,
+)
+from app.workers.runtime_worker_smoke import (
+    write_recovery_marker as _write_recovery_marker,
+)
 
 EXECUTOR_ID = os.environ.get("SERVICE_APP_EXECUTOR_ID", "agent-harness-service-worker")
 RECLAIM_IDLE_SECONDS = float(os.environ.get("SERVICE_APP_RECLAIM_IDLE_SECONDS", "30"))
-
-
-def _ready_file() -> Path | None:
-    value = os.environ.get("SERVICE_APP_READY_FILE", "").strip()
-    return Path(value) if value else None
-
-
-def _write_recovery_marker(operation: DBOSOperation, phase: str, error: str | None = None) -> None:
-    value = os.environ.get("SERVICE_APP_SMOKE_RECOVERY_MARKER", "").strip()
-    if not value:
-        return
-    Path(value).write_text(
-        json.dumps(
-            {
-                "run_id": operation.run_id,
-                "operation_id": operation.operation_id,
-                "phase": phase,
-                "error": error,
-            },
-            sort_keys=True,
-        ),
-        encoding="utf-8",
-    )
-
-
-def _write_receipt_marker(delivery: QueueDelivery) -> None:
-    """为隔离 smoke 保存真实 reclaim receipt，不进入默认 worker evidence。"""
-
-    value = os.environ.get("SERVICE_APP_SMOKE_RECEIPT_MARKER", "").strip()
-    if not value:
-        return
-    Path(value).write_text(
-        json.dumps(delivery.receipt.to_payload(), sort_keys=True),
-        encoding="utf-8",
-    )
-
-
-def _crash_before_queue_ack(message: RunQueueMessage) -> None:
-    """仅供隔离 smoke 在应用结果/evidence durable 后、Redis ack 前硬退出。"""
-
-    selector = os.environ.get("SERVICE_APP_SMOKE_CRASH_BEFORE_ACK", "").strip()
-    if selector not in {"1", message.kind, message.run_id}:
-        return
-    marker_value = os.environ.get("SERVICE_APP_SMOKE_ACK_CRASH_MARKER", "").strip()
-    if not marker_value:
-        raise RuntimeError("ack crash failpoint requires an isolated marker path")
-    Path(marker_value).write_text(
-        json.dumps(
-            {
-                "kind": message.kind,
-                "operation_id": message.operation_id,
-                "run_id": message.run_id,
-            },
-            sort_keys=True,
-        ),
-        encoding="utf-8",
-    )
-    os._exit(24)
-
-
-async def _wait_for_smoke_reclaim_release(delivery: QueueDelivery) -> None:
-    """让隔离 smoke 在 reclaimed receipt ack 前验证旧 owner fencing。"""
-
-    value = os.environ.get("SERVICE_APP_SMOKE_RECLAIM_RELEASE", "").strip()
-    if not value or delivery.delivery_count < 2:
-        return
-    release = Path(value)
-    deadline = asyncio.get_running_loop().time() + 60
-    while not release.exists():
-        if asyncio.get_running_loop().time() >= deadline:
-            raise RuntimeError("smoke reclaim receipt release timed out")
-        await asyncio.sleep(0.05)
-
-
-async def _crash_after_application_owner(
-    components: RuntimeComponents,
-    operation: DBOSOperation,
-) -> None:
-    """仅供隔离 smoke 在 DBOS durable handler 内制造真实进程硬退出。"""
-
-    selector = os.environ.get("SERVICE_APP_SMOKE_CRASH_AFTER_OWNER", "").strip()
-    if selector not in {"1", operation.run_id}:
-        return
-    workflow_id = workflow_id_for_operation(operation.tenant_id, operation.operation_id)
-    async with components.storage.uow() as uow:
-        claimed = await uow.runs.claim_execution(
-            run_id=operation.run_id,
-            operation_id=operation.operation_id,
-            owner_id=workflow_id,
-            workflow_id=workflow_id,
-        )
-        await uow.commit()
-    if not claimed:
-        raise RuntimeError("smoke failpoint could not persist application owner")
-    marker = Path(os.environ.get("SERVICE_APP_SMOKE_CRASH_MARKER", "/smoke/crash-owner.json"))
-    marker.write_text(
-        json.dumps(
-            {
-                "run_id": operation.run_id,
-                "tenant_id": operation.tenant_id,
-                "operation_id": operation.operation_id,
-                "owner_id": workflow_id,
-                "workflow_id": workflow_id,
-                "executor_id": EXECUTOR_ID,
-            },
-            sort_keys=True,
-        ),
-        encoding="utf-8",
-    )
-    os._exit(23)
 
 
 async def _recover_pending_enqueue(components: RuntimeComponents) -> None:
@@ -341,7 +247,11 @@ async def _run_worker(
     async def execute_handler(operation: DBOSOperation) -> dict[str, object]:
         _write_recovery_marker(operation, "entered")
         try:
-            await _crash_after_application_owner(components, operation)
+            await _crash_after_application_owner(
+                components,
+                operation,
+                executor_id=EXECUTOR_ID,
+            )
             result = await components.orchestrator.execute_run(
                 run_id=operation.run_id,
                 tenant_id=operation.tenant_id,

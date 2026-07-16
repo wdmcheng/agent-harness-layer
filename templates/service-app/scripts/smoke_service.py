@@ -28,20 +28,22 @@ from service_secret_smoke import (
     assert_configuration_secret_absent,
     verify_secret_failure_cases,
 )
-from service_smoke_support import (
+from service_smoke_operations import (
     assert_stale_receipt,
+    inspect_run,
+    parse_args,
+    prepare_core_wheel,
+)
+from service_smoke_support import (
     cleanup_credential_at_boundary,
     cleanup_project,
     compose,
     failure_diagnostic,
     first_stream_message,
     free_port,
-    inspect_run,
     last_json_line,
-    parse_args,
     postgres_counts,
     postgres_terminal_evidence,
-    prepare_core_wheel,
     preserve_postgres_volume,
     reclaim_receipts_match,
     redis_json,

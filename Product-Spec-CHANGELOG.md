@@ -9,7 +9,7 @@
 - 增加真实受控 delegation 契约：明确 edge/policy/tenant/cycle/depth/budget/idempotency 前置门禁、parent 级原子预算与 event capacity 预约、`0015` migration、local/Redis worker 恢复、durable parent aggregation、RUN-002 detail 以及 unknown/非法 usage 的 needs_review 处理；RUN-002 对已持久化但尚未结算的 child 仍返回身份与活动状态，只有确实没有 child relation 时才返回 null，完成与活动 child 并存时不得遗漏且预算状态保持 incomplete。
 - 校正 CanonicalEvent 固定目录为 39 种，纳入 `artifact.created` 和四种 delegation 生命周期事件；固定 delegation 的最多三条顺序、稳定 event id、parent run/trace/source agent 归属、internal/non-terminal 可见性、阶段 payload 与敏感字段禁止项。
 - 强化 terminal 不变量为双向约束：只有 `run.completed|run.failed|run.cancelled` 可以且必须设置 `terminal=true` 和 `visibility=public`，其他事件必须 non-terminal；不一致 envelope 必须在 seq、容量、artifact 和 fan-out 副作用前拒绝。
-- 更新 Phase 13.5、13.6、13.6A、13.7 与 13.8 的实施状态：已完成项保持 active 并只到 `ready-to-archive`，不代表归档、发布或部署；新增的事件目录与 terminal 边界已由 AC-067 和 `agent-delegation-execution` task 1.3 固定，Phase 13.8 最终代码 1+2 仍待完成。
+- 更新 Phase 13.5、13.6、13.6A、13.7 与 13.8 的实施状态：已完成项保持 active 并只到 `ready-to-archive`，不代表归档、发布或部署；新增事件目录与 terminal 边界已由 AC-067 和 `agent-delegation-execution` task 1.3 固定，Phase 13.8 的真实委派、durable parent aggregation、恢复与幂等边界已通过完整门禁和最终代码 1+2；生产代码及历史大测试已按职责和行为域拆分，公开 facade、ORM 注册顺序、`typing.Literal` 身份和测试收集完整性均有回归证据。
 
 ## [v1.6] - 2026-07-12
 ### 基线审查修正

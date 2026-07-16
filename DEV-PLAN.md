@@ -11,8 +11,8 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；历史 Phase 1-13 changes 已归档。Phase 13.5、13.6、13.6A、13.7 已停在 `ready-to-archive` 基线；Phase 13.8 `agent-delegation-execution` 已完成 11/12 tasks，CanonicalEvent 生命周期合同 1+2、terminal guard、精确目录与 local/真实 PostgreSQL/Redis 证据均已完成，等待最终代码 1+2；SSE 尚未实施。
-- 代码状态: Phase 1-13 已完成当时计划的实现与验证，但不等于 P0 完成。Phase 13.5 已收紧 Run OpenAPI，Phase 13.6 已补齐 application startup failure 与 Docker secret file，Phase 13.6A 已完成 canonical trace 基线。Phase 13.7 已完成、三审并提交；Phase 13.8 已实现真实受控 delegation、`0015` durable reservation/aggregation、RUN-002 detail、local/service recovery、39 项 CanonicalEvent 精确目录与 terminal type/flag/visibility 双向门禁。新合同已完成 fresh 1+2，代码候选须在新 digest 重跑完整门禁和 fresh 代码 1+2。SSE transport 与首 frame 性能仍缺失。Phase 14、15 均未开始。
+- OpenSpec: 仓库存在 `openspec/`；历史 Phase 1-13 changes 已归档。Phase 13.5、13.6、13.6A、13.7、13.8 已停在 `ready-to-archive` 基线；Phase 13.8 `agent-delegation-execution` 已完成 12/12 tasks，CanonicalEvent 生命周期合同、terminal guard、精确目录、local/真实 PostgreSQL/Redis 证据与最终代码 1+2 均已通过；SSE 尚未实施。
+- 代码状态: Phase 1-13 已完成当时计划的实现与验证，但不等于 P0 完成。Phase 13.5 已收紧 Run OpenAPI，Phase 13.6 已补齐 application startup failure 与 Docker secret file，Phase 13.6A 已完成 canonical trace 基线。Phase 13.7 已完成、三审并提交；Phase 13.8 已完成真实受控 delegation、`0015` durable reservation/aggregation、RUN-002 detail、local/service recovery、39 项 CanonicalEvent 精确目录、terminal 双向门禁，以及生产与历史测试文件的职责拆分；完整门禁和 fresh 代码 1+2 已通过。SSE transport 与首 frame 性能仍缺失。Phase 14、15 均未开始。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
@@ -20,12 +20,12 @@
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
 | 总体状态 | Phase 1-13 历史交付已归档，P0 基线补缺待实现 | Phase 13.5-13.9 必须先闭环；Phase 14-15 未开始。 |
-| 当前 Phase | Phase 13.8 pre-split 代码收口 | 新合同 digest 已完成 fresh 1+2；task 1.3 的精确目录、delegation lifecycle payload 与 terminal 双向门禁已通过 local/真实 PostgreSQL/Redis 定向验证，现冻结候选并执行完整门禁与 fresh 代码 1+2。 |
+| 当前 Phase | Phase 13.8 `ready-to-archive` | 12/12 tasks、生产与历史测试职责拆分、完整门禁及 fresh 代码 1+2 均已完成；按用户指示在本地提交后停止，不进入 Phase 13.9。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 已按 queue → split runtime → deployment proof 顺序同步主规格并归档。 |
-| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`embedding-cache-tenant-isolation`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` | 前五项为 Phase 13.5/13.6/13.6A/13.7 的 `ready-to-archive` 基线；13.8 为 11/12 tasks，仅最终代码三审待完成；13.9 为 0/17 tasks。不 archive、不 push。 |
-| 当前验证基线 | Phase 13.7 已提交；Phase 13.8 新候选待完整门禁 | terminal 双向反例、delegation lifecycle payload 与 SQLite/真实 PostgreSQL/Redis 定向验证已通过；任何后续修复都会改变 digest，并使完整门禁与审核结论一并失效。 |
+| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`embedding-cache-tenant-isolation`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` | 前六项为 Phase 13.5/13.6/13.6A/13.7/13.8 的 `ready-to-archive` 基线；13.8 为 12/12 tasks；13.9 为 0/17 tasks。不 archive、不 push。 |
+| 当前验证基线 | Phase 13.8 完整门禁与代码 1+2 已通过 | quality、全仓 961 项、真实 PostgreSQL/Redis、local/service smoke、build、license、pre-commit 与 strict validation 均通过；拆分后的生产/模板文件最大 450 行、测试文件最大 398 行。 |
 | 当前阻塞项 | P0 完成路径缺失已进入补缺计划 | Phase 14/15 不得在 13.5-13.9 完成前被标记完成。 |
-| 当前建议下一步 | 冻结 Phase 13.8 pre-split 代码摘要 | 执行完整门禁和 fresh 代码 1+2；若除行数外全部通过，再按职责边界拆分超限和临近阈值文件、重跑门禁并用全新实例重审。 |
+| 当前建议下一步 | 提交 Phase 13.8 拆分版本后停止 | 不进入 Phase 13.9，不 archive、不 push、不发布或部署；后续是否继续由用户另行决定。 |
 
 ## 剩余工作
 
@@ -44,7 +44,7 @@
 - Phase 13.6: 配置启动失败与 Docker secret file 加载，异常链与 frame locals 泄漏已修复并通过三审，停在 `ready-to-archive`；不自动归档。
 - Phase 13.6A: Canonical run trace 与 approval/event 关联已完成、提交并停在 `ready-to-archive`，作为 Phase 13.7 直接基线；依赖 Phase 13.6。
 - Phase 13.7: Model/Embedding usage evidence、durable settlement 与 local latency 已完成 17/17 tasks、同 digest 代码 1+2 全 PASS 并提交，停在 `ready-to-archive`；不自动归档；依赖 Phase 13.6A。
-- Phase 13.8: 真实受控 delegation 与 parent aggregation 候选已完成实现及 reviewer findings 修复；收口仍需同 digest 完整门禁与 fresh 代码 1+2；依赖 Phase 13.7。
+- Phase 13.8: 真实受控 delegation 与 parent aggregation 已完成 12/12 tasks、完整门禁及 fresh 代码 1+2，停在 `ready-to-archive`；依赖 Phase 13.7，不自动归档。
 - Phase 13.9: SSE transport、Last-Event-ID 与首 frame 性能，待实现；依赖 Phase 13.8。
 - Phase 14: 深度文档、ADR 与维护者指南。
 - Phase 15: CI/CD、Release Automation 与合规收口。
@@ -55,7 +55,7 @@
 - AC-008、AC-063：Phase 13.6 已实现并提交 application startup fail-closed、受控 Docker secret file 加载和公开 evidence 脱敏；异常链与 frame locals 泄漏已修复，对应 active change 停在 `ready-to-archive` 且不自动归档。
 - FLOW-003 / ApprovalRecord trace：Phase 13.6A 已切换为 canonical run trace 非空生成、传播与历史 backfill；跨 tenant/不同 idempotency key 的同 trace 竞争由全局 trace 锁覆盖锁内复检、guardrail/audit 与 root claim，相同 event-id 仅允许除 seq/timestamp 外完整稳定语义一致的重试，terminal/approval 恢复先复用既有确定性 evidence。该 Phase 已提交并停在 `ready-to-archive`。
 - AC-064、AC-065：model/embedding evidence、stable semantic slot、queued run 执行前 recovery 与 local fake run `<5s` 已实现，完整门禁与同 digest 代码 1+2 已通过，Phase 13.7 已本地提交并停在 `ready-to-archive`。
-- AC-015、AC-016：真实受控 delegation、child run、durable parent aggregation 与 local/service recovery 已实现，等待 Phase 13.8 完整门禁和 fresh 代码 1+2。
+- AC-015、AC-016：真实受控 delegation、child run、durable parent aggregation 与 local/service recovery 已实现，并通过 Phase 13.8 完整门禁和 fresh 代码 1+2。
 - AC-038、AC-066：现有 SSE 只有 formatter，HTTP transport、Last-Event-ID 和首 frame 时延尚未实现。
 - AC-050：由各 change 的 `tasks.md`、Phase 本地提交以及 review/test 命令证据持续维护 REQ/AC -> production -> test 追溯；Phase 15 release matrix 必须汇总并重新校验，新 change 仍需保留 red evidence。
 - Phase 14 深度文档和 Phase 15 release automation 尚未实现。
@@ -793,7 +793,7 @@ Phase 1 Monorepo / quality spine
 - Product/API/OpenSpec 的固定 event catalog 与 `CanonicalEventType` 精确等于 39 种；只允许三种 run terminal type 设置 `terminal=true`，且三种都必须 public/terminal，其他类型必须 internal/public 各自按契约保持 non-terminal；非法组合在 seq、容量、artifact 和 fan-out 前零副作用拒绝。
 - 获准 delegation 按 claimed -> child.created -> completed|failed 最多三条发布；pre-child failure、needs_review 无 final、稳定 event id、parent run/trace/source agent、internal visibility、阶段 payload、敏感字段禁止与 local/service/reclaim 重放均逐值验收。
 
-**状态**：11/12 tasks；可信 identity、真实 parent remaining budget、最坏 token/cost 预算、terminal parent 零副作用、多 usage completeness、39 项 CanonicalEvent 精确目录、delegation lifecycle payload 与 terminal 双向门禁均已实现。pre-split reviewer 发现 RUN-002 会遗漏尚未结算的 durable child，现已联合 relation/run/reservation/aggregate 修复，并以仅活动 child、已完成未聚合 child、完成与活动 child 并存三类合同覆盖；local 与真实 PostgreSQL/Redis 扩大定向回归已通过，等待重新冻结候选、完整门禁和 fresh 代码 1+2。若其余均通过，再按职责边界拆分超限/临近文件并重验重审。最终只到 `ready-to-archive`，不自动归档。
+**状态**：`ready-to-archive`，12/12 tasks；可信 identity、真实 parent remaining budget、最坏 token/cost 预算、terminal parent 零副作用、多 usage completeness、39 项 CanonicalEvent 精确目录、delegation lifecycle payload 与 terminal 双向门禁均已实现。RUN-002 尚未结算 durable child 的遗漏已通过 relation/run/reservation/aggregate 联合修复，并以仅活动 child、已完成未聚合 child、完成与活动 child 并存三类合同覆盖；生产代码与历史大测试已按职责和行为域拆分，公开 facade、ORM 注册顺序与 `typing.Literal` 身份兼容均有回归合同。完整质量、全仓 961 项、local/真实 PostgreSQL/Redis、build、license、pre-commit、strict validation 与 fresh 代码 1+2 均已通过。不自动归档。
 
 ---
 

@@ -12,15 +12,17 @@ from service_http_smoke import request as _request
 from service_http_smoke import submit as _submit
 from service_http_smoke import wait_for as _wait_for
 from service_http_smoke import wait_run_status as _wait_run_status
-from service_smoke_support import (
-    compose,
+from service_smoke_operations import (
     inspect_run,
     install_approval_event_write_failure,
     postgres_approval_evidence,
     remove_approval_event_write_failure,
-    run,
     run_queue_ack_evidence,
     run_queue_pending_evidence,
+)
+from service_smoke_support import (
+    compose,
+    run,
     stream_length,
 )
 

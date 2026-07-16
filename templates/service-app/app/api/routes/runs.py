@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 from typing import Annotated, Any
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
-from pydantic import Field
 
 from agent_harness.approvals import ApprovalService
-from agent_harness.contracts import ApiErrorEnvelope
-from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.contracts.trust import GuardrailDecisionStatus
-from agent_harness.delegation import DelegationService, DelegationSummary
-from agent_harness.events import CanonicalEvent, CanonicalEventType, EventSink
+from agent_harness.delegation import DelegationService
+from agent_harness.events import CanonicalEventType, EventSink
 from agent_harness.identity import IdentityContext
 from agent_harness.policy import (
     InputGuardrail,
@@ -30,103 +26,66 @@ from app.api.dependencies import (
     get_optional_approval_service,
     get_policy_engine,
 )
+from app.api.routes.run_support import (
+    AgentRunCreateRequest as AgentRunCreateRequest,
+)
+from app.api.routes.run_support import (
+    RunCreateRequest as RunCreateRequest,
+)
+from app.api.routes.run_support import (
+    RunCreateResponse as RunCreateResponse,
+)
+from app.api.routes.run_support import (
+    RunDetailResponse as RunDetailResponse,
+)
+from app.api.routes.run_support import (
+    RunEventsResponse as RunEventsResponse,
+)
+from app.api.routes.run_support import (
+    RunResumeRequest as RunResumeRequest,
+)
+from app.api.routes.run_support import (
+    error_responses as error_responses,
+)
+from app.api.routes.run_support import (
+    get_agent_registry as get_agent_registry,
+)
+from app.api.routes.run_support import (
+    get_delegation_service as get_delegation_service,
+)
+from app.api.routes.run_support import (
+    get_event_sink as get_event_sink,
+)
+from app.api.routes.run_support import (
+    get_run_orchestrator as get_run_orchestrator,
+)
+from app.api.routes.run_support import (
+    public_events as public_events,
+)
+from app.api.routes.run_support import (
+    request_id_from as request_id_from,
+)
+
+# DTO 与公开 helper 继续以 route facade 为身份，避免拆分改变 OpenAPI、文档和诊断引用。
+for _public_route_object in (
+    AgentRunCreateRequest,
+    RunCreateRequest,
+    RunCreateResponse,
+    RunDetailResponse,
+    RunEventsResponse,
+    RunResumeRequest,
+    error_responses,
+    get_agent_registry,
+    get_delegation_service,
+    get_event_sink,
+    get_run_orchestrator,
+    public_events,
+    request_id_from,
+):
+    _public_route_object.__module__ = __name__
+del _public_route_object
 
 router = APIRouter(prefix="/api/v1", tags=["runs"])
-
-
-def error_responses(*status_codes: int) -> dict[int | str, dict[str, Any]]:
-    """为单个 run operation 声明实际可返回的统一错误 envelope。"""
-
-    return {status_code: {"model": ApiErrorEnvelope} for status_code in status_codes}
-
-
-class RunCreateRequest(HarnessDTO):
-    """内部 run create helper 使用的完整请求 DTO。"""
-
-    agent_id: str
-    input: dict[str, Any] = Field(default_factory=dict)
-    idempotency_key: str | None = None
-
-
-class AgentRunCreateRequest(HarnessDTO):
-    """agent-scoped HTTP route 的请求体，agent_id 固定来自 URL。"""
-
-    input: dict[str, Any] = Field(default_factory=dict)
-    idempotency_key: str | None = None
-
-
-class RunCreateResponse(HarnessDTO):
-    """run create/detail/cancel/resume 共用的公开响应。"""
-
-    request_id: str
-    run_id: str
-    status: RunStatus
-    terminal_event: str | None = None
-
-
-class RunDetailResponse(HarnessDTO):
-    """API Contract 5.31 的 durable run/delegation detail。"""
-
-    request_id: str
-    run_id: str
-    agent_id: str
-    status: RunStatus
-    terminal_event: str | None
-    parent_run_id: str | None
-    delegation_summary: DelegationSummary | None
-
-
-class RunResumeRequest(HarnessDTO):
-    """checkpoint resume 的请求体；token 不会出现在公开响应里。"""
-
-    resume_token: str
-
-
-class RunEventsResponse(HarnessDTO):
-    """按 seq 读取 run event stream 的公开响应。"""
-
-    request_id: str
-    events: list[CanonicalEvent]
-
-
-def get_run_orchestrator() -> RunOrchestrator:
-    """由应用工厂注入的 RunOrchestrator 依赖。"""
-
-    raise RuntimeError("RunOrchestrator dependency is not configured")
-
-
-def get_event_sink() -> EventSink:
-    """由应用工厂注入的 event stream 读取依赖。"""
-
-    raise RuntimeError("EventSink dependency is not configured")
-
-
-def get_agent_registry() -> AgentRegistry:
-    """由应用工厂注入的 AgentRegistry 依赖。"""
-
-    raise RuntimeError("AgentRegistry dependency is not configured")
-
-
-def get_delegation_service() -> DelegationService | None:
-    """真实 profile 注入 service；隔离 route test 可在无 child 基线下留空。"""
-
-    return None
-
-
-def request_id_from(request: Request | None) -> str:
-    """读取或生成 API request_id。"""
-
-    if request is None:
-        return "local"
-    return request.headers.get("x-request-id") or str(uuid4())
-
-
-def public_events(events: list[CanonicalEvent], *, include_internal: bool) -> list[CanonicalEvent]:
-    """过滤普通用户默认不可见的事件。"""
-
-    if include_internal:
-        return events
-    return [event for event in events if event.visibility == "public"]
 
 
 async def create_run_with_orchestrator(

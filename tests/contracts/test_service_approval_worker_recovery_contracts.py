@@ -8,7 +8,7 @@ from typing import Any, cast
 
 import pytest
 from tests.contracts.approval_evidence_contract_helpers import fail_once_on_event
-from tests.contracts.test_p0_approval_execution_contracts import build_approval_flow
+from tests.contracts.test_approval_execution_contracts import build_approval_flow
 
 from agent_harness.adapters.runtime import DBOSOperationOutcome
 from agent_harness.approvals import ApprovalService, ApprovalStateConflict

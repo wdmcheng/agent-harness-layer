@@ -247,8 +247,8 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
     assert "后续文档交付" in docs
 
 
-def test_p0_cli_inventory_keeps_core_and_template_ownership_separate() -> None:
-    """P0 管理命令含 scaffold 归核心 CLI；模板仍只拥有 serve。"""
+def test_cli_inventory_keeps_core_and_template_ownership_separate() -> None:
+    """公开管理命令含 scaffold 归核心 CLI；模板仍只拥有 serve。"""
 
     runner = CliRunner()
     core_help = runner.invoke(core_cli, ["--help"])
