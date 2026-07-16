@@ -17,7 +17,12 @@ from agent_harness.contracts.run_trace import TRACE_ID_PATTERN, RunTraceValidati
 from agent_harness.events.local_capacity import LocalEventCapacityClaim
 from agent_harness.events.serialization import canonical_event_bytes, canonical_json_bytes
 from agent_harness.events.sinks.base import EventSink, EventSinkTerminalConflict
-from agent_harness.events.types import CanonicalEvent, CanonicalEventType, EventRecordScope
+from agent_harness.events.types import (
+    CanonicalEvent,
+    CanonicalEventType,
+    EventRecordScope,
+    validate_terminal_semantics,
+)
 from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage.run_trace_gate import RunTraceResolver, RunTraceScopeConflict
 
@@ -160,6 +165,13 @@ class EventBus:
     ) -> CanonicalEvent:
         """发布 CanonicalEvent；带 event_id 时重试返回已写 evidence。"""
 
+        # 必须早于 trace/sink 查询、seq、容量和 artifact 操作；否则非法
+        # delegation final 可侵占 run terminal 槽或提前关闭 reader。
+        validate_terminal_semantics(
+            event_type=event_type,
+            terminal=terminal,
+            visibility=visibility,
+        )
         async with self._lock_for_current_loop():
             if record_scope == "run":
                 if trace_id is None or TRACE_ID_PATTERN.fullmatch(trace_id) is None:
@@ -174,8 +186,6 @@ class EventBus:
                     raise RunTraceScopeConflict
             elif record_scope != "non_run":
                 raise ValueError("record_scope must be run or non_run")
-            if terminal and visibility != "public":
-                raise ValueError("terminal run events must be public")
             if (
                 terminal
                 and record_scope == "run"

@@ -13,6 +13,7 @@ import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from scripts.import_boundary_check import check_sqlalchemy_session_boundaries
@@ -66,7 +67,7 @@ def assert_core_schema(db_path: Path) -> None:
             "harness_acceptance_records",
         } <= tables
         revision = connection.execute("select version_num from alembic_version").fetchone()
-        assert revision == ("0014_run_evidence_outbox",)
+        assert revision == ("0015_agent_delegation",)
 
 
 def test_local_sqlite_migration_creates_core_schema(tmp_path: Path) -> None:
@@ -205,6 +206,9 @@ async def test_repository_contract_postgresql_service_adapter() -> None:
     dsn = os.environ["AGENT_HARNESS_TEST_POSTGRES_DSN"]
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
+    suffix = uuid4().hex
+    idempotency_key = f"pg-idem-{suffix}"
+    trace_id = f"trace-pg-idem-{suffix}"
 
     try:
         async with storage.uow() as uow:
@@ -221,8 +225,8 @@ async def test_repository_contract_postgresql_service_adapter() -> None:
                     tenant_id=tenant.id,
                     session_id=session.id,
                     agent_id="fake-agent",
-                    idempotency_key="pg-idem",
-                    trace_id="trace-pg-idem",
+                    idempotency_key=idempotency_key,
+                    trace_id=trace_id,
                     input={"profile": "service"},
                 )
             )
@@ -233,7 +237,7 @@ async def test_repository_contract_postgresql_service_adapter() -> None:
                 tenant_id="default",
                 session_id=session.id,
                 agent_id="fake-agent",
-                idempotency_key="pg-idem",
+                idempotency_key=idempotency_key,
             )
         assert same_run is not None
         assert same_run.id == run.id
@@ -268,7 +272,7 @@ def test_doctor_cli_reports_local_storage_migration_and_eval_status(tmp_path: Pa
 
     assert result.returncode == 0, result.stderr
     assert "storage: sqlite" in result.stdout
-    assert "migration: 0014_run_evidence_outbox" in result.stdout
+    assert "migration: 0015_agent_delegation" in result.stdout
     assert "redis: not required" in result.stdout
     assert "eval directory:" in result.stdout
 

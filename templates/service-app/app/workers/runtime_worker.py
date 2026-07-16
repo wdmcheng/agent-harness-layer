@@ -278,12 +278,14 @@ async def consume_one(
                 lease_id=message.resolution_lease_id,
                 error_code=error_code,
             )
+            await components.delegation_service.reconcile_child_if_delegated(message.run_id)
         else:
             await components.orchestrator.fail_queued_run(
                 run_id=message.run_id,
                 tenant_id=message.tenant_id,
                 reason=error_code,
             )
+            await components.delegation_service.reconcile_child_if_delegated(message.run_id)
         _crash_before_queue_ack(message)
         await components.queue.ack(delivery.receipt)
         return message.run_id
@@ -347,6 +349,7 @@ async def _run_worker(
                 owner_id=workflow_id_for_operation(operation.tenant_id, operation.operation_id),
                 workflow_id=workflow_id_for_operation(operation.tenant_id, operation.operation_id),
             )
+            await components.delegation_service.reconcile_child_if_delegated(operation.run_id)
         except Exception as exc:
             _write_recovery_marker(operation, "error", type(exc).__name__)
             raise

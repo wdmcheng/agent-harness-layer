@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from agent_harness.adapters.runtime import DBOSOperation
+from agent_harness.runtime import RunStatus
 from app.runtime import RuntimeComponents
 
 
@@ -24,6 +25,14 @@ async def execute_approval_operation(
     )
     if result.run is None:
         raise RuntimeError("approval continuation did not return run result")
+    if result.run.status in {
+        RunStatus.COMPLETED,
+        RunStatus.FAILED,
+        RunStatus.CANCELLED,
+    }:
+        # approval continuation 绕过普通 execute handler；终态 child 仍须在
+        # DBOS result durable 前完成同一个可重入 delegation 聚合。
+        await components.delegation_service.reconcile_child_if_delegated(operation.run_id)
     return result.run.to_payload()
 
 

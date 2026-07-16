@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from agent_harness.adapters.runtime import DBOSOperation
+from agent_harness.runtime import RunStatus
 from app.workers import runtime_worker
 
 
@@ -36,14 +37,23 @@ async def test_resume_approval_recovers_run_usage_before_continuation(
     class ApprovalService:
         async def execute_queued_approval(self, **kwargs: object) -> SimpleNamespace:
             calls.append(f"approval:{kwargs['run_id']}")
-            run = SimpleNamespace(to_payload=lambda: {"status": "completed"})
+            run = SimpleNamespace(
+                status=RunStatus.COMPLETED,
+                to_payload=lambda: {"status": "completed"},
+            )
             return SimpleNamespace(run=run)
+
+    class DelegationService:
+        async def reconcile_child_if_delegated(self, run_id: str) -> bool:
+            calls.append(f"delegation:{run_id}")
+            return False
 
     class Components:
         queue = object()
         storage = SimpleNamespace(dsn="postgresql+asyncpg://unused")
         orchestrator = Orchestrator()
         approval_service = ApprovalService()
+        delegation_service = DelegationService()
 
         async def close(self) -> None:
             calls.append("components:closed")
@@ -73,5 +83,5 @@ async def test_resume_approval_recovers_run_usage_before_continuation(
     with pytest.raises(WorkerStopped):
         await runtime_worker.run_forever()
 
-    assert calls[:2] == ["recover:run-a", "approval:run-a"]
+    assert calls[:3] == ["recover:run-a", "approval:run-a", "delegation:run-a"]
     assert calls[-2:] == ["adapter:closed", "components:closed"]

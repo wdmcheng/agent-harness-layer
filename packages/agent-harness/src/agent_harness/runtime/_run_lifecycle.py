@@ -11,7 +11,12 @@ from agent_harness.runtime._run_lifecycle_persistence import RunLifecyclePersist
 from agent_harness.runtime.checkpoints import IdempotencyKey
 from agent_harness.runtime.continuation import InvalidRunTransition, idempotency_value
 from agent_harness.runtime.evidence import publish_terminal_evidence
-from agent_harness.runtime.executor import AgentExecutionRequest, RunResult, build_execution_context
+from agent_harness.runtime.executor import (
+    AgentExecutionRequest,
+    RunDetailResult,
+    RunResult,
+    build_execution_context,
+)
 from agent_harness.runtime.state import TERMINAL_STATUSES, RunStatus
 from agent_harness.runtime.trace import (
     PreparedRunTrace,
@@ -95,6 +100,7 @@ class RunLifecycle(RunLifecyclePersistence):
         identity: IdentityContext | None = None,
         request_id: str | None = None,
         trace_id: str | None = None,
+        parent_run_id: str | None = None,
         pre_run_events: list[tuple[CanonicalEventType, dict[str, Any]]] | None = None,
     ) -> RunResult:
         """创建 local run，执行 executor，必要时停在 checkpoint。"""
@@ -139,6 +145,7 @@ class RunLifecycle(RunLifecyclePersistence):
                         session_id=session.id,
                         agent_id=agent_id,
                         idempotency_key=idempotency_key_value,
+                        parent_run_id=parent_run_id,
                         trace_id=canonical_trace,
                         input=input,
                     ),
@@ -239,14 +246,16 @@ class RunLifecycle(RunLifecyclePersistence):
         try:
             result = await self._executor_resolver(agent_id).run(request, context)
         except Exception as exc:  # noqa: BLE001 - executor failures become stable run failures
-            return await self._fail_execution(
-                run.id,
-                agent_id,
-                str(redact_secrets(str(exc))),
-                identity=active_identity,
-                request_id=request_id,
-                trace_id=canonical_trace,
-                input=input,
+            return await self._recover_delegation_after_wait(
+                await self._fail_execution(
+                    run.id,
+                    agent_id,
+                    str(redact_secrets(str(exc))),
+                    identity=active_identity,
+                    request_id=request_id,
+                    trace_id=canonical_trace,
+                    input=input,
+                )
             )
         return await self._apply_execution_result(request, result, context=context)
 
@@ -262,6 +271,10 @@ class RunLifecycle(RunLifecyclePersistence):
         if caller_trace_id is not None and normalize_trace_id(caller_trace_id) != existing.trace_id:
             raise RunTraceIdempotencyConflict
         existing_status = RunStatus(existing.status)
+        if existing_status == RunStatus.WAITING:
+            return await self._recover_delegation_after_wait(
+                RunResult(run_id=existing.id, status=existing_status)
+            )
         if (
             existing_status in TERMINAL_STATUSES
             and await self._event_bus.terminal_event(existing.id) is None
@@ -317,6 +330,28 @@ class RunLifecycle(RunLifecyclePersistence):
             terminal_event = terminal.event_type.value
         return RunResult(run_id=run_id, status=status, terminal_event=terminal_event)
 
+    async def get_run_detail(
+        self,
+        run_id: str,
+        *,
+        identity: IdentityContext | None = None,
+    ) -> RunDetailResult:
+        """返回当前 agent 与 parent 关系；delegation 聚合由 application service 补齐。"""
+
+        active_identity = identity or self._identity
+        result = await self.get_run(run_id, identity=active_identity)
+        async with self._storage.uow() as uow:
+            record = await uow.runs.get(run_id)
+        if record is None or record.tenant_id != active_identity.tenant_id:
+            raise LookupError(f"run not found: {run_id}")
+        return RunDetailResult(
+            run_id=result.run_id,
+            agent_id=record.agent_id,
+            status=result.status,
+            terminal_event=result.terminal_event,
+            parent_run_id=record.parent_run_id,
+        )
+
     async def cancel_run(
         self,
         run_id: str,
@@ -329,12 +364,13 @@ class RunLifecycle(RunLifecyclePersistence):
 
         active_identity = identity or self._identity
         async with self._storage.uow() as uow:
-            run = await uow.runs.get(run_id)
+            run = await uow.runs.get_for_update(run_id)
             if run is None or run.tenant_id != active_identity.tenant_id:
                 raise LookupError(f"run not found: {run_id}")
             status = RunStatus(run.status)
             if status in TERMINAL_STATUSES:
                 raise InvalidRunTransition(f"run is terminal: {run_id}")
+            await uow.event_capacity.assert_terminal_publishable(run_id=run_id)
             await uow.runs.set_status(run_id, RunStatus.CANCELLED.value)
             await uow.commit()
         terminal = await publish_terminal_evidence(

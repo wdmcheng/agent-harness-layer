@@ -278,7 +278,25 @@ async def test_old_postgresql_0013_is_hardened_before_event_writes() -> None:
                     )
                 )
 
-        before_0014_downgrade = await postgres_full_snapshot(engine)
+        before_0015_downgrade = await postgres_full_snapshot(engine)
+        with pytest.raises(RuntimeError, match="0015 downgrade requires explicit opt-in"):
+            await asyncio.to_thread(
+                command.downgrade,
+                migration_config(dsn),
+                "0014_run_evidence_outbox",
+            )
+        assert await postgres_full_snapshot(engine) == before_0015_downgrade
+
+        await asyncio.to_thread(
+            command.downgrade,
+            migration_config(dsn, x_args=["allow_empty_evidence_downgrade=true"]),
+            "0014_run_evidence_outbox",
+        )
+        after_0015_downgrade = await postgres_full_snapshot(engine)
+        assert after_0015_downgrade[:4] == before_0015_downgrade[:4]
+        assert after_0015_downgrade[4] == "0014_run_evidence_outbox"
+
+        before_0014_downgrade = after_0015_downgrade
         with pytest.raises(RuntimeError, match="0014 downgrade refused: explicit opt-in"):
             await asyncio.to_thread(
                 command.downgrade,

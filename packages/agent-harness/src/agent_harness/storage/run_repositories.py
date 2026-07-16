@@ -326,6 +326,14 @@ class RunRepository:
         model = await self._session.get(AgentRunModel, run_id)
         return None if model is None else _run_record(model)
 
+    async def get_for_update(self, run_id: str) -> RunRecord | None:
+        """锁定 run 终态竞争范围，和 delegation claim 使用相同的加锁顺序。"""
+
+        model = await self._session.scalar(
+            select(AgentRunModel).where(AgentRunModel.id == run_id).with_for_update()
+        )
+        return None if model is None else _run_record(model)
+
     async def get_trace(self, run_id: str) -> str | None:
         """读取持久化 canonical trace，不从 event 或 caller 参数回推。"""
 

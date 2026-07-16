@@ -43,6 +43,10 @@ class CanonicalEventType(StrEnum):
     POLICY_DECISION = "policy.decision"
     APPROVAL_REQUIRED = "approval.required"
     APPROVAL_RESOLVED = "approval.resolved"
+    DELEGATION_CLAIMED = "delegation.claimed"
+    DELEGATION_CHILD_CREATED = "delegation.child.created"
+    DELEGATION_COMPLETED = "delegation.completed"
+    DELEGATION_FAILED = "delegation.failed"
     CHECKPOINT_CREATED = "checkpoint.created"
     CONTEXT_COMPACTION_STARTED = "context.compaction.started"
     CONTEXT_COMPACTION_COMPLETED = "context.compaction.completed"
@@ -52,6 +56,32 @@ class CanonicalEventType(StrEnum):
     EVAL_RUN_COMPLETED = "eval.run.completed"
     EVAL_SCORE_RECORDED = "eval.score.recorded"
     ARTIFACT_CREATED = "artifact.created"
+
+
+RUN_TERMINAL_EVENT_TYPES = frozenset(
+    {
+        CanonicalEventType.RUN_COMPLETED,
+        CanonicalEventType.RUN_FAILED,
+        CanonicalEventType.RUN_CANCELLED,
+    }
+)
+
+
+def validate_terminal_semantics(
+    *,
+    event_type: CanonicalEventType,
+    terminal: bool,
+    visibility: str,
+) -> None:
+    """双向约束 run terminal type、flag 与 public visibility。"""
+
+    is_terminal_type = event_type in RUN_TERMINAL_EVENT_TYPES
+    if terminal and not is_terminal_type:
+        raise ValueError("only run terminal event types may set terminal=true")
+    if is_terminal_type and not terminal:
+        raise ValueError("run terminal event types must set terminal=true")
+    if terminal and visibility != "public":
+        raise ValueError("terminal run events must be public")
 
 
 class CanonicalEvent(HarnessDTO):
@@ -111,11 +141,16 @@ class CanonicalEvent(HarnessDTO):
         return value
 
     @model_validator(mode="after")
-    def validate_run_scope_trace(self) -> CanonicalEvent:
-        """run evidence 必须携带合法 canonical trace；non-run 保留 nullable 语义。"""
+    def validate_envelope_semantics(self) -> CanonicalEvent:
+        """同时守住 trace scope 与 run terminal 的公共 envelope 不变量。"""
 
         if self.record_scope == "run" and (
             self.trace_id is None or TRACE_ID_PATTERN.fullmatch(self.trace_id) is None
         ):
             raise ValueError("run-scoped event requires a canonical trace")
+        validate_terminal_semantics(
+            event_type=self.event_type,
+            terminal=self.terminal,
+            visibility=self.visibility,
+        )
         return self

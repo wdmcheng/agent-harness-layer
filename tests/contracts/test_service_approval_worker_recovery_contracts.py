@@ -150,6 +150,13 @@ async def test_worker_acks_recovery_pending_approval_without_replaying_handler(
                 )
             raise AssertionError("failure injection did not interrupt continuation")
 
+    class DelegationService:
+        calls = 0
+
+        async def reconcile_child_if_delegated(self, _run_id: str) -> bool:
+            self.calls += 1
+            return False
+
     try:
         async with storage.uow() as uow:
             approval = (await uow.approvals.list_by_run(waiting.run_id))[0]
@@ -170,11 +177,13 @@ async def test_worker_acks_recovery_pending_approval_without_replaying_handler(
             return await original_write(event)
 
         monkeypatch.setattr(sink, "write", fail_terminal_twice)
+        delegation_service = DelegationService()
         components = SimpleNamespace(
             queue=queue,
             storage=storage,
             orchestrator=orchestrator,
             approval_service=service,
+            delegation_service=delegation_service,
         )
         dbos = DeterministicFailedDBOS()
         with pytest.raises(OSError, match="run.completed"):
@@ -207,6 +216,7 @@ async def test_worker_acks_recovery_pending_approval_without_replaying_handler(
     assert pending is None
     assert calls == 1
     assert dbos.calls == 2
+    assert delegation_service.calls == 1
     assert terminal_failures == 2
     assert public is not None and public.status == "approved"
     assert state is not None and state.resolution_state == "completed"

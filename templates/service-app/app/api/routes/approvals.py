@@ -9,12 +9,13 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from agent_harness.approvals import ApprovalResolveResult, ApprovalService
 from agent_harness.contracts import ApiErrorEnvelope
 from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.delegation import DelegationService
 from agent_harness.identity import IdentityContext
 from agent_harness.policy import PolicyCheck, PolicyEngine, YamlPolicyProvider
-from agent_harness.runtime import RunResult
+from agent_harness.runtime import RunResult, RunStatus
 from agent_harness.storage import ApprovalRecord
 from app.api.dependencies import current_identity, get_approval_service, get_policy_engine
-from app.api.routes.runs import RunCreateResponse, request_id_from
+from app.api.routes.runs import RunCreateResponse, get_delegation_service, request_id_from
 
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"model": ApiErrorEnvelope},
@@ -136,6 +137,10 @@ async def resolve_approval(
     identity: Annotated[IdentityContext, Depends(current_identity)],
     approvals: Annotated[ApprovalService, Depends(get_approval_service)],
     policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
+    delegation_service: Annotated[
+        DelegationService | None,
+        Depends(get_delegation_service),
+    ],
 ) -> ApprovalResolveResponse:
     """对 waiting approval 执行 approve/deny，并按策略推进 run。"""
 
@@ -147,6 +152,17 @@ async def resolve_approval(
         approval_id=approval_id,
         decision=request.decision,
     )
+    approval = await approvals.get_by_id(
+        actor=identity,
+        approval_id=approval_id,
+        audit_read=False,
+    )
+    if approval.run_id != run_id:
+        raise LookupError(f"approval not found: {approval_id}")
+    if delegation_service is not None:
+        # 上次 resolve 可能已提交 child terminal，却在聚合/事件确认处失败。
+        # ownership 校验后先补偿，确保 approval conflict 不会截断恢复边沿。
+        await delegation_service.reconcile_child_if_delegated(run_id)
     result: ApprovalResolveResult
     if request.decision == "approved":
         result = await approvals.approve(
@@ -164,6 +180,19 @@ async def resolve_approval(
             request_id=request_id,
             comment=request.comment,
         )
+    if (
+        delegation_service is not None
+        and result.run is not None
+        and result.run.status
+        in {
+            RunStatus.COMPLETED,
+            RunStatus.FAILED,
+            RunStatus.CANCELLED,
+        }
+    ):
+        # local approval 不经过 worker handler；在 HTTP 响应前补齐 delegated
+        # child final，保持与 service queue 的终态边界一致。
+        await delegation_service.reconcile_child_if_delegated(run_id)
     if (
         approvals.uses_queue
         and request.decision == "approved"

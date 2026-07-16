@@ -84,7 +84,7 @@ async def test_guardrail_payload_redacts_secret_metadata(tmp_path: Path) -> None
         agent_id="fake-agent",
         event_type=CanonicalEventType.INPUT_GUARDRAIL_BLOCKED,
         payload=payload,
-        terminal=True,
+        terminal=False,
         visibility="public",
         trace_id="trace-guardrail",
     )

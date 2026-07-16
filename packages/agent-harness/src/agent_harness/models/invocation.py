@@ -6,6 +6,7 @@ from time import perf_counter
 from typing import Any, cast
 
 from agent_harness.events import EventBus
+from agent_harness.identity import IdentityContext
 from agent_harness.models.providers import ModelRequest, ModelResponse
 from agent_harness.models.router import ModelRouter
 from agent_harness.models.usage import (
@@ -79,6 +80,7 @@ class ModelInvocationService:
     def bind_execution(
         self,
         *,
+        identity: IdentityContext,
         tenant_id: str,
         run_id: str,
         agent_id: str,
@@ -87,6 +89,7 @@ class ModelInvocationService:
     ) -> BoundModelInvocationService:
         """把原始 invocation seam 封闭为单个 runtime execution 的 facade。"""
 
+        del identity
         return BoundModelInvocationService(
             service=self,
             context=UsageEvidenceContext(

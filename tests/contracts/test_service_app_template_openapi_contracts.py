@@ -47,7 +47,7 @@ OPERATIONS = (
         ("400", "401", "403", "404", "409", "422", "500", "503"),
     ),
     OperationContract(
-        "/api/v1/runs/{run_id}", "get", "RunCreateResponse", ("401", "403", "404", "500")
+        "/api/v1/runs/{run_id}", "get", "RunDetailResponse", ("401", "403", "404", "500")
     ),
     OperationContract(
         "/api/v1/runs/{run_id}/events",
@@ -265,6 +265,43 @@ def test_p0_openapi_has_no_path_method_or_schema_drift(tmp_path: Path) -> None:
             assert {"HTTPBearer": []} in operation.get("security", [])
 
     assert "/api/v1/tools" not in paths
+    assert not any("delegation" in path for path in paths)
+
+    components = cast(dict[str, dict[str, Any]], schema["components"]["schemas"])
+    run_detail = components["RunDetailResponse"]
+    assert set(run_detail["required"]) == {
+        "request_id",
+        "run_id",
+        "agent_id",
+        "status",
+        "terminal_event",
+        "parent_run_id",
+        "delegation_summary",
+    }
+    summary = components["DelegationSummary"]
+    assert set(summary["required"]) == {
+        "parent_run_id",
+        "children",
+        "input_tokens",
+        "output_tokens",
+        "latency_ms",
+        "cost_usd",
+        "budget_status",
+        "trace_refs",
+    }
+    assert summary["properties"]["budget_status"]["enum"] == [
+        "within_budget",
+        "exceeded",
+        "incomplete",
+    ]
+    assert components["DelegationChildSummary"]["properties"]["status"]["enum"] == [
+        "created",
+        "running",
+        "waiting",
+        "completed",
+        "failed",
+        "cancelled",
+    ]
 
 
 @pytest.mark.parametrize(

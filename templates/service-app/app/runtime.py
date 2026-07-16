@@ -11,6 +11,7 @@ from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
 from agent_harness.auth import ApiKeyVerifier, StaticTokenVerifier, TokenVerifier
 from agent_harness.config import load_settings
+from agent_harness.delegation import AgentDelegationModule, DelegationService
 from agent_harness.evals import (
     AcceptanceService,
     EvalCaseFactory,
@@ -53,6 +54,7 @@ class RuntimeComponents:
     eval_service: EvalService
     experiment_service: ExperimentService
     acceptance_service: AcceptanceService
+    delegation_service: DelegationService
     queue: RunQueue | None = None
 
     async def close(self) -> None:
@@ -183,6 +185,18 @@ def build_runtime_components(
         executor_services=executor_services,
         queue=queue,
     )
+    delegation_service = DelegationService(
+        storage=storage,
+        registry=registry,
+        policy=policy_engine,
+        event_bus=event_bus,
+        orchestrator=orchestrator,
+        mode="service" if service_mode else "local",
+    )
+    orchestrator.bind_execution_service(
+        "agent.delegate",
+        AgentDelegationModule(delegation_service),
+    )
     input_guardrail = InputGuardrail(policy=policy_engine, audit=audit)
     approval_service = ApprovalService(
         storage=storage,
@@ -224,5 +238,6 @@ def build_runtime_components(
         eval_service=eval_service,
         experiment_service=experiment_service,
         acceptance_service=acceptance_service,
+        delegation_service=delegation_service,
         queue=queue,
     )

@@ -15,6 +15,7 @@ from agent_harness.runtime.evidence import persist_failed_execution, publish_ter
 from agent_harness.runtime.executor import RunResult
 from agent_harness.runtime.state import TERMINAL_STATUSES, RunStatus
 from agent_harness.security.redaction import redact_secrets
+from agent_harness.storage.event_capacity_repositories import EvidenceOperationKind
 from agent_harness.storage.repositories import CheckpointCreate
 
 
@@ -36,12 +37,30 @@ class RunLifecyclePersistence(OrchestratorState):
 
         active_identity = identity or self._identity
         safe_reason = str(redact_secrets(reason))
+        deferred = await self._defer_pending_delegation_terminal(
+            run_id=run_id,
+            status=RunStatus.FAILED,
+            identity=active_identity,
+            error={"reason": safe_reason},
+            request_id=request_id,
+            trace_id=trace_id,
+        )
+        if deferred is not None:
+            return deferred
         async with self._storage.uow() as uow:
-            run = await uow.runs.get(run_id)
+            run = await uow.runs.get_for_update(run_id)
             if run is None or run.tenant_id != active_identity.tenant_id:
                 raise LookupError(f"run not found: {run_id}")
             if RunStatus(run.status) in TERMINAL_STATUSES:
                 raise InvalidRunTransition(f"run is terminal: {run.id}")
+            if defer_terminal:
+                if await uow.evidence_outbox.has_pending_operation(
+                    run_id=run_id,
+                    operation_kind=EvidenceOperationKind.DELEGATION,
+                ):
+                    raise RuntimeError("pending delegation evidence blocks terminal state")
+            else:
+                await uow.event_capacity.assert_terminal_publishable(run_id=run_id)
             await uow.runs.set_status(
                 run_id,
                 RunStatus.FAILED.value,
@@ -78,7 +97,20 @@ class RunLifecyclePersistence(OrchestratorState):
         trace_id: str | None = None,
         input: dict[str, Any] | None = None,
         defer_terminal: bool = False,
+        approval_recovery: dict[str, Any] | None = None,
     ) -> RunResult:
+        safe_reason = str(redact_secrets(reason))
+        deferred = await self._defer_pending_delegation_terminal(
+            run_id=run_id,
+            status=RunStatus.FAILED,
+            identity=identity,
+            error={"reason": safe_reason},
+            request_id=request_id,
+            trace_id=trace_id,
+            approval_recovery=approval_recovery,
+        )
+        if deferred is not None:
+            return deferred
         async with self._storage.uow() as uow:
             run = await uow.runs.get(run_id)
         if run is None or run.tenant_id != identity.tenant_id:
@@ -88,7 +120,7 @@ class RunLifecyclePersistence(OrchestratorState):
             self._event_bus,
             run_id=run_id,
             agent_id=agent_id,
-            reason=reason,
+            reason=safe_reason,
             identity=identity,
             request_id=request_id,
             trace_id=run.trace_id,
@@ -112,11 +144,12 @@ class RunLifecyclePersistence(OrchestratorState):
             if run is None or run.tenant_id != identity.tenant_id:
                 raise LookupError(f"run not found: {run_id}")
             state = {**state, "trace_id": run.trace_id}
+            latest = await uow.checkpoints.get_latest(run_id)
             await uow.checkpoints.create(
                 CheckpointCreate(
                     tenant_id=identity.tenant_id,
                     run_id=run_id,
-                    sequence=1,
+                    sequence=1 if latest is None else latest.sequence + 1,
                     resume_token=resume_token.value,
                     state=state,
                 )
@@ -175,9 +208,17 @@ class RunLifecyclePersistence(OrchestratorState):
         defer_terminal: bool = False,
     ) -> CanonicalEvent | None:
         async with self._storage.uow() as uow:
-            run = await uow.runs.get(run_id)
+            run = await uow.runs.get_for_update(run_id)
             if run is None or run.tenant_id != identity.tenant_id:
                 raise LookupError(f"run not found: {run_id}")
+            if defer_terminal:
+                if await uow.evidence_outbox.has_pending_operation(
+                    run_id=run_id,
+                    operation_kind=EvidenceOperationKind.DELEGATION,
+                ):
+                    raise RuntimeError("pending delegation evidence blocks terminal state")
+            else:
+                await uow.event_capacity.assert_terminal_publishable(run_id=run_id)
             await uow.runs.set_status(run_id, RunStatus.COMPLETED.value, output=output)
             await uow.commit()
         if defer_terminal:
@@ -192,6 +233,74 @@ class RunLifecyclePersistence(OrchestratorState):
             request_id=request_id,
             trace_id=run.trace_id,
             correlation=run_correlation(input or {}),
+        )
+
+    async def _defer_pending_delegation_terminal(
+        self,
+        *,
+        run_id: str,
+        status: RunStatus,
+        identity: IdentityContext,
+        output: dict[str, Any] | None = None,
+        error: dict[str, Any] | None = None,
+        request_id: str | None = None,
+        trace_id: str | None = None,
+        approval_recovery: dict[str, Any] | None = None,
+    ) -> RunResult | None:
+        """在 parent 行锁内冻结终态意图，等待 child evidence 收口后恢复。
+
+        这是 runtime 私有协调 checkpoint，不发布 ``checkpoint.created``。若先提交
+        checkpoint 再异步发布该事件，最后一个 child 可能抢先恢复并关闭 event
+        stream，导致迟到的 checkpoint 事件反向把已成功的终态报告成失败。
+        """
+
+        resume_token = ResumeToken(value=f"resume-{uuid4()}")
+        async with self._storage.uow() as uow:
+            # child final 结算使用同一 parent 行锁；因此 pending 检查与 terminal
+            # intent 持久化之间不再存在“最后一个 child 已错过恢复边沿”的窗口。
+            run = await uow.runs.get_for_update(run_id)
+            if run is None or run.tenant_id != identity.tenant_id:
+                raise LookupError(f"run not found: {run_id}")
+            if RunStatus(run.status) in TERMINAL_STATUSES:
+                return None
+            pending = await uow.evidence_outbox.has_pending_operation(
+                run_id=run_id,
+                operation_kind=EvidenceOperationKind.DELEGATION,
+            )
+            latest = await uow.checkpoints.get_latest(run_id)
+            if not pending:
+                return None
+            if latest is not None and latest.state.get("kind") == "delegation_terminal":
+                return RunResult(
+                    run_id=run_id,
+                    status=RunStatus.WAITING,
+                    resume_token=ResumeToken(value=latest.resume_token),
+                )
+            state = {
+                "kind": "delegation_terminal",
+                "terminal_status": status.value,
+                "output": output,
+                "error": error,
+                "identity": identity.to_payload(),
+                "request_id": request_id,
+                "trace_id": trace_id or run.trace_id,
+                "approval_recovery": approval_recovery,
+            }
+            await uow.checkpoints.create(
+                CheckpointCreate(
+                    tenant_id=identity.tenant_id,
+                    run_id=run_id,
+                    sequence=1 if latest is None else latest.sequence + 1,
+                    resume_token=resume_token.value,
+                    state=state,
+                )
+            )
+            await uow.runs.set_status(run_id, RunStatus.WAITING.value)
+            await uow.commit()
+        return RunResult(
+            run_id=run_id,
+            status=RunStatus.WAITING,
+            resume_token=resume_token,
         )
 
 

@@ -60,6 +60,7 @@ class QueuedRunOrchestration(OrchestratorState):
         identity: IdentityContext | None = None,
         request_id: str | None = None,
         trace_id: str | None = None,
+        parent_run_id: str | None = None,
     ) -> RunResult:
         """持久化并排队 service run；API 进程不调用 executor。"""
 
@@ -104,6 +105,7 @@ class QueuedRunOrchestration(OrchestratorState):
                             session_id=session.id,
                             agent_id=agent_id,
                             idempotency_key=idempotency_key_value,
+                            parent_run_id=parent_run_id,
                             trace_id=canonical_trace,
                             input=input,
                         ),
@@ -238,17 +240,23 @@ class QueuedRunOrchestration(OrchestratorState):
                 operation_tenant_id=tenant_id,
             )
             status = RunStatus(run.status)
-            if status in TERMINAL_STATUSES or status == RunStatus.WAITING:
+            if status in TERMINAL_STATUSES:
                 return RunResult(run_id=run_id, status=status)
-            claimed = await uow.runs.claim_execution(
-                run_id=run_id,
-                operation_id=operation_id,
-                owner_id=owner_id,
-                workflow_id=workflow_id,
+            if status != RunStatus.WAITING:
+                claimed = await uow.runs.claim_execution(
+                    run_id=run_id,
+                    operation_id=operation_id,
+                    owner_id=owner_id,
+                    workflow_id=workflow_id,
+                )
+                if not claimed:
+                    raise InvalidRunTransition("run execution owner mismatch")
+                await uow.commit()
+
+        if status == RunStatus.WAITING:
+            return await self._recover_delegation_after_wait(
+                RunResult(run_id=run_id, status=status)
             )
-            if not claimed:
-                raise InvalidRunTransition("run execution owner mismatch")
-            await uow.commit()
 
         await self.recover_pending_usage_evidence(run_id=run_id)
         context_payload = private.execution_context
@@ -334,14 +342,16 @@ class QueuedRunOrchestration(OrchestratorState):
         try:
             result = await self._executor_resolver(run.agent_id).run(request, context)
         except Exception as exc:  # noqa: BLE001 - deterministic executor failure closes the run
-            return await self._fail_execution(
-                run_id,
-                run.agent_id,
-                str(redact_secrets(str(exc))),
-                identity=execution_identity,
-                request_id=request_id_value,
-                trace_id=trace_id_value,
-                input=run.input,
+            return await self._recover_delegation_after_wait(
+                await self._fail_execution(
+                    run_id,
+                    run.agent_id,
+                    str(redact_secrets(str(exc))),
+                    identity=execution_identity,
+                    request_id=request_id_value,
+                    trace_id=trace_id_value,
+                    input=run.input,
+                )
             )
         return await self._apply_execution_result(request, result, context=context)
 

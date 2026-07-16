@@ -28,7 +28,7 @@ REVISION_0014 = "0014_run_evidence_outbox"
 OPT_IN = "allow_empty_evidence_downgrade=true"
 
 
-async def _upgrade(dsn: str, revision: str = "head") -> None:
+async def _upgrade(dsn: str, revision: str = REVISION_0014) -> None:
     await asyncio.to_thread(run_migrations, dsn, revision)
 
 

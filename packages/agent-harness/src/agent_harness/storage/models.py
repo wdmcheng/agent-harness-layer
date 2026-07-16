@@ -525,6 +525,15 @@ class RunEventCapacityModel(Base):
 
 # 扩展 mapper 必须在核心 run/session 表完成注册后导入；否则 SQLAlchemy UoW
 # 无法为同一 flush 中的 AgentRunModel -> capacity/outbox 建立可靠插入顺序。
+from agent_harness.storage.delegation_models import (  # noqa: E402
+    AgentDelegationModel as AgentDelegationModel,
+)
+from agent_harness.storage.delegation_models import (  # noqa: E402
+    DelegationAggregateModel as DelegationAggregateModel,
+)
+from agent_harness.storage.delegation_models import (  # noqa: E402
+    DelegationBudgetReservationModel as DelegationBudgetReservationModel,
+)
 from agent_harness.storage.eval_models import EvalCaseModel as EvalCaseModel  # noqa: E402
 from agent_harness.storage.eval_models import EvalRunModel as EvalRunModel  # noqa: E402
 from agent_harness.storage.eval_models import EvalScoreModel as EvalScoreModel  # noqa: E402

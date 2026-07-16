@@ -59,6 +59,7 @@ class RunBoundExecutionService(Protocol):
     def bind_execution(
         self,
         *,
+        identity: IdentityContext,
         tenant_id: str,
         run_id: str,
         agent_id: str,
@@ -83,6 +84,7 @@ def build_execution_context(
     bound_services = {
         name: (
             service.bind_execution(
+                identity=identity,
                 tenant_id=identity.tenant_id,
                 run_id=run_id,
                 agent_id=agent_id,
@@ -134,6 +136,16 @@ class RunResult(HarnessDTO):
     status: RunStatus
     terminal_event: str | None = None
     resume_token: ResumeToken | None = None
+
+
+class RunDetailResult(HarnessDTO):
+    """RUN-002 适配层读取的 provider-neutral durable run detail。"""
+
+    run_id: str
+    agent_id: str
+    status: RunStatus
+    terminal_event: str | None = None
+    parent_run_id: str | None = None
 
 
 class AgentExecutionResult(HarnessDTO):

@@ -203,6 +203,10 @@ class SessionRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def get(self, session_id: str) -> SessionRecord | None:
+        model = await self._session.get(SessionModel, session_id)
+        return None if model is None else _session_record(model)
+
     async def create(self, data: SessionCreate) -> SessionRecord:
         """创建 session 记录；调用方决定是否传入稳定 session_id。"""
 

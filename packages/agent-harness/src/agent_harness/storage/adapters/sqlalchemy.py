@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
+from agent_harness.storage.delegation_repositories import DelegationRepository
 from agent_harness.storage.eval_acceptance_repositories import HarnessAcceptanceRepository
 from agent_harness.storage.eval_dataset_split_repositories import EvalDatasetSplitRepository
 from agent_harness.storage.eval_experiment_repositories import (
@@ -92,6 +93,7 @@ class SQLAlchemyUnitOfWork:
         self.tool_invocations = ToolInvocationRepository(self.session)
         self.event_capacity = EventCapacityRepository(self.session)
         self.evidence_outbox = EvidenceOutboxRepository(self.session)
+        self.delegations = DelegationRepository(self.session)
         return self
 
     async def __aexit__(

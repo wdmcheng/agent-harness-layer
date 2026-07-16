@@ -89,7 +89,7 @@ def test_local_migration_creates_workspace_and_tool_invocation_tables(tmp_path: 
         revision = connection.execute("select version_num from alembic_version").fetchone()
 
     assert {"workspaces", "tool_invocations"} <= tables
-    assert revision == ("0014_run_evidence_outbox",)
+    assert revision == ("0015_agent_delegation",)
 
 
 @pytest.mark.asyncio

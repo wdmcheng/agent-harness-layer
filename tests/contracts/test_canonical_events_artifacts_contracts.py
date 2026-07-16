@@ -195,6 +195,10 @@ def test_canonical_event_type_catalog_contains_product_spec_p0_events() -> None:
         "policy.decision",
         "approval.required",
         "approval.resolved",
+        "delegation.claimed",
+        "delegation.child.created",
+        "delegation.completed",
+        "delegation.failed",
         "checkpoint.created",
         "context.compaction.started",
         "context.compaction.completed",
@@ -203,9 +207,10 @@ def test_canonical_event_type_catalog_contains_product_spec_p0_events() -> None:
         "eval.run.started",
         "eval.run.completed",
         "eval.score.recorded",
+        "artifact.created",
     }
 
-    assert expected <= {event_type.value for event_type in CanonicalEventType}
+    assert expected == {event_type.value for event_type in CanonicalEventType}
 
 
 @pytest.mark.asyncio
@@ -297,7 +302,13 @@ async def test_local_sink_replay_is_global_idempotent_and_boundary_safe(tmp_path
         event.model_copy(update={"run_id": "run-b"}),
         event.model_copy(update={"trace_id": "trace-b"}),
         event.model_copy(update={"record_scope": "run"}),
-        event.model_copy(update={"terminal": True, "visibility": "public"}),
+        event.model_copy(
+            update={
+                "event_type": CanonicalEventType.RUN_COMPLETED,
+                "terminal": True,
+                "visibility": "public",
+            }
+        ),
         event.model_copy(update={"visibility": "public"}),
         event.model_copy(update={"event_type": CanonicalEventType.TOOL_CALL_COMPLETED}),
         event.model_copy(update={"event_version": "2.0"}),
@@ -341,6 +352,7 @@ async def test_event_bus_replay_matrix_delegates_to_atomic_local_claim(tmp_path:
             "run_id": "run-a",
             "trace_id": "trace-a",
             "record_scope": "non_run",
+            "event_type": CanonicalEventType.RUN_STARTED,
             "terminal": False,
             "visibility": "internal",
         }
@@ -348,7 +360,7 @@ async def test_event_bus_replay_matrix_delegates_to_atomic_local_claim(tmp_path:
         return await bus.publish(
             tenant_id=values["tenant_id"],
             run_id=values["run_id"],
-            event_type=CanonicalEventType.RUN_STARTED,
+            event_type=values["event_type"],
             event_id="bus-matrix-event",
             trace_id=values["trace_id"],
             record_scope=values["record_scope"],
@@ -363,7 +375,11 @@ async def test_event_bus_replay_matrix_delegates_to_atomic_local_claim(tmp_path:
         {"run_id": "run-b"},
         {"trace_id": "trace-b"},
         {"record_scope": "run"},
-        {"terminal": True, "visibility": "public"},
+        {
+            "event_type": CanonicalEventType.RUN_COMPLETED,
+            "terminal": True,
+            "visibility": "public",
+        },
         {"visibility": "public"},
     ]
     for updates in invalid_updates:

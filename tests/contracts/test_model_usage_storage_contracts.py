@@ -119,7 +119,7 @@ def _seed_0013a_event(
 
 def test_0014_migration_creates_outbox_and_capacity_tables(tmp_path: Path) -> None:
     path = tmp_path / "usage-migration.db"
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
 
     with sqlite3.connect(path) as connection:
         tables = {
@@ -136,7 +136,7 @@ def test_0014_usage_tables_bind_tenant_and_run_to_the_same_parent_row(tmp_path: 
     """组合外键阻止 tenant 与 run 分别合法、组合却越权的持久化记录。"""
 
     path = tmp_path / "usage-tenant-run-foreign-keys.db"
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
 
     with sqlite3.connect(path) as connection:
         for table_name in ("run_event_capacity", "run_evidence_outbox"):
@@ -205,7 +205,7 @@ def test_0014_upgrade_backfills_terminal_and_active_operation_capacity(tmp_path:
                 "'artifact://args', 'executing', 'running', 'trace-active', '{}')"
             )
 
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
 
     with sqlite3.connect(path) as connection:
         rows = connection.execute(
@@ -245,7 +245,7 @@ def test_0014_upgrade_uses_sparse_max_sequence_and_rejects_new_operation(tmp_pat
                 trace_id="trace-sparse",
                 seq=MAX_EVENT_SEQ - 1,
             )
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
 
     async def verify() -> None:
@@ -293,7 +293,7 @@ def test_0014_upgrade_rejects_unknown_active_state_before_ddl(
             )
 
     with pytest.raises(RuntimeError, match="approval operation state is unknown"):
-        run_migrations(sqlite_dsn(path))
+        run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
 
     with sqlite3.connect(path) as connection:
         assert connection.execute("select version_num from alembic_version").fetchone() == (
@@ -316,7 +316,7 @@ def test_0014_upgrade_rejects_unknown_active_state_before_ddl(
 )
 def test_0014_downgrade_requires_exact_opt_in(tmp_path: Path, x_args: list[str]) -> None:
     path = tmp_path / f"usage-downgrade-{len(x_args)}-{hash(tuple(x_args))}.db"
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
     with pytest.raises(RuntimeError, match="explicit opt-in"):
         command.downgrade(
             migration_config(sqlite_dsn(path), x_args=x_args),
@@ -330,7 +330,7 @@ def test_0014_downgrade_requires_exact_opt_in(tmp_path: Path, x_args: list[str])
 
 def test_0014_empty_database_downgrades_with_exact_opt_in(tmp_path: Path) -> None:
     path = tmp_path / "usage-empty-downgrade.db"
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
     command.downgrade(
         migration_config(
             sqlite_dsn(path),
@@ -351,7 +351,7 @@ def test_0014_empty_database_downgrades_with_exact_opt_in(tmp_path: Path) -> Non
 @pytest.mark.parametrize("state", ["started", "result_persisted", "published"])
 def test_0014_any_outbox_state_blocks_downgrade(tmp_path: Path, state: str) -> None:
     path = tmp_path / f"usage-outbox-{state}.db"
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
     with sqlite3.connect(path) as connection:
         connection.execute("pragma foreign_keys=on")
         with connection:

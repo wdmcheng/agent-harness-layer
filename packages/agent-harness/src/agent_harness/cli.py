@@ -17,6 +17,7 @@ from agent_harness.audit import AuditService
 from agent_harness.cli_access import register_access_commands
 from agent_harness.cli_eval_commands import register_eval_commands
 from agent_harness.cli_eval_experiment import register_eval_experiment_commands
+from agent_harness.delegation import AgentDelegationModule, DelegationService
 from agent_harness.events import CanonicalEventType, EventBus, LocalJsonlEventSink
 from agent_harness.policy import InputGuardrail, PolicyCheck, PolicyDeniedError
 from agent_harness.registry import AgentRegistry, RegistryLoadError
@@ -185,6 +186,18 @@ def run(
         identity=settings.identity.default,
         executor_resolver=registry.resolve_executor,
         executor_services=executor_services,
+    )
+    delegation_service = DelegationService(
+        storage=storage,
+        registry=registry,
+        policy=policy,
+        event_bus=event_bus,
+        orchestrator=orchestrator,
+        mode="local",
+    )
+    orchestrator.bind_execution_service(
+        "agent.delegate",
+        AgentDelegationModule(delegation_service),
     )
     approval_service = ApprovalService(
         storage=storage,

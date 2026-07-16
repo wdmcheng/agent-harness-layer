@@ -10,6 +10,7 @@ from agent_harness.runtime.executor import RunResult
 from agent_harness.runtime.state import RunStatus
 from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage import SQLAlchemyStorage
+from agent_harness.storage.event_capacity_repositories import EvidenceOperationKind
 
 
 async def publish_terminal_evidence(
@@ -72,6 +73,16 @@ async def persist_failed_execution(
     safe_reason = str(redact_secrets(reason))
     error = {"reason": safe_reason}
     async with storage.uow() as uow:
+        run = await uow.runs.get_for_update(run_id)
+        if run is None or run.tenant_id != identity.tenant_id:
+            raise LookupError(f"run not found: {run_id}")
+        if publish_terminal:
+            await uow.event_capacity.assert_terminal_publishable(run_id=run_id)
+        elif await uow.evidence_outbox.has_pending_operation(
+            run_id=run_id,
+            operation_kind=EvidenceOperationKind.DELEGATION,
+        ):
+            raise RuntimeError("pending delegation evidence blocks terminal state")
         await uow.runs.set_status(run_id, RunStatus.FAILED.value, error=error)
         await uow.commit()
     terminal = None

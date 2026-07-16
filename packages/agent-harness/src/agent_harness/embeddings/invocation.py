@@ -6,6 +6,7 @@ from time import perf_counter
 
 from agent_harness.embeddings.provider import EmbeddingProvider, EmbeddingRequest, EmbeddingResponse
 from agent_harness.events import EventBus
+from agent_harness.identity import IdentityContext
 from agent_harness.models.usage import (
     ModelUsageEvidence,
     UsageEvidenceContext,
@@ -77,6 +78,7 @@ class EmbeddingInvocationService:
     def bind_execution(
         self,
         *,
+        identity: IdentityContext,
         tenant_id: str,
         run_id: str,
         agent_id: str,
@@ -85,6 +87,7 @@ class EmbeddingInvocationService:
     ) -> BoundEmbeddingInvocationService:
         """把原始 invocation seam 封闭为单个 runtime execution 的 facade。"""
 
+        del identity
         return BoundEmbeddingInvocationService(
             service=self,
             context=UsageEvidenceContext(

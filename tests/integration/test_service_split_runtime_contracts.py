@@ -40,6 +40,7 @@ async def test_service_submit_then_independent_worker_executes_same_run(
     await cleanup.cleanup_namespace()
     await cleanup.close()
     tenant_id = str(uuid4())
+    trace_id = f"trace-service-split-{uuid4()}"
     identity = IdentityContext(
         tenant_id=tenant_id,
         user_id="api-user",
@@ -76,7 +77,7 @@ async def test_service_submit_then_independent_worker_executes_same_run(
             },
             headers=[
                 (b"authorization", b"Bearer split-token"),
-                (b"x-trace-id", b"trace-service-split"),
+                (b"x-trace-id", trace_id.encode("utf-8")),
             ],
         )
         assert submit_status == 202
@@ -109,7 +110,7 @@ async def test_service_submit_then_independent_worker_executes_same_run(
     ]
     for event in events:
         assert event.request_id == "req-auth-policy-hitl"
-        assert event.trace_id == "trace-service-split"
+        assert event.trace_id == trace_id
         assert event.payload is not None
         assert event.payload["source_ref"] == "source://split"
         assert event.payload["trust_level"] == "trusted"

@@ -537,16 +537,21 @@ templates/service-app/
 - HTTP 路由支持 `/api/v1/agents/{agent_id}/runs`。
 - CLI 支持 `agent-harness run <agent_id>`。
 - agent 可通过受控 tool 调用另一个 agent。
+- 获准的真实 delegation 在 parent run 上发布固定的内部生命周期事件，供恢复、审计和后续 SSE 授权读取复用。
 
 **规则：**
 - MUST trace/eval/approval/storage 全部带 `agent_id`。
 - MUST delegation edge 在 config/policy 中显式声明。
 - MUST parent run 聚合 delegated run usage、trace 和 budget。
+- MUST RUN-002 的 `delegation_summary.children` 以持久化 parent-child relation 为成员真相源，而不是以 terminal aggregate row 是否已生成来判断。child 已持久化后，即使仍为 `created|running|waiting`，或已终态但 aggregation 尚未结算，也必须返回其 `run_id`、`agent_id`、durable `RunStatus` 与 trace refs；这些未结算 child 的 token/cost/latency 保持 unknown，并强制 parent `budget_status=incomplete`。已结算与未结算 child 并存时必须全部返回，只聚合已知数值且整体仍为 incomplete；只有 parent 确实不存在带 `child_run_id` 的 durable relation 时 `delegation_summary` 才为 null。
 - MUST 默认禁止任意 agent 互调。
+- MUST 每次获准 delegation 最多发布三条业务事件，顺序固定为 `delegation.claimed` -> `delegation.child.created` -> `delegation.completed|delegation.failed`；final 两种类型互斥。child 创建前的确定性执行失败只发布 claimed 与 failed；edge/policy/tenant/cycle/depth/budget/idempotency/event-capacity 拒绝不发布 delegation 业务事件。
+- MUST 四种 delegation 事件都归属 parent `run_id`，携带 parent canonical `trace_id` 与 source `agent_id`，并固定为 `record_scope=run`、`visibility=internal`、`terminal=false`。稳定 event id 分别为 `delegation:{delegation_id}:claimed`、`delegation:{delegation_id}:child`、`delegation:{delegation_id}:final`；重试或 worker reclaim 只能校验或补投同一稳定事件，不得增加生命周期事件数。
+- MUST delegation payload 的公共字段只保留 `delegation_id`、`source_agent_id`、`target_agent_id`。claimed 只增加 `status=claimed`；child.created 增加 `child_run_id` 与封闭的 `status=queued|running|completed|failed`；completed/child 已创建后的 failed 增加严格符合 API Contract 5.30 `DelegationSummary` 的脱敏 `summary`，child identity 只由 `summary.children` 表达，final 不增加顶层 `child_run_id`；pre-child failed 不含 `child_run_id` 或 `summary`。除 failed 的稳定 `error_code=delegation.execution_failed` 外，不得包含 child input、完整 identity/request hash、动态余额、原始 usage、resume token、secret、本地路径或原始异常。未知结果保持 budget/event reservation 为 reserved/needs_review，阻止 parent terminal 且不发布 completed/failed final。
 
 **验收标准：**
-- [ ] AC-015: Given 两个 agent, when 未声明 delegation edge, then agent A 调用 agent B 被 policy 拒绝。
-- [ ] AC-016: Given 已声明 delegation edge, when agent A 委派 agent B, then usage/budget/trace 归并到 parent run。
+- [x] AC-015: Given 两个 agent, when 未声明 delegation edge, then agent A 调用 agent B 被 policy 拒绝。
+- [x] AC-016: Given 已声明 delegation edge, when agent A 委派 agent B, then usage/budget/trace 归并到 parent run，且 RUN-002 对仅活动 child、已终态但尚未结算 child、已结算与未结算 child 并存三类 durable relation 都不遗漏；未知维度保持 null/incomplete，只有确无 child relation 时 summary 为 null。
 
 ### REQ-008: API、CLI 与管理面
 
@@ -775,7 +780,7 @@ auth_method: str
 - [x] AC-030: Given 预算阈值, when 模型调用预计超阈值, then 产生 policy decision 或可追踪 fallback。
 - [x] AC-031: Given 重复 embedding 输入, when 第二次调用, then 命中 cache 或记录 cache miss 原因。
 - [x] AC-032: Given 历史、检索和 tool output 同时进入上下文, when 组装 prompt, then 输出 context assembly trace，包含来源、可信级别、token 预算和截断记录。
-- [ ] AC-064: Given model、embedding provider 或 embedding cache 完成一次调用, when 记录 provider-neutral evidence, then 非负且有限的 token、cost、latency、provider/model、cache/provider side-effect decision 和 budget decision 可由同一 run/trace 关联，且业务 agent 不拼接 provider 原始事件。
+- [x] AC-064: Given model、embedding provider 或 embedding cache 完成一次调用, when 记录 provider-neutral evidence, then 非负且有限的 token、cost、latency、provider/model、cache/provider side-effect decision 和 budget decision 可由同一 run/trace 关联，且业务 agent 不拼接 provider 原始事件。
 
 ### REQ-013: Retrieval 与 RAG
 
@@ -870,6 +875,10 @@ context.assembly.completed
 policy.decision
 approval.required
 approval.resolved
+delegation.claimed
+delegation.child.created
+delegation.completed
+delegation.failed
 checkpoint.created
 context.compaction.started
 context.compaction.completed
@@ -878,12 +887,14 @@ eval.case.approved
 eval.run.started
 eval.run.completed
 eval.score.recorded
+artifact.created
 ```
 
 **规则：**
 - MUST 每个 run 内 `seq` 单调递增。
-- MUST terminal event 且只能有一个：`run.completed` / `run.failed` / `run.cancelled`；三种 run terminal event 必须为 `visibility=public`，EventBus 与所有持久化 sink 必须拒绝 non-public terminal；它是该 run 的最后一条 CanonicalEvent，持久化后必须拒绝任何后续业务事件。
+- MUST `terminal=true` 当且仅当 event type 为 `run.completed` / `run.failed` / `run.cancelled`；三种 run terminal event 必须设置 `terminal=true`、`visibility=public`，其他类型必须设置 `terminal=false`。EventBus 与所有持久化 sink 必须在分配 seq、消费容量、物化 artifact 或 fan-out 前双向拒绝 type/terminal/visibility 不一致的 envelope。每个 run 只能有一个 terminal event；它是该 run 的最后一条 CanonicalEvent，持久化后必须拒绝任何后续业务事件。
 - MUST usage 结算、approval resolution 等 terminal 前置 evidence 由 durable outbox/settlement 状态协调；terminal 一旦可见，所有必需前置 evidence 必须已经存在，恢复只能重放稳定 event id，不能重放 provider/tool 副作用。
+- MUST delegation 生命周期只使用本节列出的四种 internal non-terminal event，遵守 REQ-007 的最多三条顺序、稳定 event id、阶段 payload 和 needs_review 无 final 规则；RUN-003、CLI 与后续 RUN-006 默认隐藏 internal event，只有通过 tenant/run 授权并显式请求 internal visibility 的 reader 才能读取 canonical event，不生成公开别名或第二套事件。
 - MUST run 创建时预留一个 terminal event 容量；任何可能产生后续 evidence 的 provider/tool/approval/delegation 副作用开始前，durable outbox 必须按受信、版本化、封闭的 operation kind 计算最大 event 数并原子预留，调用方不能自报较小数值。当前已持久化的最高 `seq`、未结算预约和 terminal 预约之和不得超过 CanonicalEvent `seq` 上限；不能用 event row count 代替最高 `seq`，因为历史或直接写入可能留下空洞。容量不足时必须在外部副作用前拒绝，不能等到结算阶段才发现无 seq 可写。
 - MUST `tool.call.args_delta` 可表示半截 JSON，不要求每个 delta 可解析。
 - MUST `reasoning.delta` 默认不对普通用户暴露。
@@ -898,6 +909,7 @@ eval.score.recorded
 - [ ] AC-038: Given SSE 客户端断开后按 seq 恢复, when 重新连接, then 可继续获取未读事件。
 - [x] AC-039: Given 普通用户 visibility, when reasoning event 产生, then 默认不发送给用户流。
 - [x] AC-040: Given guardrail/context assembly 事件产生, when 写入 local/jsonl, then 包含 source/trust/truncation 摘要但不泄露 secret 或完整大 payload。
+- [x] AC-067: Given CanonicalEvent catalog 与真实 delegation 生命周期, when 事件由 EventBus 或 local/PostgreSQL sink 接受并发生重试、失败或 needs_review, then 39 种固定类型与代码枚举精确一致，terminal type/flag/visibility 双向一致，delegation 最多三条且顺序、稳定 event id、payload、internal 可见性和零拒绝副作用均满足本规格。
 
 ### REQ-015: Observability 转换层
 
@@ -1337,7 +1349,7 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 
 非功能验收：
 
-- [ ] AC-065: Given local profile 与 fake provider, when 从入口创建并完成 single agent run, then 稳定 smoke 记录的总时延小于 5 秒。
+- [x] AC-065: Given local profile 与 fake provider, when 从入口创建并完成 single agent run, then 稳定 smoke 记录的总时延小于 5 秒。
 - [ ] AC-066: Given 已建立 SSE 连接且存在可见事件, when 服务开始流式响应, then 首个 event frame 在 1 秒内返回；测试必须区分握手前错误和握手后错误事件。
 
 ## 9. P0 完成定义

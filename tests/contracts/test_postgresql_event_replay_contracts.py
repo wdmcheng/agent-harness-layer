@@ -101,7 +101,13 @@ async def test_postgresql_event_sink_replay_never_crosses_event_boundaries() -> 
             ),
             event.model_copy(update={"trace_id": f"wrong-{trace_id}"}),
             event.model_copy(update={"record_scope": "non_run"}),
-            event.model_copy(update={"terminal": True, "visibility": "public"}),
+            event.model_copy(
+                update={
+                    "event_type": CanonicalEventType.RUN_COMPLETED,
+                    "terminal": True,
+                    "visibility": "public",
+                }
+            ),
             event.model_copy(update={"visibility": "public"}),
             event.model_copy(update={"event_type": CanonicalEventType.TOOL_CALL_COMPLETED}),
             event.model_copy(update={"event_version": "2.0"}),

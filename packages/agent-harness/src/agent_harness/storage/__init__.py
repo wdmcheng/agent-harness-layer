@@ -3,6 +3,30 @@
 from __future__ import annotations
 
 from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage as SQLAlchemyStorage
+from agent_harness.storage.delegation_repositories import (
+    DelegationBudgetExceeded as DelegationBudgetExceeded,
+)
+from agent_harness.storage.delegation_repositories import (
+    DelegationBudgetReservationRecord as DelegationBudgetReservationRecord,
+)
+from agent_harness.storage.delegation_repositories import (
+    DelegationClaimCreate as DelegationClaimCreate,
+)
+from agent_harness.storage.delegation_repositories import (
+    DelegationClaimResult as DelegationClaimResult,
+)
+from agent_harness.storage.delegation_repositories import (
+    DelegationRecord as DelegationRecord,
+)
+from agent_harness.storage.delegation_repositories import (
+    DelegationRepository as DelegationRepository,
+)
+from agent_harness.storage.delegation_repositories import (
+    DelegationStorageConflict as DelegationStorageConflict,
+)
+from agent_harness.storage.delegation_repositories import (
+    DelegationStorageError as DelegationStorageError,
+)
 from agent_harness.storage.eval_acceptance_repositories import (
     HarnessAcceptanceCreate as HarnessAcceptanceCreate,
 )

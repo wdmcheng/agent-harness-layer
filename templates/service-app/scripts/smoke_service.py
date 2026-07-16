@@ -248,7 +248,7 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
     approval_evidence = run_approval_smoke(env, base_url=base_url, token=token)
 
     evidence: dict[str, object] = {
-        "migration": "0014_run_evidence_outbox",
+        "migration": "0015_agent_delegation",
         "secret_file": {
             "consumers": ["migration", "api", "worker"],
             "postgres_password_file": True,
@@ -333,7 +333,7 @@ def main() -> int:
             env["SERVICE_APP_SMOKE_BOUNDARY"] = "migration"
             compose(env, "run", "--rm", "migration")
             evidence: dict[str, object] = {
-                "migration": "0014_run_evidence_outbox",
+                "migration": "0015_agent_delegation",
                 "secret_file": {
                     "consumers": ["migration"],
                     "postgres_password_file": True,

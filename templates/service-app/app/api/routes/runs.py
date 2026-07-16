@@ -12,6 +12,7 @@ from agent_harness.approvals import ApprovalService
 from agent_harness.contracts import ApiErrorEnvelope
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.contracts.trust import GuardrailDecisionStatus
+from agent_harness.delegation import DelegationService, DelegationSummary
 from agent_harness.events import CanonicalEvent, CanonicalEventType, EventSink
 from agent_harness.identity import IdentityContext
 from agent_harness.policy import (
@@ -63,6 +64,18 @@ class RunCreateResponse(HarnessDTO):
     terminal_event: str | None = None
 
 
+class RunDetailResponse(HarnessDTO):
+    """API Contract 5.31 的 durable run/delegation detail。"""
+
+    request_id: str
+    run_id: str
+    agent_id: str
+    status: RunStatus
+    terminal_event: str | None
+    parent_run_id: str | None
+    delegation_summary: DelegationSummary | None
+
+
 class RunResumeRequest(HarnessDTO):
     """checkpoint resume 的请求体；token 不会出现在公开响应里。"""
 
@@ -92,6 +105,12 @@ def get_agent_registry() -> AgentRegistry:
     """由应用工厂注入的 AgentRegistry 依赖。"""
 
     raise RuntimeError("AgentRegistry dependency is not configured")
+
+
+def get_delegation_service() -> DelegationService | None:
+    """真实 profile 注入 service；隔离 route test 可在无 child 基线下留空。"""
+
+    return None
 
 
 def request_id_from(request: Request | None) -> str:
@@ -227,16 +246,28 @@ async def get_run_with_orchestrator(
     *,
     orchestrator: RunOrchestrator,
     identity: IdentityContext | None = None,
+    delegation_service: DelegationService | None = None,
     request_id: str = "local",
-) -> RunCreateResponse:
+) -> RunDetailResponse:
     """API 和测试共用的 run detail 适配逻辑。"""
 
-    result = await orchestrator.get_run(run_id, identity=identity)
-    return RunCreateResponse(
+    result = await orchestrator.get_run_detail(run_id, identity=identity)
+    summary = (
+        None
+        if identity is None or delegation_service is None
+        else await delegation_service.get_parent_summary(
+            tenant_id=identity.tenant_id,
+            parent_run_id=run_id,
+        )
+    )
+    return RunDetailResponse(
         request_id=request_id,
         run_id=result.run_id,
+        agent_id=result.agent_id,
         status=result.status,
         terminal_event=result.terminal_event,
+        parent_run_id=result.parent_run_id,
+        delegation_summary=summary,
     )
 
 
@@ -285,7 +316,7 @@ async def create_agent_run(
 
 @router.get(
     "/runs/{run_id}",
-    response_model=RunCreateResponse,
+    response_model=RunDetailResponse,
     responses=error_responses(401, 403, 404, 500),
 )
 async def get_run(
@@ -293,13 +324,18 @@ async def get_run(
     run_id: str,
     identity: Annotated[IdentityContext, Depends(current_identity)],
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
-) -> RunCreateResponse:
+    delegation_service: Annotated[
+        DelegationService | None,
+        Depends(get_delegation_service),
+    ],
+) -> RunDetailResponse:
     """读取 run detail，不把 ORM model 暴露给 API 调用方。"""
 
     return await get_run_with_orchestrator(
         run_id,
         orchestrator=orchestrator,
         identity=identity,
+        delegation_service=delegation_service,
         request_id=request_id_from(http_request),
     )
 
@@ -342,15 +378,29 @@ async def cancel_run(
     run_id: str,
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
     identity: Annotated[IdentityContext, Depends(current_identity)],
+    delegation_service: Annotated[
+        DelegationService | None,
+        Depends(get_delegation_service),
+    ],
 ) -> RunCreateResponse:
     """取消尚未 terminal 的 run。"""
 
     request_id = request_id_from(http_request)
+    # 先以公开 runtime seam 完成 tenant/identity 校验，再做内部补偿。这样重试
+    # 可恢复“child 已 terminal、上次 aggregation 失败”，又不会让猜测 run_id
+    # 的调用方触发跨租户写入。
+    await orchestrator.get_run(run_id, identity=identity)
+    if delegation_service is not None:
+        await delegation_service.reconcile_child_if_delegated(run_id)
     result = await orchestrator.cancel_run(
         run_id,
         identity=identity,
         request_id=request_id,
     )
+    if delegation_service is not None:
+        # cancel 已持久化 child 终态；必须在响应前结算 parent aggregation，
+        # 让重复请求只重放同一 final evidence，而不是遗留永久 reservation。
+        await delegation_service.reconcile_child_if_delegated(run_id)
     return RunCreateResponse(
         request_id=request_id,
         run_id=result.run_id,
@@ -370,14 +420,29 @@ async def resume_run(
     request: RunResumeRequest,
     orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
     identity: Annotated[IdentityContext, Depends(current_identity)],
+    delegation_service: Annotated[
+        DelegationService | None,
+        Depends(get_delegation_service),
+    ],
 ) -> RunCreateResponse:
     """使用 resume token 恢复 checkpointed run。"""
 
+    await orchestrator.get_run(run_id, identity=identity)
+    if delegation_service is not None:
+        # resume token 可能已在上次请求中消费；先补偿 terminal child，随后即使
+        # runtime 返回 token conflict，durable parent 状态也已经收敛。
+        await delegation_service.reconcile_child_if_delegated(run_id)
     result = await orchestrator.resume_run(
         request.resume_token,
         expected_run_id=run_id,
         identity=identity,
     )
+    if delegation_service is not None and result.status in {
+        RunStatus.COMPLETED,
+        RunStatus.FAILED,
+        RunStatus.CANCELLED,
+    }:
+        await delegation_service.reconcile_child_if_delegated(run_id)
     return RunCreateResponse(
         request_id=request_id_from(http_request),
         run_id=result.run_id,

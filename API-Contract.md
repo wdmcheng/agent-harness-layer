@@ -335,16 +335,73 @@
 }
 ```
 
+固定 `event_type` 目录（39 种，与 `CanonicalEventType` 精确相等）：
+
+```text
+run.queued
+run.started
+run.resumed
+run.completed
+run.failed
+run.cancelled
+model.request.started
+model.output.delta
+model.output.completed
+model.structured.delta
+model.structured.completed
+model.usage.updated
+input.guardrail.checked
+input.guardrail.blocked
+reasoning.delta
+tool.call.args_delta
+tool.call.started
+tool.call.completed
+tool.call.failed
+retrieval.query.started
+retrieval.query.completed
+context.assembly.started
+context.assembly.completed
+policy.decision
+approval.required
+approval.resolved
+delegation.claimed
+delegation.child.created
+delegation.completed
+delegation.failed
+checkpoint.created
+context.compaction.started
+context.compaction.completed
+eval.case.drafted
+eval.case.approved
+eval.run.started
+eval.run.completed
+eval.score.recorded
+artifact.created
+```
+
+Delegation 生命周期事件：
+
+| event type | 稳定 event id | 阶段 payload | 出现条件 |
+|---|---|---|---|
+| `delegation.claimed` | `delegation:{delegation_id}:claimed` | 公共字段 + `status=claimed` | claim、预算和 event capacity reservation 已原子提交 |
+| `delegation.child.created` | `delegation:{delegation_id}:child` | 公共字段 + `child_run_id` + `status`，其中 status 只允许 `queued|running|completed|failed` | child run 已确定创建；local inline 路径允许 child 在 attach 前已终态 |
+| `delegation.completed` | `delegation:{delegation_id}:final` | 公共字段 + `status=completed` + 严格符合 5.30 `DelegationSummary` 的完整脱敏 `summary`；不得有顶层 `child_run_id` 或 `error_code` | child terminal 与可信 usage 已完成聚合 |
+| `delegation.failed` | `delegation:{delegation_id}:final` | 公共字段 + `status=failed` + `error_code=delegation.execution_failed`；child 已创建时必须附严格符合 5.30 `DelegationSummary` 的完整脱敏 `summary`，child identity 只通过 `summary.children` 表达且不得另加顶层 `child_run_id`；child 创建前不得有 `child_run_id` 或 `summary` | child 受控失败，或 claim 后、child 创建前发生确定性执行失败 |
+
+公共字段固定为 `delegation_id`、`source_agent_id`、`target_agent_id`。四种事件均写 parent `run_id`、parent canonical `trace_id`、source `agent_id`，并固定 `record_scope=run`、`visibility=internal`、`terminal=false`。每次 delegation 最多三条，顺序固定为 claimed -> child.created -> completed|failed，final 互斥；pre-child 确定性失败为 claimed -> failed。edge/policy/tenant/cycle/depth/budget/idempotency/event-capacity 拒绝为零 delegation 业务事件。unknown 结果保持 budget/event reservation 为 reserved/needs_review，阻止 parent terminal 且不发布 final。重试、恢复和 worker reclaim 只能校验或补投上述稳定 event id，不得产生别名或额外生命周期事件。
+
+payload 不得包含 child input、完整 identity/request hash、动态余额、原始 usage、resume token、secret、本地路径或原始异常。RUN-003、CLI 与 RUN-006 默认过滤 `visibility=internal`；只有通过 tenant/run 授权并显式请求 internal visibility 的 reader 才能读取原始 CanonicalEvent。
+
 硬约束：
 
 - 同一 `run_id` 内 `seq` 单调递增。
 - 相同 `event_id` 仅在除 sink 分配的 `seq` 与调用方重建重试时不稳定的 `timestamp` 外，其余稳定 envelope 语义完全一致时视为幂等重试并返回原事件。`event_type`、版本、payload/ref/checksum、identity、parent、request/span/raw ref、scope、terminal、visibility、run/tenant/trace 任一不同都必须在 artifact materialize 与 fan-out 前返回脱敏 replay conflict，不得吞掉新 evidence。状态已提交后的 terminal/approval 恢复先读取并校验既有确定性 evidence，只有缺失时才补写，新的 `request_id` 不得重构同一 event-id。
 - CanonicalEvent `seq` 的持久化范围固定为 `1..2147483647`。run 创建时先持久化一个 terminal capacity reservation；provider/tool/approval/delegation 等操作必须在外部副作用前，由受信、版本化、封闭的 `operation_kind -> max_prerequisite_events` registry 派生预约数，并通过 `0014` durable evidence outbox 的 run 级锁/CAS 原子预留，业务 agent/HTTP 调用方不得自报容量。容量不变量固定为 `highest_persisted_seq + outstanding_reserved_event_count + terminal_reservation <= 2147483647`；`highest_persisted_seq` 是该 run 已持久化的最大 `seq`，没有 event 时为 `0`，不得用 event row count 替代。预约消费、event 插入与 high-water mark 推进必须在同一 run 锁/事务内原子完成。容量不足时以稳定 `event.sequence_exhausted` 零业务副作用拒绝，不消费 seq。预约只在对应 prerequisite evidence 已持久化或确定不会产生时按实耗结算/释放，未知结果保持预约并阻止 terminal；terminal 消费最后保留的预约且仍是最后一条 event。若历史状态已越过容量不变量、high-water mark 与最大已持久化 `seq` 不一致，或 `seq=2147483647` 不是 terminal，任何新写入以 `event.sequence_state_invalid` 零变更拒绝并要求人工处置。SQLite/local 与 PostgreSQL 必须使用相同规则；稀疏高 seq（例如 `{1, 2147483646}`）必须按最大值拒绝新的 operation reservation并保住 terminal 容量。
 - `record_scope` 是只允许 `run|non_run` 的 typed discriminator。当前生产 DTO/OpenAPI 对 `record_scope=run` 要求 `trace_id` 必填、格式合法并与该 run 的 persisted canonical trace 逐值一致；`record_scope=non_run` 允许 `trace_id` 缺失或为 null，持久化与迁移都不得为它生成假的 lineage。RUN-003 和后续 RUN-006 SSE 使用同一字段，不生成第二 trace。
-- terminal event 只能有一个，类型为 `run.completed`、`run.failed` 或 `run.cancelled`；三种 run terminal event 的 `visibility` 必须为 `public`，EventBus 与 local/PostgreSQL sink 必须在持久化前拒绝 `terminal=true` 且 `visibility!=public` 的 envelope，不能依赖 DTO 的 `internal` 默认值。
+- `terminal=true` 当且仅当 `event_type` 为 `run.completed`、`run.failed` 或 `run.cancelled`；三种 run terminal event 必须显式设置 `terminal=true`、`visibility=public`，其余 36 种类型必须设置 `terminal=false`。EventBus 与 local/PostgreSQL sink 必须在分配 seq、消费容量、物化 artifact 或 fan-out 前拒绝 type/terminal/visibility 任一不一致的 envelope，不能依赖 DTO 默认值。每个 run 只能有一个 terminal event。
 - terminal event 是同一 run 的最后一条 CanonicalEvent；持久化后 EventBus/sink 必须拒绝 terminal 和 non-terminal 的任何后续业务事件，不能让已结束的 SSE/JSON 消费者漏掉晚到 evidence。
 - terminal 由 durable evidence outbox 协调：usage 结算与 `approval.resolved` 等必需前置 evidence 先按稳定 event id 幂等发布，terminal 最后发布；terminal 一旦可见，恢复不得再补写前置 evidence或重放 provider/tool 副作用。
-- `model-usage-evidence` 的目标是通过 `0014` 有序 outbox 原子切换 usage、approval resolution 与 terminal 恢复语义；完整验证与代码审核通过前不得把目标描述为已交付能力。
+- `model-usage-evidence` 已通过 `0014` 有序 outbox 原子协调 usage、approval resolution 与 terminal 恢复语义，完整门禁与同 digest 代码 1+2 已通过；change 保持 active 且只到 `ready-to-archive`，不代表已归档、发布或部署。
 - `reasoning.delta` 默认不对普通用户可见。
 - `model-usage-evidence` SHALL 让 model 与 embedding 精确复用 `model.request.started`、`model.usage.updated`，并以 `ModelUsageEvidence.usage_kind` 区分，不新增等价 embedding event type；单次调用关联固定写在 `payload.correlation.usage_call_id`，类型为非空 string。该值不进入 CanonicalEvent envelope 顶层字段或 `ModelUsageEvidence`；TelemetryFacade 保留相同路径和值。`model.usage.updated` 只结束调用级 usage 生命周期，`CanonicalEvent.terminal=false`，不得关闭 run stream。
 - CanonicalEvent envelope 的唯一字节定义为公共 `canonical_event_bytes()`：先取 `CanonicalEvent.to_payload()`，再以 UTF-8、`ensure_ascii=false`、`sort_keys=true`、紧凑 separators `(',', ':')`、`allow_nan=false` 生成 JSON bytes；不计 JSONL 末尾换行、SSE `data:`/frame 分隔符或传输压缩。EventBus、local JSONL、SQLite/PostgreSQL legacy 校验和 SSE byte page 必须调用同一实现，不能各自使用默认 `json.dumps`。正常 envelope 最多 `65536` bytes；大 payload 必须先使用 `payload_ref` 并保留 checksum 或 artifact reference，artifact 化后 envelope 仍超限时，EventBus 以 `event.envelope_too_large` 在持久化和 fan-out 前拒绝。历史或 direct-write 超限 row 读取时返回稳定 `event.envelope_state_invalid`，SSE 转换为一个脱敏 `stream.error` 后关闭，不得返回无 cursor 的空页并忙循环。边界合同必须覆盖恰好等于/超过 `65536` 与 `1048576` bytes、中文/转义字符、不同键插入顺序和 NaN 拒绝。
@@ -818,13 +875,15 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---:|---|
 | `parent_run_id` | string | Yes | 发起 delegation 的 parent run。 |
-| `children` | object[] | Yes | 每项只含 child `run_id`、`agent_id`、status、usage evidence refs 和 trace refs。 |
+| `children` | object[] | Yes | 成员以 durable parent-child relation 为真相源，不以 terminal aggregate row 是否存在为准。每项只含 child `run_id`、`agent_id`、`status`、usage evidence refs 和 trace refs；`status` 直接来自持久化 child `RunStatus`，允许 `created|running|waiting|completed|failed|cancelled`。已持久化但未结算的 child 也必须出现。 |
 | `input_tokens` | integer \| null | Yes | 已知 child model evidence 的输入 token 合计；混合已知/未知时保留已知和，全部未知时为 null。任一 child 为 null 时不得把未知值当 0，且 `budget_status` 必须为 `incomplete`。 |
 | `output_tokens` | integer \| null | Yes | 已知 child model evidence 的输出 token 合计；混合已知/未知时保留已知和，全部未知时为 null。任一 child 为 null 时不得把未知值当 0，且 `budget_status` 必须为 `incomplete`。 |
 | `latency_ms` | integer \| null | Yes | 仅当所有 child latency 都可用时求和；任一 child latency 未知时为 null 且 `budget_status` 必须为 `incomplete`，不得把未知值当 0。 |
 | `cost_usd` | number \| null | Yes | 所有可用 child cost 合计；存在 unavailable cost 时必须为 null，并在 `budget_status` 解释。 |
 | `budget_status` | `within_budget` / `exceeded` / `incomplete` | Yes | parent 对 child usage/cost 的预算影响。 |
 | `trace_refs` | string[] | Yes | 去重后的 child trace refs；不得包含 provider raw payload。 |
+
+仅活动 child，或已终态但尚未写入可信 aggregation 的 child，其 token/cost/latency 均视为未结算 unknown：对应数值为 null，`budget_status=incomplete`。已结算与未结算 child 并存时，`children` 必须包含全部 durable relation；token 只累计已知值，cost/latency 继续按全体完整性规则返回 null，整体 `budget_status` 保持 incomplete。不得因为 aggregate row 暂缺而把已有 child relation 解释为“没有 child”。
 
 ### 5.31 `RunDetailResponse`
 
@@ -836,7 +895,7 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | `status` | `RunStatus` | Yes | 当前状态。 |
 | `terminal_event` | string \| null | Yes | terminal event type，非终态为 null。 |
 | `parent_run_id` | string \| null | Yes | child run 指向 parent；根 run 为 null。 |
-| `delegation_summary` | `DelegationSummary` \| null | Yes | parent run 的 durable 聚合；没有 child 时为 null。 |
+| `delegation_summary` | `DelegationSummary` \| null | Yes | parent run 的 relation-first durable 投影。只要存在带 `child_run_id` 的持久化 parent-child relation 就必须非 null，并覆盖全部已结算/未结算 child；当且仅当确实不存在这类 durable relation 时为 null。 |
 
 ## 6. Run API
 
@@ -883,7 +942,7 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `RUN-002` |
-| 状态 | 已实现基础 run detail；P0 待扩展为 `RunDetailResponse` 与 durable delegation aggregation。 |
+| 状态 | 已切换为 `RunDetailResponse`，并从 durable delegation aggregation 读取 parent 汇总。 |
 | 入口 / 调用方 | OpenAPI 调用方、service-app、未来 Access/API gateway。 |
 | 用途 | 按 `run_id` 读取 run 当前状态，不暴露 ORM model 或内部 handle。 |
 | 方法 | `GET` |
@@ -897,7 +956,7 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 副作用 | none。 |
 | 成功响应码 | `200` |
 | 响应头 | 当前只保证 `Content-Type: application/json`。 |
-| 响应体 | 当前为 `RunCreateResponse`；`agent-delegation-execution` 目标为 `RunDetailResponse`。实现切换必须与 route、OpenAPI 和 drift test 同一 change 落地。 |
+| 响应体 | `RunDetailResponse`；route、OpenAPI 和 drift test 已在 `agent-delegation-execution` 中原子切换。 |
 | 错误响应码 | `401 auth.invalid_token` / `auth.missing_credentials`、`403 policy.denied`、`404 api.not_found`、`500 api.internal_error`。 |
 | 状态语义 | 调用方根据 `status` 和 `terminal_event` 判断继续轮询、读取 events、resume、cancel 或展示终态。 |
 | 安全规则 | 非当前 tenant 或不可见 run 必须返回 `404` 或 `403`，不能泄漏其他 tenant 的 run 是否存在。 |
@@ -1192,7 +1251,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 | 字段 | 约束 |
 |---|---|
-| 状态 | 规划中（P0）；现有 registry edge check 和手工 summary DTO 不是执行闭环。 |
+| 状态 | 验收中；真实执行、durable reservation/aggregation 与 local/service recovery 已实现，等待同一 digest 的代码 1+2 审核。 |
 | 入口 | runtime/worker 注册的内置 `agent.delegate` tool/module seam；P0 不新增公开 delegation HTTP endpoint。 |
 | 请求 | parent `run_id`、source/target `agent_id`、child input、显式 idempotency key、IdentityContext、request/trace context。 |
 | 策略 | 先校验 source descriptor 的 delegation edge，再执行 `agent.delegate` PolicyEngine check；任一步 deny 都不得创建 child run、queue message、provider call 或业务 CanonicalEvent；允许写一次脱敏 policy/audit denial evidence。 |
@@ -1200,6 +1259,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 预算 | child 继承 parent 剩余 token/cost/depth 上限。ownership/edge/policy/tenant/cycle/depth 校验不创建 delegation/预算/child 业务状态；通过后，系统在同一事务中先按 `(tenant_id,parent_run_id,idempotency_key)` 读取或创建 claim 并核对稳定 request hash：既有同 hash 直接重放或恢复首次持久化的 operation/reservation，不读取当前 parent 余额重新派生 hash 或预留；既有异 hash 在预算写入前返回 `delegation.idempotency_conflict`。只有全新 claim 才以 parent 级行锁/CAS 按当时 parent 剩余额度、当前 policy/descriptor ceiling 与稳定预算意图计算本次最坏情况有效预留额，并把计算结果单独持久化到 reservation。不同 key 串行竞争同一剩余额度。预留在 child 创建前确定性失败时释放，创建后保持 durable，按最终 usage 结算；usage 不确定时保持 reserved/needs_review，不得当 0 或提前释放。cycle、超深度或预算不足必须稳定拒绝；允许的脱敏 policy/audit evidence 不算 delegation 业务状态。 |
 | 幂等 | 规范化 request hash 覆盖 tenant、identity、parent/source/target、child input 与稳定预算意图。P0 没有显式预算参数时，预算意图固定为 `inherit_parent`；hash 不得包含动态 parent 剩余额度、锁内计算的有效预留额或其他会在重试间变化的余额投影。新 idempotency claim 与首次有效 reservation 必须在同一事务提交或回滚；同 key 同 hash 只产生一个 claim/reservation/child run 并重放或恢复 durable 结果，即使其他 key 已改变 parent 余额也复用首次 reservation；同 key 异 hash 在 reservation 前返回 `delegation.idempotency_conflict`，且零 child/queue/provider/业务事件副作用。 |
 | 结果 | 返回 `DelegationSummary`；parent 聚合只能读取已经通过非 bool、非负、有限数值和 cost-status 组合校验的持久化 child run、`ModelUsageEvidence` 和 trace refs，不能相信业务 agent 手填 summary或让负数反向冲减预算。 |
+| 事件证据 | 获准请求在 parent run 上最多发布 `delegation.claimed` -> `delegation.child.created` -> `delegation.completed|delegation.failed` 三条 internal non-terminal CanonicalEvent；event id、payload、pre-child failure、needs_review 无 final、默认过滤与重放规则精确遵循 5.9，拒绝路径为零 delegation 业务事件。 |
 | 错误 | `delegation.edge_denied`、`delegation.policy_denied`、`delegation.idempotency_conflict`、`delegation.cycle_detected`、`delegation.depth_exceeded`、`delegation.budget_exceeded`、`delegation.target_not_found`、`delegation.execution_failed`。 |
 | 安全 | 错误、event、audit 与 tool result 必须脱敏；跨 tenant target、provider raw usage、resume token 和本地路径不得进入公开 summary。 |
 | 验证 | deny 只允许 policy/audit evidence 且无 child side effect、allow/local、service queue、同 key 同/异 hash、同 key 并发与 claim 后崩溃恢复不重复 reservation、首次 claim 后由其他 key 改变 parent 余额再重试原 key 仍复用首次 reservation、不同 key 预算竞争、cycle/depth/budget、child failure、parent durable aggregation、trace/evidence refs 和 import boundary contract。 |
@@ -1208,7 +1268,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 | 字段 | 约束 |
 |---|---|
-| 状态 | 验收中；当前 change 保持 active，完整验证与代码审核通过前不标记 `ready-to-archive`，不自动归档。 |
+| 状态 | `ready-to-archive`；完整验证与代码 1+2 已通过，保持 active 且不自动归档。 |
 | 入口 | provider adapter -> model/embedding router/facade -> EventBus/TelemetryFacade；业务 agent 只消费输出和稳定 DTO。 |
 | 生命周期 | model 与 embedding 调用前都发布 `model.request.started`，完成或受控失败后都发布恰好一条调用级最终 `model.usage.updated`，并以 `ModelUsageEvidence.usage_kind` 区分；不得新增等价 embedding event type。`usage_call_id` 必须由 durable tenant/run/request/agent/trace 关联与稳定语义调用槽位生成，invocation seam 不提供随机回退，也不得把 prompt、embedding input 等敏感业务输入纳入 ID。`model.usage.updated` 必须 `CanonicalEvent.terminal=false`，run terminal marker 仍只属于三种 run terminal event。 |
 | terminal 顺序 | 每次 started 调用先写 durable settlement/outbox 状态；provider 结果只写入该状态一次，再按稳定 `usage_call_id`/event id 幂等发布最终 usage。service worker 在 DBOS runtime 启动前恢复全部已有确定结果，queued run 重放或执行前再做 run-scoped recovery；恢复只补投 model/embedding evidence，不得误消费 approval 等共享 outbox 项。runtime 收口前恢复所有 pending settlement，最终 usage 必须先于同一 run terminal；不得重放 provider。`approval.resolved` 等其他前置 evidence 与 terminal 复用同一有序 outbox，EventBus/sink 拒绝 terminal 后的任何业务事件。 |
@@ -1608,7 +1668,7 @@ P0 待实现 SSE 与 P1 可选 WS：
 已解决漂移与后续变更门禁：
 
 - `run-openapi-contract-accuracy` 已移除 run router 级共享 `responses`，当前 RUN-002/003 等 operation 使用与生产路径一致的 operation-specific response map；局部 drift test 持续拒绝重新引入不可能返回的状态码。
-- RUN-002 当前仍引用 `RunCreateResponse`，`agent-delegation-execution` 才切换到 `RunDetailResponse`；两种状态必须由局部 drift test 分阶段锁定。
+- RUN-002 已由 `agent-delegation-execution` 切换到 `RunDetailResponse`；局部 drift test 必须拒绝退回 `RunCreateResponse`。
 - drift test 不仅检查必需状态存在，还必须拒绝 contract 未声明的额外 response status，避免共享 router metadata 扩张公开契约。
 
 每个新增或修改 endpoint 的开发门禁：
@@ -1637,7 +1697,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
 - [x] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致，并由局部双向 drift contract 持续校验。
 - [x] 已明确当前 events JSON seam、P0 待实现 RUN-006 SSE 与 P1 可选 WS 的边界。
-- [x] 已固定 DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；CFG-001 已实现，MOD-001 验收中，DLG-001 保持待实现。
+- [x] 已固定 DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；CFG-001、MOD-001 已停在 `ready-to-archive`，DLG-001 已实现并等待完整门禁与代码 1+2。
 - [x] 已明确 `reasoning.delta` 默认不可见。
 - [x] 已明确 API route 不得暴露 ORM、DBOS、provider SDK 或进程内 handle。
 - [x] 已明确新增/修改 endpoint 必须先改本契约，再做局部 OpenAPI drift 检查。

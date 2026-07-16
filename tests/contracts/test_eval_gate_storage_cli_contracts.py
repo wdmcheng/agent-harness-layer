@@ -61,7 +61,7 @@ def test_local_migration_creates_eval_gate_schema(tmp_path: Path) -> None:
         revision = connection.execute("select version_num from alembic_version").fetchone()
 
     assert "eval_scores" in tables
-    assert revision == ("0014_run_evidence_outbox",)
+    assert revision == ("0015_agent_delegation",)
     assert {
         "agent_id",
         "run_id",

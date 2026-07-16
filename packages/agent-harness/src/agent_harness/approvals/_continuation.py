@@ -34,6 +34,7 @@ from agent_harness.runtime.state import RunStatus
 from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage import ApprovalRecord, SQLAlchemyStorage
 from agent_harness.storage.access_repositories import ApprovalResolutionLease
+from agent_harness.storage.event_capacity_repositories import EvidenceOperationKind
 
 
 class ApprovalContinuationMixin:
@@ -75,7 +76,10 @@ class ApprovalContinuationMixin:
     ) -> ApprovalResolveResult:
         """恢复在唯一 tool claim 创建前中断的既有 lease。"""
 
-        if not can_resolve_approval(actor):
+        # service worker 的 reviewer 身份来自已通过 APR-002 的 durable queue
+        # fingerprint，故意不携带可复用权限；它只能恢复同 tenant/run/approval 的
+        # 既有 lease，不能借此创建新的 resolution。
+        if not can_resolve_approval(actor) and actor.auth_method != "service-approval":
             raise PolicyDeniedError("approval resolve permission missing")
         async with self._storage.uow() as uow:
             lease = await uow.approvals.get_resolution(approval_id)
@@ -83,6 +87,10 @@ class ApprovalContinuationMixin:
             lease is None
             or lease.approval.run_id != run_id
             or lease.approval.tenant_id != actor.tenant_id
+            or (
+                lease.approval.resolved_by is not None
+                and lease.approval.resolved_by != actor.user_id
+            )
         ):
             raise LookupError(f"approval resolution not found: {approval_id}")
         if lease.approval.status in {"waiting", "approved"} and lease.state in {
@@ -244,6 +252,13 @@ class ApprovalContinuationMixin:
             if run_result is not None and run_result.status == RunStatus.FAILED
             else "completed"
         )
+        run_status = (
+            None
+            if run_result is not None and run_result.status == RunStatus.WAITING
+            else RunStatus.FAILED
+            if result_state == "failed"
+            else RunStatus.COMPLETED
+        )
         async with self._storage.uow() as uow:
             record = await uow.approvals.finalize_approved(
                 approval_id=approval.approval_id,
@@ -259,7 +274,9 @@ class ApprovalContinuationMixin:
                 uow,
                 record=record,
                 resolution_status="approved",
-                run_status=(RunStatus.FAILED if result_state == "failed" else RunStatus.COMPLETED),
+                # approval 已确定执行，但 delegation child 尚未收口时只冻结
+                # resolution；terminal 状态由私有 checkpoint 恢复后再补齐。
+                run_status=run_status,
             )
             if self._audit is not None:
                 await uow.audit_logs.create(
@@ -282,6 +299,33 @@ class ApprovalContinuationMixin:
             record=evidence_record,
             request_id=lease.resolution_request_id,
         )
+        if (
+            run_result is not None
+            and run_result.status == RunStatus.WAITING
+            and run_result.resume_token is not None
+        ):
+            async with self._storage.uow() as uow:
+                delegation_pending = await uow.evidence_outbox.has_pending_operation(
+                    run_id=approval.run_id,
+                    operation_kind=EvidenceOperationKind.DELEGATION,
+                )
+            if not delegation_pending:
+                # child final 可能在 approval resolution 发布前已经到达。此时 child
+                # 路径会刻意不关闭 stream；resolution 发布方负责补上恢复边沿。
+                run_result = await self._orchestrator.resume_run(
+                    run_result.resume_token,
+                    expected_run_id=approval.run_id,
+                    identity=actor,
+                )
+                async with self._storage.uow() as uow:
+                    recovered_record = await uow.approvals.get(approval.approval_id)
+                if recovered_record is None:
+                    raise LookupError(f"approval not found: {approval.approval_id}")
+                if recovered_record.status == "approved":
+                    return ApprovalResolveResult(
+                        approval=recovered_record,
+                        run=run_result,
+                    )
         if run_result is not None and run_result.status in {RunStatus.COMPLETED, RunStatus.FAILED}:
             run_result = await self._orchestrator.get_run(
                 approval.run_id,

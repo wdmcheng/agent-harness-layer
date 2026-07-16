@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Protocol
 
 from agent_harness.contracts.run_trace import TRACE_ID_PATTERN, RunTraceValidationError
-from agent_harness.events.types import CanonicalEvent
+from agent_harness.events.types import CanonicalEvent, validate_terminal_semantics
 
 
 class EventSinkTerminalConflict(RuntimeError):
@@ -44,10 +44,13 @@ def validate_event_replay(incoming: CanonicalEvent, persisted: CanonicalEvent) -
 
 
 def validate_terminal_visibility(event: CanonicalEvent) -> None:
-    """direct sink 与 EventBus 共用的 terminal visibility 边界。"""
+    """DTO 被绕过时，direct sink 仍守住 terminal 的双向不变量。"""
 
-    if event.terminal and event.visibility != "public":
-        raise ValueError("terminal run events must be public")
+    validate_terminal_semantics(
+        event_type=event.event_type,
+        terminal=event.terminal,
+        visibility=event.visibility,
+    )
 
 
 def validate_event_scope(event: CanonicalEvent) -> None:

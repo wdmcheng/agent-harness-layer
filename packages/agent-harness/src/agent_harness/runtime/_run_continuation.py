@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 from agent_harness.events import CanonicalEventType
 from agent_harness.identity import IdentityContext
 from agent_harness.runtime._orchestrator_base import OrchestratorState
@@ -63,6 +65,64 @@ class RunContinuation(OrchestratorState):
             "policy_approval",
         }
         if not is_approval_checkpoint:
+            if checkpoint_kind == "delegation_terminal":
+                execution_identity = checkpoint_identity(state)
+                terminal_status = state.get("terminal_status")
+                persisted_status = RunStatus(run.status)
+                if persisted_status in TERMINAL_STATUSES:
+                    if terminal_status != persisted_status.value:
+                        raise InvalidRunTransition(
+                            "delegation terminal checkpoint status is inconsistent"
+                        )
+                    # terminal 已发布、approval 补偿随后失败时，child final 重试
+                    # 只补 approval ordered evidence，绝不重放 executor 或 terminal。
+                    await self._recover_deferred_approval(run.id, state)
+                    return RunResult(run_id=run.id, status=persisted_status)
+                if terminal_status == RunStatus.COMPLETED.value:
+                    output = state.get("output")
+                    if not isinstance(output, dict):
+                        raise InvalidRunTransition(
+                            "delegation terminal checkpoint output is invalid"
+                        )
+                    terminal = await self._complete(
+                        run.id,
+                        run.agent_id,
+                        output=cast(dict[str, Any], output),
+                        identity=execution_identity,
+                        request_id=optional_state_text(state, "request_id"),
+                        trace_id=run.trace_id,
+                        input=run.input,
+                        defer_terminal=defer_terminal,
+                    )
+                    result = RunResult(
+                        run_id=run.id,
+                        status=RunStatus.COMPLETED,
+                        terminal_event=(
+                            terminal.event_type.value if terminal is not None else None
+                        ),
+                    )
+                    await self._recover_deferred_approval(run.id, state)
+                    return result
+                if terminal_status == RunStatus.FAILED.value:
+                    error = state.get("error")
+                    typed_error = cast(dict[str, Any], error) if isinstance(error, dict) else {}
+                    reason = typed_error.get("reason")
+                    if not isinstance(reason, str) or not reason:
+                        raise InvalidRunTransition(
+                            "delegation terminal checkpoint error is invalid"
+                        )
+                    result = await self.fail_run(
+                        run.id,
+                        reason=reason,
+                        identity=execution_identity,
+                        request_id=optional_state_text(state, "request_id"),
+                        trace_id=run.trace_id,
+                        input=run.input,
+                        defer_terminal=defer_terminal,
+                    )
+                    await self._recover_deferred_approval(run.id, state)
+                    return result
+                raise InvalidRunTransition("delegation terminal checkpoint status is invalid")
             if RunStatus(run.status) in TERMINAL_STATUSES:
                 raise InvalidRunTransition(f"run is terminal: {run.id}")
             terminal = await self._complete(
@@ -186,21 +246,31 @@ class RunContinuation(OrchestratorState):
         except (AgentExecutionLeaseLost, AgentExecutionUncertain):
             raise
         except Exception as exc:  # noqa: BLE001 - deterministic executor failure closes the run
-            return await self._fail_execution(
-                run.id,
-                run.agent_id,
-                str(redact_secrets(str(exc))),
-                identity=execution_identity,
-                request_id=context.request_id,
-                trace_id=context.trace_id,
-                input=run.input,
-                defer_terminal=defer_terminal,
+            return await self._recover_delegation_after_wait(
+                await self._fail_execution(
+                    run.id,
+                    run.agent_id,
+                    str(redact_secrets(str(exc))),
+                    identity=execution_identity,
+                    request_id=context.request_id,
+                    trace_id=context.trace_id,
+                    input=run.input,
+                    defer_terminal=defer_terminal,
+                    approval_recovery={
+                        "approval_id": approval_grant.approval_id,
+                        "actor": active_identity.to_payload(),
+                    },
+                )
             )
         return await self._apply_execution_result(
             request,
             result,
             context=context,
             defer_terminal=defer_terminal,
+            approval_recovery={
+                "approval_id": approval_grant.approval_id,
+                "actor": active_identity.to_payload(),
+            },
         )
 
     async def _apply_execution_result(
@@ -210,8 +280,20 @@ class RunContinuation(OrchestratorState):
         *,
         context: AgentExecutionContext,
         defer_terminal: bool = False,
+        approval_recovery: dict[str, Any] | None = None,
     ) -> RunResult:
         if result.status == "completed":
+            deferred = await self._defer_pending_delegation_terminal(
+                run_id=request.run_id,
+                status=RunStatus.COMPLETED,
+                identity=context.identity,
+                output=result.output or {},
+                request_id=context.request_id,
+                trace_id=context.trace_id,
+                approval_recovery=approval_recovery,
+            )
+            if deferred is not None:
+                return deferred
             terminal = await self._complete(
                 request.run_id,
                 request.agent_id,
@@ -237,6 +319,7 @@ class RunContinuation(OrchestratorState):
                 trace_id=context.trace_id,
                 input=request.input,
                 defer_terminal=defer_terminal,
+                approval_recovery=approval_recovery,
             )
         approval = result.approval
         if approval is None:  # DTO 已校验，持久化边界仍保留防御
@@ -249,6 +332,7 @@ class RunContinuation(OrchestratorState):
                 trace_id=context.trace_id,
                 input=request.input,
                 defer_terminal=defer_terminal,
+                approval_recovery=approval_recovery,
             )
         if self._approval_service is None:
             return await self._fail_execution(
@@ -291,4 +375,30 @@ class RunContinuation(OrchestratorState):
             run_id=request.run_id,
             status=RunStatus.WAITING,
             resume_token=resume_token,
+        )
+
+    async def _recover_deferred_approval(
+        self,
+        run_id: str,
+        state: dict[str, Any],
+    ) -> None:
+        """terminal 发布后补完 approval ordered evidence 与公开状态。"""
+
+        recovery = state.get("approval_recovery")
+        if recovery is None:
+            return
+        if not isinstance(recovery, dict):
+            raise InvalidRunTransition("delegation approval recovery state is invalid")
+        typed_recovery = cast(dict[str, object], recovery)
+        approval_id = typed_recovery.get("approval_id")
+        actor_payload = typed_recovery.get("actor")
+        if not isinstance(approval_id, str) or not isinstance(actor_payload, dict):
+            raise InvalidRunTransition("delegation approval recovery state is invalid")
+        if self._approval_service is None:
+            raise InvalidRunTransition("approval service is not configured")
+        actor = IdentityContext.model_validate(cast(dict[str, object], actor_payload))
+        await self._approval_service.recover_claimed(
+            actor=actor,
+            run_id=run_id,
+            approval_id=approval_id,
         )

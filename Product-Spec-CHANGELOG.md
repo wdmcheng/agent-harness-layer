@@ -1,5 +1,16 @@
 # 变更记录
 
+## [v1.7] - 2026-07-16
+### 规格维护
+- 收紧 Run API 公开契约：按实际 operation 区分 response status，RUN-002 原子切换为 `RunDetailResponse`，并要求 route、schema、OpenAPI 与双向 drift test 保持一致。
+- 完成配置与 secret file 边界定义：四类 application startup 入口统一 fail closed；Docker secret file 受信根目录、普通文件、大小、direct/file 冲突和错误脱敏规则成为可执行验收，异常链及 traceback frame locals 不得泄漏原值。
+- 固定 canonical run trace 与 evidence 关联：run 创建前生成唯一 trace，传播到 checkpoint/resume、worker、approval、CanonicalEvent、usage 与 delegation；历史 shape 通过前滚迁移收敛，event-id 重放必须核对除 sink seq 与重建 timestamp 外的完整稳定语义。
+- 增加 model/embedding provider-neutral usage 契约：统一 started/final evidence、稳定语义调用槽位、token/cost/latency 校验、durable settlement/outbox、terminal 前恢复顺序和 local `<5s` 性能验收；embedding cache 也纳入同一证据边界。
+- 增加真实受控 delegation 契约：明确 edge/policy/tenant/cycle/depth/budget/idempotency 前置门禁、parent 级原子预算与 event capacity 预约、`0015` migration、local/Redis worker 恢复、durable parent aggregation、RUN-002 detail 以及 unknown/非法 usage 的 needs_review 处理；RUN-002 对已持久化但尚未结算的 child 仍返回身份与活动状态，只有确实没有 child relation 时才返回 null，完成与活动 child 并存时不得遗漏且预算状态保持 incomplete。
+- 校正 CanonicalEvent 固定目录为 39 种，纳入 `artifact.created` 和四种 delegation 生命周期事件；固定 delegation 的最多三条顺序、稳定 event id、parent run/trace/source agent 归属、internal/non-terminal 可见性、阶段 payload 与敏感字段禁止项。
+- 强化 terminal 不变量为双向约束：只有 `run.completed|run.failed|run.cancelled` 可以且必须设置 `terminal=true` 和 `visibility=public`，其他事件必须 non-terminal；不一致 envelope 必须在 seq、容量、artifact 和 fan-out 副作用前拒绝。
+- 更新 Phase 13.5、13.6、13.6A、13.7 与 13.8 的实施状态：已完成项保持 active 并只到 `ready-to-archive`，不代表归档、发布或部署；新增的事件目录与 terminal 边界已由 AC-067 和 `agent-delegation-execution` task 1.3 固定，Phase 13.8 最终代码 1+2 仍待完成。
+
 ## [v1.6] - 2026-07-12
 ### 基线审查修正
 - 根据 Phase 1-13 基线审查和用户裁决，保留真实 delegation 与 SSE transport 的 P0 承诺；二者必须在 Phase 14/15 前通过聚焦 OpenSpec change 实现，当前保持未完成。

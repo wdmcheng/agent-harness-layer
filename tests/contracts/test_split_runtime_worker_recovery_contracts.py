@@ -125,6 +125,11 @@ async def test_worker_acks_dbos_deterministic_failure_only_after_run_terminal() 
                 error_code="dbos.error",
             )
 
+    class DelegationService:
+        async def reconcile_child_if_delegated(self, run_id: str) -> bool:
+            orchestrator.calls.append(f"delegation:{run_id}")
+            return True
+
     queue = InMemoryRunQueue()
     message = build_execute_message(
         request_id="request-failed",
@@ -138,6 +143,7 @@ async def test_worker_acks_dbos_deterministic_failure_only_after_run_terminal() 
         queue=queue,
         orchestrator=orchestrator,
         approval_service=None,
+        delegation_service=DelegationService(),
     )
     consumed = await consume_one(
         cast(Any, components),
@@ -146,7 +152,7 @@ async def test_worker_acks_dbos_deterministic_failure_only_after_run_terminal() 
     )
 
     assert consumed == "run-failed"
-    assert orchestrator.calls == ["reconciled", "failed"]
+    assert orchestrator.calls == ["reconciled", "failed", "delegation:run-failed"]
     assert await queue.pickup(consumer_id="worker-after-ack") is None
 
 

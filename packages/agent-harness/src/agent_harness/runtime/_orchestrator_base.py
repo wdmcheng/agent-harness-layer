@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Mapping
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from agent_harness.embeddings import EmbeddingInvocationService
 from agent_harness.events import CanonicalEvent, EventBus
@@ -20,6 +20,7 @@ from agent_harness.runtime.executor import (
     RunResult,
 )
 from agent_harness.runtime.queue import RunQueue
+from agent_harness.runtime.state import RunStatus
 from agent_harness.runtime.trace import normalize_trace_id
 from agent_harness.storage import SQLAlchemyStorage
 from agent_harness.storage.run_trace_gate import StorageRunTraceResolver
@@ -27,6 +28,13 @@ from agent_harness.storage.run_trace_gate import StorageRunTraceResolver
 
 class RunEnqueueUnavailable(RuntimeError):
     """run 已持久化为 enqueue_pending，但 broker 暂时不可用。"""
+
+
+@runtime_checkable
+class PendingDelegationRecovery(Protocol):
+    """runtime 只依赖的 delegation 恢复能力，避免形成 runtime/import 环。"""
+
+    async def recover_pending_for_parent(self, *, parent_run_id: str) -> int: ...
 
 
 class OrchestratorState:
@@ -59,6 +67,15 @@ class OrchestratorState:
 
         self._approval_service = service
 
+    def bind_execution_service(self, name: str, service: object) -> None:
+        """闭合创建顺序上的 runtime service 环；禁止静默覆盖既有依赖。"""
+
+        if not name:
+            raise ValueError("execution service name must not be empty")
+        if name in self._executor_services and self._executor_services[name] is not service:
+            raise RuntimeError(f"agent execution service is already configured: {name}")
+        self._executor_services[name] = service
+
     async def recover_pending_usage_evidence(self, *, run_id: str | None = None) -> int:
         """在 worker 启动或 run 重放前只补投已有确定性 usage 结果。"""
 
@@ -80,6 +97,40 @@ class OrchestratorState:
             if isinstance(embedding, EmbeddingInvocationService):
                 recovered += await embedding.recover_pending(run_id=pending_run_id)
         return recovered
+
+    async def recover_pending_delegation_evidence(self, *, run_id: str) -> int:
+        """在 parent retry/WAITING 收口前推进已提交 delegation operation。"""
+
+        service = self._executor_services.get("agent.delegate")
+        if service is None:
+            return 0
+        if not isinstance(service, PendingDelegationRecovery):
+            raise RuntimeError("agent.delegate service does not support durable recovery")
+        return await service.recover_pending_for_parent(parent_run_id=run_id)
+
+    async def _recover_delegation_after_wait(self, result: RunResult) -> RunResult:
+        """pending claim 可在 executor 已退出后恢复；随后返回最新 durable 状态。"""
+
+        if result.status != RunStatus.WAITING:
+            return result
+        recovered = await self.recover_pending_delegation_evidence(run_id=result.run_id)
+        if recovered == 0:
+            return result
+        async with self._storage.uow() as uow:
+            run = await uow.runs.get(result.run_id)
+        if run is None:
+            raise LookupError(f"run not found: {result.run_id}")
+        status = RunStatus(run.status)
+        terminal_event = None
+        if status in {RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED}:
+            terminal = await self._event_bus.terminal_event(result.run_id)
+            terminal_event = terminal.event_type.value if terminal is not None else None
+        return RunResult(
+            run_id=result.run_id,
+            status=status,
+            terminal_event=terminal_event,
+            resume_token=result.resume_token if status == RunStatus.WAITING else None,
+        )
 
     @property
     def uses_queue(self) -> bool:
@@ -150,6 +201,7 @@ class OrchestratorState:
         trace_id: str | None = None,
         input: dict[str, Any] | None = None,
         defer_terminal: bool = False,
+        approval_recovery: dict[str, Any] | None = None,
     ) -> RunResult:
         raise NotImplementedError
 
@@ -167,12 +219,28 @@ class OrchestratorState:
     ) -> CanonicalEvent | None:
         raise NotImplementedError
 
+    async def _defer_pending_delegation_terminal(
+        self,
+        *,
+        run_id: str,
+        status: RunStatus,
+        identity: IdentityContext,
+        output: dict[str, Any] | None = None,
+        error: dict[str, Any] | None = None,
+        request_id: str | None = None,
+        trace_id: str | None = None,
+        approval_recovery: dict[str, Any] | None = None,
+    ) -> RunResult | None:
+        raise NotImplementedError
+
     async def _apply_execution_result(
         self,
         request: AgentExecutionRequest,
         result: AgentExecutionResult,
         *,
         context: AgentExecutionContext,
+        defer_terminal: bool = False,
+        approval_recovery: dict[str, Any] | None = None,
     ) -> RunResult:
         raise NotImplementedError
 

@@ -25,6 +25,7 @@ from agent_harness.runtime.executor import AgentExecutionUncertain as AgentExecu
 from agent_harness.runtime.executor import AgentExecutor as AgentExecutor
 from agent_harness.runtime.executor import AgentExecutorResolver as AgentExecutorResolver
 from agent_harness.runtime.executor import ApprovalGrant as ApprovalGrant
+from agent_harness.runtime.executor import RunDetailResult as RunDetailResult
 from agent_harness.runtime.executor import RunResult as RunResult
 from agent_harness.runtime.orchestrator import RunEnqueueUnavailable as RunEnqueueUnavailable
 from agent_harness.runtime.orchestrator import RunOrchestrator as RunOrchestrator
@@ -63,6 +64,7 @@ _CHECKPOINT_EXPORTS = [
 _ORCHESTRATOR_EXPORTS = [
     "InvalidRunTransition",
     "RunOrchestrator",
+    "RunDetailResult",
     "RunResult",
     "RunEnqueueUnavailable",
     "RunTraceConflict",

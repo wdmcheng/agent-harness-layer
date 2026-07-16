@@ -51,7 +51,7 @@ RUN_OPENAPI_CONTRACTS: dict[
     ),
     ("/api/v1/runs/{run_id}", "get"): (
         {"200", "401", "403", "404", "500"},
-        {"200": "RunCreateResponse"},
+        {"200": "RunDetailResponse"},
     ),
     ("/api/v1/runs/{run_id}/events", "get"): (
         {"200", "401", "403", "404", "422", "500"},
@@ -170,6 +170,42 @@ async def test_checkpoint_resume_survives_orchestrator_recreation(tmp_path: Path
         assert events[-1].terminal is True
     finally:
         await storage.dispose()
+
+
+@pytest.mark.asyncio
+async def test_waiting_idempotency_replay_invokes_pending_delegation_recovery(
+    tmp_path: Path,
+) -> None:
+    """local 重放不能只返回 WAITING，必须先给 durable delegation 恢复机会。"""
+
+    class _RecoveryProbe:
+        def __init__(self) -> None:
+            self.parent_run_ids: list[str] = []
+
+        async def recover_pending_for_parent(self, *, parent_run_id: str) -> int:
+            self.parent_run_ids.append(parent_run_id)
+            return 0
+
+    orchestrator, storage, _events_path = await build_orchestrator(tmp_path)
+    recovery = _RecoveryProbe()
+    orchestrator.bind_execution_service("agent.delegate", recovery)
+    try:
+        first = await orchestrator.start_run(
+            agent_id="fake-agent",
+            input={"prompt": "delegation waiting"},
+            idempotency_key="waiting-delegation-replay",
+            checkpoint_state={"step": "waiting"},
+        )
+        replay = await orchestrator.start_run(
+            agent_id="fake-agent",
+            input={"prompt": "delegation waiting"},
+            idempotency_key="waiting-delegation-replay",
+        )
+    finally:
+        await storage.dispose()
+
+    assert first.status == replay.status == RunStatus.WAITING
+    assert recovery.parent_run_ids == [first.run_id]
 
 
 @pytest.mark.asyncio
@@ -293,7 +329,9 @@ def test_run_openapi_response_status_and_schema_are_exact(tmp_path: Path) -> Non
             assert schema["$ref"] == "#/components/schemas/ApiErrorEnvelope"
 
     run_detail_operation = paths["/api/v1/runs/{run_id}"]["get"]
-    assert "RunDetailResponse" not in json.dumps(run_detail_operation, sort_keys=True)
+    run_detail_schema = json.dumps(run_detail_operation, sort_keys=True)
+    assert "RunDetailResponse" in run_detail_schema
+    assert "RunCreateResponse" not in run_detail_schema
 
 
 def test_fastapi_auto_422_is_removed_only_from_allowlisted_run_operations(
@@ -474,9 +512,9 @@ async def test_template_openapi_and_error_envelope_include_request_id(tmp_path: 
 
 
 @pytest.mark.asyncio
-async def test_events_api_filter_hides_reasoning_delta_by_default(tmp_path: Path) -> None:
-    # `reasoning.delta` 可以进 internal evidence，但普通用户 event stream 默认
-    # 只能看到显式 public 的 lifecycle event。
+async def test_events_api_filter_hides_internal_evidence_by_default(tmp_path: Path) -> None:
+    # reasoning 与 delegation lifecycle 可以进 internal evidence，但普通用户
+    # event stream 默认只能看到显式 public 的 run lifecycle event。
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
 
     async def resolve_trace(*, tenant_id: str, run_id: str) -> str:
@@ -489,6 +527,20 @@ async def test_events_api_filter_hides_reasoning_delta_by_default(tmp_path: Path
         run_id="run-reasoning",
         event_type=CanonicalEventType.REASONING_DELTA,
         payload={"text": "hidden reasoning"},
+        trace_id="trace-reasoning",
+    )
+    await bus.publish(
+        tenant_id="default",
+        run_id="run-reasoning",
+        agent_id="agent-source",
+        event_type=CanonicalEventType.DELEGATION_CLAIMED,
+        event_id="delegation:visibility:claimed",
+        payload={
+            "delegation_id": "visibility",
+            "source_agent_id": "agent-source",
+            "target_agent_id": "agent-target",
+            "status": "claimed",
+        },
         trace_id="trace-reasoning",
     )
     await bus.publish(
@@ -507,5 +559,6 @@ async def test_events_api_filter_hides_reasoning_delta_by_default(tmp_path: Path
     ]
     assert [event.event_type.value for event in public_events(events, include_internal=True)] == [
         "reasoning.delta",
+        "delegation.claimed",
         "run.completed",
     ]

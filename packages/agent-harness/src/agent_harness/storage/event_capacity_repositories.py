@@ -229,9 +229,13 @@ class EventCapacityRepository:
         await self._session.flush()
 
     async def assert_terminal_publishable(self, *, run_id: str) -> None:
-        """local sink 写 terminal 前确认所有前置 evidence 已结算。"""
+        """锁定容量行并确认所有前置 evidence 已结算。"""
 
-        model = await self._session.get(RunEventCapacityModel, run_id)
+        model = await self._session.scalar(
+            select(RunEventCapacityModel)
+            .where(RunEventCapacityModel.run_id == run_id)
+            .with_for_update()
+        )
         if model is None or model.terminal_reservation != 1:
             raise RuntimeError("terminal reservation is unavailable")
         if model.outstanding_reserved_event_count:

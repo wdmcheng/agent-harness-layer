@@ -17,10 +17,11 @@ from agent_harness.cli_shared import (
     require_local_state_ready_or_exit,
     require_schema_or_exit,
 )
+from agent_harness.delegation import AgentDelegationModule, DelegationService
 from agent_harness.events import EventBus, LocalJsonlEventSink
 from agent_harness.policy import PolicyCheck
 from agent_harness.registry import AgentRegistry
-from agent_harness.runtime import RunOrchestrator
+from agent_harness.runtime import RunOrchestrator, RunStatus
 from agent_harness.runtime.services import build_agent_execution_services
 from agent_harness.storage import SQLAlchemyStorage, storage_dsn_from_settings
 
@@ -252,6 +253,18 @@ def resolve_approval(
             service_root=service_root,
         ),
     )
+    delegation_service = DelegationService(
+        storage=storage,
+        registry=registry,
+        policy=policy,
+        event_bus=event_bus,
+        orchestrator=orchestrator,
+        mode="local",
+    )
+    orchestrator.bind_execution_service(
+        "agent.delegate",
+        AgentDelegationModule(delegation_service),
+    )
     service = ApprovalService(
         storage=storage,
         event_bus=event_bus,
@@ -276,6 +289,10 @@ def resolve_approval(
                     context={"decision": decision, "source": "cli"},
                 )
             )
+            # CLI 与 HTTP 共用同一补偿边界。先恢复上次已提交的 child terminal，
+            # 再进入 approve/deny；即使随后返回 approval conflict，parent 也不会
+            # 因一次 event/aggregation 瞬时故障永久等待。
+            await delegation_service.reconcile_child_if_delegated(approval.run_id)
             resolver = service.approve if decision == "approved" else service.deny
             result = await resolver(
                 actor=settings.identity.default,
@@ -283,6 +300,12 @@ def resolve_approval(
                 approval_id=approval_id,
                 comment=comment,
             )
+            if result.run is not None and result.run.status in {
+                RunStatus.COMPLETED,
+                RunStatus.FAILED,
+                RunStatus.CANCELLED,
+            }:
+                await delegation_service.reconcile_child_if_delegated(approval.run_id)
             typer.echo(f"approval: {result.approval.status}")
             if result.run is not None:
                 typer.echo(f"run: {result.run.status.value}")

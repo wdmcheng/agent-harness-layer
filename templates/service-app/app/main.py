@@ -20,6 +20,7 @@ from agent_harness.approvals import (
 from agent_harness.auth import AuthError, TokenVerifier
 from agent_harness.config import load_settings
 from agent_harness.contracts import ApiErrorEnvelope, ErrorDetail
+from agent_harness.delegation import DelegationService
 from agent_harness.evals import (
     AcceptanceService,
     EvalExperimentError,
@@ -56,7 +57,12 @@ from app.api.routes.policies import router as policies_router
 from app.api.routes.runs import (
     get_agent_registry as get_runs_route_registry,
 )
-from app.api.routes.runs import get_event_sink, get_run_orchestrator, request_id_from
+from app.api.routes.runs import (
+    get_delegation_service,
+    get_event_sink,
+    get_run_orchestrator,
+    request_id_from,
+)
 from app.api.routes.runs import router as runs_router
 from app.runtime import RuntimeComponents, build_runtime_components
 
@@ -100,6 +106,7 @@ def create_app(
     eval_service: EvalService | None = None,
     experiment_service: ExperimentService | None = None,
     acceptance_service: AcceptanceService | None = None,
+    delegation_service: DelegationService | None = None,
 ) -> FastAPI:
     """创建已注册 run routes 的 FastAPI app。
 
@@ -127,6 +134,7 @@ def create_app(
         eval_service = eval_service or components.eval_service
         experiment_service = experiment_service or components.experiment_service
         acceptance_service = acceptance_service or components.acceptance_service
+        delegation_service = delegation_service or components.delegation_service
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
@@ -309,6 +317,7 @@ def create_app(
     # 和 engine lifecycle 都留在 application factory。
     app.dependency_overrides[get_run_orchestrator] = lambda: orchestrator
     app.dependency_overrides[get_event_sink] = lambda: event_sink
+    app.dependency_overrides[get_delegation_service] = lambda: delegation_service
     app.dependency_overrides[get_agents_route_registry] = lambda: registry
     app.dependency_overrides[get_runs_route_registry] = lambda: registry
     app.dependency_overrides[get_auth_verifier] = lambda: auth_verifier
