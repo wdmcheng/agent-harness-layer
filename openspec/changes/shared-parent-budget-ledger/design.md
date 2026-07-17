@@ -1,0 +1,70 @@
+## Context
+
+Phase 13.7 已建立稳定 `usage_call_id`、provider result settlement/outbox 与 event capacity；Phase 13.8 已建立 delegation claim、parent reservation、child relation 和 aggregation。二者各自可恢复，但 token/cost 预算所有权仍分裂：delegation 会读取部分 direct usage，direct operation 却没有参与 active delegation reservation 的原子竞争。本 change 位于 13.8 与 13.9 之间，只前滚共享预算事实，不改变既有 evidence 与 event capacity 职责。
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- 让 root/parent execution tree 的 direct model、embedding 与 delegation 顶层 operation 竞争一个 token/cost 硬上限。
+- 在 provider/child/queue 外部副作用前建立受信最坏情况 reservation，以同一 row lock/CAS 原子结算、释放或进入 needs_review。
+- 让 delegated child usage 在 delegation reservation 内分配，避免 parent 双计。
+- 保持 local/SQLite 与 service/PostgreSQL/Redis 的幂等、恢复、terminal fencing 和拒绝语义一致。
+
+**Non-Goals:**
+
+- 不修改 `0014`/`0015` 历史 revision，不合并 event capacity 与 token/cost ledger。
+- 不新增公开 API/DTO、SSE transport、多层 delegation、动态计价服务或 Phase 14/15 工作。
+
+## Decisions
+
+1. **新增一个 parent aggregate ledger，并保留 operation detail。** 每个 ledger 以 `(tenant_id,budget_owner_run_id)` 唯一标识 execution-tree root，`budget_owner_run_id` 非空且 tenant-fenced 引用 root `AgentRun.run_id`；root operation 取自身 `run_id`，child allocation 通过唯一 delegation relation 解析到同一 root（P0 单层 delegation 即直接 parent）。它与现有 nullable `AgentRun.parent_run_id` 职责分离，禁止用 `(tenant_id,null)` 表示 root owner。Ledger 冻结 token/cost limit、当前保守 impact 与 version；direct claim、delegation claim 和 child allocation 都持有同一 owner FK 与可追溯 detail。所有 mutation 先锁 owner root/ledger 或使用等价 version CAS，再核对 detail 与 aggregate。只在既有两张表上临时求和被否决，因为它无法提供统一版本、配置冻结和 O(1) 竞争边界；只存 aggregate 也被否决，因为恢复无法证明哪次 operation 已结算。
+2. **顶层 claim 与 child allocation 分层。** Parent 自身 direct call 建立顶层 direct claim；delegation 建立一个顶层 delegation claim。Child call 只在该 delegation 下建立 allocation，新 allocation reservation 的合计受 delegation ceiling 限制。Allocation settlement 不直接增加 parent aggregate；它在同一 parent UoW 中更新顶层 delegation claim，parent aggregate只应用顶层 claim 的 impact 差额。这样既能逐 `usage_call_id` 恢复，又不会把 child usage重复计费。
+3. **Root run创建时冻结budget snapshot，并给 legacy 数据一条不造假的升级路径。** 在任何业务副作用前原子持久化hard limits、descriptor/budget/config version，以及frozen route policy允许的price source refs/versions；child继承。`0016`先把legacy root tree分成两类：仍需继续执行/恢复的tree只有在run/checkpoint/evidence已经durably引用不可变版本、且versioned descriptor/config history与price catalog逐值可验证时才backfill ledger；已经terminal、具备dialect等价的durable terminal closure proof、全部`0014` outbox/event capacity与`0015` delegation状态均封闭且不存在queue/approval/recovery待办的tree作为`legacy_closed`保留原历史，不建立shared ledger，也永远不能恢复新operation。PostgreSQL以唯一terminal canonical row证明closure；SQLite以terminal run状态、`terminal_reservation=0`、无outstanding reservation及既有local atomic capacity不变量证明同一事实，不要求Alembic读取JSONL。缺少snapshot且未完全封闭的tree必须先由旧writer完成drain/reconcile，否则DDL前整批拒绝。
+4. **reservation 只要求已启用维度的受信有限上界。** Token 维度始终启用：model token上界为可计费input上界加maximum output，embedding为受信tokenization/input上界。Cost维度仅在`max_cost_usd_per_run`非null时启用，其上界来自受控provider/model price source、token ceiling和固定附加费用。启用维度无法得到有限可信上界时fail closed。Cost维度关闭时合法`cost=null/cost_status=unavailable`表示不适用，不产生cost impact或needs_review；但bool、负数、非有限数值或不一致status在任何配置下仍非法。业务request中的估计只能作为受信adapter计算的输入，不能直接成为可缩小reservation的权威值。
+5. **Cache hit 在 provider miss 前分段，并服从 operation ownership。** 纯本地、只读且tenant-fenced的embedding cache lookup可先执行；确定hit保留既有token/cost null、`cost_status=unavailable`、`provider_called=false`调用evidence。Root/direct hit的settled/zero-impact direct claim，或delegated child hit的settled/zero-impact allocation，必须与usage result/outbox及event-capacity结算在一个UoW全部提交；提交前失败可重做纯读lookup，提交后只补投event，永远不存在单边claim/allocation/evidence。Miss后必须在provider call前完成shared reservation。
+6. **Settlement 按状态替换并向上传播 impact。** Direct 的 `reserved -> settled` 在一次UoW内以可信actual替换原impact；确定零外部副作用才允许released。Delegation active或任一allocation unknown/invalid/needs_review时，顶层impact保留`max(original reservation,conservative allocation sum,trusted aggregate)`；只有全部child与terminal aggregate可信一致且无needs_review时，顶层claim才settled为actual并归还差额。单child/多child actual-over向顶层claim/parent传播needs_review。Parent aggregate不直接加allocation，只应用顶层claim差额。
+7. **恢复按三个 crash window fencing。** Reservation提交且`side_effect_state=not_started`时可继续或确定释放；调用外部副作用前先durably推进为`started`，此后若没有原子result+settlement便保持needs_review且不重放；result+settlement原子提交后只剩event outbox补投。新writer不产生result-only/ledger-only或cache单边状态；pre-0016遗留半状态只由migration处理。
+8. **内部拒绝证据与外部零副作用分开。** Budget reject 可写唯一、脱敏、封闭的 decision/audit/usage rejection evidence；不得调用 provider、创建 child、投递 queue 或发布 delegation lifecycle event。Event capacity 仍按 `0014` 独立预约和结算，两个 ledger 不共享数值。
+9. **软threshold与硬ledger分层。** Route/context degradation先在frozen config内产生trusted intent；无finite bound或静态hard-ineligible直接拒绝。Hard-eligible intent进入soft policy；fallback回到route且由封闭列表有限终止，approval不持有额度。Allow/approved后才做authoritative atomic reservation；approval等待期间余额可变，resume必须重检，不能用批准绕过hard limit。
+10. **Shared claim 与既有 operation 记录组成一个 application UoW。** 新 direct model/embedding 在同一事务中建立 `0016` direct claim、`0014` usage settlement/outbox 与 event-capacity reservation；新 delegation 在同一事务中建立 `0016` top-level claim、`0015` delegation relation/reservation 和 `0014` ordered evidence/event-capacity reservation。任一 owner、budget、capacity、relation、唯一键或 replay-integrity 检查失败都回滚整组，不能通过顺序事务留下半提交。可信 provider/child result 的 durable persistence、allocation/top-level delta 与 shared-ledger settlement也在同一 UoW完成，event publish位于提交之后并由既有outbox恢复。
+11. **Direct 硬预算拒绝使用单一公开错误码。** Model/embedding 的 `intent_unbounded|hard_limit_ineligible|balance_insufficient|snapshot_invalid|ledger_needs_review` 均在 module/runtime/usage rejection evidence 的公开 code 映射为 `budget.reservation_rejected`，避免借错误码探测动态余额；细分 reason 只存在于脱敏内部 evidence，且不得携带 limit、balance、price 或 reservation 数值。Delegation 的受信上界不足、静态超限或当前余额不足继续映射既有 `delegation.budget_exceeded`；owner/relation/snapshot 损坏按既有 fail-closed execution 错误处理。
+12. **组合错误按固定优先级收敛。** 先处理stable-key exact replay/identity conflict，再处理authorization/owner/relation/snapshot完整性，再处理`event.sequence_state_invalid`，随后检查hard budget，最后检查event capacity exhaustion；unique race回滚后重读并回到replay分支。因而budget与capacity同时失败时budget code优先，capacity-only固定`event.sequence_exhausted`，exact replay不受当前余额或容量变化影响。Direct identity conflict使用内部`budget.operation_conflict`，不新增HTTP endpoint/status。
+
+## Affected Surfaces
+
+- Model/embedding invocation 与 router/adapter trusted bound seam。
+- Delegation claim、child execution/allocation、parent aggregation 与 worker reclaim。
+- Shared budget repository/UoW、terminal guard、runtime/service composition。
+- Alembic `0016`、typed models、local SQLite 与 service PostgreSQL。
+- 本 change 的 proposal/design/delta/tasks、contract/integration/smoke tests；公开 API shape 不变。Canonical specs、历史/前置 changes 与 Product/API/DEV 主线文档仅作为只读上游，后续显式 sync/archive 时再合并。
+
+## Testing Seams
+
+- Repository/UoW：同 tenant 独立 root owner 隔离、同 root direct/delegation/allocation 合流、direct→direct、direct→delegation、delegation→direct、混合真并发与 token/cost 双维竞争。
+- Invocation：model、embedding miss/hit、fallback、无可信上界、budget reject 零 provider side effect。
+- Delegation：child allocation reservation ceiling、active/unknown保留reservation、全部可信settled-under归还差额、单child/多child actual-over向顶层claim/parent原子传播、parent只应用顶层差额且不双计。
+- Recovery：reservation已提交且effect未开始、effect已开始但结果未知、result+settlement已提交而event待补投三个crash window；provider/child/queue计数保持0/1，新writer无result-only半状态。
+- Migration：fresh upgrade；legacy tree 分类；完全封闭 tree 以 `legacy_closed` 保留旧历史且不建 ledger；仍需执行/恢复的 tree 只从 durably referenced immutable version sources 回填完整 snapshot，并拒绝 current-config 猜测、缺失/冲突/child 漂移；未封闭且无 snapshot 的反例要求旧 writer 先 drain/reconcile；可回填 tree 的 settled/unknown allocation、`0015`四态与actual-over固定映射；evidence-aware downgrade；SQLite与真实PostgreSQL逐值一致。
+- Service：真实 PostgreSQL row lock/CAS、Redis delivery/reclaim、terminal fencing；local smoke 单独报告。
+
+## Risks / Trade-offs
+
+- [Risk] 历史 usage 缺少可信 reservation 上界 → `0016` 只 backfill 可证明事实，矛盾/未知状态在 mutation 前整批拒绝，禁止猜测或按零。
+- [Risk] 合法 `0015` 数据库没有保存历史配置版本 → 维护窗口先用旧 writer 把这类 tree drain 到严格 `legacy_closed`；migration 保留其 `0014`/`0015` 历史但不追溯套用新 shared-budget 语义。仍需恢复的 tree 没有 immutable snapshot 时拒绝升级，不能用 current config 修补。
+- [Risk] Aggregate 与 detail 漂移 → mutation 在同一 UoW 更新并校验 version/总和，reconciliation 只读诊断，不能静默改余额。
+- [Risk] 实际 usage 超过受信上界 → fail closed 为 needs_review并保守占用，不允许新的 budget operation 或 terminal；测试覆盖 adapter 违约反例。
+- [Risk] Parent 与 child 同时结算导致双计或 child actual 超 allocation 后 parent 被低估 → child allocation 不直接更新 parent aggregate；同一 parent UoW 先更新 allocation，再以原 delegation reservation、allocation 保守合计与可信 aggregate 的最大值更新顶层 claim，parent 只应用顶层差额。
+- [Risk] Cost price source 变化 → reservation 固定安全 price source/version，run limit 与 operation intent 不随 reload 漂移。
+
+## Migration Plan
+
+在冻结 writers/workers 的维护窗口执行 `0015 -> 0016`。冻结前先由旧 writer drain/reconcile：能完成的 run、usage outbox、delegation、queue、approval 与 terminal evidence 全部封闭。Migration 在 DDL 前按 root tree 整批分类：严格满足 root terminal、dialect等价durable terminal closure proof、全部 `0014` outbox 已 `published|cancelled`、event-capacity 无 outstanding、全部 `0015` delegation 为 `settled|released` 且无 needs-review/pending child/queue/approval/recovery 的 tree 记为 `legacy_closed`；PostgreSQL proof为唯一匹配terminal canonical row，SQLite proof为terminal status、`terminal_reservation=0`与outstanding=0。它只保留原表事实，不建立 ledger/claim/allocation。其余仍需继续执行或恢复的 tree 必须已有 run/checkpoint/evidence durable immutable snapshot 引用，才能进入 backfill；既非 `legacy_closed` 又无完整snapshot者整批拒绝。
+
+对可backfill tree，migration规范化非空owner：root取自身`run_id`；child由tenant-fenced `agent_runs.parent_run_id`与唯一`agent_delegations.child_run_id`共同证明同一root，并取该root为`budget_owner_run_id`。随后只从immutable descriptor/config/route/price versions逐值校验hash、tenant/agent、hard limits、cost-disabled状态与child继承；current resolver/current config、reservation、actual、默认值或零值不得补snapshot。Snapshot通过后，root自身usage才建立direct claim，child usage只建立allocation；settled/unknown与`0015`四态按固定矩阵迁移。DDL完成后部署`0016` writer：root创建、snapshot与ledger原子提交；direct/delegation新claim分别与`0014`及`0014+0015`记录同UoW提交。最后恢复workers。Downgrade只允许shared-budget evidence全空且精确opt-in；有evidence时不删除或释放事实。本 change 只推进到`ready-to-archive`，不提前sync/archive，不发布。
+
+随后按固定矩阵映射`0015`：reserved保留原reservation，有unknown child时升为needs_review；settled要求relation-first child actual与可信aggregate一致，未超原reservation时settled为actual并归还差额，超出时顶层impact取`max(original,child actual sum,aggregate)`并needs_review；released允许且只允许合法pre-child claimed->failed稳定内部事件对或可确定恢复成该对的pending outbox，同时必须无child relation/child.created/usage/queue/provider/业务执行副作用；needs_review保留至少原reservation，并取其与可信child actual/aggregate最大值，封锁新operation与terminal。完成后先部署兼容reader/repository，再原子切换writers，最后恢复worker。Downgrade只允许shared-budget evidence全空且精确opt-in；有evidence时保留`0016`兼容读取，不删除或释放事实。本 change 只推进到 `ready-to-archive`，不提前 sync/archive，不发布。
+
+## Open Questions
+
+无。Token 计量、内部拒绝 evidence、child allocation、limit 冻结与 unknown 语义已由本 change 固定。
