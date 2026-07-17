@@ -72,6 +72,7 @@
     - 创建或修改 OpenSpec change 后，先运行 `openspec validate <change> --type change --strict` 做格式和契约可解析自检；随后必须派 code-reviewer 按 OpenSpec 变更契约审查范围审查 proposal/specs/design/tasks 到 PASS。validate 不能替代 code-reviewer，也不能作为进入实现或收口的唯一依据。
     - 同一目标拆成多个 OpenSpec change 时，任何相关实现开始前先识别 change 间的依赖、共享验收、共享接口和文件所有权。存在任一关联时，除每个 change 各自严格校验和变更契约审查 PASS 外，必须再派新的 code-reviewer 实例读取全部相关变更契约产物与上游真相源，完成多变更联合审查并达到 Stage 1/2 PASS；`openspec validate --all --strict` 只证明可解析，不能代替联合语义审查。若主张这些 change 真正独立，必须给出无顺序依赖、无共享接口、无共享验收且无文件所有权冲突的证据，才允许逐 change 开工。
     - OpenSpec specs/delta 只约束本次行为变更；若它与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突，先停下指出冲突并让用户决定，不擅自让任何一方覆盖另一方。
+    - 活动 change 的起草、审查和实现阶段只维护 `openspec/changes/<change>/` 的当前契约，不得直接改 `openspec/specs/` 或 `openspec/changes/archive/`；仅在用户明确要求 sync 或 archive 时，才评估并合并主规格。
     - 不自动 archive、不自动 validate 后推进发布；archive、schema 切换和 OpenSpec 初始化都需要用户明确同意或显式命令。
 
     领域语言兼容：

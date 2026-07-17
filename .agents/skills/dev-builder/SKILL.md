@@ -105,6 +105,11 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
     用户强调某环节是追加要求，不替换基础流程，review 闭环照常走。
 
 [Phase 完成度判断]
+    同步 Phase 或 change 状态时，必须分开记录“开发实现”“审查验证”“归档”三类事实：
+        - 开发实现依据当前代码、对应 tasks 和可追溯提交判定；审查失效、待重审或待归档不等于实现未开发
+        - 审查验证只对当次审核覆盖的同一代码摘要和验证证据有效；摘要改变后旧 PASS 失效，但不反推开发实现状态
+        - 归档维度仅在项目已启用 OpenSpec 且当前工作映射到 active change 时适用；未启用 OpenSpec 时记为“不适用”，不提示安装，也不阻断 Phase 完成
+        - 不得用单一 checkbox、commit message 或旧 PASS 推断其他状态维度；同步状态时只修改证据支持的事实维度
     单个 OpenSpec change 完成不等于 Phase 完成。每个 change 完成、审查、严格验证和提交后，必须回到 DEV-PLAN 该 Phase 的交付清单逐项核对；仍有缺口就继续下一个窄 change，直到 Phase 清单全部满足。不要在每个 change 后停下来询问是否 archive。整体任务或 Phase 收口时，可以提示用户按需运行 `openspec archive <change>`，或在 Agent 会话中使用 `/opsx:archive <change>`；若用户选择 archive，提醒 archive 后运行 `openspec list --json` 确认 active changes 状态，并运行 `openspec validate --all --strict` 确认主规格有效。
     每个 OpenSpec change 收口、Phase 验收通过、出现阻塞或返工时，必须同步 DEV-PLAN 的当前进度、剩余工作、风险/阻塞和下一步；这些状态区缺失时只补最小必要区块，不改写无关内容。
     所有 Task 完成后过四步走，全通过才算 Phase 完成：
