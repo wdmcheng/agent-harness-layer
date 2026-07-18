@@ -14,6 +14,7 @@ from agent_harness.storage.event_capacity_repositories import (
     EventCapacityExceeded,
     EventCapacityRepository,
     EventCapacitySnapshot,
+    EventSequenceStateInvalid,
     EvidenceOperationKind,
     OperationReservationSpec,
     operation_event_capacity,
@@ -138,6 +139,7 @@ class EvidenceOutboxRepository(UsageEvidenceRepositoryMixin, OrderedEvidenceRepo
 __all__ = [
     "EVIDENCE_OPERATION_REGISTRY_VERSION",
     "EventCapacityExceeded",
+    "EventSequenceStateInvalid",
     "EventCapacityRepository",
     "EventCapacitySnapshot",
     "EvidenceOperationKind",

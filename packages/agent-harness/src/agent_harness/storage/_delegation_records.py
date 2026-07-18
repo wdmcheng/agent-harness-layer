@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from pydantic import Field, field_validator
 
@@ -168,31 +170,77 @@ class DelegationUsageEvidenceRecord(HarnessDTO):
     result: dict[str, Any] | None
 
 
+def _durable_request_hash(model: AgentDelegationModel) -> str | None:
+    """在 storage 层重算 service request hash，避免经 delegation package 形成循环导入。"""
+
+    raw_identity: object = cast(object, model.identity_json)
+    if not isinstance(raw_identity, Mapping):
+        return None
+    identity = cast(Mapping[str, object], raw_identity)
+    if (
+        identity.get("tenant_id") != model.tenant_id
+        or not isinstance(identity.get("roles"), list)
+        or not isinstance(identity.get("permissions"), list)
+    ):
+        return None
+    roles = cast(list[object], identity["roles"])
+    permissions = cast(list[object], identity["permissions"])
+    if any(not isinstance(value, str) for value in roles) or any(
+        not isinstance(value, str) for value in permissions
+    ):
+        return None
+    payload = {
+        "tenant_id": model.tenant_id,
+        "identity": {
+            "user_id": identity.get("user_id"),
+            "session_id": identity.get("session_id"),
+            "roles": sorted(cast(list[str], roles)),
+            "permissions": sorted(cast(list[str], permissions)),
+            "auth_method": identity.get("auth_method"),
+        },
+        "parent_run_id": model.parent_run_id,
+        "source_agent_id": model.source_agent_id,
+        "target_agent_id": model.target_agent_id,
+        "child_input": model.child_input_json,
+        "budget_intent": model.budget_intent,
+    }
+    try:
+        canonical = json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError):
+        return None
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def replay_integrity_valid(
     *,
     model: AgentDelegationModel,
     reservation: DelegationBudgetReservationModel,
     group: list[RunEvidenceOutboxModel],
-    data: DelegationClaimCreate,
+    expected_request_hash: str,
+    validate_request_hash: bool,
 ) -> bool:
     """重放前把首次 claim 的不可变语义与当前可信请求、配套状态完整对账。"""
 
+    durable_hash = model.request_hash
+    if validate_request_hash:
+        durable_hash = _durable_request_hash(model)
+        if durable_hash is None:
+            return False
+
     if (
-        model.tenant_id != data.tenant_id
-        or model.parent_run_id != data.parent_run_id
-        or model.source_agent_id != data.source_agent_id
-        or model.target_agent_id != data.target_agent_id
-        or model.idempotency_key != data.idempotency_key
-        or model.budget_intent != data.budget_intent
-        or model.child_input_json != data.child_input
-        or model.identity_json != data.identity
-        or model.trace_id != data.trace_id
+        model.request_hash != expected_request_hash
+        or model.request_hash != durable_hash
         or model.event_operation_kind != EvidenceOperationKind.DELEGATION.value
         or model.event_registry_version != EVIDENCE_OPERATION_REGISTRY_VERSION
         or model.reserved_event_count != operation_event_capacity(EvidenceOperationKind.DELEGATION)
         or reservation.delegation_id != model.id
-        or reservation.tenant_id != data.tenant_id
-        or reservation.parent_run_id != data.parent_run_id
+        or reservation.tenant_id != model.tenant_id
+        or reservation.parent_run_id != model.parent_run_id
         or len(group) != 3
     ):
         return False
@@ -205,8 +253,8 @@ def replay_integrity_valid(
     ):
         result = row.result_json
         if (
-            row.tenant_id != data.tenant_id
-            or row.run_id != data.parent_run_id
+            row.tenant_id != model.tenant_id
+            or row.run_id != model.parent_run_id
             or row.group_id != expected_group_id
             or row.event_id != delegation_event_id(model.id, phase)
             or row.operation_kind != EvidenceOperationKind.DELEGATION.value
@@ -214,10 +262,10 @@ def replay_integrity_valid(
             or row.reserved_event_count != 1
             or not isinstance(result, Mapping)
             or result.get("delegation_id") != model.id
-            or result.get("parent_run_id") != data.parent_run_id
-            or result.get("source_agent_id") != data.source_agent_id
-            or result.get("target_agent_id") != data.target_agent_id
-            or result.get("trace_id") != data.trace_id
+            or result.get("parent_run_id") != model.parent_run_id
+            or result.get("source_agent_id") != model.source_agent_id
+            or result.get("target_agent_id") != model.target_agent_id
+            or result.get("trace_id") != model.trace_id
         ):
             return False
     return True

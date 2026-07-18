@@ -92,6 +92,20 @@ class OrchestratorState:
             raise RuntimeError("embedding_invocation service does not support usage recovery")
         recovered = 0
         for pending_run_id in run_ids:
+            # `started` 但没有 result+settlement 的窗口必须先持久化为
+            # needs_review；后面的 usage recovery 只能补投确定结果，不能重放
+            # provider。not_started 则保留给同 identity 的安全执行重试。
+            async with self._storage.uow() as uow:
+                pending_run = await uow.runs.get(pending_run_id)
+                if pending_run is not None:
+                    owner_run_id = pending_run.parent_run_id or pending_run.id
+                    ledger = await uow.shared_budget.get_ledger(pending_run.tenant_id, owner_run_id)
+                    if ledger is not None:
+                        recovered += await uow.shared_budget.recover_unknown_started(
+                            tenant_id=pending_run.tenant_id,
+                            budget_owner_run_id=owner_run_id,
+                        )
+                        await uow.commit()
             if isinstance(model, ModelInvocationService):
                 recovered += await model.recover_pending(run_id=pending_run_id)
             if isinstance(embedding, EmbeddingInvocationService):

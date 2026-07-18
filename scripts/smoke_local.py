@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -191,6 +192,11 @@ def check_fake_run() -> int:
                 "billing invoice needs review",
             ],
             cwd=ROOT,
+            env={
+                **os.environ,
+                # 隔离 smoke 只验证 secret 通过进程内注入，不把 key 写入状态目录。
+                "BUDGET_LEDGER_FINGERPRINT_KEY": "local-smoke-ephemeral-key",
+            },
             check=False,
             capture_output=True,
             text=True,

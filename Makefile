@@ -1,6 +1,8 @@
 SHELL := /bin/sh
 UV ?= uv
-EVAL_STATE_DIR ?= $(CURDIR)/templates/service-app/.agent-harness/eval
+# 0016 不允许把缺少 immutable snapshot 的旧 active eval tree 猜值升级；
+# revision-scoped 目录保留旧状态供人工 drain，同时保证验收可重复运行。
+EVAL_STATE_DIR ?= $(CURDIR)/templates/service-app/.agent-harness/eval/0016
 
 .PHONY: sync quality test smoke-local smoke-service eval build license-check format
 
@@ -23,6 +25,7 @@ eval:
 		--profile local \
 		--profiles-dir "$(CURDIR)/templates/service-app/configs/profiles" \
 		--storage-dsn "sqlite+aiosqlite:///$(EVAL_STATE_DIR)/eval.db"
+	BUDGET_LEDGER_FINGERPRINT_KEY="local-eval-ephemeral-key" \
 	$(UV) run python templates/service-app/scripts/run_example_evals.py \
 		--state-dir "$(EVAL_STATE_DIR)"
 

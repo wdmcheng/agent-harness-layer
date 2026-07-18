@@ -61,6 +61,8 @@ class RunLifecyclePersistence(OrchestratorState):
                     raise RuntimeError("pending delegation evidence blocks terminal state")
             else:
                 await uow.event_capacity.assert_terminal_publishable(run_id=run_id)
+            if run.parent_run_id is None:
+                await uow.shared_budget.fence_terminal_if_managed(active_identity.tenant_id, run_id)
             await uow.runs.set_status(
                 run_id,
                 RunStatus.FAILED.value,
@@ -219,6 +221,8 @@ class RunLifecyclePersistence(OrchestratorState):
                     raise RuntimeError("pending delegation evidence blocks terminal state")
             else:
                 await uow.event_capacity.assert_terminal_publishable(run_id=run_id)
+            if run.parent_run_id is None:
+                await uow.shared_budget.fence_terminal_if_managed(identity.tenant_id, run_id)
             await uow.runs.set_status(run_id, RunStatus.COMPLETED.value, output=output)
             await uow.commit()
         if defer_terminal:

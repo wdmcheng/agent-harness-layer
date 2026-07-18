@@ -160,6 +160,7 @@ def aggregate_reservation_consistent(
     summary: DelegationSummary,
     aggregate_status: str,
     reservation: Any,
+    cost_enabled: bool = True,
 ) -> bool:
     """聚合状态与预算结算必须来自同一次 durable 状态转换。"""
 
@@ -172,7 +173,11 @@ def aggregate_reservation_consistent(
     return (
         reservation.settled_input_tokens == summary.input_tokens
         and reservation.settled_output_tokens == summary.output_tokens
-        and reservation.settled_cost_usd == summary.cost_usd
+        and (
+            reservation.settled_cost_usd == summary.cost_usd
+            if cost_enabled
+            else reservation.settled_cost_usd == 0.0 and summary.cost_usd is None
+        )
     )
 
 

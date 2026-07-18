@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from decimal import Decimal
 from pathlib import Path
 
 from agent_harness.artifacts import FileArtifactStore
@@ -23,10 +24,12 @@ from agent_harness.models import (
 )
 from agent_harness.observability import TelemetryFacade
 from agent_harness.policy import PolicyEngine
+from agent_harness.registry import AgentRegistry
 from agent_harness.retrieval import (
     LocalSQLiteBM25RetrievalProvider,
     PostgreSQLRetrievalProvider,
 )
+from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.storage import SQLAlchemyStorage
 from agent_harness.tools import ToolRegistry, WorkspacePolicy
 from agent_harness.tools.cli_runtime import builtin_tools
@@ -93,6 +96,7 @@ def build_agent_execution_services(
     event_bus: EventBus,
     artifact_store: FileArtifactStore,
     service_root: Path,
+    registry: AgentRegistry,
     workspace_root: Path | None = None,
 ) -> Mapping[str, object]:
     """构造 executor 私有依赖映射；映射本身不会进入 DTO/checkpoint。"""
@@ -112,25 +116,43 @@ def build_agent_execution_services(
         local_sink=event_sink,
         artifact_store=artifact_store,
     )
+    model_router_config = ModelRouterConfig(
+        default_provider="fake",
+        default_model=settings.model.default_model or "fake-basic",
+        timeout_seconds=settings.model.timeout_seconds,
+        max_tokens_per_call=settings.budget.max_tokens_per_run,
+        input_token_price_usd=Decimal("0"),
+        output_token_price_usd=Decimal("0"),
+        price_source_ref="catalog:fake",
+        price_source_version="catalog-v1",
+    )
+    shared_budget = SharedBudgetRuntime(
+        settings=settings,
+        registry=registry,
+        model_config=model_router_config,
+        embedding_input_token_price_usd=Decimal("0"),
+        embedding_price_source_ref="catalog:local:mock-small",
+        embedding_price_source_version="catalog-v1",
+    )
     model_invocation = ModelInvocationService(
         router=ModelRouter(
-            config=ModelRouterConfig(
-                default_provider="fake",
-                default_model=settings.model.default_model or "fake-basic",
-                timeout_seconds=settings.model.timeout_seconds,
-                max_tokens_per_call=settings.budget.max_tokens_per_run,
-            ),
+            config=model_router_config,
             providers={"fake": FakeModelProvider()},
         ),
         storage=storage,
         event_bus=event_bus,
         telemetry=telemetry,
+        shared_budget=shared_budget,
     )
     embedding_invocation = EmbeddingInvocationService(
         provider=LocalEmbeddingProvider(cache=StorageEmbeddingCache(storage)),
         storage=storage,
         event_bus=event_bus,
         telemetry=telemetry,
+        shared_budget=shared_budget,
+        input_token_price_usd=Decimal("0"),
+        price_source_ref="catalog:local:mock-small",
+        price_source_version="catalog-v1",
     )
     return {
         "artifact_store": artifact_store,
@@ -140,6 +162,7 @@ def build_agent_execution_services(
         ),
         "embedding_invocation": embedding_invocation,
         "model_invocation": model_invocation,
+        "shared_budget": shared_budget,
         "retrieval_provider": retrieval,
         "telemetry": telemetry,
         "tool_registry_factory": ToolRegistryFactory(

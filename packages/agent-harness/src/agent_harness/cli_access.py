@@ -251,6 +251,7 @@ def resolve_approval(
             event_bus=event_bus,
             artifact_store=artifact_store,
             service_root=service_root,
+            registry=registry,
         ),
     )
     delegation_service = DelegationService(

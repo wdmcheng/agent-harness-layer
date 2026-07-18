@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from decimal import Decimal
 
 from pydantic import Field
 
@@ -18,6 +19,15 @@ class ModelRouterConfig(HarnessDTO):
     fallback_models: list[str] = Field(default_factory=list)
     timeout_seconds: int = 60
     max_tokens_per_call: int | None = None
+    input_token_price_usd: Decimal | None = None
+    output_token_price_usd: Decimal | None = None
+    price_source_ref: str | None = None
+    price_source_version: str | None = None
+    route_price_source_refs: dict[str, str] = Field(default_factory=dict)
+    route_price_source_versions: dict[str, str] = Field(default_factory=dict)
+    route_input_token_prices_usd: dict[str, Decimal] = Field(default_factory=dict)
+    route_output_token_prices_usd: dict[str, Decimal] = Field(default_factory=dict)
+    route_max_tokens_per_call: dict[str, int] = Field(default_factory=dict)
 
 
 class ModelRoutePlan(HarnessDTO):
@@ -26,6 +36,8 @@ class ModelRoutePlan(HarnessDTO):
     provider: str
     model: str
     decision: ModelDecision
+    trusted_token_bound: int
+    trusted_cost_bound: Decimal | None
 
 
 class ModelRouter:
@@ -55,26 +67,50 @@ class ModelRouter:
         plan = self.plan(request)
         return self.execute(request, plan=plan)
 
-    def plan(self, request: ModelRequest) -> ModelRoutePlan:
+    def plan(
+        self,
+        request: ModelRequest,
+        *,
+        config: ModelRouterConfig | None = None,
+        approved: bool = False,
+    ) -> ModelRoutePlan:
         """在 provider 调用前确定实际 provider/model 与零副作用拒绝。"""
 
-        provider_id = request.provider or self.config.default_provider
+        active = config or self.config
+        provider_id = request.provider or active.default_provider
         if provider_id not in self._providers:
             raise KeyError(f"model provider is not configured: {provider_id}")
-        estimated_tokens = request.estimated_input_tokens + request.max_output_tokens
-        selected_model = request.model or self.config.default_model
+        # UTF-8 byte count is deliberately conservative: no supported tokenizer can
+        # produce more than one billable token per byte. Caller estimates are evidence
+        # only and never shrink this provider-enforced bound.
+        trusted_input_bound = len(request.prompt.encode("utf-8"))
+        estimated_tokens = trusted_input_bound + request.max_output_tokens
+        selected_model = request.model or active.default_model
         action = "call"
         fallback_model = None
         reason = None
         if (
-            self.config.max_tokens_per_call is not None
-            and estimated_tokens > self.config.max_tokens_per_call
+            not approved
+            and active.max_tokens_per_call is not None
+            and estimated_tokens > active.max_tokens_per_call
         ):
-            # 超预算先尝试 fallback；没有 fallback 才把判断交给 policy seam。
-            # 这里不抛异常，是为了让调用方保留可审计的 decision summary。
-            if self.config.fallback_models:
+            # 每个 fallback 都必须重新形成 route intent 并重新过 soft threshold。
+            # 未声明更高的 route-specific threshold 时沿用当前阈值，因此不能
+            # 仅通过更换 model 名称绕过同一个 soft gate。
+            fallback_model = next(
+                (
+                    model
+                    for model in active.fallback_models
+                    if estimated_tokens
+                    <= active.route_max_tokens_per_call.get(
+                        model,
+                        active.max_tokens_per_call,
+                    )
+                ),
+                None,
+            )
+            if fallback_model is not None:
                 action = "fallback"
-                fallback_model = self.config.fallback_models[0]
                 selected_model = fallback_model
                 reason = "estimated tokens exceed budget"
             else:
@@ -83,14 +119,34 @@ class ModelRouter:
         decision = ModelDecision(
             action=action,
             estimated_tokens=estimated_tokens,
-            max_tokens=self.config.max_tokens_per_call,
+            max_tokens=active.max_tokens_per_call,
             fallback_model=fallback_model,
             reason=reason,
+            price_source_ref=active.route_price_source_refs.get(
+                selected_model, active.price_source_ref
+            ),
+            price_source_version=active.route_price_source_versions.get(
+                selected_model, active.price_source_version
+            ),
         )
+        input_token_price = active.route_input_token_prices_usd.get(
+            selected_model, active.input_token_price_usd
+        )
+        output_token_price = active.route_output_token_prices_usd.get(
+            selected_model, active.output_token_price_usd
+        )
+        trusted_cost_bound = None
+        if input_token_price is not None and output_token_price is not None:
+            trusted_cost_bound = (
+                Decimal(trusted_input_bound) * input_token_price
+                + Decimal(request.max_output_tokens) * output_token_price
+            )
         return ModelRoutePlan(
             provider=provider_id,
             model=selected_model,
             decision=decision,
+            trusted_token_bound=estimated_tokens,
+            trusted_cost_bound=trusted_cost_bound,
         )
 
     def execute(self, request: ModelRequest, *, plan: ModelRoutePlan) -> ModelResponse:

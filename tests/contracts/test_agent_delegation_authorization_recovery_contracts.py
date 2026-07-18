@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+
+from tests.contracts.test_agent_delegation_service_contracts import (
+    AgentRegistry as AgentRegistry,
+)
+from tests.contracts.test_agent_delegation_service_contracts import (
+    Any as Any,
+)
 from tests.contracts.test_agent_delegation_service_contracts import (
     DelegationClaimCreate as DelegationClaimCreate,
 )
@@ -21,10 +30,16 @@ from tests.contracts.test_agent_delegation_service_contracts import (
     _build_service as _build_service,
 )
 from tests.contracts.test_agent_delegation_service_contracts import (
+    _descriptor as _descriptor,
+)
+from tests.contracts.test_agent_delegation_service_contracts import (
     _identity as _identity,
 )
 from tests.contracts.test_agent_delegation_service_contracts import (
     _request as _request,
+)
+from tests.contracts.test_agent_delegation_service_contracts import (
+    cast as cast,
 )
 from tests.contracts.test_agent_delegation_service_contracts import (
     delegation_request_hash as delegation_request_hash,
@@ -35,6 +50,8 @@ from tests.contracts.test_agent_delegation_service_contracts import (
 from tests.contracts.test_agent_delegation_service_contracts import (
     update as update,
 )
+
+from agent_harness.storage.shared_budget_models import ParentBudgetLedgerModel
 
 
 @pytest.mark.asyncio
@@ -151,6 +168,135 @@ async def test_policy_deny_has_zero_delegation_business_side_effects(tmp_path: P
     assert runtime.calls == 0
     assert claims == []
     assert events == []
+
+
+@pytest.mark.asyncio
+async def test_exact_replay_conflict_and_frozen_edge_precede_current_registry(
+    tmp_path: Path,
+) -> None:
+    """Durable stable key 必须先于 reload 后的 edge/policy 解析。"""
+
+    storage, service, runtime, parent_run_id, _sink = await _build_service(tmp_path)
+    request = _request(parent_run_id)
+    identity = _identity()
+    try:
+        first = await service.delegate(request, identity=identity)
+        cast(Any, service)._registry = AgentRegistry([_descriptor("agent-source", targets=[])])
+        replay = await service.delegate(request, identity=identity)
+        with pytest.raises(DelegationError) as conflict:
+            await service.delegate(
+                _request(parent_run_id, child_input={"prompt": "changed"}),
+                identity=identity,
+            )
+        with pytest.raises(DelegationError) as exhausted:
+            await service.delegate(
+                _request(parent_run_id, idempotency_key="delegation-new-key"),
+                identity=identity,
+            )
+    finally:
+        await storage.dispose()
+
+    assert replay == first
+    assert runtime.calls == 1
+    assert conflict.value.code == "delegation.idempotency_conflict"
+    assert exhausted.value.code == "delegation.budget_exceeded"
+
+
+@pytest.mark.asyncio
+async def test_registry_reload_cannot_add_target_to_existing_root_snapshot(tmp_path: Path) -> None:
+    """当前 registry 新增 edge/descriptor 不能扩张旧 root 的 frozen catalog。"""
+
+    storage, service, runtime, parent_run_id, _sink = await _build_service(
+        tmp_path,
+        source_targets=[],
+    )
+    try:
+        cast(Any, service)._registry = AgentRegistry(
+            [
+                _descriptor("agent-source", targets=["agent-target"]),
+                _descriptor("agent-target", targets=[]),
+            ]
+        )
+        with pytest.raises(DelegationError) as denied:
+            await service.delegate(_request(parent_run_id), identity=_identity())
+    finally:
+        await storage.dispose()
+
+    assert denied.value.code == "delegation.edge_denied"
+    assert runtime.calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("rehash", [False, True], ids=["hash-mismatch", "missing-targets"])
+async def test_corrupted_frozen_edge_catalog_fails_closed(
+    tmp_path: Path,
+    rehash: bool,
+) -> None:
+    """缺失显式 edge 或 snapshot hash 不匹配时都不得由 agents 反推授权。"""
+
+    storage, service, runtime, parent_run_id, _sink = await _build_service(tmp_path)
+    try:
+        async with storage.uow() as uow:
+            ledger = await uow.session.get(
+                ParentBudgetLedgerModel,
+                ("tenant-a", parent_run_id),
+            )
+            assert ledger is not None
+            snapshot = dict(ledger.snapshot_json)
+            owner = dict(snapshot["owner"])
+            owner.pop("delegation_targets")
+            snapshot["owner"] = owner
+            ledger.snapshot_json = snapshot
+            if rehash:
+                ledger.snapshot_hash = hashlib.sha256(
+                    json.dumps(
+                        snapshot,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        allow_nan=False,
+                    ).encode("utf-8")
+                ).hexdigest()
+            await uow.commit()
+        with pytest.raises(DelegationError) as denied:
+            await service.delegate(_request(parent_run_id), identity=_identity())
+        async with storage.uow() as uow:
+            claims = await uow.delegations.list_for_parent(
+                tenant_id="tenant-a",
+                parent_run_id=parent_run_id,
+            )
+    finally:
+        await storage.dispose()
+
+    assert denied.value.code == "delegation.edge_denied"
+    assert runtime.calls == 0
+    assert claims == []
+
+
+@pytest.mark.asyncio
+async def test_registry_budget_reload_cannot_change_frozen_target_reservation(
+    tmp_path: Path,
+) -> None:
+    """新 delegation 也只能使用 root snapshot 中冻结的 target ceiling。"""
+
+    storage, service, _runtime, parent_run_id, _sink = await _build_service(
+        tmp_path,
+        mode="service",
+        target_token_limit=60,
+        target_cost_limit=4.0,
+    )
+    try:
+        cast(Any, service)._registry = AgentRegistry(
+            [_descriptor("agent-source", targets=[], max_tokens=1)]
+        )
+        result = await service.delegate(_request(parent_run_id), identity=_identity())
+        async with storage.uow() as uow:
+            reservation = await uow.delegations.get_reservation(result.delegation_id)
+    finally:
+        await storage.dispose()
+
+    assert reservation.reserved_tokens == 60
+    assert reservation.reserved_cost_usd == 4.0
 
 
 @pytest.mark.asyncio

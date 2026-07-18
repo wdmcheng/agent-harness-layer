@@ -2,33 +2,58 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from time import perf_counter
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 from agent_harness.events import EventBus
 from agent_harness.identity import IdentityContext
+from agent_harness.models._invocation_settlement import (
+    ModelProviderInvocationError,
+    _ModelSettlementMixin,
+)
 from agent_harness.models.providers import ModelRequest, ModelResponse
-from agent_harness.models.router import ModelRouter
+from agent_harness.models.router import ModelRoutePlan, ModelRouter, ModelRouterConfig
 from agent_harness.models.usage import (
     ModelUsageEvidence,
     UsageEvidenceContext,
-    UsageInvocationReplayError,
     stable_usage_call_id,
 )
 from agent_harness.models.usage_events import UsageEvidenceLifecycle
 from agent_harness.observability.facade import TelemetryFacade
 from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
+from agent_harness.storage.event_capacity_repositories import EventCapacityExceeded
 from agent_harness.storage.evidence_repositories import (
     EvidenceOperationKind,
-    UsageSettlementClaim,
+)
+from agent_harness.storage.shared_budget import (
+    BudgetReservationRejected,
+    OperationIdentity,
 )
 
 
-class ModelProviderInvocationError(RuntimeError):
-    """provider 原异常已封闭，调用方只能看到稳定错误码。"""
+class _SharedBudgetIdentityRuntime(Protocol):
+    def operation_identity(self, **values: Any) -> OperationIdentity: ...
 
-    code = "model.provider_failed"
+    def model_router_config(
+        self,
+        *,
+        snapshot: dict[str, Any],
+        agent_id: str,
+        base: ModelRouterConfig,
+    ) -> ModelRouterConfig: ...
+
+
+class _ApprovedModelGrant(Protocol):
+    approval_id: str
+    tenant_id: str
+    agent_id: str
+    run_id: str
+    action: str
+    resource: str
+    arguments_hash: str
 
 
 class BoundModelInvocationService:
@@ -60,8 +85,44 @@ class BoundModelInvocationService:
             ),
         )
 
+    async def complete_approved(
+        self,
+        request: ModelRequest,
+        *,
+        operation_key: str,
+        grant: _ApprovedModelGrant,
+    ) -> ModelResponse:
+        """审批 continuation 只绕过 soft gate，硬上限与当前余额必须重新检查。"""
 
-class ModelInvocationService:
+        expected_hash = hashlib.sha256(
+            json.dumps(
+                request.to_payload(),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        if (
+            grant.tenant_id != self._context.tenant_id
+            or grant.agent_id != self._context.agent_id
+            or grant.run_id != self._context.run_id
+            or grant.action != "model.invoke"
+            or grant.resource != f"agent:{self._context.agent_id}:model"
+            or grant.arguments_hash != expected_hash
+        ):
+            raise ValueError("model approval grant does not match bound invocation")
+        return await self._service.complete(
+            request,
+            context=self._context,
+            usage_call_id=stable_usage_call_id(
+                context=self._context,
+                operation_key=f"{operation_key}:approved:{grant.approval_id}",
+            ),
+            soft_approved=True,
+        )
+
+
+class ModelInvocationService(_ModelSettlementMixin):
     """在 provider 副作用前建立 settlement，并只补投 evidence。"""
 
     def __init__(
@@ -71,11 +132,13 @@ class ModelInvocationService:
         storage: SQLAlchemyStorage,
         event_bus: EventBus,
         telemetry: TelemetryFacade | None = None,
+        shared_budget: _SharedBudgetIdentityRuntime | None = None,
     ) -> None:
         self._router = router
         self._storage = storage
         self._event_bus = event_bus
         self._telemetry = telemetry
+        self._shared_budget = shared_budget
 
     def bind_execution(
         self,
@@ -107,24 +170,58 @@ class ModelInvocationService:
         *,
         context: UsageEvidenceContext,
         usage_call_id: str,
+        soft_approved: bool = False,
     ) -> ModelResponse:
         """执行一次 model 调用；任何 provider 副作用都晚于 durable 预约。"""
 
         call_id = usage_call_id
         await self._event_bus.reconcile_local_capacity(run_id=context.run_id)
-        plan = self._router.plan(request)
-        started_evidence = self._started_evidence(
-            context=context,
-            provider=plan.provider,
-            model=plan.model,
-            decision=self._safe_decision(
-                plan.decision.to_payload(),
-                {"provider_called": plan.decision.action != "policy_required"},
-            ),
-        )
-        claim = await self._start_settlement(evidence=started_evidence, usage_call_id=call_id)
-        if not claim.created:
-            await self._resume_existing_settlement(claim=claim, usage_call_id=call_id)
+        started_evidence: ModelUsageEvidence | None = None
+        try:
+            plan = await self._plan(
+                request=request,
+                context=context,
+                approved=soft_approved,
+            )
+            started_evidence = self._started_evidence(
+                context=context,
+                provider=plan.provider,
+                model=plan.model,
+                decision=self._safe_decision(
+                    plan.decision.to_payload(),
+                    {"provider_called": plan.decision.action != "policy_required"},
+                ),
+            )
+            settlement = await self._start_settlement(
+                evidence=started_evidence,
+                usage_call_id=call_id,
+                request=request,
+                plan=plan,
+            )
+        except BudgetReservationRejected as exc:
+            if started_evidence is None:
+                started_evidence = self._started_evidence(
+                    context=context,
+                    provider=request.provider or self._router.config.default_provider,
+                    model=request.model or self._router.config.default_model,
+                    decision={"provider_called": False},
+                )
+            try:
+                await self._record_budget_rejection(
+                    evidence=started_evidence,
+                    usage_call_id=call_id,
+                    reason=exc.reason,
+                )
+            except EventCapacityExceeded:
+                # Hard budget 的公开优先级高于 capacity exhaustion；容量不足时
+                # 无法再新增 rejection event，但不能用较低优先级错误覆盖它。
+                pass
+            raise
+        if not settlement.usage.created and not settlement.safe_to_start:
+            return await self._resume_existing_settlement(
+                claim=settlement.usage,
+                usage_call_id=call_id,
+            )
         lifecycle = UsageEvidenceLifecycle(
             event_bus=self._event_bus,
             evidence=started_evidence,
@@ -133,6 +230,13 @@ class ModelInvocationService:
         started = await lifecycle.publish_started()
         if self._telemetry is not None:
             await self._telemetry.publish_event(started)
+
+        if plan.decision.action != "policy_required":
+            await self._mark_side_effect_started(
+                context=context,
+                usage_call_id=call_id,
+                ownership=settlement.ownership,
+            )
 
         invoked_at = perf_counter()
         try:
@@ -178,6 +282,8 @@ class ModelInvocationService:
                 usage_call_id=call_id,
                 outcome="failed",
                 error_code="model.provider_failed",
+                ownership=settlement.ownership,
+                response=None,
             )
             raise ModelProviderInvocationError("model provider invocation failed") from None
 
@@ -187,8 +293,56 @@ class ModelInvocationService:
             usage_call_id=call_id,
             outcome="rejected" if rejected else "completed",
             error_code="model.policy_required" if rejected else None,
+            ownership=settlement.ownership,
+            response=response,
         )
         return response
+
+    async def _plan(
+        self,
+        *,
+        request: ModelRequest,
+        context: UsageEvidenceContext,
+        approved: bool,
+    ) -> ModelRoutePlan:
+        if self._shared_budget is None:
+            return self._router.plan(request, approved=approved)
+        async with self._storage.uow() as uow:
+            ownership = await uow.shared_budget.resolve_operation_ownership(
+                tenant_id=context.tenant_id,
+                run_id=context.run_id,
+            )
+            ledger = await uow.shared_budget.get_ledger(
+                context.tenant_id,
+                ownership.budget_owner_run_id,
+            )
+            snapshot = await uow.shared_budget.get_tree_snapshot(
+                context.tenant_id,
+                ownership.budget_owner_run_id,
+            )
+        if ledger is None:
+            # `_start_settlement` 负责把 snapshot_invalid 保存为稳定拒绝 evidence。
+            try:
+                return self._router.plan(request, approved=approved)
+            except KeyError as exc:
+                raise BudgetReservationRejected(reason="snapshot_invalid") from exc
+        if snapshot is None:
+            try:
+                return self._router.plan(request, approved=approved)
+            except KeyError as exc:
+                raise BudgetReservationRejected(reason="snapshot_invalid") from exc
+        try:
+            config = self._shared_budget.model_router_config(
+                snapshot=snapshot,
+                agent_id=context.agent_id,
+                base=self._router.config,
+            )
+        except ValueError as exc:
+            raise BudgetReservationRejected(reason="snapshot_invalid") from exc
+        try:
+            return self._router.plan(request, config=config, approved=approved)
+        except KeyError as exc:
+            raise BudgetReservationRejected(reason="snapshot_invalid") from exc
 
     async def recover_pending(self, *, run_id: str) -> int:
         """只补投已有确定性结果；started/未知结果继续阻止 terminal。"""
@@ -221,99 +375,6 @@ class ModelInvocationService:
             )
             recovered += 1
         return recovered
-
-    async def _start_settlement(
-        self,
-        *,
-        evidence: ModelUsageEvidence,
-        usage_call_id: str,
-    ) -> UsageSettlementClaim:
-        async with self._storage.uow() as uow:
-            claim = await uow.evidence_outbox.claim_usage(
-                tenant_id=evidence.tenant_id,
-                run_id=evidence.run_id,
-                usage_call_id=usage_call_id,
-                event_id=self._final_event_id(evidence.tenant_id, usage_call_id),
-                operation_kind=EvidenceOperationKind.MODEL_USAGE,
-                started_evidence=evidence.to_payload(),
-            )
-            await uow.commit()
-            return claim
-
-    async def _resume_existing_settlement(
-        self,
-        *,
-        claim: UsageSettlementClaim,
-        usage_call_id: str,
-    ) -> None:
-        """已有确定结果只补投 evidence；未知或已发布状态一律不重放 provider。"""
-
-        if claim.state == "result_persisted" and claim.result_json is not None:
-            result = claim.result_json
-            await self._publish_final(
-                evidence=ModelUsageEvidence.model_validate(result["evidence"]),
-                usage_call_id=usage_call_id,
-                outcome=str(result["outcome"]),
-                error_code=claim.error_code,
-            )
-            raise UsageInvocationReplayError("published")
-        raise UsageInvocationReplayError(claim.state)
-
-    async def _finalize(
-        self,
-        *,
-        evidence: ModelUsageEvidence,
-        usage_call_id: str,
-        outcome: str,
-        error_code: str | None,
-    ) -> None:
-        async with self._storage.uow() as uow:
-            await uow.evidence_outbox.persist_result(
-                tenant_id=evidence.tenant_id,
-                usage_call_id=usage_call_id,
-                result={"evidence": evidence.to_payload(), "outcome": outcome},
-                error_code=error_code,
-            )
-            await uow.commit()
-        await self._publish_final(
-            evidence=evidence,
-            usage_call_id=usage_call_id,
-            outcome=outcome,
-            error_code=error_code,
-        )
-
-    async def _publish_final(
-        self,
-        *,
-        evidence: ModelUsageEvidence,
-        usage_call_id: str,
-        outcome: str,
-        error_code: str | None,
-    ) -> None:
-        lifecycle = UsageEvidenceLifecycle(
-            event_bus=self._event_bus,
-            evidence=evidence,
-            usage_call_id=usage_call_id,
-        )
-        final = await lifecycle.publish_final(outcome=outcome, error_code=error_code)
-        if self._telemetry is not None:
-            await self._telemetry.publish_event(final)
-        async with self._storage.uow() as uow:
-            item = await uow.evidence_outbox.get_usage(
-                tenant_id=evidence.tenant_id,
-                usage_call_id=usage_call_id,
-            )
-            if not self._event_bus.capacity_managed:
-                await uow.event_capacity.record_local_published(
-                    run_id=evidence.run_id,
-                    reserved_event_count=item.reserved_event_count,
-                    highest_persisted_seq=final.seq,
-                )
-            await uow.evidence_outbox.mark_published(
-                tenant_id=evidence.tenant_id,
-                usage_call_id=usage_call_id,
-            )
-            await uow.commit()
 
     @staticmethod
     def _started_evidence(
@@ -354,6 +415,16 @@ class ModelInvocationService:
         if not isinstance(safe, dict):  # pragma: no cover - mapping input 保证输出形状
             raise RuntimeError("model decision redaction changed payload shape")
         return cast(dict[str, Any], safe)
+
+    @staticmethod
+    def _durable_response(response: ModelResponse) -> dict[str, Any]:
+        """恢复所需 response 必须先整体脱敏，再进入内部 outbox/shared claim。"""
+
+        safe = redact_secrets(response.to_payload())
+        if not isinstance(safe, dict):  # pragma: no cover - DTO payload 保证 mapping
+            raise RuntimeError("model response redaction changed payload shape")
+        validated = ModelResponse.model_validate(safe)
+        return validated.to_payload()
 
 
 __all__ = [

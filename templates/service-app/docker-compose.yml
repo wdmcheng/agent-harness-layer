@@ -4,6 +4,7 @@ x-runtime-environment: &runtime-environment
   AGENT_HARNESS_PROFILE: service
   AGENT_HARNESS_STORAGE__DSN_FILE: /run/secrets/agent_harness_storage_dsn
   AGENT_HARNESS_QUEUE__DSN: redis://redis:6379/0
+  BUDGET_LEDGER_FINGERPRINT_KEY_FILE: /run/secrets/agent_harness_budget_fingerprint_key
   SERVICE_APP_EXECUTOR_ID: agent-harness-service-worker
   SERVICE_APP_RECLAIM_IDLE_SECONDS: ${SERVICE_APP_RECLAIM_IDLE_SECONDS:-1}
 
@@ -18,6 +19,7 @@ x-runtime-service: &runtime-service
     - ${SERVICE_APP_SMOKE_DIR:?SERVICE_APP_SMOKE_DIR is required}:/smoke
   secrets:
     - agent_harness_storage_dsn
+    - agent_harness_budget_fingerprint_key
 
 services:
   postgres:
@@ -129,5 +131,7 @@ volumes:
 secrets:
   agent_harness_storage_dsn:
     file: ${SERVICE_APP_STORAGE_DSN_FILE:?SERVICE_APP_STORAGE_DSN_FILE is required}
+  agent_harness_budget_fingerprint_key:
+    file: ${SERVICE_APP_BUDGET_FINGERPRINT_KEY_FILE:?SERVICE_APP_BUDGET_FINGERPRINT_KEY_FILE is required}
   agent_harness_postgres_password:
     file: ${SERVICE_APP_POSTGRES_PASSWORD_FILE:?SERVICE_APP_POSTGRES_PASSWORD_FILE is required}

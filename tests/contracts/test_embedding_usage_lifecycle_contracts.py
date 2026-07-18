@@ -236,7 +236,7 @@ async def test_openai_compatible_embedding_maps_only_provider_neutral_usage(
         assert usage["usage_kind"] == "embedding"
         assert usage["provider"] == "openai-compatible"
         assert usage["model"] == "text-embedding-test"
-        assert usage["input_tokens"] is None
+        assert usage["input_tokens"] == len(b"private embedding input")
         assert usage["output_tokens"] is None
         assert usage["cost_usd"] is None
         assert usage["cost_status"] == "unavailable"

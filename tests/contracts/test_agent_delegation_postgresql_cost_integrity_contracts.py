@@ -111,14 +111,18 @@ async def test_postgresql_sub_micro_cost_round_trips_without_fixed_scale_loss() 
 
 
 @pytest.mark.asyncio
-async def test_postgresql_unlimited_parent_preserves_finite_target_cost_ceiling() -> None:
-    """PostgreSQL reservation 在 parent 无限时仍须保存有限 target ceiling。"""
+async def test_postgresql_cost_disabled_owner_keeps_delegation_cost_disabled() -> None:
+    """Owner 关闭 cost 时 target 不得重新启用该维度。"""
 
     async with isolated_database("delegation_unlimited_parent_finite_target") as dsn:
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
         try:
-            parent_run_id = await _parent(storage, suffix="unlimited-parent")
+            parent_run_id = await _parent(
+                storage,
+                suffix="unlimited-parent",
+                cost_limit=None,
+            )
             async with storage.uow() as uow:
                 claimed = await uow.delegations.claim_and_reserve(
                     _claim(
@@ -128,21 +132,28 @@ async def test_postgresql_unlimited_parent_preserves_finite_target_cost_ceiling(
                         request_hash="f" * 64,
                         reserved_tokens=20,
                         parent_cost_limit=None,
-                        requested_cost_reservation=1.0,
+                        requested_cost_reservation=None,
                     )
                 )
                 await uow.commit()
             async with storage.uow() as uow:
                 reservation = await uow.delegations.get_reservation(claimed.delegation.id)
+                ledger = await uow.shared_budget.get_ledger(
+                    "tenant-unlimited-parent",
+                    parent_run_id,
+                )
         finally:
             await storage.dispose()
 
-    assert reservation.reserved_cost_usd == 1.0
+    assert reservation.reserved_cost_usd is None
+    assert ledger is not None
+    assert ledger.cost_limit is None
+    assert ledger.cost_impact == 0
 
 
 @pytest.mark.asyncio
-async def test_postgresql_finite_parent_cost_rejects_unbounded_target() -> None:
-    """真实 parent lock 内不能把 target 的无限成本 ceiling 缩成剩余额度。"""
+async def test_postgresql_finite_owner_cost_is_inherited_by_null_target_ceiling() -> None:
+    """Target cost ceiling 为 null 时继承已启用的 owner ceiling。"""
 
     async with isolated_database("delegation_unbounded_cost") as dsn:
         run_migrations(dsn)
@@ -150,18 +161,18 @@ async def test_postgresql_finite_parent_cost_rejects_unbounded_target() -> None:
         try:
             parent_run_id = await _parent(storage, suffix="unbounded-cost")
             async with storage.uow() as uow:
-                with pytest.raises(DelegationBudgetExceeded) as captured:
-                    await uow.delegations.claim_and_reserve(
-                        _claim(
-                            parent_run_id,
-                            suffix="unbounded-cost",
-                            key="unbounded-cost-key",
-                            request_hash="a" * 64,
-                            reserved_tokens=10,
-                            parent_cost_limit=10.0,
-                            requested_cost_reservation=None,
-                        )
+                claimed = await uow.delegations.claim_and_reserve(
+                    _claim(
+                        parent_run_id,
+                        suffix="unbounded-cost",
+                        key="unbounded-cost-key",
+                        request_hash="a" * 64,
+                        reserved_tokens=10,
+                        parent_cost_limit=10.0,
+                        requested_cost_reservation=None,
                     )
+                )
+                await uow.commit()
             async with storage.uow() as uow:
                 rows = await uow.delegations.list_for_parent(
                     tenant_id="tenant-unbounded-cost",
@@ -169,13 +180,20 @@ async def test_postgresql_finite_parent_cost_rejects_unbounded_target() -> None:
                 )
                 pending = await uow.evidence_outbox.pending(run_id=parent_run_id)
                 capacity = await uow.event_capacity.snapshot(parent_run_id)
+                ledger = await uow.shared_budget.get_ledger(
+                    "tenant-unbounded-cost",
+                    parent_run_id,
+                )
         finally:
             await storage.dispose()
 
-    assert captured.value.code == "delegation.budget_exceeded"
-    assert rows == []
-    assert pending == []
-    assert capacity.outstanding_reserved_event_count == 0
+    assert len(rows) == 1
+    assert rows[0].id == claimed.delegation.id
+    assert claimed.reservation.reserved_cost_usd == 10.0
+    assert len(pending) == 3
+    assert capacity.outstanding_reserved_event_count == 3
+    assert ledger is not None
+    assert ledger.cost_impact == 10
 
 
 @pytest.mark.asyncio

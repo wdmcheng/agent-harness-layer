@@ -219,6 +219,7 @@ async def test_model_fallback_calls_only_selected_model_and_records_actual_route
                     default_model="fake-large",
                     fallback_models=["fake-small"],
                     max_tokens_per_call=1,
+                    route_max_tokens_per_call={"fake-small": 9},
                 ),
                 providers={"fake": provider},
             ),

@@ -200,6 +200,16 @@ def first_stream_message(env: dict[str, str], stream: str) -> tuple[str, dict[st
     return message_id, cast(dict[str, Any], json.loads(payload))
 
 
+def latest_stream_message(env: dict[str, str], stream: str) -> tuple[str, dict[str, Any]]:
+    """返回本轮最新入队消息，避免前置 crash-window evidence 干扰后续 reclaim。"""
+
+    rows = cast(list[list[object]], redis_json(env, "XREVRANGE", stream, "+", "-", "COUNT", "1"))
+    message_id = cast(str, rows[0][0])
+    fields = cast(list[str], rows[0][1])
+    payload = fields[fields.index("payload") + 1]
+    return message_id, cast(dict[str, Any], json.loads(payload))
+
+
 def cleanup_credential(env: dict[str, str], token: str, *, check: bool = True) -> bool:
     """通过容器内公开 repository seam 删除本轮临时 credential。"""
 
@@ -244,9 +254,12 @@ def postgres_terminal_evidence(
 ) -> dict[str, object]:
     """核对 model usage、容量结算、执行上下文与唯一终态事件。"""
 
-    terminals = [event for event in completed["events"] if event["terminal"]]
-    started = [event for event in completed["events"] if event["type"] == "model.request.started"]
-    usages = [event for event in completed["events"] if event["type"] == "model.usage.updated"]
+    events = cast(list[dict[str, Any]], completed["events"])
+    outbox_rows = cast(list[dict[str, Any]], completed["outbox"])
+    capacity = cast(dict[str, Any], completed["capacity"])
+    terminals = [event for event in events if event["terminal"]]
+    started = [event for event in events if event["type"] == "model.request.started"]
+    usages = [event for event in events if event["type"] == "model.usage.updated"]
     terminal = terminals[0] if len(terminals) == 1 else None
     model_started = started[0] if len(started) == 1 else None
     usage = usages[0] if len(usages) == 1 else None
@@ -262,10 +275,33 @@ def postgres_terminal_evidence(
     )
     usage_outbox = [
         item
-        for item in completed["outbox"]
+        for item in outbox_rows
         if item["operation_kind"] == "model_usage" and item["usage_call_id"] == usage_call_id
     ]
-    capacity = completed["capacity"]
+    raw_shared_budget = completed.get("shared_budget")
+    shared_budget = (
+        cast(dict[str, Any], raw_shared_budget) if isinstance(raw_shared_budget, dict) else None
+    )
+    raw_usage_payload = None if usage is None else usage.get("payload", {}).get("usage", {})
+    usage_payload = (
+        cast(dict[str, Any], raw_usage_payload) if isinstance(raw_usage_payload, dict) else None
+    )
+    actual_tokens = (
+        None
+        if usage_payload is None
+        or not isinstance(usage_payload.get("input_tokens"), int)
+        or not isinstance(usage_payload.get("output_tokens"), int)
+        else usage_payload["input_tokens"] + usage_payload["output_tokens"]
+    )
+    budget_claims = (
+        []
+        if shared_budget is None
+        else [
+            item
+            for item in cast(list[dict[str, Any]], shared_budget.get("claims", []))
+            if item.get("operation_kind") == "direct" and item.get("usage_call_id") == usage_call_id
+        ]
+    )
     checks = {
         "terminal_count": terminal is not None,
         "model_started_count": model_started is not None,
@@ -289,6 +325,18 @@ def postgres_terminal_evidence(
             and capacity["highest_persisted_seq"] == terminal["seq"]
             and capacity["outstanding_reserved_event_count"] == 0
             and capacity["terminal_reservation"] == 0
+        ),
+        "shared_budget": (
+            shared_budget is not None
+            and shared_budget.get("owner_run_id") == completed.get("run_id")
+            and shared_budget.get("state") == "terminal"
+            and shared_budget.get("cost_enabled") is False
+            and shared_budget.get("cost_impact") in {"0", "0E-8", "0.00000000"}
+            and shared_budget.get("token_impact") == actual_tokens
+            and len(budget_claims) == 1
+            and budget_claims[0].get("state") == "settled"
+            and budget_claims[0].get("side_effect_state") == "result_committed"
+            and budget_claims[0].get("token_impact") == actual_tokens
         ),
         "workflow": completed["workflow_id"] == workflow_id,
         "correlation": not any(completed.get(key) != value for key, value in expected.items()),
@@ -324,6 +372,7 @@ def postgres_terminal_evidence(
             "outbox_state": usage_outbox[0]["state"],
             "capacity": capacity,
         },
+        "shared_budget": shared_budget,
     }
 
 

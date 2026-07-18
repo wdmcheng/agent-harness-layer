@@ -18,6 +18,7 @@ SECRET_KEY_MARKERS = (
 NON_SECRET_TOKEN_KEYS = {
     "estimated_tokens",
     "input_tokens",
+    "max_tokens",
     "max_tokens_per_run",
     "original_tokens",
     "output_tokens",
@@ -25,6 +26,7 @@ NON_SECRET_TOKEN_KEYS = {
     "token_budget",
     "token_count",
     "token_estimate",
+    "token_usage",
     "tokens",
     "total_tokens",
     "used_tokens",

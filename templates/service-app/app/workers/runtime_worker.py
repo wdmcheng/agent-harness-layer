@@ -30,6 +30,9 @@ from app.workers.runtime_worker_smoke import (
     crash_before_queue_ack as _crash_before_queue_ack,
 )
 from app.workers.runtime_worker_smoke import (
+    install_shared_budget_failpoint as _install_shared_budget_failpoint,
+)
+from app.workers.runtime_worker_smoke import (
     ready_file as _ready_file,
 )
 from app.workers.runtime_worker_smoke import (
@@ -132,6 +135,29 @@ async def _prepare_approval_owner(
         await uow.commit()
 
 
+async def _shared_budget_requires_manual_review(
+    components: RuntimeComponents,
+    message: RunQueueMessage,
+) -> bool:
+    """started-unknown 已 durable 封锁后消费 queue，但不伪造 terminal 结果。"""
+
+    if message.kind != "execute_run":
+        return False
+    storage = getattr(components, "storage", None)
+    if storage is None:
+        return False
+    async with storage.uow() as uow:
+        ownership = await uow.shared_budget.resolve_operation_ownership(
+            tenant_id=message.tenant_id,
+            run_id=message.run_id,
+        )
+        ledger = await uow.shared_budget.get_ledger(
+            message.tenant_id,
+            ownership.budget_owner_run_id,
+        )
+    return ledger is not None and ledger.state == "needs_review"
+
+
 async def consume_one(
     components: RuntimeComponents,
     dbos: DBOSServiceRuntimeAdapter,
@@ -155,6 +181,12 @@ async def consume_one(
             message=message,
             message_id=delivery.receipt.message_id,
         )
+        if await _shared_budget_requires_manual_review(components, message):
+            # provider 已 started 而 result 未知时，recovery 已把 ledger/claim
+            # 提升为 needs_review。该 queue delivery 不再有自动执行价值；确认它
+            # 可避免无限 reclaim，同时 run 保持非 terminal 等待人工处置。
+            await components.queue.ack(delivery.receipt)
+            return message.run_id
     if message.kind == "resume_approval":
         await _prepare_approval_owner(
             components,
@@ -231,6 +263,7 @@ async def _run_worker(
         artifact_root=artifact_root,
         workspace_root=workspace_root,
     )
+    _install_shared_budget_failpoint(components)
     if components.queue is None:
         try:
             if not once:
@@ -261,7 +294,12 @@ async def _run_worker(
             )
             await components.delegation_service.reconcile_child_if_delegated(operation.run_id)
         except Exception as exc:
-            _write_recovery_marker(operation, "error", type(exc).__name__)
+            error_label = type(exc).__name__
+            if str(exc).endswith(" occurred before pending evidence settled"):
+                # 该消息只含异常类型，由 runtime terminal fence 显式构造；其他
+                # executor 异常仍只记录类型，避免把输入或 provider 内容写入 marker。
+                error_label = str(exc)
+            _write_recovery_marker(operation, "error", error_label)
             raise
         _write_recovery_marker(operation, "completed")
         return result.to_payload()

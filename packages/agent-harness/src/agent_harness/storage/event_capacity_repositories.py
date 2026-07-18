@@ -12,7 +12,7 @@ from sqlalchemy import select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agent_harness.storage.models import RunEventCapacityModel
+from agent_harness.storage.models import AgentRunModel, RunEventCapacityModel
 
 MAX_EVENT_SEQ = 2_147_483_647
 EVIDENCE_OPERATION_REGISTRY_VERSION = "1"
@@ -86,6 +86,12 @@ class EventCapacityExceeded(RuntimeError):
     code = "event.sequence_exhausted"
 
 
+class EventSequenceStateInvalid(RuntimeError):
+    """event high-water、terminal 槽位或 owner 形状已损坏。"""
+
+    code = "event.sequence_state_invalid"
+
+
 @dataclass(frozen=True)
 class EventCapacitySnapshot:
     run_id: str
@@ -127,6 +133,33 @@ class EventCapacityRepository:
             outstanding_reserved_event_count=model.outstanding_reserved_event_count,
             terminal_reservation=model.terminal_reservation,
         )
+
+    async def assert_sequence_state_valid(self, *, tenant_id: str, run_id: str) -> None:
+        """只校验 durable sequence 形状，不消耗容量也不判断 exhaustion。"""
+
+        run = await self._session.scalar(
+            select(AgentRunModel).where(AgentRunModel.id == run_id).with_for_update()
+        )
+        capacity = await self._session.scalar(
+            select(RunEventCapacityModel)
+            .where(RunEventCapacityModel.run_id == run_id)
+            .with_for_update()
+        )
+        if (
+            run is None
+            or capacity is None
+            or run.tenant_id != tenant_id
+            or capacity.tenant_id != tenant_id
+            or run.status in {"completed", "failed", "cancelled"}
+            or capacity.highest_persisted_seq < 0
+            or capacity.outstanding_reserved_event_count < 0
+            or capacity.terminal_reservation != 1
+            or capacity.highest_persisted_seq
+            + capacity.outstanding_reserved_event_count
+            + capacity.terminal_reservation
+            > MAX_EVENT_SEQ
+        ):
+            raise EventSequenceStateInvalid
 
     async def exists(self, run_id: str) -> bool:
         """区分 application run stream 与没有容量账本的 non-run telemetry。"""
@@ -284,6 +317,7 @@ class EventCapacityRepository:
 __all__ = [
     "EVIDENCE_OPERATION_REGISTRY_VERSION",
     "EventCapacityExceeded",
+    "EventSequenceStateInvalid",
     "EventCapacityRepository",
     "EventCapacitySnapshot",
     "EvidenceOperationKind",

@@ -7,12 +7,24 @@ import asyncio
 import json
 import os
 
+from service_admin_budget_race import assert_budget_race
+from service_admin_budget_topology import assert_budget_topology
+from sqlalchemy import select
+
 from agent_harness.adapters.queue import RedisRunQueue
 from agent_harness.auth import hash_token
 from agent_harness.config import load_settings
 from agent_harness.events import PostgreSQLEventSink
 from agent_harness.runtime import QueueReceipt, StaleQueueReceiptError
-from agent_harness.storage import ApiKeyCreate, SQLAlchemyStorage, storage_dsn_from_settings
+from agent_harness.storage import (
+    ApiKeyCreate,
+    SQLAlchemyStorage,
+    storage_dsn_from_settings,
+)
+from agent_harness.storage.shared_budget_models import (
+    BudgetOperationClaimModel,
+    DelegationBudgetAllocationModel,
+)
 
 
 def storage_dsn() -> str:
@@ -80,6 +92,58 @@ async def inspect_run(run_id: str) -> dict[str, object]:
             checkpoint = await uow.checkpoints.get_latest(run_id)
             capacity = await uow.event_capacity.snapshot(run_id)
             outbox = await uow.evidence_outbox.list_for_run(run_id=run_id)
+            ledger = (
+                None if run is None else await uow.shared_budget.get_ledger(run.tenant_id, run.id)
+            )
+            claims = (
+                []
+                if run is None
+                else list(
+                    await uow.session.scalars(
+                        select(BudgetOperationClaimModel).where(
+                            BudgetOperationClaimModel.tenant_id == run.tenant_id,
+                            BudgetOperationClaimModel.budget_owner_run_id == run.id,
+                        )
+                    )
+                )
+            )
+            allocations = (
+                []
+                if run is None
+                else list(
+                    await uow.session.scalars(
+                        select(DelegationBudgetAllocationModel).where(
+                            DelegationBudgetAllocationModel.tenant_id == run.tenant_id,
+                            DelegationBudgetAllocationModel.budget_owner_run_id == run.id,
+                        )
+                    )
+                )
+            )
+            # ORM rows 必须在 UoW 内投影为普通值；inspect 输出不能依赖关闭后的
+            # AsyncSession，也不能因证据读取本身触发 lazy refresh。
+            claim_evidence = [
+                {
+                    "operation_kind": item.operation_kind,
+                    "usage_call_id": item.usage_call_id,
+                    "delegation_id": item.delegation_id,
+                    "state": item.state,
+                    "side_effect_state": item.side_effect_state,
+                    "token_impact": item.token_impact,
+                    "cost_impact": str(item.cost_impact),
+                }
+                for item in claims
+            ]
+            allocation_evidence = [
+                {
+                    "delegation_id": item.delegation_id,
+                    "usage_call_id": item.usage_call_id,
+                    "state": item.state,
+                    "side_effect_state": item.side_effect_state,
+                    "token_impact": item.token_impact,
+                    "cost_impact": str(item.cost_impact),
+                }
+                for item in allocations
+            ]
             outbox_evidence = [
                 {
                     "event_id": item.event_id,
@@ -127,6 +191,20 @@ async def inspect_run(run_id: str) -> dict[str, object]:
             "idempotency_key": (None if private is None else private.effective_idempotency_key),
             "message_id": None if private is None else private.message_id,
             "checkpoint_id": None if checkpoint is None else checkpoint.id,
+            "shared_budget": (
+                None
+                if ledger is None
+                else {
+                    "owner_run_id": ledger.budget_owner_run_id,
+                    "token_limit": ledger.token_limit,
+                    "cost_enabled": ledger.cost_limit is not None,
+                    "token_impact": ledger.token_impact,
+                    "cost_impact": str(ledger.cost_impact),
+                    "state": ledger.state,
+                    "claims": claim_evidence,
+                    "allocations": allocation_evidence,
+                }
+            ),
             "capacity": {
                 "highest_persisted_seq": capacity.highest_persisted_seq,
                 "outstanding_reserved_event_count": capacity.outstanding_reserved_event_count,
@@ -185,6 +263,8 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("bootstrap")
     subparsers.add_parser("cleanup-credential")
+    subparsers.add_parser("assert-budget-race")
+    subparsers.add_parser("assert-budget-topology")
     inspect_parser = subparsers.add_parser("inspect-run")
     inspect_parser.add_argument("run_id")
     stale_parser = subparsers.add_parser("assert-stale-receipt")
@@ -203,6 +283,10 @@ def main() -> int:
             payload = asyncio.run(bootstrap())
         elif args.command == "cleanup-credential":
             payload = asyncio.run(cleanup_credential())
+        elif args.command == "assert-budget-race":
+            payload = asyncio.run(assert_budget_race())
+        elif args.command == "assert-budget-topology":
+            payload = asyncio.run(assert_budget_topology())
         elif args.command == "assert-stale-receipt":
             payload = asyncio.run(
                 assert_stale_receipt(

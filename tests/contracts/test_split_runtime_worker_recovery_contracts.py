@@ -156,6 +156,58 @@ async def test_worker_acks_dbos_deterministic_failure_only_after_run_terminal() 
     assert await queue.pickup(consumer_id="worker-after-ack") is None
 
 
+@pytest.mark.asyncio
+async def test_worker_acks_started_unknown_without_replaying_dbos(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """shared ledger 已 needs_review 时确认 delivery，保留 run 非 terminal。"""
+
+    calls: list[str] = []
+
+    class Orchestrator:
+        async def reconcile_queued_run(self, **_kwargs: object) -> None:
+            calls.append("reconciled")
+
+    class DBOS:
+        async def execute(self, _operation: object) -> DBOSOperationOutcome:
+            calls.append("dbos")
+            return DBOSOperationOutcome(status="succeeded", result={"status": "completed"})
+
+    async def requires_review(_components: object, _message: object) -> bool:
+        return True
+
+    monkeypatch.setattr(
+        runtime_worker,
+        "_shared_budget_requires_manual_review",
+        requires_review,
+    )
+    queue = InMemoryRunQueue()
+    await queue.enqueue(
+        build_execute_message(
+            request_id="request-needs-review",
+            tenant_id="tenant-a",
+            run_id="run-needs-review",
+            idempotency_key="key-needs-review",
+        )
+    )
+    components = SimpleNamespace(
+        queue=queue,
+        orchestrator=Orchestrator(),
+        approval_service=None,
+        delegation_service=None,
+    )
+
+    consumed = await consume_one(
+        cast(Any, components),
+        cast(Any, DBOS()),
+        consumer_id="worker-needs-review",
+    )
+
+    assert consumed == "run-needs-review"
+    assert calls == ["reconciled"]
+    assert await queue.pickup(consumer_id="worker-after-review-ack") is None
+
+
 @pytest.mark.parametrize("mode", ["before", "after"])
 @pytest.mark.parametrize("fails", [False, True])
 @pytest.mark.asyncio

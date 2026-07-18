@@ -161,7 +161,10 @@ def test_postgres_terminal_evidence_correlates_applicable_fields() -> None:
                 "visibility": "internal",
                 "request_id": "request-1",
                 "trace_id": "trace-1",
-                "payload": {"correlation": {"usage_call_id": "usage-1"}},
+                "payload": {
+                    "correlation": {"usage_call_id": "usage-1"},
+                    "usage": {"input_tokens": 10, "output_tokens": 5},
+                },
             },
             {
                 "event_id": "event-1",
@@ -186,6 +189,24 @@ def test_postgres_terminal_evidence_correlates_applicable_fields() -> None:
             "highest_persisted_seq": 3,
             "outstanding_reserved_event_count": 0,
             "terminal_reservation": 0,
+        },
+        "shared_budget": {
+            "owner_run_id": "run-1",
+            "token_limit": 100,
+            "cost_enabled": False,
+            "token_impact": 15,
+            "cost_impact": "0E-8",
+            "state": "terminal",
+            "claims": [
+                {
+                    "operation_kind": "direct",
+                    "usage_call_id": "usage-1",
+                    "state": "settled",
+                    "side_effect_state": "result_committed",
+                    "token_impact": 15,
+                }
+            ],
+            "allocations": [],
         },
     }
 

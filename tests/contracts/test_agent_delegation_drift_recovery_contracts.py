@@ -48,6 +48,8 @@ from tests.contracts.test_agent_delegation_service_contracts import (
     update as update,
 )
 
+from agent_harness.storage.shared_budget_models import BudgetOperationClaimModel
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -273,6 +275,67 @@ async def test_recovery_entrypoint_finishes_committed_claim_without_parent_reexe
         "delegation.claimed",
         "delegation.child.created",
     ]
+
+
+@pytest.mark.asyncio
+async def test_recovery_never_relaunches_started_unknown_delegation(tmp_path: Path) -> None:
+    """顶层 claim 已 started 且无 child 时只能 needs_review，禁止重放 launcher。"""
+
+    storage, service, runtime, parent_run_id, sink = await _build_service(tmp_path)
+    request = _request(parent_run_id)
+    identity = _identity()
+    try:
+        async with storage.uow() as uow:
+            claimed = await uow.delegations.claim_and_reserve(
+                DelegationClaimCreate(
+                    tenant_id="tenant-a",
+                    parent_run_id=parent_run_id,
+                    source_agent_id="agent-source",
+                    target_agent_id="agent-target",
+                    idempotency_key=request.idempotency_key,
+                    request_hash=delegation_request_hash(request, identity=identity),
+                    budget_intent="inherit_parent",
+                    child_input=request.child_input,
+                    identity=identity.to_payload(),
+                    trace_id="trace-parent",
+                    request_id=request.request_id,
+                    parent_token_limit=100,
+                    requested_token_reservation=100,
+                    parent_cost_limit=10.0,
+                    requested_cost_reservation=10.0,
+                )
+            )
+            started = await uow.shared_budget.mark_delegation_started(
+                delegation_id=claimed.delegation.id
+            )
+            await uow.commit()
+        assert started is not None and started.replayed is False
+
+        with pytest.raises(DelegationError, match="^delegation.execution_failed$"):
+            await service.recover_pending_for_parent(parent_run_id=parent_run_id)
+
+        async with storage.uow() as uow:
+            ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
+            top_claim = await uow.session.scalar(
+                select(BudgetOperationClaimModel).where(
+                    BudgetOperationClaimModel.delegation_id == claimed.delegation.id
+                )
+            )
+            relation = await uow.delegations.get(claimed.delegation.id)
+            ledger_state = None if ledger is None else ledger.state
+            claim_state = None if top_claim is None else top_claim.state
+            side_effect_state = None if top_claim is None else top_claim.side_effect_state
+            child_run_id = None if relation is None else relation.child_run_id
+        events = await sink.read(run_id=parent_run_id)
+    finally:
+        await storage.dispose()
+
+    assert runtime.calls == 0
+    assert ledger_state == "needs_review"
+    assert claim_state == "needs_review"
+    assert side_effect_state == "started"
+    assert child_run_id is None
+    assert [event.event_type.value for event in events] == ["delegation.claimed"]
 
 
 @pytest.mark.asyncio

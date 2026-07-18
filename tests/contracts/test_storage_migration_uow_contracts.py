@@ -67,7 +67,7 @@ def assert_core_schema(db_path: Path) -> None:
             "harness_acceptance_records",
         } <= tables
         revision = connection.execute("select version_num from alembic_version").fetchone()
-        assert revision == ("0015_agent_delegation",)
+        assert revision == ("0016_shared_parent_budget_ledger",)
 
 
 def test_local_sqlite_migration_creates_core_schema(tmp_path: Path) -> None:
@@ -272,7 +272,7 @@ def test_doctor_cli_reports_local_storage_migration_and_eval_status(tmp_path: Pa
 
     assert result.returncode == 0, result.stderr
     assert "storage: sqlite" in result.stdout
-    assert "migration: 0015_agent_delegation" in result.stdout
+    assert "migration: 0016_shared_parent_budget_ledger" in result.stdout
     assert "redis: not required" in result.stdout
     assert "eval directory:" in result.stdout
 

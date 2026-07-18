@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -28,6 +29,17 @@ from agent_harness.storage.evidence_repositories import EvidenceOperationKind
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = ROOT / "templates" / "service-app"
+
+
+def _script_module(module_name: str, filename: str) -> Any:
+    """按脚本真实模块名加载拆分 seam，避免依赖调用进程的 ``sys.path``。"""
+
+    path = TEMPLATE / "scripts" / filename
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _smoke_support() -> Any:
@@ -78,6 +90,11 @@ def _smoke_service(monkeypatch: pytest.MonkeyPatch) -> Any:
     approval_module = importlib.util.module_from_spec(approval_spec)
     approval_spec.loader.exec_module(approval_module)
     monkeypatch.setitem(sys.modules, "service_approval_smoke", approval_module)
+    crash_module = _script_module(
+        "service_budget_crash_smoke",
+        "service_budget_crash_smoke.py",
+    )
+    monkeypatch.setitem(sys.modules, "service_budget_crash_smoke", crash_module)
     path = TEMPLATE / "scripts" / "smoke_service.py"
     spec = importlib.util.spec_from_file_location("service_smoke_contract", path)
     assert spec is not None and spec.loader is not None
@@ -87,11 +104,26 @@ def _smoke_service(monkeypatch: pytest.MonkeyPatch) -> Any:
 
 
 def _service_admin() -> Any:
+    race_module = _script_module(
+        "service_admin_budget_race",
+        "service_admin_budget_race.py",
+    )
+    topology_module = _script_module(
+        "service_admin_budget_topology",
+        "service_admin_budget_topology.py",
+    )
     path = TEMPLATE / "scripts" / "service_admin.py"
     spec = importlib.util.spec_from_file_location("service_admin_contract", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    with patch.dict(
+        sys.modules,
+        {
+            "service_admin_budget_race": race_module,
+            "service_admin_budget_topology": topology_module,
+        },
+    ):
+        spec.loader.exec_module(module)
     return module
 
 

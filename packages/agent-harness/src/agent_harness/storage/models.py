@@ -39,4 +39,13 @@ from agent_harness.storage.eval_models import EvalCaseModel as EvalCaseModel
 from agent_harness.storage.eval_models import EvalRunModel as EvalRunModel
 from agent_harness.storage.eval_models import EvalScoreModel as EvalScoreModel
 from agent_harness.storage.evidence_models import RunEvidenceOutboxModel as RunEvidenceOutboxModel
+from agent_harness.storage.shared_budget_models import (
+    BudgetOperationClaimModel as BudgetOperationClaimModel,
+)
+from agent_harness.storage.shared_budget_models import (
+    DelegationBudgetAllocationModel as DelegationBudgetAllocationModel,
+)
+from agent_harness.storage.shared_budget_models import (
+    ParentBudgetLedgerModel as ParentBudgetLedgerModel,
+)
 # isort: on

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -55,6 +56,7 @@ class RuntimeComponents:
     experiment_service: ExperimentService
     acceptance_service: AcceptanceService
     delegation_service: DelegationService
+    executor_services: Mapping[str, object]
     queue: RunQueue | None = None
 
     async def close(self) -> None:
@@ -176,6 +178,7 @@ def build_runtime_components(
         artifact_store=artifact_store,
         service_root=service_root,
         workspace_root=workspace_root,
+        registry=registry,
     )
     orchestrator = RunOrchestrator(
         storage=storage,
@@ -239,5 +242,6 @@ def build_runtime_components(
         experiment_service=experiment_service,
         acceptance_service=acceptance_service,
         delegation_service=delegation_service,
+        executor_services=executor_services,
         queue=queue,
     )

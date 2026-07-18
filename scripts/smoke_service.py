@@ -81,8 +81,8 @@ def main() -> int:
             _run_copied_smoke(command, copied, wheel_target)
         except subprocess.CalledProcessError:
             return 1
-        if list(copied.rglob("storage-dsn.secret")):
-            raise RuntimeError("service smoke did not clean the temporary storage secret")
+        if list(copied.rglob("*.secret")):
+            raise RuntimeError("service smoke did not clean temporary secret files")
     print("smoke-service-root: workspace-outside=ok wheel-only=ok secret-cleanup=ok")
     return 0
 

@@ -185,15 +185,16 @@ async def test_pending_usage_row_blocks_delegation_settlement(
 
 
 @pytest.mark.asyncio
-async def test_durable_parent_summary_keeps_incomplete_over_exceeded_child(
+async def test_exceeded_child_fences_new_delegation_from_shared_tree(
     tmp_path: Path,
 ) -> None:
     storage, service, runtime, parent_run_id, _sink = await _build_service(
         tmp_path,
         mode="service",
         trustworthy_usage=True,
-        target_token_limit=4,
+        target_token_limit=13,
         target_cost_limit=4.0,
+        usage_output_tokens=20,
     )
     try:
         exceeded_child = await service.delegate(
@@ -202,11 +203,11 @@ async def test_durable_parent_summary_keeps_incomplete_over_exceeded_child(
         )
         exceeded_result = await service.reconcile_child(exceeded_child.child_run_id)
         runtime.usage_service = None
-        incomplete_child = await service.delegate(
-            _request(parent_run_id, idempotency_key="delegation-incomplete"),
-            identity=_identity(),
-        )
-        incomplete_result = await service.reconcile_child(incomplete_child.child_run_id)
+        with pytest.raises(DelegationError) as rejected:
+            await service.delegate(
+                _request(parent_run_id, idempotency_key="delegation-incomplete"),
+                identity=_identity(),
+            )
         parent_summary = await service.get_parent_summary(
             tenant_id="tenant-a",
             parent_run_id=parent_run_id,
@@ -214,17 +215,16 @@ async def test_durable_parent_summary_keeps_incomplete_over_exceeded_child(
     finally:
         await storage.dispose()
 
-    assert runtime.calls == 2
+    assert runtime.calls == 1
+    assert rejected.value.code == "delegation.budget_exceeded"
     assert exceeded_result.summary is not None
     assert exceeded_result.summary.budget_status == "exceeded"
-    assert incomplete_result.summary is not None
-    assert incomplete_result.summary.budget_status == "incomplete"
     assert parent_summary is not None
     assert parent_summary.input_tokens == 3
-    assert parent_summary.output_tokens == 2
-    assert parent_summary.cost_usd is None
-    assert parent_summary.latency_ms is None
-    assert parent_summary.budget_status == "incomplete"
+    assert parent_summary.output_tokens == 20
+    assert parent_summary.cost_usd == 0.25
+    assert parent_summary.latency_ms == 7
+    assert parent_summary.budget_status == "exceeded"
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from time import perf_counter
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from pydantic import field_validator
 
@@ -84,6 +84,15 @@ class EmbeddingProvider(Protocol):
         ...
 
 
+@runtime_checkable
+class PreflightEmbeddingCacheProvider(EmbeddingProvider, Protocol):
+    """允许 tenant-fenced 纯读 cache lookup 位于 shared reservation 之前。"""
+
+    async def lookup_cache(self, request: EmbeddingRequest) -> EmbeddingResponse | None: ...
+
+    async def embed_cache_miss(self, request: EmbeddingRequest) -> EmbeddingResponse: ...
+
+
 class LocalEmbeddingProvider:
     """确定性 local embedding provider，用于测试和 CI。"""
 
@@ -99,6 +108,12 @@ class LocalEmbeddingProvider:
         self._cache = cache
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+        cached = await self.lookup_cache(request)
+        return cached if cached is not None else await self.embed_cache_miss(request)
+
+    async def lookup_cache(self, request: EmbeddingRequest) -> EmbeddingResponse | None:
+        """只读 tenant/provider/model/input hash，命中时不产生 provider 副作用。"""
+
         input_hash = hashlib.sha256(request.input.encode("utf-8")).hexdigest()
         started = perf_counter()
         cached = await self._cache.get(
@@ -121,6 +136,12 @@ class LocalEmbeddingProvider:
                 ),
                 latency_ms=int((perf_counter() - started) * 1000),
             )
+        return None
+
+    async def embed_cache_miss(self, request: EmbeddingRequest) -> EmbeddingResponse:
+        """调用方已完成 shared reservation 后才允许进入的 miss 写路径。"""
+
+        input_hash = hashlib.sha256(request.input.encode("utf-8")).hexdigest()
         started = perf_counter()
         vector = _deterministic_vector(input_hash)
         latency_ms = int((perf_counter() - started) * 1000)
@@ -156,3 +177,13 @@ def _deterministic_vector(input_hash: str) -> list[float]:
     """从 input hash 派生短向量，保证测试和 smoke 不依赖真实 provider。"""
 
     return [int(input_hash[index : index + 2], 16) / 255 for index in range(0, 8, 2)]
+
+
+__all__ = [
+    "EmbeddingCacheInfo",
+    "EmbeddingProvider",
+    "EmbeddingRequest",
+    "EmbeddingResponse",
+    "LocalEmbeddingProvider",
+    "PreflightEmbeddingCacheProvider",
+]

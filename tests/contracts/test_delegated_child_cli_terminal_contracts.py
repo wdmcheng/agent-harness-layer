@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import shutil
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, cast
 
 import pytest
 
@@ -66,6 +66,14 @@ async def _prepare_waiting_child(
                     session_id=session.id,
                     agent_id="examples.basic",
                     trace_id=f"trace-cli-{decision}",
+                )
+            )
+            budget_runtime = cast(Any, components.executor_services["shared_budget"])
+            await uow.shared_budget.create_ledger(
+                budget_runtime.ledger_create(
+                    tenant_id=actor.tenant_id,
+                    run_id=parent.id,
+                    agent_id="examples.basic",
                 )
             )
             await uow.commit()

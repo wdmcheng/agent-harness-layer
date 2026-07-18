@@ -171,6 +171,7 @@ def embedding_usage_evidence(
     cache_hit: bool,
     latency_ms: int,
     context: UsageEvidenceContext,
+    input_tokens: int | None = None,
 ) -> ModelUsageEvidence:
     """把 embedding provider/cache 结果映射到同一 usage DTO。"""
 
@@ -179,7 +180,7 @@ def embedding_usage_evidence(
         tenant_id=context.tenant_id,
         provider=provider,
         model=model,
-        input_tokens=None,
+        input_tokens=None if cache_hit else input_tokens,
         output_tokens=None,
         cost_usd=None,
         cost_status="unavailable",

@@ -250,7 +250,8 @@ def test_model_router_uses_fake_provider_and_reports_budget_fallback() -> None:
         config=ModelRouterConfig(
             default_model="fake-basic",
             fallback_models=["fake-small"],
-            max_tokens_per_call=5,
+            max_tokens_per_call=20,
+            route_max_tokens_per_call={"fake-small": 100},
         ),
         providers={"fake": FakeModelProvider()},
     )
@@ -278,8 +279,11 @@ def test_model_router_uses_fake_provider_and_reports_budget_fallback() -> None:
     assert response.output_text.startswith("fake:")
     assert over_budget.decision.action == "fallback"
     assert over_budget.decision.fallback_model == "fake-small"
-    assert over_budget.decision.estimated_tokens == 15
-    assert over_budget.decision.max_tokens == 5
+    assert (
+        over_budget.decision.estimated_tokens
+        == len(b"this prompt is intentionally over budget") + 5
+    )
+    assert over_budget.decision.max_tokens == 20
 
 
 def test_model_router_has_explicit_reload_seam() -> None:

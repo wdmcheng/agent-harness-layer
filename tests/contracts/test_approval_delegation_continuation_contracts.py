@@ -104,6 +104,13 @@ async def test_approval_waits_for_delegation_then_closes_ordered_evidence(
 
     executor = _ApprovalThenDelegationExecutor()
     original_resolve = AgentRegistry.resolve_executor
+    original_get = AgentRegistry.get
+
+    def get_with_frozen_target(self: AgentRegistry, agent_id: str):
+        descriptor = original_get(self, agent_id)
+        if agent_id == "examples.basic":
+            return descriptor.model_copy(update={"delegation_targets": ["examples.ticket_triage"]})
+        return descriptor
 
     def resolve_executor(self: AgentRegistry, agent_id: str):
         if agent_id == "examples.basic":
@@ -111,6 +118,9 @@ async def test_approval_waits_for_delegation_then_closes_ordered_evidence(
         return original_resolve(self, agent_id)
 
     monkeypatch.setattr(AgentRegistry, "resolve_executor", resolve_executor)
+    # Phase 13.8A 要求 target 在 root 创建时进入 immutable tree snapshot；
+    # 本合同原先绕过 registry service 直写 delegation，因此显式补齐该前置事实。
+    monkeypatch.setattr(AgentRegistry, "get", get_with_frozen_target)
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'approval-delegation.db'}"
     events_path = tmp_path / "approval-delegation-events.jsonl"
     run_migrations(dsn)
@@ -184,6 +194,18 @@ async def test_approval_waits_for_delegation_then_closes_ordered_evidence(
             async with components.storage.uow() as uow:
                 await uow.evidence_outbox.mark_event_published(event_id=event_id)
                 await uow.commit()
+
+        # 本夹具只建立 relation 并手工发布 evidence，从未启动 child/queue；0016
+        # terminal fence 要求先以这条 durable 证明释放 top-level reservation。
+        async with components.storage.uow() as uow:
+            delegation = (
+                await uow.delegations.list_for_parent(
+                    tenant_id=actor.tenant_id,
+                    parent_run_id=waiting.run_id,
+                )
+            )[0]
+            await uow.shared_budget.release_delegation(delegation_id=delegation.id)
+            await uow.commit()
 
         original_recover = components.approval_service.recover_claimed
         recovery_attempts = 0

@@ -78,6 +78,8 @@ async def persist_failed_execution(
             raise LookupError(f"run not found: {run_id}")
         if publish_terminal:
             await uow.event_capacity.assert_terminal_publishable(run_id=run_id)
+            if run.parent_run_id is None:
+                await uow.shared_budget.fence_terminal_if_managed(identity.tenant_id, run_id)
         elif await uow.evidence_outbox.has_pending_operation(
             run_id=run_id,
             operation_kind=EvidenceOperationKind.DELEGATION,

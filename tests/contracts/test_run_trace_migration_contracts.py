@@ -44,7 +44,7 @@ def test_0013_rebuilds_parseable_envelope_for_0011_canonical_event(
             (json.dumps({"input": "preserved"}),),
         )
 
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0015_agent_delegation")
 
     with sqlite3.connect(path) as connection:
         row = connection.execute(
@@ -158,7 +158,7 @@ def test_0013_backfills_complete_lineage_evidence_and_preserves_external_trace(
             (json.dumps({"run_id": "child-a"}),),
         )
 
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0015_agent_delegation")
 
     with sqlite3.connect(path) as connection:
         runs = connection.execute(
@@ -248,7 +248,7 @@ def test_0013_legacy_ordinary_telemetry_uses_nested_run_ownership(
             ),
         )
 
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0015_agent_delegation")
 
     with sqlite3.connect(path) as connection:
         row = connection.execute(
@@ -299,7 +299,7 @@ def test_0013_legacy_ordinary_telemetry_nested_run_is_validated_and_backfilled(
             (json.dumps(envelope["payload"]), json.dumps(envelope)),
         )
 
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0015_agent_delegation")
 
     with sqlite3.connect(path) as connection:
         row = connection.execute(

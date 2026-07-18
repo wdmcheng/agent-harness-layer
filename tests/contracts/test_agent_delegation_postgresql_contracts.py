@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from decimal import Decimal
 
 import pytest
 from alembic import command
@@ -22,6 +23,7 @@ from agent_harness.storage.delegation_repositories import (
     DelegationStorageConflict,
 )
 from agent_harness.storage.repositories import RunCreate, SessionCreate
+from agent_harness.storage.shared_budget import LedgerCreate
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("AGENT_HARNESS_TEST_POSTGRES_DSN"),
@@ -29,7 +31,17 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-async def _parent(storage: SQLAlchemyStorage, *, suffix: str) -> str:
+async def _parent(
+    storage: SQLAlchemyStorage,
+    *,
+    suffix: str,
+    token_limit: int = 100,
+    target_token_limit: int = 60,
+    cost_limit: Decimal | None = Decimal("10.00"),
+    target_cost_limit: Decimal | None = None,
+) -> str:
+    """创建带完整 0016 frozen tree snapshot 的真实 delegation root。"""
+
     async with storage.uow() as uow:
         await uow.tenants.ensure(f"tenant-{suffix}")
         session = await uow.sessions.create(
@@ -45,6 +57,75 @@ async def _parent(storage: SQLAlchemyStorage, *, suffix: str) -> str:
                 session_id=session.id,
                 agent_id="agent-source",
                 trace_id=f"trace-{suffix}",
+            )
+        )
+        await uow.shared_budget.create_ledger(
+            LedgerCreate(
+                tenant_id=f"tenant-{suffix}",
+                budget_owner_run_id=parent.id,
+                token_limit=token_limit,
+                cost_limit=cost_limit,
+                registry_version="registry-v1",
+                config_version="config-v1",
+                catalog_version="catalog-v1",
+                snapshot_id=f"snapshot:{parent.id}",
+                snapshot={
+                    "owner": {
+                        "agent_id": "agent-source",
+                        "root_run_id": parent.id,
+                        "delegation_targets": ["agent-target"],
+                        "max_tokens_per_run": token_limit,
+                        "max_cost_usd_per_run": (None if cost_limit is None else str(cost_limit)),
+                        "cost_enabled": cost_limit is not None,
+                    },
+                    "registry_version": "registry-v1",
+                    "config_version": "config-v1",
+                    "catalog_version": "catalog-v1",
+                    "agents": {
+                        agent_id: {
+                            "agent_id": agent_id,
+                            "descriptor_version": f"{agent_id}-v1",
+                            "model_policy": {
+                                "provider": "fake",
+                                "default_model": "fake-basic",
+                                "fallback_models": [],
+                            },
+                            "target_budget": {
+                                "max_tokens_per_run": (
+                                    token_limit
+                                    if agent_id == "agent-source"
+                                    else target_token_limit
+                                ),
+                                "max_cost_usd_per_run": (
+                                    None
+                                    if cost_limit is None
+                                    else (
+                                        str(cost_limit)
+                                        if agent_id == "agent-source"
+                                        else (
+                                            None
+                                            if target_cost_limit is None
+                                            else str(target_cost_limit)
+                                        )
+                                    )
+                                ),
+                            },
+                            "routes": [
+                                {
+                                    "usage_kind": "model",
+                                    "provider": "fake",
+                                    "model": "fake-basic",
+                                    "price_source_ref": "price:fake",
+                                    "price_source_version": "v1",
+                                    "input_token_price_usd": "0",
+                                    "output_token_price_usd": "0",
+                                    "soft_max_tokens_per_call": token_limit,
+                                }
+                            ],
+                        }
+                        for agent_id in ("agent-source", "agent-target")
+                    },
+                },
             )
         )
         await uow.commit()
@@ -88,6 +169,7 @@ __all__ = [
     "RunCreate",
     "SQLAlchemyStorage",
     "SessionCreate",
+    "Decimal",
     "_claim",
     "_parent",
     "asyncio",

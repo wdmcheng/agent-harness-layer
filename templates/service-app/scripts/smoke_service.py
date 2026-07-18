@@ -12,6 +12,7 @@ from typing import Any, cast
 from uuid import uuid4
 
 from service_approval_smoke import run_approval_smoke
+from service_budget_crash_smoke import shared_budget_crash_smoke as _shared_budget_crash_smoke
 from service_http_smoke import (
     request as _request,
 )
@@ -38,10 +39,11 @@ from service_smoke_support import (
     cleanup_credential_at_boundary,
     cleanup_project,
     compose,
+    compose_result,
     failure_diagnostic,
-    first_stream_message,
     free_port,
     last_json_line,
+    latest_stream_message,
     postgres_counts,
     postgres_terminal_evidence,
     preserve_postgres_volume,
@@ -60,8 +62,8 @@ def _stream_length(env: dict[str, str]) -> int:
     return stream_length(env, STREAM)
 
 
-def _first_message(env: dict[str, str]) -> tuple[str, dict[str, Any]]:
-    return first_stream_message(env, STREAM)
+def _latest_message(env: dict[str, str]) -> tuple[str, dict[str, Any]]:
+    return latest_stream_message(env, STREAM)
 
 
 def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, object]:
@@ -74,6 +76,46 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
     secret_failures = verify_secret_failure_cases(env)
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "migration"
     compose(env, "run", "--rm", "migration")
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "postgres-budget-race"
+    budget_race_result = compose_result(
+        env,
+        "run",
+        "--rm",
+        "migration",
+        "python",
+        "scripts/service_admin.py",
+        "assert-budget-race",
+    )
+    if budget_race_result.returncode != 0:
+        try:
+            diagnostic = last_json_line(budget_race_result.stdout)
+        except (RuntimeError, ValueError, json.JSONDecodeError):
+            diagnostic = {}
+        error_type = str(diagnostic.get("error_type") or "unknown")
+        error_code = str(diagnostic.get("error_code") or "none")
+        env["SERVICE_APP_SMOKE_BOUNDARY"] = f"postgres-budget-race-{error_type}-{error_code}"
+        raise RuntimeError("PostgreSQL budget race failed")
+    budget_race = last_json_line(budget_race_result.stdout)
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "postgres-budget-topology"
+    budget_topology_result = compose_result(
+        env,
+        "run",
+        "--rm",
+        "migration",
+        "python",
+        "scripts/service_admin.py",
+        "assert-budget-topology",
+    )
+    if budget_topology_result.returncode != 0:
+        try:
+            diagnostic = last_json_line(budget_topology_result.stdout)
+        except (RuntimeError, ValueError, json.JSONDecodeError):
+            diagnostic = {}
+        error_type = str(diagnostic.get("error_type") or "unknown")
+        error_code = str(diagnostic.get("error_code") or "none")
+        env["SERVICE_APP_SMOKE_BOUNDARY"] = f"postgres-budget-topology-{error_type}-{error_code}"
+        raise RuntimeError("PostgreSQL budget topology failed")
+    budget_topology = last_json_line(budget_topology_result.stdout)
 
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "credential-bootstrap"
     bootstrap_env = {**env, "SERVICE_APP_BOOTSTRAP_TOKEN": token}
@@ -118,6 +160,13 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
     if postgres_counts(env) != before_counts or _stream_length(env) != before_stream:
         raise RuntimeError("rejected credential created run, audit, or queue side effects")
 
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "shared-budget-crash-windows"
+    budget_crash_windows = _shared_budget_crash_smoke(
+        env,
+        base_url=base_url,
+        token=token,
+    )
+
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "pickup-reclaim"
     request_id = f"request-{uuid4()}"
     idempotency_key = f"smoke-{uuid4()}"
@@ -130,7 +179,7 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
         request_id=request_id,
     )
     run_id = cast(str, submitted["run_id"])
-    message_id, message = _first_message(env)
+    message_id, message = _latest_message(env)
     expected = {
         "request_id": request_id,
         "idempotency_key": idempotency_key,
@@ -250,7 +299,7 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
     approval_evidence = run_approval_smoke(env, base_url=base_url, token=token)
 
     evidence: dict[str, object] = {
-        "migration": "0015_agent_delegation",
+        "migration": "0016_shared_parent_budget_ledger",
         "secret_file": {
             "consumers": ["migration", "api", "worker"],
             "postgres_password_file": True,
@@ -273,6 +322,9 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
         },
         "run": {"run_id": run_id, "status": "completed", "terminal_count": 1},
         "postgresql": postgres_evidence,
+        "postgresql_budget_race": budget_race,
+        "postgresql_budget_topology": budget_topology,
+        "shared_budget_crash_windows": budget_crash_windows,
         **approval_evidence,
     }
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "secret-evidence-scan"
@@ -293,6 +345,7 @@ def main() -> int:
     database_password = secrets.token_urlsafe(24)
     secret_path = smoke_dir / "storage-dsn.secret"
     postgres_password_path = smoke_dir / "postgres-password.secret"
+    budget_fingerprint_path = smoke_dir / "budget-fingerprint.secret"
     token = secrets.token_urlsafe(32)
     tenant_id = f"smoke-{uuid4()}"
     env = {
@@ -302,6 +355,7 @@ def main() -> int:
         "SERVICE_APP_SMOKE_DIR": str(smoke_dir),
         "SERVICE_APP_STORAGE_DSN_FILE": str(secret_path),
         "SERVICE_APP_POSTGRES_PASSWORD_FILE": str(postgres_password_path),
+        "SERVICE_APP_BUDGET_FINGERPRINT_KEY_FILE": str(budget_fingerprint_path),
         "SERVICE_APP_BOOTSTRAP_TENANT": tenant_id,
         "SERVICE_APP_RECLAIM_IDLE_SECONDS": os.environ.get("SERVICE_APP_RECLAIM_IDLE_SECONDS", "1"),
         "SERVICE_APP_IMAGE": f"agent-harness-service-app:{project}",
@@ -325,6 +379,8 @@ def main() -> int:
         secret_path.chmod(0o600)
         postgres_password_path.write_text(database_password, encoding="utf-8")
         postgres_password_path.chmod(0o600)
+        budget_fingerprint_path.write_text(secrets.token_urlsafe(48), encoding="utf-8")
+        budget_fingerprint_path.chmod(0o600)
         if args.migrate_only:
             env["SERVICE_APP_SMOKE_BOUNDARY"] = "image-build"
             compose(env, "build", "migration")
@@ -335,7 +391,7 @@ def main() -> int:
             env["SERVICE_APP_SMOKE_BOUNDARY"] = "migration"
             compose(env, "run", "--rm", "migration")
             evidence: dict[str, object] = {
-                "migration": "0015_agent_delegation",
+                "migration": "0016_shared_parent_budget_ledger",
                 "secret_file": {
                     "consumers": ["migration"],
                     "postgres_password_file": True,
@@ -391,6 +447,7 @@ def main() -> int:
                 finally:
                     secret_path.unlink(missing_ok=True)
                     postgres_password_path.unlink(missing_ok=True)
+                    budget_fingerprint_path.unlink(missing_ok=True)
                     shutil.rmtree(smoke_dir, ignore_errors=True)
                     os.environ.pop("SERVICE_APP_SMOKE_DIR", None)
                     for wheel in (APP_ROOT / ".agent-harness").glob("agent_harness-*.whl"):

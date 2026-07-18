@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import traceback
+from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
 
@@ -14,6 +16,7 @@ from agent_harness.runtime.continuation import InvalidRunTransition, idempotency
 from agent_harness.runtime.evidence import publish_terminal_evidence
 from agent_harness.runtime.executor import AgentExecutionRequest, RunResult, build_execution_context
 from agent_harness.runtime.queue import RunQueueMessage, build_execute_message
+from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.runtime.state import TERMINAL_STATUSES, RunStatus
 from agent_harness.runtime.trace import (
     PreparedRunTrace,
@@ -120,6 +123,20 @@ class QueuedRunOrchestration(OrchestratorState):
                         effective_idempotency_key=idempotency_key_value,
                         caller_trace_id=caller_trace_id,
                     )
+                    if parent_run_id is None:
+                        budget_runtime = self._executor_services.get("shared_budget")
+                        if budget_runtime is not None:
+                            if not isinstance(budget_runtime, SharedBudgetRuntime):
+                                raise RuntimeError(
+                                    "shared_budget service has an invalid composition"
+                                )
+                            await uow.shared_budget.create_ledger(
+                                budget_runtime.ledger_create(
+                                    tenant_id=tenant.id,
+                                    run_id=run.id,
+                                    agent_id=agent_id,
+                                )
+                            )
                 private = await uow.runs.get_execution(run.id)
                 if private is None:
                     raise RuntimeError("idempotent run is not a service queued run")
@@ -342,17 +359,39 @@ class QueuedRunOrchestration(OrchestratorState):
         try:
             result = await self._executor_resolver(run.agent_id).run(request, context)
         except Exception as exc:  # noqa: BLE001 - deterministic executor failure closes the run
-            return await self._recover_delegation_after_wait(
-                await self._fail_execution(
-                    run_id,
-                    run.agent_id,
-                    str(redact_secrets(str(exc))),
-                    identity=execution_identity,
-                    request_id=request_id_value,
-                    trace_id=trace_id_value,
-                    input=run.input,
+            try:
+                return await self._recover_delegation_after_wait(
+                    await self._fail_execution(
+                        run_id,
+                        run.agent_id,
+                        str(redact_secrets(str(exc))),
+                        identity=execution_identity,
+                        request_id=request_id_value,
+                        trace_id=trace_id_value,
+                        input=run.input,
+                    )
                 )
-            )
+            except RuntimeError as terminal_error:
+                if str(terminal_error) == "pending evidence blocks terminal":
+                    # terminal fencing 不能吞掉导致 executor 提前退出的异常类型；
+                    # 只保留类型和代码帧，不复制可能含敏感输入的异常正文。
+                    frames = traceback.extract_tb(exc.__traceback__)
+                    frame = frames[-1] if frames else None
+                    location = (
+                        "unknown"
+                        if frame is None
+                        else f"{Path(frame.filename).name}:{frame.name}:{frame.lineno}"
+                    )
+                    safe_detail = ""
+                    if str(exc).startswith(
+                        "usage call is bound to another started identity fields="
+                    ):
+                        safe_detail = f":{str(exc).rsplit('fields=', 1)[1]}"
+                    raise RuntimeError(
+                        f"{type(exc).__name__}@{location}{safe_detail} "
+                        "occurred before pending evidence settled"
+                    ) from terminal_error
+                raise
         return await self._apply_execution_result(request, result, context=context)
 
     async def fail_queued_run(

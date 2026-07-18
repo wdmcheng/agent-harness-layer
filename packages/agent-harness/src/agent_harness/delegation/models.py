@@ -133,6 +133,7 @@ def aggregate_delegation_evidence(
     parent_run_id: str,
     children: list[DelegationChildEvidence],
     budget_exceeded: bool = False,
+    cost_enabled: bool = True,
 ) -> DelegationSummary:
     """只聚合已通过 DTO 校验的 durable evidence，不把 unknown 当作零。"""
 
@@ -145,8 +146,12 @@ def aggregate_delegation_evidence(
         and child.output_tokens_complete
         for child in children
     )
-    complete_cost = all(child.cost_status != "unavailable" for child in children)
-    cost_usd = sum(child.cost_usd or 0 for child in children) if complete_cost else None
+    complete_cost = not cost_enabled or all(
+        child.cost_status != "unavailable" for child in children
+    )
+    cost_usd = (
+        sum(child.cost_usd or 0 for child in children) if cost_enabled and complete_cost else None
+    )
     complete_latency = all(child.latency_ms is not None for child in children)
     latency_ms = sum(child.latency_ms or 0 for child in children) if complete_latency else None
     complete = complete_tokens and complete_cost and complete_latency

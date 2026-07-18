@@ -95,7 +95,7 @@ def test_0013_legacy_ordinary_telemetry_nested_run_fails_closed_before_mutation(
         before = tuple(connection.iterdump())
 
     with pytest.raises(RuntimeError, match="preflight failed"):
-        run_migrations(sqlite_dsn(path))
+        run_migrations(sqlite_dsn(path), "0015_agent_delegation")
 
     with sqlite3.connect(path) as connection:
         assert tuple(connection.iterdump()) == before
@@ -149,7 +149,7 @@ def test_0013_preflight_rejects_invalid_lineage_before_schema_mutation(
             )
 
     with pytest.raises(RuntimeError, match="preflight failed"):
-        run_migrations(sqlite_dsn(path))
+        run_migrations(sqlite_dsn(path), "0015_agent_delegation")
 
     with sqlite3.connect(path) as connection:
         revision = connection.execute("select version_num from alembic_version").fetchone()
@@ -184,7 +184,7 @@ def test_0013_preflight_rejects_invalid_run_relations_before_any_mutation(
         before = tuple(connection.iterdump())
 
     with pytest.raises(RuntimeError, match="preflight failed"):
-        run_migrations(sqlite_dsn(path))
+        run_migrations(sqlite_dsn(path), "0015_agent_delegation")
 
     with sqlite3.connect(path) as connection:
         after = tuple(connection.iterdump())
@@ -214,7 +214,7 @@ def test_0013_generated_trace_is_deterministic_and_db_constraints_reject_bypass(
         with sqlite3.connect(path) as connection:
             seed_identity(connection, "tenant-a")
             seed_run(connection, "same-root")
-        run_migrations(sqlite_dsn(path))
+        run_migrations(sqlite_dsn(path), "0015_agent_delegation")
         with sqlite3.connect(path) as connection:
             traces.append(connection.execute("select trace_id from agent_runs").fetchone()[0])
     assert traces[0] == traces[1]

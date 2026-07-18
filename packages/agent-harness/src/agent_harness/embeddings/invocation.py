@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from time import perf_counter
+from typing import Any, Protocol
 
-from agent_harness.embeddings.provider import EmbeddingProvider, EmbeddingRequest, EmbeddingResponse
+from agent_harness.embeddings._invocation_settlement import (
+    EmbeddingProviderInvocationError,
+    _EmbeddingSettlementMixin,
+)
+from agent_harness.embeddings.provider import (
+    EmbeddingProvider,
+    EmbeddingRequest,
+    EmbeddingResponse,
+    PreflightEmbeddingCacheProvider,
+)
 from agent_harness.events import EventBus
 from agent_harness.identity import IdentityContext
 from agent_harness.models.usage import (
@@ -17,16 +28,27 @@ from agent_harness.models.usage import (
 from agent_harness.models.usage_events import UsageEvidenceLifecycle
 from agent_harness.observability.facade import TelemetryFacade
 from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
+from agent_harness.storage.event_capacity_repositories import EventCapacityExceeded
 from agent_harness.storage.evidence_repositories import (
     EvidenceOperationKind,
-    UsageSettlementClaim,
+)
+from agent_harness.storage.shared_budget import (
+    BudgetReservationRejected,
+    OperationIdentity,
 )
 
 
-class EmbeddingProviderInvocationError(RuntimeError):
-    """embedding provider 原异常已封闭，避免 input/header/response 泄露。"""
+class _SharedBudgetIdentityRuntime(Protocol):
+    def operation_identity(self, **values: Any) -> OperationIdentity: ...
 
-    code = "embedding.provider_failed"
+    def embedding_price_config(
+        self,
+        *,
+        snapshot: dict[str, Any],
+        agent_id: str,
+        provider: str,
+        model: str,
+    ) -> tuple[Decimal | None, str, str]: ...
 
 
 class BoundEmbeddingInvocationService:
@@ -59,7 +81,7 @@ class BoundEmbeddingInvocationService:
         )
 
 
-class EmbeddingInvocationService:
+class EmbeddingInvocationService(_EmbeddingSettlementMixin):
     """在 cache/provider 副作用前预约，并用统一 model event type 结算。"""
 
     def __init__(
@@ -69,11 +91,19 @@ class EmbeddingInvocationService:
         storage: SQLAlchemyStorage,
         event_bus: EventBus,
         telemetry: TelemetryFacade | None = None,
+        shared_budget: _SharedBudgetIdentityRuntime | None = None,
+        input_token_price_usd: Decimal | None = None,
+        price_source_ref: str | None = None,
+        price_source_version: str | None = None,
     ) -> None:
         self._provider = provider
         self._storage = storage
         self._event_bus = event_bus
         self._telemetry = telemetry
+        self._shared_budget = shared_budget
+        self._input_token_price_usd = input_token_price_usd
+        self._price_source_ref = price_source_ref
+        self._price_source_version = price_source_version
 
     def bind_execution(
         self,
@@ -114,26 +144,58 @@ class EmbeddingInvocationService:
         selected_provider = self._provider.provider
         selected_model = self._provider.model
         await self._event_bus.reconcile_local_capacity(run_id=context.run_id)
-        started = self._evidence(
-            context=context,
-            provider=selected_provider,
-            model=selected_model,
-            cache_hit=False,
-            latency_ms=0,
-            decision={"cache_status": "lookup", "provider_called": False},
+        durable_started = await self._durable_started_evidence(
+            tenant_id=context.tenant_id,
+            usage_call_id=call_id,
         )
-        async with self._storage.uow() as uow:
-            claim = await uow.evidence_outbox.claim_usage(
-                tenant_id=context.tenant_id,
-                run_id=context.run_id,
-                usage_call_id=call_id,
-                event_id=self._final_event_id(context.tenant_id, call_id),
-                operation_kind=EvidenceOperationKind.EMBEDDING_USAGE,
-                started_evidence=started.to_payload(),
+        cached = None
+        if durable_started is None:
+            cached = (
+                await self._provider.lookup_cache(request)
+                if isinstance(self._provider, PreflightEmbeddingCacheProvider)
+                else None
             )
-            await uow.commit()
-        if not claim.created:
-            await self._resume_existing_settlement(claim=claim, usage_call_id=call_id)
+            started = self._evidence(
+                context=context,
+                provider=selected_provider,
+                model=selected_model,
+                cache_hit=cached is not None,
+                latency_ms=0 if cached is None else cached.latency_ms,
+                decision=(
+                    {"cache_status": "lookup", "provider_called": False}
+                    if cached is None
+                    else {"cache_status": "hit", "provider_called": False}
+                ),
+            )
+        else:
+            # durable replay 不能受首次执行后写入的 cache 影响；否则 miss 会漂移成
+            # hit，令同一 usage_call_id 的 started identity 无法恢复。
+            started = durable_started
+        try:
+            settlement = await self._start_settlement(
+                request=request,
+                context=context,
+                usage_call_id=call_id,
+                started=started,
+                cached=cached,
+                expect_replay=durable_started is not None,
+            )
+        except BudgetReservationRejected as exc:
+            try:
+                await self._record_budget_rejection(
+                    evidence=started,
+                    usage_call_id=call_id,
+                    reason=exc.reason,
+                )
+            except EventCapacityExceeded:
+                # 与 model seam 相同，hard budget code 不能被较低优先级容量错误覆盖。
+                pass
+            raise
+        if not settlement.usage.created and not settlement.safe_to_start:
+            return await self._resume_existing_settlement(
+                claim=settlement.usage,
+                usage_call_id=call_id,
+            )
         started_event = await UsageEvidenceLifecycle(
             event_bus=self._event_bus,
             evidence=started,
@@ -142,9 +204,28 @@ class EmbeddingInvocationService:
         if self._telemetry is not None:
             await self._telemetry.publish_event(started_event)
 
+        if cached is not None:
+            await self._publish_final(
+                evidence=started,
+                usage_call_id=call_id,
+                outcome="completed",
+                error_code=None,
+            )
+            return cached
+
+        await self._mark_side_effect_started(
+            context=context,
+            usage_call_id=call_id,
+            ownership=settlement.ownership,
+        )
+
         invoked_at = perf_counter()
         try:
-            provider_response = await self._provider.embed(request)
+            provider_response = (
+                await self._provider.embed_cache_miss(request)
+                if isinstance(self._provider, PreflightEmbeddingCacheProvider)
+                else await self._provider.embed(request)
+            )
             # adapter 可能错误地用 model_construct 绕过 DTO；副作用后必须重新校验。
             response = EmbeddingResponse.model_validate(provider_response.model_dump(mode="python"))
             if response.provider != selected_provider or response.model != selected_model:
@@ -155,6 +236,7 @@ class EmbeddingInvocationService:
                 cache_hit=response.cache.hit,
                 latency_ms=response.latency_ms,
                 context=context,
+                input_tokens=len(request.input.encode("utf-8")),
             )
         except Exception:
             failed = self._evidence(
@@ -170,6 +252,8 @@ class EmbeddingInvocationService:
                 usage_call_id=call_id,
                 outcome="failed",
                 error_code="embedding.provider_failed",
+                ownership=settlement.ownership,
+                response=None,
             )
             raise EmbeddingProviderInvocationError("embedding provider invocation failed") from None
 
@@ -178,109 +262,36 @@ class EmbeddingInvocationService:
             usage_call_id=call_id,
             outcome="completed",
             error_code=None,
+            ownership=settlement.ownership,
+            response=response,
         )
         return response
 
-    async def _resume_existing_settlement(
+    async def _durable_started_evidence(
         self,
         *,
-        claim: UsageSettlementClaim,
+        tenant_id: str,
         usage_call_id: str,
-    ) -> None:
-        """已有确定结果只补投 evidence；未知或已发布状态一律不重放 cache/provider。"""
-
-        if claim.state == "result_persisted" and claim.result_json is not None:
-            result = claim.result_json
-            await self._publish_final(
-                evidence=ModelUsageEvidence.model_validate(result["evidence"]),
-                usage_call_id=usage_call_id,
-                outcome=str(result["outcome"]),
-                error_code=claim.error_code,
-            )
-            raise UsageInvocationReplayError("published")
-        raise UsageInvocationReplayError(claim.state)
-
-    async def recover_pending(self, *, run_id: str) -> int:
-        """只补投已持久化 embedding 结果，不重新查询 cache/provider。"""
+    ) -> ModelUsageEvidence | None:
+        """读取首次 started identity；只返回稳定 DTO，不把 ORM 行带出 UoW。"""
 
         async with self._storage.uow() as uow:
-            pending = [
-                (
-                    item.state,
-                    item.operation_kind,
-                    item.result_json,
-                    item.usage_call_id,
-                    item.error_code,
+            try:
+                item = await uow.evidence_outbox.get_usage(
+                    tenant_id=tenant_id,
+                    usage_call_id=usage_call_id,
                 )
-                for item in await uow.evidence_outbox.pending(run_id=run_id)
-            ]
-        recovered = 0
-        for state, operation_kind, result, usage_call_id, error_code in pending:
-            if state != "result_persisted" or operation_kind != "embedding_usage" or result is None:
-                continue
-            await self._publish_final(
-                evidence=ModelUsageEvidence.model_validate(result["evidence"]),
-                usage_call_id=str(usage_call_id),
-                outcome=str(result["outcome"]),
-                error_code=error_code,
+            except LookupError:
+                return None
+            if item.operation_kind != EvidenceOperationKind.EMBEDDING_USAGE.value:
+                raise UsageInvocationReplayError(item.state)
+            started = (
+                item.result_json.get("started") if isinstance(item.result_json, dict) else None
             )
-            recovered += 1
-        return recovered
-
-    async def _finalize(
-        self,
-        *,
-        evidence: ModelUsageEvidence,
-        usage_call_id: str,
-        outcome: str,
-        error_code: str | None,
-    ) -> None:
-        async with self._storage.uow() as uow:
-            await uow.evidence_outbox.persist_result(
-                tenant_id=evidence.tenant_id,
-                usage_call_id=usage_call_id,
-                result={"evidence": evidence.to_payload(), "outcome": outcome},
-                error_code=error_code,
-            )
-            await uow.commit()
-        await self._publish_final(
-            evidence=evidence,
-            usage_call_id=usage_call_id,
-            outcome=outcome,
-            error_code=error_code,
-        )
-
-    async def _publish_final(
-        self,
-        *,
-        evidence: ModelUsageEvidence,
-        usage_call_id: str,
-        outcome: str,
-        error_code: str | None,
-    ) -> None:
-        final = await UsageEvidenceLifecycle(
-            event_bus=self._event_bus,
-            evidence=evidence,
-            usage_call_id=usage_call_id,
-        ).publish_final(outcome=outcome, error_code=error_code)
-        if self._telemetry is not None:
-            await self._telemetry.publish_event(final)
-        async with self._storage.uow() as uow:
-            item = await uow.evidence_outbox.get_usage(
-                tenant_id=evidence.tenant_id,
-                usage_call_id=usage_call_id,
-            )
-            if not self._event_bus.capacity_managed:
-                await uow.event_capacity.record_local_published(
-                    run_id=evidence.run_id,
-                    reserved_event_count=item.reserved_event_count,
-                    highest_persisted_seq=final.seq,
-                )
-            await uow.evidence_outbox.mark_published(
-                tenant_id=evidence.tenant_id,
-                usage_call_id=usage_call_id,
-            )
-            await uow.commit()
+            state = item.state
+        if not isinstance(started, dict):
+            raise UsageInvocationReplayError(state)
+        return ModelUsageEvidence.model_validate(started)
 
     def _evidence(
         self,

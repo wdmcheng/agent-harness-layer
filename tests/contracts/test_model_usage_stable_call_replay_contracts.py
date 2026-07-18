@@ -106,19 +106,19 @@ async def test_model_stable_call_id_sequential_retry_does_not_replay_provider(
         )
         request = ModelRequest(provider="fake", prompt="hello", max_output_tokens=1)
 
-        await service.complete(
+        first = await service.complete(
             request,
             context=_context(run_id),
             usage_call_id="stable-model-sequential",
         )
-        with pytest.raises(RuntimeError, match="durable settlement"):
-            await service.complete(
-                request,
-                context=_context(run_id),
-                usage_call_id="stable-model-sequential",
-            )
+        replay = await service.complete(
+            request,
+            context=_context(run_id),
+            usage_call_id="stable-model-sequential",
+        )
 
         assert provider.calls == 1
+        assert replay == first
         await _assert_settled_once(storage=storage, sink=sink, run_id=run_id)
     finally:
         await storage.dispose()
@@ -187,19 +187,19 @@ async def test_embedding_stable_call_id_sequential_retry_does_not_replay_cache_o
         )
         request = EmbeddingRequest(input="private embedding", tenant_id="tenant-a")
 
-        await service.embed(
+        first = await service.embed(
             request,
             context=_context(run_id),
             usage_call_id="stable-embedding-sequential",
         )
-        with pytest.raises(RuntimeError, match="durable settlement"):
-            await service.embed(
-                request,
-                context=_context(run_id),
-                usage_call_id="stable-embedding-sequential",
-            )
+        replay = await service.embed(
+            request,
+            context=_context(run_id),
+            usage_call_id="stable-embedding-sequential",
+        )
 
         assert provider.calls == 1
+        assert replay == first
         await _assert_settled_once(storage=storage, sink=sink, run_id=run_id)
     finally:
         await storage.dispose()
@@ -287,14 +287,14 @@ async def test_model_retry_republishes_persisted_result_without_replaying_provid
             storage=storage,
             event_bus=EventBus(sink=durable_sink, run_trace_resolver=_resolve_trace),
         )
-        with pytest.raises(RuntimeError, match="durable settlement: published"):
-            await recovering.complete(
-                request,
-                context=_context(run_id),
-                usage_call_id="stable-model-result-persisted",
-            )
+        replay = await recovering.complete(
+            request,
+            context=_context(run_id),
+            usage_call_id="stable-model-result-persisted",
+        )
 
         assert provider.calls == 1
+        assert replay.output_text == "fake:hello"
         await _assert_settled_once(storage=storage, sink=durable_sink, run_id=run_id)
     finally:
         await storage.dispose()
@@ -335,14 +335,14 @@ async def test_embedding_retry_republishes_persisted_result_without_replaying_pr
             storage=storage,
             event_bus=EventBus(sink=durable_sink, run_trace_resolver=_resolve_trace),
         )
-        with pytest.raises(RuntimeError, match="durable settlement: published"):
-            await recovering.embed(
-                request,
-                context=_context(run_id),
-                usage_call_id="stable-embedding-result-persisted",
-            )
+        replay = await recovering.embed(
+            request,
+            context=_context(run_id),
+            usage_call_id="stable-embedding-result-persisted",
+        )
 
         assert provider.calls == 1
+        assert replay.vector_ref == "embedding://counting/result"
         await _assert_settled_once(storage=storage, sink=durable_sink, run_id=run_id)
     finally:
         await storage.dispose()

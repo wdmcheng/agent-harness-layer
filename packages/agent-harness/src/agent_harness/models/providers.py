@@ -20,6 +20,13 @@ class ModelRequest(HarnessDTO):
     max_output_tokens: int = 0
     timeout_seconds: int | None = None
 
+    @field_validator("estimated_input_tokens", "max_output_tokens", mode="before")
+    @classmethod
+    def validate_token_bound(cls, value: object) -> object:
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError("model token bounds must be non-negative integers")
+        return value
+
 
 class ModelDecision(HarnessDTO):
     """模型路由对调用、fallback 或策略介入的可追踪判断。"""

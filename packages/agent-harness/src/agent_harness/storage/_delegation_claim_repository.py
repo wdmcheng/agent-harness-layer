@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from decimal import Decimal
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -46,10 +47,13 @@ from agent_harness.storage.delegation_models import (
 from agent_harness.storage.event_capacity_repositories import (
     EVIDENCE_OPERATION_REGISTRY_VERSION,
     EventCapacityRepository,
+    EventSequenceStateInvalid,
     EvidenceOperationKind,
 )
 from agent_harness.storage.evidence_repositories import EvidenceOutboxRepository
 from agent_harness.storage.models import AgentRunModel, RunEvidenceOutboxModel
+from agent_harness.storage.shared_budget_models import BudgetOperationClaimModel
+from agent_harness.storage.shared_budget_repositories import SharedBudgetRepository
 
 
 class DelegationClaimRepositoryMixin:
@@ -62,7 +66,11 @@ class DelegationClaimRepositoryMixin:
             idempotency_key=data.idempotency_key,
         )
         if existing is not None:
-            return await self._replay(existing, data=data)
+            return await self._replay(
+                existing,
+                expected_request_hash=data.request_hash,
+                validate_request_hash=False,
+            )
 
         parent = await self._session.scalar(
             select(AgentRunModel)
@@ -86,43 +94,49 @@ class DelegationClaimRepositoryMixin:
             idempotency_key=data.idempotency_key,
         )
         if existing is not None:
-            return await self._replay(existing, data=data)
+            return await self._replay(
+                existing,
+                expected_request_hash=data.request_hash,
+                validate_request_hash=False,
+            )
 
-        reservations = list(
+        shared_budget = SharedBudgetRepository(self._session)
+        shared_ledger = await shared_budget.get_ledger(data.tenant_id, data.parent_run_id)
+        if shared_ledger is None:
+            # 0016 writer 只允许对已有 immutable tree snapshot 的 active root
+            # 建立新 delegation。严格 terminal 的 legacy_closed tree 不会再进入
+            # 本入口；活动 tree 缺 ledger 必须在 child/queue/evidence 前 fail closed。
+            raise DelegationStorageConflict("delegation.execution_failed")
+        effective_tokens, effective_cost_decimal = await shared_budget.delegation_reservation(
+            tenant_id=data.tenant_id,
+            budget_owner_run_id=data.parent_run_id,
+            source_agent_id=data.source_agent_id,
+            target_agent_id=data.target_agent_id,
+        )
+        effective_cost = None if effective_cost_decimal is None else float(effective_cost_decimal)
+        legacy_reservations = list(
             await self._session.scalars(
-                select(DelegationBudgetReservationModel).where(
+                select(DelegationBudgetReservationModel)
+                .where(
                     DelegationBudgetReservationModel.tenant_id == data.tenant_id,
                     DelegationBudgetReservationModel.parent_run_id == data.parent_run_id,
-                    DelegationBudgetReservationModel.state.in_(
-                        ("reserved", "settled", "needs_review")
-                    ),
                 )
+                .with_for_update()
             )
         )
-        direct_tokens, direct_cost = await self._parent_direct_usage(
-            parent=parent,
-            require_cost=data.parent_cost_limit is not None,
-        )
-        used_tokens = direct_tokens + sum(_reservation_token_impact(item) for item in reservations)
-        remaining_tokens = max(data.parent_token_limit - used_tokens, 0)
-        # child runtime 没有“缩量后强制执行”的 seam，因此 reservation 必须覆盖
-        # descriptor 声明的单次最坏 token 预算；不足时在 claim 写入前整体拒绝。
-        if data.requested_token_reservation > remaining_tokens:
-            raise DelegationBudgetExceeded("delegation.budget_exceeded")
-        effective_tokens = data.requested_token_reservation
-        # parent 无限时仍必须保留 target 的有限 ceiling；只有两端都无限时
-        # reservation 才能是 null。配置收紧后，旧 null active reservation
-        # 会在下面的 impact 计算中 fail closed，不能被当成零。
-        effective_cost = data.requested_cost_reservation
-        if data.parent_cost_limit is not None:
-            used_cost = direct_cost + sum(_reservation_cost_impact(item) for item in reservations)
-            remaining_cost = max(data.parent_cost_limit - used_cost, 0.0)
-            requested_cost = data.requested_cost_reservation
-            # `None` 表示 target 没有成本上限，而不是“继承当前剩余值”。在没有
-            # child 执行层尚无成本 fencing，不能把无限 ceiling 静默缩成有限预约。
-            if requested_cost is None or requested_cost > remaining_cost:
-                raise DelegationBudgetExceeded("delegation.budget_exceeded")
-            effective_cost = requested_cost
+        for legacy_reservation in legacy_reservations:
+            # 0016 ledger 是预算真相源，但仍要拒绝与其并存的损坏 0015
+            # reservation；否则兼容投影会让恢复与审计看到互相矛盾的状态。
+            _reservation_token_impact(legacy_reservation)
+            if shared_ledger.cost_limit is not None:
+                _reservation_cost_impact(legacy_reservation)
+        try:
+            await EventCapacityRepository(self._session).assert_sequence_state_valid(
+                tenant_id=data.tenant_id,
+                run_id=data.parent_run_id,
+            )
+        except EventSequenceStateInvalid as exc:
+            raise DelegationStorageConflict(EventSequenceStateInvalid.code) from exc
 
         delegation = AgentDelegationModel(
             id=str(uuid4()),
@@ -154,6 +168,14 @@ class DelegationClaimRepositoryMixin:
         self._session.add_all((delegation, reservation))
         try:
             await self._session.flush()
+            await shared_budget.reserve_delegation(
+                tenant_id=data.tenant_id,
+                budget_owner_run_id=data.parent_run_id,
+                delegation_id=delegation.id,
+                request_hash=data.request_hash,
+                token_reservation=effective_tokens,
+                cost_reservation=effective_cost_decimal,
+            )
             delegation.reserved_event_count = await EventCapacityRepository(self._session).reserve(
                 run_id=data.parent_run_id,
                 operation_kind=EvidenceOperationKind.DELEGATION,
@@ -256,7 +278,8 @@ class DelegationClaimRepositoryMixin:
         self,
         model: AgentDelegationModel,
         *,
-        data: DelegationClaimCreate,
+        expected_request_hash: str,
+        validate_request_hash: bool,
     ) -> DelegationClaimResult:
         locked = await self._session.scalar(
             select(AgentDelegationModel)
@@ -265,7 +288,7 @@ class DelegationClaimRepositoryMixin:
         )
         if locked is None:
             raise DelegationStorageConflict("delegation.execution_failed")
-        if locked.request_hash != data.request_hash:
+        if locked.request_hash != expected_request_hash:
             raise DelegationStorageConflict("delegation.idempotency_conflict")
         reservation = await self._session.scalar(
             select(DelegationBudgetReservationModel)
@@ -286,13 +309,57 @@ class DelegationClaimRepositoryMixin:
             model=locked,
             reservation=reservation,
             group=group,
-            data=data,
+            expected_request_hash=expected_request_hash,
+            validate_request_hash=validate_request_hash,
         ):
             raise DelegationStorageConflict("delegation.execution_failed")
+        shared_budget = SharedBudgetRepository(self._session)
+        shared_ledger = await shared_budget.get_ledger(locked.tenant_id, locked.parent_run_id)
+        if shared_ledger is not None:
+            shared_claim = await self._session.scalar(
+                select(BudgetOperationClaimModel).where(
+                    BudgetOperationClaimModel.delegation_id == locked.id
+                )
+            )
+            if (
+                shared_claim is None
+                or shared_claim.request_hash != expected_request_hash
+                or shared_claim.reserved_tokens != reservation.reserved_tokens
+                or shared_claim.reserved_cost
+                != (
+                    None
+                    if reservation.reserved_cost_usd is None
+                    else Decimal(str(reservation.reserved_cost_usd))
+                )
+            ):
+                raise DelegationStorageConflict("delegation.execution_failed")
         return DelegationClaimResult(
             delegation=_delegation_record(locked),
             reservation=_reservation_record(reservation),
             created=False,
+        )
+
+    async def replay_existing(
+        self,
+        *,
+        tenant_id: str,
+        parent_run_id: str,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> DelegationClaimResult | None:
+        """在当前授权、余额和容量之前解析 stable-key exact replay/conflict。"""
+
+        existing = await self._get_model_by_key(
+            tenant_id=tenant_id,
+            parent_run_id=parent_run_id,
+            idempotency_key=idempotency_key,
+        )
+        if existing is None:
+            return None
+        return await self._replay(
+            existing,
+            expected_request_hash=request_hash,
+            validate_request_hash=True,
         )
 
     async def _get_model_by_key(

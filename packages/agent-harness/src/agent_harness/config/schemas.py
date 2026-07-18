@@ -80,6 +80,9 @@ class BudgetSettings(HarnessDTO):
 
     max_tokens_per_run: int = 8192
     max_cost_usd_per_run: float | None = None
+    fingerprint_key_env: str = "BUDGET_LEDGER_FINGERPRINT_KEY"
+    fingerprint_key_file_env: str = "BUDGET_LEDGER_FINGERPRINT_KEY_FILE"
+    fingerprint_key_version: str = "budget-fingerprint-v1"
 
 
 class IdentitySettings(HarnessDTO):

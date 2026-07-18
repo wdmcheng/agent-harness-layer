@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
+from sqlalchemy import delete, func, select
+from tests.contracts.test_agent_delegation_storage_contracts import (
+    MAX_EVENT_SEQ as MAX_EVENT_SEQ,
+)
 from tests.contracts.test_agent_delegation_storage_contracts import (
     DelegationBudgetExceeded as DelegationBudgetExceeded,
 )
 from tests.contracts.test_agent_delegation_storage_contracts import (
     DelegationBudgetReservationModel as DelegationBudgetReservationModel,
+)
+from tests.contracts.test_agent_delegation_storage_contracts import (
+    DelegationStorageConflict as DelegationStorageConflict,
+)
+from tests.contracts.test_agent_delegation_storage_contracts import (
+    EventCapacityExceeded as EventCapacityExceeded,
 )
 from tests.contracts.test_agent_delegation_storage_contracts import (
     Path as Path,
@@ -36,6 +46,9 @@ from tests.contracts.test_agent_delegation_storage_contracts import (
     update as update,
 )
 
+from agent_harness.storage.models import RunEventCapacityModel
+from agent_harness.storage.shared_budget_models import ParentBudgetLedgerModel
+
 
 def test_0015_migration_creates_delegation_evidence_tables(tmp_path: Path) -> None:
     path = tmp_path / "delegation-migration.db"
@@ -53,7 +66,127 @@ def test_0015_migration_creates_delegation_evidence_tables(tmp_path: Path) -> No
         "delegation_budget_reservations",
         "delegation_aggregates",
     } <= tables
-    assert revision == ("0015_agent_delegation",)
+    assert revision == ("0016_shared_parent_budget_ledger",)
+
+
+@pytest.mark.asyncio
+async def test_active_delegation_without_ledger_fails_closed(tmp_path: Path) -> None:
+    """活动 root 丢失 0016 ledger 时不允许降级到 0015 独立预算。"""
+
+    dsn = sqlite_dsn(tmp_path / "delegation-missing-ledger.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    try:
+        parent_run_id = await _create_parent(storage, target_token_limit=100)
+        async with storage.uow() as uow:
+            await uow.session.execute(
+                delete(ParentBudgetLedgerModel).where(
+                    ParentBudgetLedgerModel.budget_owner_run_id == parent_run_id
+                )
+            )
+            await uow.commit()
+        async with storage.uow() as uow:
+            with pytest.raises(DelegationStorageConflict) as rejected:
+                await uow.delegations.claim_and_reserve(_claim(parent_run_id))
+        async with storage.uow() as uow:
+            count = await uow.session.scalar(
+                select(func.count()).select_from(DelegationBudgetReservationModel)
+            )
+        assert rejected.value.code == "delegation.execution_failed"
+        assert count == 0
+    finally:
+        await storage.dispose()
+
+
+@pytest.mark.asyncio
+async def test_delegation_sequence_state_invalid_precedes_budget(tmp_path: Path) -> None:
+    """Delegation 同时命中 sequence 损坏与超额时，固定返回 sequence state。"""
+
+    dsn = sqlite_dsn(tmp_path / "delegation-sequence-priority.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    try:
+        parent_run_id = await _create_parent(storage, target_token_limit=100)
+        async with storage.uow() as uow:
+            await uow.session.execute(
+                update(RunEventCapacityModel)
+                .where(RunEventCapacityModel.run_id == parent_run_id)
+                .values(terminal_reservation=0)
+            )
+            await uow.commit()
+        async with storage.uow() as uow:
+            with pytest.raises(DelegationStorageConflict) as rejected:
+                await uow.delegations.claim_and_reserve(
+                    _claim(parent_run_id, requested_token_reservation=150)
+                )
+        assert rejected.value.code == "event.sequence_state_invalid"
+    finally:
+        await storage.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("preconsume_budget", "expected_error"),
+    [
+        (True, DelegationBudgetExceeded),
+        (False, EventCapacityExceeded),
+    ],
+    ids=["budget-precedes-capacity", "capacity-only"],
+)
+async def test_delegation_budget_and_capacity_priority_matrix(
+    tmp_path: Path,
+    preconsume_budget: bool,
+    expected_error: type[Exception],
+) -> None:
+    """Delegation 新 claim 的 budget 与 capacity 检查顺序在两种组合下固定。"""
+
+    dsn = sqlite_dsn(tmp_path / f"delegation-priority-{preconsume_budget}.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    try:
+        parent_run_id = await _create_parent(
+            storage,
+            target_token_limit=60,
+        )
+        if preconsume_budget:
+            async with storage.uow() as uow:
+                await uow.delegations.claim_and_reserve(_claim(parent_run_id))
+                await uow.commit()
+        async with storage.uow() as uow:
+            await uow.session.execute(
+                update(RunEventCapacityModel)
+                .where(RunEventCapacityModel.run_id == parent_run_id)
+                .values(highest_persisted_seq=MAX_EVENT_SEQ - (6 if preconsume_budget else 3))
+            )
+            await uow.commit()
+        async with storage.uow() as uow:
+            baseline_claims = await uow.delegations.list_for_parent(
+                tenant_id="tenant-a",
+                parent_run_id=parent_run_id,
+            )
+            baseline_ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
+        async with storage.uow() as uow:
+            with pytest.raises(expected_error):
+                await uow.delegations.claim_and_reserve(
+                    _claim(
+                        parent_run_id,
+                        idempotency_key=(
+                            "delegation-key-second" if preconsume_budget else "delegation-key"
+                        ),
+                        request_hash="b" * 64 if preconsume_budget else "a" * 64,
+                    )
+                )
+        async with storage.uow() as uow:
+            claims = await uow.delegations.list_for_parent(
+                tenant_id="tenant-a",
+                parent_run_id=parent_run_id,
+            )
+            ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
+        assert [claim.id for claim in claims] == [claim.id for claim in baseline_claims]
+        assert ledger is not None and baseline_ledger is not None
+        assert ledger.token_impact == baseline_ledger.token_impact
+    finally:
+        await storage.dispose()
 
 
 @pytest.mark.asyncio
@@ -138,13 +271,22 @@ async def test_new_claim_rejects_when_worst_case_exceeds_parent_remaining_budget
     run_migrations(sqlite_dsn(path))
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
     try:
-        parent_run_id = await _create_parent(storage)
+        parent_run_id = await _create_parent(storage, target_token_limit=60)
+        async with storage.uow() as uow:
+            first = await uow.delegations.claim_and_reserve(_claim(parent_run_id))
+            await uow.commit()
+        async with storage.uow() as uow:
+            baseline_pending = await uow.evidence_outbox.pending(run_id=parent_run_id)
+            baseline_pending_ids = [item.id for item in baseline_pending]
+            baseline_capacity = await uow.event_capacity.snapshot(parent_run_id)
         async with storage.uow() as uow:
             with pytest.raises(DelegationBudgetExceeded) as captured:
                 await uow.delegations.claim_and_reserve(
                     _claim(
                         parent_run_id,
-                        requested_token_reservation=150,
+                        idempotency_key="delegation-key-second",
+                        request_hash="b" * 64,
+                        requested_token_reservation=60,
                         requested_cost_reservation=None,
                     )
                 )
@@ -154,34 +296,35 @@ async def test_new_claim_rejects_when_worst_case_exceeds_parent_remaining_budget
                 parent_run_id=parent_run_id,
             )
             pending = await uow.evidence_outbox.pending(run_id=parent_run_id)
+            pending_ids = [item.id for item in pending]
             capacity = await uow.event_capacity.snapshot(parent_run_id)
     finally:
         await storage.dispose()
 
     assert captured.value.code == "delegation.budget_exceeded"
-    assert claims == []
-    assert pending == []
-    assert capacity.outstanding_reserved_event_count == 0
+    assert [claim.id for claim in claims] == [first.delegation.id]
+    assert pending_ids == baseline_pending_ids
+    assert capacity == baseline_capacity
 
 
 @pytest.mark.asyncio
-async def test_finite_parent_cost_rejects_unbounded_target_without_side_effects(
+async def test_finite_parent_cost_uses_owner_ceiling_for_null_target_ceiling(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "delegation-unbounded-cost.db"
     run_migrations(sqlite_dsn(path))
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
     try:
-        parent_run_id = await _create_parent(storage)
+        parent_run_id = await _create_parent(storage, target_cost_limit=None)
         async with storage.uow() as uow:
-            with pytest.raises(DelegationBudgetExceeded) as captured:
-                await uow.delegations.claim_and_reserve(
-                    _claim(
-                        parent_run_id,
-                        requested_token_reservation=10,
-                        requested_cost_reservation=None,
-                    )
+            created = await uow.delegations.claim_and_reserve(
+                _claim(
+                    parent_run_id,
+                    requested_token_reservation=10,
+                    requested_cost_reservation=None,
                 )
+            )
+            await uow.commit()
         async with storage.uow() as uow:
             claims = await uow.delegations.list_for_parent(
                 tenant_id="tenant-a",
@@ -189,28 +332,35 @@ async def test_finite_parent_cost_rejects_unbounded_target_without_side_effects(
             )
             pending = await uow.evidence_outbox.pending(run_id=parent_run_id)
             capacity = await uow.event_capacity.snapshot(parent_run_id)
+            ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
     finally:
         await storage.dispose()
 
-    assert captured.value.code == "delegation.budget_exceeded"
-    assert claims == []
-    assert pending == []
-    assert capacity.outstanding_reserved_event_count == 0
+    assert created.reservation.reserved_cost_usd == 10.0
+    assert [claim.id for claim in claims] == [created.delegation.id]
+    assert len(pending) == 3
+    assert capacity.outstanding_reserved_event_count == 3
+    assert ledger is not None and float(ledger.cost_impact) == 10.0
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("legacy_state", ["reserved", "needs_review"])
-async def test_finite_parent_fails_closed_on_active_unknown_cost_reservation(
+async def test_frozen_cost_disabled_mode_ignores_current_config_enablement(
     tmp_path: Path,
     legacy_state: str,
 ) -> None:
-    """配置从无限收紧为有限时，旧 active null cost 不能被当成零余额影响。"""
+    """Root 冻结 cost-disabled 后，调用方配置不能在同一 tree 中重新启用 cost。"""
 
     dsn = sqlite_dsn(tmp_path / f"delegation-cost-reload-{legacy_state}.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
     try:
-        parent_run_id = await _create_parent(storage)
+        parent_run_id = await _create_parent(
+            storage,
+            cost_limit=None,
+            target_token_limit=10,
+            target_cost_limit=None,
+        )
         async with storage.uow() as uow:
             first = await uow.delegations.claim_and_reserve(
                 _claim(
@@ -228,17 +378,18 @@ async def test_finite_parent_fails_closed_on_active_unknown_cost_reservation(
                 )
             await uow.commit()
         async with storage.uow() as uow:
-            with pytest.raises(DelegationBudgetExceeded) as captured:
-                await uow.delegations.claim_and_reserve(
-                    _claim(
-                        parent_run_id,
-                        idempotency_key="delegation-key-second",
-                        request_hash="b" * 64,
-                        requested_token_reservation=10,
-                        parent_cost_limit=1.0,
-                        requested_cost_reservation=1.0,
-                    )
+            second = await uow.delegations.claim_and_reserve(
+                _claim(
+                    parent_run_id,
+                    idempotency_key="delegation-key-second",
+                    request_hash="b" * 64,
+                    requested_token_reservation=10,
+                    parent_cost_limit=1.0,
+                    requested_cost_reservation=1.0,
                 )
+            )
+            ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
+            await uow.commit()
         async with storage.uow() as uow:
             rows = await uow.delegations.list_for_parent(
                 tenant_id="tenant-a",
@@ -247,5 +398,7 @@ async def test_finite_parent_fails_closed_on_active_unknown_cost_reservation(
     finally:
         await storage.dispose()
 
-    assert captured.value.code == "delegation.budget_exceeded"
-    assert len(rows) == 1
+    assert second.created is True
+    assert ledger is not None and ledger.cost_limit is None
+    assert ledger.cost_impact == 0
+    assert len(rows) == 2

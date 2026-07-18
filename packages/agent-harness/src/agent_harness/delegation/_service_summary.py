@@ -86,6 +86,10 @@ class DelegationSummaryMixin:
                 )
             rows = await uow.delegations.usage_evidence_for_child(child.id)
             reservation = await uow.delegations.get_reservation(delegation.id)
+            shared_ledger = await uow.shared_budget.get_ledger(
+                delegation.tenant_id, delegation.parent_run_id
+            )
+            cost_enabled = shared_ledger is None or shared_ledger.cost_limit is not None
 
         needs_review = False
         try:
@@ -93,6 +97,7 @@ class DelegationSummaryMixin:
             summary = aggregate_delegation_evidence(
                 parent_run_id=delegation.parent_run_id,
                 children=[evidence],
+                cost_enabled=cost_enabled,
             )
         except Exception:  # noqa: BLE001 - 非法 evidence 不得带 raw value 越过此边界
             needs_review = True
@@ -100,6 +105,7 @@ class DelegationSummaryMixin:
             summary = aggregate_delegation_evidence(
                 parent_run_id=delegation.parent_run_id,
                 children=[evidence],
+                cost_enabled=cost_enabled,
             )
         if summary.budget_status == "incomplete":
             needs_review = True
@@ -170,6 +176,8 @@ class DelegationSummaryMixin:
         parent_run_id: str,
     ) -> DelegationSummary | None:
         async with self._storage.uow() as uow:
+            shared_ledger = await uow.shared_budget.get_ledger(tenant_id, parent_run_id)
+            cost_enabled = shared_ledger is None or shared_ledger.cost_limit is not None
             projections = await uow.delegations.list_summary_projection_for_parent(
                 tenant_id=tenant_id,
                 parent_run_id=parent_run_id,
@@ -234,6 +242,7 @@ class DelegationSummaryMixin:
                     durable_summary = aggregate_delegation_evidence(
                         parent_run_id=parent_run_id,
                         children=[durable_evidence],
+                        cost_enabled=cost_enabled,
                     )
                     if durable_summary.budget_status != "incomplete" and _budget_exceeded(
                         durable_summary, reservation
@@ -268,6 +277,7 @@ class DelegationSummaryMixin:
                             summary=durable_summary,
                             aggregate_status=aggregate.status,
                             reservation=reservation,
+                            cost_enabled=cost_enabled,
                         )
                     ):
                         raise DelegationError("delegation.execution_failed")
@@ -286,6 +296,7 @@ class DelegationSummaryMixin:
             parent_run_id=parent_run_id,
             children=children,
             budget_exceeded=exceeded,
+            cost_enabled=cost_enabled,
         )
 
 

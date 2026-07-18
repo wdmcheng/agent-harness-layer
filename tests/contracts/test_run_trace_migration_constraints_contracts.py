@@ -27,7 +27,7 @@ def test_0013_sqlite_canonical_event_run_owner_constraint_rejects_direct_bypass(
     """fresh schema 以联合归属约束拒绝跨租户、错 trace 与孤立 run 事件。"""
 
     path = tmp_path / "canonical-event-owner.db"
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0015_agent_delegation")
     with sqlite3.connect(path) as connection:
         connection.execute("pragma foreign_keys=on")
         seed_identity(connection, "tenant-a")
@@ -164,7 +164,7 @@ def test_0013_downgrade_requires_exact_opt_in_and_empty_evidence(tmp_path: Path)
         ),
     ):
         path = tmp_path / f"{name}.db"
-        run_migrations(sqlite_dsn(path))
+        run_migrations(sqlite_dsn(path), "0015_agent_delegation")
         with pytest.raises(RuntimeError, match="explicit opt-in"):
             command.downgrade(
                 migration_config(sqlite_dsn(path), x_args=x_args),
@@ -195,7 +195,7 @@ def test_0013_downgrade_requires_exact_opt_in_and_empty_evidence(tmp_path: Path)
     with sqlite3.connect(evidence) as connection:
         seed_identity(connection, "tenant-a")
         seed_run(connection, "root-a")
-    run_migrations(sqlite_dsn(evidence))
+    run_migrations(sqlite_dsn(evidence), "0015_agent_delegation")
     with pytest.raises(RuntimeError, match="evidence exists"):
         command.downgrade(
             migration_config(sqlite_dsn(evidence), x_args=["allow_empty_evidence_downgrade=true"]),
@@ -207,7 +207,7 @@ def test_0013_audit_record_scope_database_constraint_and_downgrade(tmp_path: Pat
     """audit discriminator 必须由数据库拒绝非法值，空库降级应完整移除门禁。"""
 
     path = tmp_path / "audit-scope.db"
-    run_migrations(sqlite_dsn(path))
+    run_migrations(sqlite_dsn(path), "0015_agent_delegation")
     with sqlite3.connect(path) as connection:
         seed_identity(connection, "tenant-a")
         before = connection.execute("select count(*) from audit_logs").fetchone()
@@ -220,7 +220,7 @@ def test_0013_audit_record_scope_database_constraint_and_downgrade(tmp_path: Pat
         assert connection.execute("select count(*) from audit_logs").fetchone() == before
 
     empty = tmp_path / "audit-scope-empty.db"
-    run_migrations(sqlite_dsn(empty))
+    run_migrations(sqlite_dsn(empty), "0015_agent_delegation")
     command.downgrade(
         migration_config(sqlite_dsn(empty), x_args=["allow_empty_evidence_downgrade=true"]),
         "0012a_embedding_cache_tenant_scope",

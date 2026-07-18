@@ -70,7 +70,7 @@ def test_0012_adds_service_runtime_private_columns_and_terminal_index(
             row[1] for row in connection.execute("pragma index_list(canonical_events)").fetchall()
         }
 
-    assert revision == ("0015_agent_delegation",)
+    assert revision == ("0016_shared_parent_budget_ledger",)
     assert {
         "execution_context_json",
         "queue_operation_id",

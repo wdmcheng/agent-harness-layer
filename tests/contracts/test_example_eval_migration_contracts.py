@@ -195,13 +195,13 @@ async def test_0008_downgrade_only_allows_empty_disposable_data(tmp_path: Path) 
     finally:
         await components.close()
 
-    with pytest.raises(RuntimeError, match="0014 downgrade refused: evidence exists"):
+    with pytest.raises(RuntimeError, match="0016 shared budget evidence exists"):
         await asyncio.to_thread(
             command.downgrade,
             _downgrade_config(_dsn(db_path)),
             "0007_eval_gate_trace_loop",
         )
-    # 0013a 的无损步骤先回退 stamp；真正触碰 schema 的 0013 降级随后拒绝。
     assert (
-        await asyncio.to_thread(get_current_revision, _dsn(db_path)) == "0014_run_evidence_outbox"
+        await asyncio.to_thread(get_current_revision, _dsn(db_path))
+        == "0016_shared_parent_budget_ledger"
     )

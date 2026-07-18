@@ -17,6 +17,7 @@ from agent_harness.runtime.executor import (
     RunResult,
     build_execution_context,
 )
+from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.runtime.state import TERMINAL_STATUSES, RunStatus
 from agent_harness.runtime.trace import (
     PreparedRunTrace,
@@ -157,6 +158,18 @@ class RunLifecycle(RunLifecyclePersistence):
                     },
                     caller_trace_id=caller_trace_id,
                 )
+                if parent_run_id is None:
+                    budget_runtime = self._executor_services.get("shared_budget")
+                    if budget_runtime is not None:
+                        if not isinstance(budget_runtime, SharedBudgetRuntime):
+                            raise RuntimeError("shared_budget service has an invalid composition")
+                        await uow.shared_budget.create_ledger(
+                            budget_runtime.ledger_create(
+                                tenant_id=tenant.id,
+                                run_id=run.id,
+                                agent_id=agent_id,
+                            )
+                        )
                 await uow.runs.set_status(run.id, RunStatus.RUNNING.value)
                 await uow.commit()
         except RunTraceRepositoryConflict as exc:
@@ -371,6 +384,8 @@ class RunLifecycle(RunLifecyclePersistence):
             if status in TERMINAL_STATUSES:
                 raise InvalidRunTransition(f"run is terminal: {run_id}")
             await uow.event_capacity.assert_terminal_publishable(run_id=run_id)
+            if run.parent_run_id is None:
+                await uow.shared_budget.fence_terminal_if_managed(active_identity.tenant_id, run_id)
             await uow.runs.set_status(run_id, RunStatus.CANCELLED.value)
             await uow.commit()
         terminal = await publish_terminal_evidence(

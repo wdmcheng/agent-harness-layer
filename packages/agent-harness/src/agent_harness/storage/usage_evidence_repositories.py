@@ -48,6 +48,38 @@ def _normalize_started_evidence(
     return evidence.to_payload()
 
 
+def _difference_paths(
+    persisted: object,
+    replayed: object,
+    *,
+    prefix: str = "",
+) -> list[str]:
+    """只返回 identity 差异字段路径；诊断不得复制可能含输入的字段值。"""
+
+    if isinstance(persisted, Mapping) and isinstance(replayed, Mapping):
+        persisted_mapping = cast(Mapping[object, object], persisted)
+        replayed_mapping = cast(Mapping[object, object], replayed)
+        paths: list[str] = []
+        keys: list[object] = sorted(
+            set(persisted_mapping) | set(replayed_mapping),
+            key=str,
+        )
+        for key in keys:
+            path = f"{prefix}.{key}" if prefix else str(key)
+            if key not in persisted_mapping or key not in replayed_mapping:
+                paths.append(path)
+                continue
+            paths.extend(
+                _difference_paths(
+                    persisted_mapping[key],
+                    replayed_mapping[key],
+                    prefix=path,
+                )
+            )
+        return paths
+    return [] if persisted == replayed else [prefix or "root"]
+
+
 @dataclass(frozen=True)
 class UsageSettlementClaim:
     """一次 usage claim 的持久化处置，调用方据此决定是否允许副作用。"""
@@ -253,7 +285,9 @@ class UsageEvidenceRepositoryMixin:
             else None
         )
         if persisted_started != dict(started_evidence):
-            raise ValueError("usage call is bound to another started identity")
+            difference_paths = _difference_paths(persisted_started, dict(started_evidence))
+            fields = ",".join(difference_paths) or "unknown"
+            raise ValueError(f"usage call is bound to another started identity fields={fields}")
 
     async def get_usage(
         self,

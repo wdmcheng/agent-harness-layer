@@ -58,6 +58,23 @@ Direct 与 delegation 的全新 claim SHALL 在 SQLite/local 与 PostgreSQL/serv
 - **WHEN** stable key与immutable identity精确命中已提交operation，但当前budget余额或event capacity已被其他operation改变
 - **THEN** 系统重放首次durable state/result，不重新预约、不返回新的budget/capacity错误；若identity不一致则direct返回`budget.operation_conflict`、delegation返回`delegation.idempotency_conflict`
 
+### Requirement: Usage operation stable key 与 immutable operation identity 分离
+Direct stable key SHALL固定为`(tenant_id,budget_owner_run_id,usage_call_id)`；delegation child allocation stable key SHALL固定为`(tenant_id,budget_owner_run_id,delegation_claim_id,usage_call_id)`。两种key都不得包含动态余额、reservation结果或event capacity。每个direct claim与allocation MUST另外持久化`identity_schema_version`、immutable identity hash及其非敏感关联字段。Identity MUST在最终actual route与trusted intent确定后、任何shared reservation/event-capacity mutation或provider副作用前，由可信runtime对以下封闭字段生成：`ownership_kind=direct|allocation`、`run_id`、`agent_id`、allocation时非空的`delegation_claim_id`、`usage_kind`、稳定语义operation slot、tenant-scoped keyed request fingerprint及key version、owner tree snapshot ID、适用agent sub-snapshot ID、provider/model、price source ref/version、embedding cache-key digest（model时为null）、cost-enabled状态与各启用维度trusted bound。Request fingerprint MUST由versioned tenant-scoped key对canonical semantic request bytes生成；数据库只保存opaque fingerprint与key version，不保存key、prompt或embedding原文。Identity canonical JSON MUST使用UTF-8、排序键、紧凑分隔符并拒绝NaN/Infinity，随后以固定hash算法生成持久化hash。
+
+动态current balance、event capacity、approval result、cache hit/miss结果、provider result、latency和错误不得进入identity。Cache lookup的稳定cache-key digest进入identity，但hit/miss由首次原子提交的durable result决定：提交前失败可重做只读lookup，提交后同identity必须重放首次结果。相同stable key只有`identity_schema_version`与identity hash逐值相同才是exact replay；任一封闭字段、fingerprint或版本不同 MUST在owner/relation、delegation子额度、parent budget、capacity检查及外部副作用前返回内部`budget.operation_conflict`。Direct seam保持该内部code；allocation冲突若向parent delegation结果传播 MUST封闭映射为既有`delegation.execution_failed`，不得把identity字段或新错误码加入公开delegation响应。Insert/unique race MUST回滚后重读并应用相同判定。
+
+#### Scenario: 相同 usage_call_id 的不同请求发生 identity conflict
+- **WHEN** 同一tenant/owner/`usage_call_id`以不同request fingerprint、usage kind、actual route、snapshot/sub-snapshot、price version或trusted bound重试
+- **THEN** direct在读取current balance或event capacity前返回`budget.operation_conflict`，不重放旧result、不新增claim且provider调用为零；错误不得公开fingerprint或identity字段
+
+#### Scenario: Child allocation 同 key 异 identity 在子额度前冲突
+- **WHEN** 同一tenant/owner/delegation claim/`usage_call_id`以不同child request fingerprint、usage kind、actual route、target sub-snapshot、price version或trusted bound重试
+- **THEN** allocation在relation、子额度、parent balance与event capacity检查前返回内部`budget.operation_conflict`，不重放旧result、不新增allocation且provider调用为零；若parent delegation收口该失败，对外只使用`delegation.execution_failed`
+
+#### Scenario: Cache 状态变化不改写已提交 identity
+- **WHEN** 相同embedding stable key、request fingerprint、cache-key digest与route identity首次提交cache hit或miss结果，随后cache内容发生变化并重试
+- **THEN** 系统按相同identity重放首次durable result；hit/miss不进入identity且不得借重试切换到另一种provider副作用路径
+
 ### Requirement: 软策略与硬账本按固定顺序执行
 `policy review threshold` SHALL只作为软策略层，MUST NOT与shared hard limit合并或被解释为审批可覆盖的额度。系统 MUST在frozen config内先完成context/route降级和trusted intent；无finite bound或intent静态越过hard limit时直接拒绝。Hard-eligible intent再执行软threshold策略；fallback回到route步骤且有限终止，approval不持有额度。Allow/approved后 MUST执行shared-ledger原子reservation并重检当前余额，成功后才允许外部副作用。
 
@@ -66,11 +83,15 @@ Direct 与 delegation 的全新 claim SHALL 在 SQLite/local 与 PostgreSQL/serv
 - **THEN** 原子reservation失败且外部副作用为零，approval不得覆盖hard limit或把其他claim释放
 
 ### Requirement: Parent hard-limit snapshot 对在途 tree 不可变
-Root run SHALL在创建且任何业务副作用前冻结hard limits、适用descriptor/budget/config version和frozen route policy允许的price source refs/versions；child SHALL继承该snapshot。Reload MUST只影响新root run。Fallback SHALL在frozen snapshot内按actual route重算trusted reservation，但 MUST NOT改变hard limits。
+Root run SHALL在创建且任何业务副作用前冻结tree snapshot：owner envelope保存hard limits、cost-enabled状态、registry/config/catalog versions与snapshot ID；root及当时显式允许的P0 target agents分别保存各自descriptor/model-policy/target-budget/route/price sub-snapshot。Child SHALL继承同一owner snapshot ID与hard limits，并按自身target `agent_id`选择对应sub-snapshot，不得把source descriptor当作target配置。Target ceiling只可收紧owner已启用维度，不能提高owner hard limit或重新启用owner已关闭的cost维度。Reload MUST只影响新root run。Fallback SHALL在当前agent对应的frozen sub-snapshot内按actual route重算trusted reservation，但 MUST NOT改变hard limits。Target、route或price ref未被冻结时 MUST在reservation与外部副作用前fail closed。
 
 #### Scenario: Config reload 只影响新 root run
 - **WHEN** 已有root run处于active/approval等待状态并发生registry/provider/budget/price reload
 - **THEN** 既有tree继续使用原snapshot，approval resume与fallback也不能采用reload后limit或price；新root run使用新snapshot
+
+#### Scenario: Child 使用 target 独立策略但共用 owner hard limit
+- **WHEN** 冻结tree catalog中的target agent具有不同于source的descriptor、model policy与更严格budget ceiling
+- **THEN** child按target sub-snapshot计算route/trusted bound，同时受target ceiling与owner剩余shared hard limit的更严约束；target独立策略不得创建第二个owner ledger或提高parent额度
 
 ### Requirement: 实际 usage 原子替换 reservation
 可信、非 bool、非负且有限的实际 usage SHALL 在同一 ledger 原子边界按已启用维度把原 reservation impact 替换为 settled impact，MUST NOT先释放再另记实际值。只有可证明没有发生外部副作用的确定性失败才可幂等标记`released`。副作用结果未知或任一已启用维度actual不可得时 MUST保持该维reservation；trusted actual越过reservation时impact MUST提升为`max(original_reservation,trusted_actual)`。这些已启用维度异常 MUST进入`needs_review`，并在协调完成前拒绝该owner的全部新budget operation、阻止terminal，不得增加可用余额。
@@ -142,7 +163,7 @@ delegated child 的 model/embedding operation SHALL在既有delegation reservati
 - **THEN** 同一parent UoW把顶层delegation claim原子转为settled、impact从60替换为40，parent aggregate只减少顶层claim的20差额且不另加allocation
 
 ### Requirement: Stable claim 关联保证幂等恢复与 terminal fencing
-direct claim MUST 由 `(tenant_id,budget_owner_run_id,usage_call_id)` 唯一关联，delegation claim MUST 复用既有稳定 idempotency/request hash并持有同一非空 owner FK；child allocation MUST 唯一映射到 delegation claim、`usage_call_id` 与同一 `budget_owner_run_id`。恢复 SHALL 复用原 claim、reservation 与结果，MUST NOT 重复预约或重放外部调用。任一 active `reserved|needs_review` shared-budget claim MUST 阻止其 budget owner root terminal；terminal 一旦可见，shared ledger MUST 不再接受新的 operation claim。
+direct claim MUST 由 `(tenant_id,budget_owner_run_id,usage_call_id)` 唯一关联；child allocation MUST由`(tenant_id,budget_owner_run_id,delegation_claim_id,usage_call_id)`唯一关联；两者都按本spec的同一版本化immutable operation identity区分exact replay与内部`budget.operation_conflict`。Delegation top-level claim MUST 复用既有稳定 idempotency/request hash并持有同一非空 owner FK；allocation还 MUST绑定同一owner与正确target sub-snapshot identity。恢复 SHALL 复用原 claim/allocation、identity、reservation 与结果，MUST NOT 重复预约或重放外部调用。任一 active `reserved|needs_review` shared-budget claim MUST 阻止其 budget owner root terminal；terminal 一旦可见，shared ledger MUST 不再接受新的 operation claim。
 
 #### Scenario: 副作用前崩溃可确定释放
 - **WHEN** reservation 已提交且durable `side_effect_state=not_started`，受信 fencing 证明 provider、child 与 queue 副作用均未开始

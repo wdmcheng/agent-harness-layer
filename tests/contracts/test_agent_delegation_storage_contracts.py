@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sqlite3
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -21,13 +22,21 @@ from agent_harness.storage.delegation_repositories import (
 )
 from agent_harness.storage.event_capacity_repositories import MAX_EVENT_SEQ, EventCapacityExceeded
 from agent_harness.storage.repositories import RunCreate, SessionCreate
+from agent_harness.storage.shared_budget import LedgerCreate
 
 
 def sqlite_dsn(path: Path) -> str:
     return f"sqlite+aiosqlite:///{path}"
 
 
-async def _create_parent(storage: SQLAlchemyStorage, *, suffix: str = "") -> str:
+async def _create_parent(
+    storage: SQLAlchemyStorage,
+    *,
+    suffix: str = "",
+    cost_limit: Decimal | None = Decimal("10.00"),
+    target_token_limit: int = 60,
+    target_cost_limit: Decimal | None = Decimal("4.00"),
+) -> str:
     async with storage.uow() as uow:
         await uow.tenants.ensure("tenant-a")
         session = await uow.sessions.ensure(
@@ -44,6 +53,71 @@ async def _create_parent(storage: SQLAlchemyStorage, *, suffix: str = "") -> str
                 session_id=session.id,
                 agent_id="agent-source",
                 trace_id=f"trace-parent{suffix}",
+            )
+        )
+        await uow.shared_budget.create_ledger(
+            LedgerCreate(
+                tenant_id="tenant-a",
+                budget_owner_run_id=parent.id,
+                token_limit=100,
+                cost_limit=cost_limit,
+                registry_version="registry-v1",
+                config_version="config-v1",
+                catalog_version="catalog-v1",
+                snapshot_id=f"snapshot:{parent.id}",
+                snapshot={
+                    "owner": {
+                        "agent_id": "agent-source",
+                        "root_run_id": parent.id,
+                        "delegation_targets": ["agent-target"],
+                        "max_tokens_per_run": 100,
+                        "max_cost_usd_per_run": (None if cost_limit is None else str(cost_limit)),
+                        "cost_enabled": cost_limit is not None,
+                    },
+                    "registry_version": "registry-v1",
+                    "config_version": "config-v1",
+                    "catalog_version": "catalog-v1",
+                    "agents": {
+                        agent_id: {
+                            "agent_id": agent_id,
+                            "descriptor_version": f"{agent_id}-v1",
+                            "model_policy": {
+                                "provider": "fake",
+                                "default_model": "fake-basic",
+                                "fallback_models": [],
+                            },
+                            "target_budget": {
+                                "max_tokens_per_run": (
+                                    100 if agent_id == "agent-source" else target_token_limit
+                                ),
+                                "max_cost_usd_per_run": (
+                                    None
+                                    if cost_limit is None
+                                    else str(
+                                        cost_limit
+                                        if agent_id == "agent-source"
+                                        else target_cost_limit
+                                    )
+                                    if target_cost_limit is not None
+                                    else None
+                                ),
+                            },
+                            "routes": [
+                                {
+                                    "usage_kind": "model",
+                                    "provider": "fake",
+                                    "model": "fake-basic",
+                                    "price_source_ref": "catalog:fake",
+                                    "price_source_version": "v1",
+                                    "input_token_price_usd": "0",
+                                    "output_token_price_usd": "0",
+                                    "soft_max_tokens_per_call": 100,
+                                }
+                            ],
+                        }
+                        for agent_id in ("agent-source", "agent-target")
+                    },
+                },
             )
         )
         await uow.commit()

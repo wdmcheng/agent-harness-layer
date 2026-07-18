@@ -187,6 +187,14 @@ async def test_local_cancel_persists_delegated_child_aggregate(
                     trace_id="trace-delegated-child-cancel",
                 )
             )
+            budget_runtime = cast(Any, components.executor_services["shared_budget"])
+            await uow.shared_budget.create_ledger(
+                budget_runtime.ledger_create(
+                    tenant_id=actor.tenant_id,
+                    run_id=parent.id,
+                    agent_id="examples.basic",
+                )
+            )
             await uow.commit()
         delegated = await components.delegation_service.delegate(
             DelegationRequest(

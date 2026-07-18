@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
@@ -39,6 +40,7 @@ from agent_harness.storage.event_capacity_repositories import (
 )
 from agent_harness.storage.evidence_repositories import EvidenceOutboxRepository
 from agent_harness.storage.models import AgentRunModel
+from agent_harness.storage.shared_budget_repositories import SharedBudgetRepository
 
 
 class DelegationSettlementRepositoryMixin:
@@ -111,6 +113,7 @@ class DelegationSettlementRepositoryMixin:
             consumed=0,
         )
         reservation.state = "released"
+        await SharedBudgetRepository(self._session).release_delegation(delegation_id=delegation.id)
         delegation.status = "failed"
         delegation.error_json = {"code": "delegation.execution_failed"}
         await EvidenceOutboxRepository(self._session).update_group_result(
@@ -191,6 +194,10 @@ class DelegationSettlementRepositoryMixin:
             aggregate.status = aggregate_status
             aggregate.summary_json = summary
             aggregate.evidence_refs_json = evidence_refs
+        shared_budget = SharedBudgetRepository(self._session)
+        shared_ledger = await shared_budget.get_ledger(
+            delegation.tenant_id, delegation.parent_run_id
+        )
         if needs_review:
             reservation.state = "needs_review"
             delegation.status = "needs_review"
@@ -210,18 +217,47 @@ class DelegationSettlementRepositoryMixin:
                 or output_tokens < 0
             ):
                 raise ValueError("complete delegation summary requires output tokens")
-            if (
+            cost_disabled = shared_ledger is not None and shared_ledger.cost_limit is None
+            if cost_usd is not None and (
                 isinstance(cost_usd, bool)
                 or not isinstance(cost_usd, int | float)
                 or not math.isfinite(cost_usd)
                 or cost_usd < 0
             ):
                 raise ValueError("complete delegation summary requires finite cost")
+            if cost_usd is None and not cost_disabled:
+                raise ValueError("complete delegation summary requires finite cost")
             reservation.settled_input_tokens = input_tokens
             reservation.settled_output_tokens = output_tokens
-            reservation.settled_cost_usd = float(cost_usd)
+            # 0015 内部 reservation 的 settled 约束要求非空；0016 cost-disabled
+            # owner 用 0 兼容旧表，但 shared ledger 与 usage evidence 仍保留 null/unavailable。
+            reservation.settled_cost_usd = 0.0 if cost_usd is None else float(cost_usd)
             reservation.state = "settled"
             delegation.status = _delegation_status_from_run(child.status)
+        if shared_ledger is not None:
+            input_tokens = summary.get("input_tokens")
+            output_tokens = summary.get("output_tokens")
+            cost_usd = summary.get("cost_usd")
+            actual_tokens = (
+                input_tokens + output_tokens
+                if isinstance(input_tokens, int)
+                and not isinstance(input_tokens, bool)
+                and isinstance(output_tokens, int)
+                and not isinstance(output_tokens, bool)
+                else None
+            )
+            actual_cost = None if cost_usd is None else Decimal(str(cost_usd))
+            await shared_budget.settle_delegation(
+                delegation_id=delegation.id,
+                actual_tokens=actual_tokens,
+                actual_cost=actual_cost,
+                cost_status="unavailable" if actual_cost is None else "reported",
+                needs_review=needs_review,
+                result={
+                    "summary": summary,
+                    "aggregate_status": aggregate_status,
+                },
+            )
         await EvidenceOutboxRepository(self._session).update_group_result(
             group_id=_delegation_group_id(delegation.id),
             result={

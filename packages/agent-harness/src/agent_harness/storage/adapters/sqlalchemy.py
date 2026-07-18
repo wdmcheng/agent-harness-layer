@@ -53,6 +53,7 @@ from agent_harness.storage.retrieval_repositories import (
     RetrievalDocumentRepository,
 )
 from agent_harness.storage.settings import normalize_async_dsn, sqlite_database_path
+from agent_harness.storage.shared_budget_repositories import SharedBudgetRepository
 from agent_harness.storage.tool_repositories import (
     ToolInvocationRepository,
     WorkspaceRepository,
@@ -94,6 +95,7 @@ class SQLAlchemyUnitOfWork:
         self.event_capacity = EventCapacityRepository(self.session)
         self.evidence_outbox = EvidenceOutboxRepository(self.session)
         self.delegations = DelegationRepository(self.session)
+        self.shared_budget = SharedBudgetRepository(self.session)
         return self
 
     async def __aexit__(

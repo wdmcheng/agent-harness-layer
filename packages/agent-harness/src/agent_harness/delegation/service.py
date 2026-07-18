@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
 from agent_harness.contracts import GuardrailDecisionStatus
 from agent_harness.delegation._service_evidence import (
-    published_child_payload as _published_child_payload,
-)
-from agent_harness.delegation._service_evidence import (
     required_child_id as _required_child_id,
 )
+from agent_harness.delegation._service_publication import _DelegationPublicationMixin
 from agent_harness.delegation._service_recovery import DelegationRecoveryMixin
 from agent_harness.delegation._service_summary import DelegationSummaryMixin
 from agent_harness.delegation._service_types import (
@@ -34,15 +33,13 @@ from agent_harness.delegation._service_types import (
 )
 from agent_harness.delegation.models import (
     DelegationRequest,
-    DelegationSummary,
     delegation_request_hash,
 )
-from agent_harness.events import CanonicalEventType, EventBus
-from agent_harness.events.sinks.base import EventSinkReplayConflict
+from agent_harness.events import EventBus
 from agent_harness.identity import IdentityContext
 from agent_harness.policy import PolicyCheck
-from agent_harness.registry import AgentDescriptor, AgentRegistry, RegistryLoadError
-from agent_harness.runtime import RunOrchestrator, RunStatus
+from agent_harness.registry import AgentRegistry
+from agent_harness.runtime import RunOrchestrator
 from agent_harness.storage import SQLAlchemyStorage
 from agent_harness.storage.delegation_repositories import (
     DelegationBudgetExceeded,
@@ -52,7 +49,6 @@ from agent_harness.storage.delegation_repositories import (
 )
 from agent_harness.storage.event_capacity_repositories import (
     EventCapacityExceeded,
-    EvidenceOperationKind,
 )
 from agent_harness.storage.repositories import RunRecord
 
@@ -61,7 +57,24 @@ DelegationError.__module__ = __name__
 DelegationExecutionResult.__module__ = __name__
 
 
-class DelegationService(DelegationSummaryMixin, DelegationRecoveryMixin):
+@dataclass(frozen=True)
+class _FrozenDelegationAuthorization:
+    """新 delegation 只消费 root 创建时冻结的 source/target budget catalog。"""
+
+    parent: RunRecord
+    source_agent_id: str
+    target_agent_id: str
+    parent_token_limit: int
+    target_token_limit: int
+    parent_cost_limit: float | None
+    target_cost_limit: float | None
+
+
+class DelegationService(
+    _DelegationPublicationMixin,
+    DelegationSummaryMixin,
+    DelegationRecoveryMixin,
+):
     """授权后原子 claim，再恢复唯一 child 并从 durable evidence 聚合。"""
 
     def __init__(
@@ -89,33 +102,43 @@ class DelegationService(DelegationSummaryMixin, DelegationRecoveryMixin):
     ) -> DelegationExecutionResult:
         """执行或恢复一个单层 delegation；拒绝路径不创建业务状态。"""
 
-        parent, source, target = await self._authorize(request=request, identity=identity)
-        await self._event_bus.reconcile_local_capacity(run_id=parent.id)
         request_hash = delegation_request_hash(request, identity=identity)
-        scope = f"delegation-parent:{identity.tenant_id}:{parent.id}"
+        scope = f"delegation-parent:{identity.tenant_id}:{request.parent_run_id}"
         try:
             async with self._storage.idempotency_request_lock(scope):
                 async with self._storage.uow() as uow:
-                    claim = await uow.delegations.claim_and_reserve(
-                        DelegationClaimCreate(
-                            tenant_id=identity.tenant_id,
-                            parent_run_id=parent.id,
-                            source_agent_id=source.agent_id,
-                            target_agent_id=target.agent_id,
-                            idempotency_key=request.idempotency_key,
-                            request_hash=request_hash,
-                            budget_intent=request.budget_intent,
-                            child_input=request.child_input,
-                            identity=identity.to_payload(),
-                            trace_id=parent.trace_id,
-                            request_id=request.request_id,
-                            parent_token_limit=source.budget.max_tokens_per_run,
-                            requested_token_reservation=target.budget.max_tokens_per_run,
-                            parent_cost_limit=source.budget.max_cost_usd_per_run,
-                            requested_cost_reservation=target.budget.max_cost_usd_per_run,
-                        )
+                    claim = await uow.delegations.replay_existing(
+                        tenant_id=identity.tenant_id,
+                        parent_run_id=request.parent_run_id,
+                        idempotency_key=request.idempotency_key,
+                        request_hash=request_hash,
                     )
                     await uow.commit()
+                if claim is None:
+                    authorization = await self._authorize(request=request, identity=identity)
+                    parent = authorization.parent
+                    await self._event_bus.reconcile_local_capacity(run_id=parent.id)
+                    async with self._storage.uow() as uow:
+                        claim = await uow.delegations.claim_and_reserve(
+                            DelegationClaimCreate(
+                                tenant_id=identity.tenant_id,
+                                parent_run_id=parent.id,
+                                source_agent_id=authorization.source_agent_id,
+                                target_agent_id=authorization.target_agent_id,
+                                idempotency_key=request.idempotency_key,
+                                request_hash=request_hash,
+                                budget_intent=request.budget_intent,
+                                child_input=request.child_input,
+                                identity=identity.to_payload(),
+                                trace_id=parent.trace_id,
+                                request_id=request.request_id,
+                                parent_token_limit=authorization.parent_token_limit,
+                                requested_token_reservation=authorization.target_token_limit,
+                                parent_cost_limit=authorization.parent_cost_limit,
+                                requested_cost_reservation=authorization.target_cost_limit,
+                            )
+                        )
+                        await uow.commit()
         except EventCapacityExceeded as exc:
             raise DelegationError("event.sequence_exhausted") from exc
         except DelegationBudgetExceeded as exc:
@@ -152,7 +175,7 @@ class DelegationService(DelegationSummaryMixin, DelegationRecoveryMixin):
         *,
         request: DelegationRequest,
         identity: IdentityContext,
-    ) -> tuple[RunRecord, AgentDescriptor, AgentDescriptor]:
+    ) -> _FrozenDelegationAuthorization:
         async with self._storage.uow() as uow:
             parent = await uow.runs.get(request.parent_run_id)
             parent_session = None if parent is None else await uow.sessions.get(parent.session_id)
@@ -173,29 +196,124 @@ class DelegationService(DelegationSummaryMixin, DelegationRecoveryMixin):
             raise DelegationError("delegation.cycle_detected")
         if parent.parent_run_id is not None:
             raise DelegationError("delegation.depth_exceeded")
-        try:
-            source = self._registry.get(request.source_agent_id)
-            target = self._registry.get(request.target_agent_id)
-        except RegistryLoadError as exc:
-            raise DelegationError("delegation.target_not_found") from exc
-        if not self._registry.check_delegation(source.agent_id, target.agent_id).allowed:
+        async with self._storage.uow() as uow:
+            snapshot = await uow.shared_budget.get_tree_snapshot(
+                identity.tenant_id,
+                parent.id,
+            )
+        authorization = self._frozen_authorization(
+            parent=parent,
+            request=request,
+            snapshot=snapshot,
+        )
+        if authorization is None:
+            if self._frozen_edge_has_missing_target(snapshot=snapshot, request=request):
+                raise DelegationError("delegation.target_not_found")
             raise DelegationError("delegation.edge_denied")
         decision = await self._policy.evaluate(
             PolicyCheck(
                 actor=identity,
                 action="agent.delegate",
-                resource=f"agent:{target.agent_id}",
+                resource=f"agent:{authorization.target_agent_id}",
                 context={
                     "parent_run_id": parent.id,
-                    "source_agent_id": source.agent_id,
-                    "target_agent_id": target.agent_id,
+                    "source_agent_id": authorization.source_agent_id,
+                    "target_agent_id": authorization.target_agent_id,
                     "request_id": request.request_id,
                 },
             )
         )
         if decision.decision != GuardrailDecisionStatus.ALLOW.value:
             raise DelegationError("delegation.policy_denied")
-        return parent, source, target
+        return authorization
+
+    @staticmethod
+    def _frozen_authorization(
+        *,
+        parent: RunRecord,
+        request: DelegationRequest,
+        snapshot: dict[str, Any] | None,
+    ) -> _FrozenDelegationAuthorization | None:
+        """以 frozen catalog 中存在 target 作为创建时 edge membership 证明。"""
+
+        if not isinstance(snapshot, dict):
+            return None
+        owner = snapshot.get("owner")
+        agents = snapshot.get("agents")
+        if not isinstance(owner, dict) or not isinstance(agents, dict):
+            return None
+        typed_owner = cast(dict[str, object], owner)
+        typed_agents = cast(dict[str, object], agents)
+        raw_targets = typed_owner.get("delegation_targets")
+        if not isinstance(raw_targets, list) or any(
+            not isinstance(item, str) for item in cast(list[object], raw_targets)
+        ):
+            return None
+        allowed_targets = cast(list[object], raw_targets)
+        source = typed_agents.get(request.source_agent_id)
+        target = typed_agents.get(request.target_agent_id)
+        if (
+            typed_owner.get("agent_id") != request.source_agent_id
+            or parent.agent_id != request.source_agent_id
+            or request.target_agent_id not in allowed_targets
+            or not isinstance(source, dict)
+            or not isinstance(target, dict)
+        ):
+            return None
+        source_budget = cast(dict[str, object], source).get("target_budget")
+        target_budget = cast(dict[str, object], target).get("target_budget")
+        if not isinstance(source_budget, dict) or not isinstance(target_budget, dict):
+            return None
+        source_limits = DelegationService._frozen_limits(cast(dict[str, object], source_budget))
+        target_limits = DelegationService._frozen_limits(cast(dict[str, object], target_budget))
+        if source_limits is None or target_limits is None:
+            return None
+        return _FrozenDelegationAuthorization(
+            parent=parent,
+            source_agent_id=request.source_agent_id,
+            target_agent_id=request.target_agent_id,
+            parent_token_limit=source_limits[0],
+            target_token_limit=target_limits[0],
+            parent_cost_limit=source_limits[1],
+            target_cost_limit=target_limits[1],
+        )
+
+    @staticmethod
+    def _frozen_edge_has_missing_target(
+        *,
+        snapshot: dict[str, Any] | None,
+        request: DelegationRequest,
+    ) -> bool:
+        if not isinstance(snapshot, dict):
+            return False
+        owner = snapshot.get("owner")
+        agents = snapshot.get("agents")
+        if not isinstance(owner, dict) or not isinstance(agents, dict):
+            return False
+        typed_owner = cast(dict[str, object], owner)
+        typed_agents = cast(dict[str, object], agents)
+        raw_targets = typed_owner.get("delegation_targets")
+        return bool(
+            isinstance(raw_targets, list)
+            and request.target_agent_id in cast(list[object], raw_targets)
+            and request.target_agent_id not in typed_agents
+        )
+
+    @staticmethod
+    def _frozen_limits(budget: dict[str, object]) -> tuple[int, float | None] | None:
+        tokens = budget.get("max_tokens_per_run")
+        raw_cost = budget.get("max_cost_usd_per_run")
+        if isinstance(tokens, bool) or not isinstance(tokens, int) or tokens < 0:
+            return None
+        if raw_cost is None:
+            return tokens, None
+        try:
+            cost = Decimal(str(raw_cost))
+        except (InvalidOperation, ValueError):
+            return None
+        if not cost.is_finite() or cost < 0:
+            return None
+        return tokens, float(cost)
 
     async def _recover_or_launch_child(
         self,
@@ -221,6 +339,22 @@ class DelegationService(DelegationSummaryMixin, DelegationRecoveryMixin):
                 if self._mode == "local"
                 else self._orchestrator.submit_run
             )
+            async with self._storage.uow() as uow:
+                started_claim = await uow.shared_budget.mark_delegation_started(
+                    delegation_id=delegation.id
+                )
+                if started_claim is None:
+                    raise DelegationError("delegation.execution_failed")
+                if started_claim.replayed:
+                    # child/queue 的外部副作用可能已经开始；没有稳定 child 结果时
+                    # 只能提升整棵树为 needs_review，绝不能再次调用 launcher。
+                    await uow.shared_budget.recover_unknown_started(
+                        tenant_id=started_claim.tenant_id,
+                        budget_owner_run_id=started_claim.budget_owner_run_id,
+                    )
+                    await uow.commit()
+                    raise DelegationError("delegation.execution_failed")
+                await uow.commit()
             try:
                 result = await launcher(
                     agent_id=delegation.target_agent_id,
@@ -260,185 +394,6 @@ class DelegationService(DelegationSummaryMixin, DelegationRecoveryMixin):
             )
             await uow.commit()
         return attached
-
-    async def _publish_claimed(
-        self,
-        *,
-        delegation: DelegationRecord,
-        identity: IdentityContext,
-    ) -> None:
-        await self._publish(
-            delegation=delegation,
-            identity=identity,
-            phase="claimed",
-            event_type=CanonicalEventType.DELEGATION_CLAIMED,
-            payload={"status": "claimed"},
-        )
-
-    async def _publish_child_created(
-        self,
-        *,
-        delegation: DelegationRecord,
-        identity: IdentityContext,
-    ) -> None:
-        await self._publish(
-            delegation=delegation,
-            identity=identity,
-            phase="child",
-            event_type=CanonicalEventType.DELEGATION_CHILD_CREATED,
-            payload={"status": delegation.status, "child_run_id": _required_child_id(delegation)},
-        )
-
-    async def _publish_final(
-        self,
-        *,
-        delegation: DelegationRecord,
-        summary: DelegationSummary,
-    ) -> None:
-        identity = IdentityContext.model_validate(delegation.identity)
-        event_type = (
-            CanonicalEventType.DELEGATION_COMPLETED
-            if delegation.status == "completed"
-            else CanonicalEventType.DELEGATION_FAILED
-        )
-        await self._publish(
-            delegation=delegation,
-            identity=identity,
-            phase="final",
-            event_type=event_type,
-            payload={
-                "status": delegation.status,
-                "summary": summary.to_payload(),
-                **(
-                    {"error_code": "delegation.execution_failed"}
-                    if delegation.status == "failed"
-                    else {}
-                ),
-            },
-        )
-
-    async def _publish_pre_child_failed(
-        self,
-        *,
-        delegation: DelegationRecord,
-        identity: IdentityContext,
-    ) -> None:
-        await self._publish(
-            delegation=delegation,
-            identity=identity,
-            phase="final",
-            event_type=CanonicalEventType.DELEGATION_FAILED,
-            payload={
-                "status": "failed",
-                "error_code": "delegation.execution_failed",
-            },
-        )
-
-    async def _resume_parent_terminal_if_ready(self, delegation: DelegationRecord) -> None:
-        """最后一个 child evidence 发布后，恢复 parent 冻结的 terminal intent。"""
-
-        async with self._storage.uow() as uow:
-            pending = await uow.evidence_outbox.has_pending_operation(
-                run_id=delegation.parent_run_id,
-                operation_kind=EvidenceOperationKind.DELEGATION,
-            )
-            parent = await uow.runs.get(delegation.parent_run_id)
-            checkpoint = await uow.checkpoints.get_latest(delegation.parent_run_id)
-        if (
-            pending
-            or parent is None
-            or checkpoint is None
-            or checkpoint.state.get("kind") != "delegation_terminal"
-        ):
-            return
-        approval_recovery = checkpoint.state.get("approval_recovery")
-        if approval_recovery is not None:
-            if not isinstance(approval_recovery, Mapping):
-                raise DelegationError("delegation.execution_failed")
-            approval_id = cast(Mapping[str, object], approval_recovery).get("approval_id")
-            if not isinstance(approval_id, str) or not approval_id:
-                raise DelegationError("delegation.execution_failed")
-            resolution = await self._event_bus.event_by_id(
-                run_id=delegation.parent_run_id,
-                event_id=f"approval-resolution:{approval_id}",
-            )
-            if resolution is None:
-                # approval continuation 会在 resolution 发布后复查 delegation
-                # pending；两条路径至少一条负责恢复，且 terminal 永不越过 resolution。
-                return
-        parent_status = RunStatus(parent.status)
-        if parent_status != RunStatus.WAITING and not (
-            parent_status.value in _TERMINAL
-            and checkpoint.state.get("approval_recovery") is not None
-        ):
-            return
-        identity_payload = checkpoint.state.get("identity")
-        if not isinstance(identity_payload, dict):
-            raise DelegationError("delegation.execution_failed")
-        execution_identity = IdentityContext.model_validate(identity_payload)
-        await self._orchestrator.resume_run(
-            checkpoint.resume_token,
-            expected_run_id=delegation.parent_run_id,
-            identity=execution_identity,
-        )
-
-    async def _publish(
-        self,
-        *,
-        delegation: DelegationRecord,
-        identity: IdentityContext,
-        phase: str,
-        event_type: CanonicalEventType,
-        payload: dict[str, Any],
-    ) -> None:
-        event_id = f"delegation:{delegation.id}:{phase}"
-        published_result: dict[str, object] | None = None
-        try:
-            async with self._storage.uow() as uow:
-                existing = await uow.evidence_outbox.get_by_event_id(event_id=event_id)
-                if existing is not None and existing.state == "published":
-                    if not isinstance(existing.result_json, Mapping):
-                        raise DelegationError("delegation.execution_failed")
-                    published_result = dict(existing.result_json)
-                await uow.evidence_outbox.ensure_event_publishable(event_id=event_id)
-        except LookupError as exc:
-            raise DelegationError("delegation.execution_failed") from exc
-        if phase == "child" and published_result is not None:
-            payload = _published_child_payload(
-                delegation=delegation,
-                result=published_result,
-            )
-        try:
-            # 即使 outbox 已标记 published，也必须让 sink 复核同 event_id 的稳定
-            # envelope；evidence 缺失时同一路径受控重建，语义冲突则封闭失败。
-            await self._event_bus.publish(
-                tenant_id=delegation.tenant_id,
-                run_id=delegation.parent_run_id,
-                agent_id=delegation.source_agent_id,
-                user_id=identity.user_id,
-                event_type=event_type,
-                payload={
-                    "delegation_id": delegation.id,
-                    "source_agent_id": delegation.source_agent_id,
-                    "target_agent_id": delegation.target_agent_id,
-                    **payload,
-                },
-                request_id=delegation.request_id,
-                trace_id=delegation.trace_id,
-                event_id=event_id,
-            )
-        except EventSinkReplayConflict as exc:
-            raise DelegationError("delegation.execution_failed") from exc
-        try:
-            async with self._storage.uow() as uow:
-                if phase == "final":
-                    parent = await uow.runs.get_for_update(delegation.parent_run_id)
-                    if parent is None or parent.tenant_id != delegation.tenant_id:
-                        raise DelegationError("delegation.execution_failed")
-                await uow.evidence_outbox.mark_event_published(event_id=event_id)
-                await uow.commit()
-        except LookupError as exc:
-            raise DelegationError("delegation.execution_failed") from exc
 
 
 __all__ = [

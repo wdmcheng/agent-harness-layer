@@ -48,6 +48,7 @@ def test_compose_declares_migration_api_worker_and_shared_runtime_configuration(
     shared_keys = {
         "AGENT_HARNESS_STORAGE__DSN_FILE",
         "AGENT_HARNESS_QUEUE__DSN",
+        "BUDGET_LEDGER_FINGERPRINT_KEY_FILE",
         "SERVICE_APP_EXECUTOR_ID",
         "SERVICE_APP_RECLAIM_IDLE_SECONDS",
     }
@@ -57,7 +58,10 @@ def test_compose_declares_migration_api_worker_and_shared_runtime_configuration(
         assert services[name]["environment"]["AGENT_HARNESS_STORAGE__DSN_FILE"] == (
             "/run/secrets/agent_harness_storage_dsn"
         )
-        assert services[name]["secrets"] == ["agent_harness_storage_dsn"]
+        assert services[name]["secrets"] == [
+            "agent_harness_storage_dsn",
+            "agent_harness_budget_fingerprint_key",
+        ]
         assert "AGENT_HARNESS_STORAGE__DSN" not in services[name]["environment"]
 
     assert "agent-harness-service" in services["api"]["command"]

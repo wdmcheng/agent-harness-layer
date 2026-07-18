@@ -161,10 +161,10 @@ async def test_trustworthy_child_usage_releases_budget_and_final_event(tmp_path:
 
 
 @pytest.mark.asyncio
-async def test_unlimited_parent_preserves_finite_target_cost_ceiling(
+async def test_cost_disabled_parent_keeps_target_cost_out_of_budget_accounting(
     tmp_path: Path,
 ) -> None:
-    """parent 无限不等于 target 无限；有限 target ceiling 必须预约并参与结算。"""
+    """owner 关闭 cost 后，target 不能在同一 execution tree 重新启用该维度。"""
 
     storage, service, _runtime, parent_run_id, _sink = await _build_service(
         tmp_path,
@@ -180,11 +180,11 @@ async def test_unlimited_parent_preserves_finite_target_cost_ceiling(
     finally:
         await storage.dispose()
 
-    assert reservation.reserved_cost_usd == 1.0
-    assert reservation.settled_cost_usd == 2.0
+    assert reservation.reserved_cost_usd is None
+    assert reservation.settled_cost_usd == 0.0
     assert result.summary is not None
-    assert result.summary.cost_usd == 2.0
-    assert result.summary.budget_status == "exceeded"
+    assert result.summary.cost_usd is None
+    assert result.summary.budget_status == "within_budget"
 
 
 @pytest.mark.asyncio
@@ -230,7 +230,7 @@ async def test_inherit_parent_rejects_when_direct_usage_leaves_insufficient_budg
 
 
 @pytest.mark.asyncio
-async def test_finite_parent_cost_rejects_unbounded_target_before_child(
+async def test_finite_parent_cost_uses_owner_ceiling_when_target_ceiling_is_null(
     tmp_path: Path,
 ) -> None:
     storage, service, runtime, parent_run_id, sink = await _build_service(
@@ -240,20 +240,23 @@ async def test_finite_parent_cost_rejects_unbounded_target_before_child(
         target_cost_limit=None,
     )
     try:
-        with pytest.raises(DelegationError) as captured:
-            await service.delegate(_request(parent_run_id), identity=_identity())
+        result = await service.delegate(_request(parent_run_id), identity=_identity())
         async with storage.uow() as uow:
             claims = await uow.delegations.list_for_parent(
                 tenant_id="tenant-a",
                 parent_run_id=parent_run_id,
             )
+            reservation = await uow.delegations.get_reservation(result.delegation_id)
             capacity = await uow.event_capacity.snapshot(parent_run_id)
         events = await sink.read(run_id=parent_run_id)
     finally:
         await storage.dispose()
 
-    assert captured.value.code == "delegation.budget_exceeded"
-    assert runtime.calls == 0
-    assert claims == []
-    assert capacity.outstanding_reserved_event_count == 0
-    assert events == []
+    assert runtime.calls == 1
+    assert [claim.id for claim in claims] == [result.delegation_id]
+    assert reservation.reserved_cost_usd == 10.0
+    assert capacity.outstanding_reserved_event_count == 1
+    assert [event.event_type.value for event in events] == [
+        "delegation.claimed",
+        "delegation.child.created",
+    ]

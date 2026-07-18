@@ -121,7 +121,12 @@ async def test_postgresql_original_key_replays_after_other_key_changes_balance()
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
         try:
-            parent_run_id = await _parent(storage, suffix="replay")
+            parent_run_id = await _parent(
+                storage,
+                suffix="replay",
+                target_token_limit=30,
+                cost_limit=None,
+            )
             async with storage.uow() as uow:
                 first = await uow.delegations.claim_and_reserve(
                     _claim(
@@ -134,15 +139,16 @@ async def test_postgresql_original_key_replays_after_other_key_changes_balance()
                 )
                 await uow.commit()
             async with storage.uow() as uow:
-                await uow.delegations.claim_and_reserve(
-                    _claim(
-                        parent_run_id,
-                        suffix="replay",
-                        key="key-b",
-                        request_hash="b" * 64,
-                        reserved_tokens=60,
+                for key, request_hash in (("key-b", "b" * 64), ("key-c", "c" * 64)):
+                    await uow.delegations.claim_and_reserve(
+                        _claim(
+                            parent_run_id,
+                            suffix="replay",
+                            key=key,
+                            request_hash=request_hash,
+                            reserved_tokens=30,
+                        )
                     )
-                )
                 await uow.commit()
             async with storage.uow() as uow:
                 replay = await uow.delegations.claim_and_reserve(
@@ -151,7 +157,7 @@ async def test_postgresql_original_key_replays_after_other_key_changes_balance()
                         suffix="replay",
                         key="key-a",
                         request_hash="a" * 64,
-                        # 当前只剩 10；replay 必须忽略新的派生值并复用首次 30。
+                        # 当前只剩 10；replay 必须忽略旧 DTO 的派生值并复用首次 30。
                         reserved_tokens=100,
                     )
                 )
@@ -160,8 +166,8 @@ async def test_postgresql_original_key_replays_after_other_key_changes_balance()
                         _claim(
                             parent_run_id,
                             suffix="replay",
-                            key="key-c",
-                            request_hash="c" * 64,
+                            key="key-d",
+                            request_hash="d" * 64,
                             reserved_tokens=20,
                         )
                     )
@@ -199,7 +205,7 @@ async def test_0015_postgresql_empty_database_downgrades_with_exact_opt_in() -> 
 
 
 @pytest.mark.asyncio
-async def test_0015_postgresql_claim_blocks_exact_opt_in_downgrade() -> None:
+async def test_0016_postgresql_claim_blocks_exact_opt_in_downgrade() -> None:
     async with isolated_database("delegation_downgrade_evidence") as dsn:
         await asyncio.to_thread(run_migrations, dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -235,13 +241,13 @@ async def test_0015_postgresql_claim_blocks_exact_opt_in_downgrade() -> None:
             ).scalar_one()
         await engine.dispose()
 
-    assert revision == "0015_agent_delegation"
+    assert revision == "0016_shared_parent_budget_ledger"
     assert claim_count == 1
 
 
 @pytest.mark.asyncio
-async def test_0015_postgresql_run_relation_alone_blocks_exact_opt_in_downgrade() -> None:
-    """真实 PostgreSQL 下，既有 run 父子关系必须独立阻止 0015 降级。"""
+async def test_0016_postgresql_run_relation_alone_blocks_exact_opt_in_downgrade() -> None:
+    """真实 PostgreSQL 下，既有 run 父子关系必须独立阻止 0016 降级。"""
 
     async with isolated_database("delegation_downgrade_relation_only") as dsn:
         await asyncio.to_thread(run_migrations, dsn)
@@ -296,5 +302,5 @@ async def test_0015_postgresql_run_relation_alone_blocks_exact_opt_in_downgrade(
             ).scalar_one()
         await engine.dispose()
 
-    assert revision == "0015_agent_delegation"
+    assert revision == "0016_shared_parent_budget_ledger"
     assert stored_parent_run_id == parent_run_id

@@ -177,6 +177,7 @@ def run(
         event_bus=event_bus,
         artifact_store=artifact_store,
         service_root=service_root,
+        registry=registry,
     )
     orchestrator = RunOrchestrator(
         storage=storage,

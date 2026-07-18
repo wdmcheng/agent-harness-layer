@@ -26,6 +26,9 @@ from tests.contracts.agent_delegation_service_runtime_test_support import (
     _Policy as _Policy,
 )
 from tests.contracts.agent_delegation_service_runtime_test_support import (
+    _SharedBudgetRuntimeFixture as _SharedBudgetRuntimeFixture,
+)
+from tests.contracts.agent_delegation_service_runtime_test_support import (
     _UsageProvider as _UsageProvider,
 )
 
@@ -99,6 +102,7 @@ async def _record_usage(
         ),
         storage=storage,
         event_bus=cast(Any, service)._event_bus,
+        shared_budget=_SharedBudgetRuntimeFixture(),
     )
     invocation = usage_service.complete(
         ModelRequest(provider="fake", prompt="durable usage", max_output_tokens=2),
@@ -182,6 +186,7 @@ __all__ = [
     "_InlineChildRuntime",
     "_ParentDetailOrchestrator",
     "_Policy",
+    "_SharedBudgetRuntimeFixture",
     "_UsageProvider",
     "_build_service",
     "_descriptor",

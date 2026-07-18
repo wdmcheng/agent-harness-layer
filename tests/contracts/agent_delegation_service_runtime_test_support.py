@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -32,9 +35,12 @@ from agent_harness.registry import (
     AgentToolPolicy,
 )
 from agent_harness.runtime import RunDetailResult, RunResult, RunStatus
+from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.storage import SQLAlchemyStorage, run_migrations
 from agent_harness.storage.repositories import RunCreate, SessionCreate
 from agent_harness.storage.run_trace_gate import StorageRunTraceResolver
+from agent_harness.storage.shared_budget import LedgerCreate, OperationIdentity
+from agent_harness.storage.shared_budget_models import ParentBudgetLedgerModel
 
 
 def _descriptor(
@@ -92,6 +98,19 @@ class _Policy:
             action=check.action,
             resource=check.resource,
         )
+
+
+class _SharedBudgetRuntimeFixture:
+    """让 delegation 合同夹具走与真实 composition 相同的 allocation seam。"""
+
+    def operation_identity(self, **values: Any) -> OperationIdentity:
+        return OperationIdentity.from_semantic_request(
+            fingerprint_key=b"delegation-contract-budget-key",
+            fingerprint_key_version="delegation-contract-v1",
+            **values,
+        )
+
+    model_router_config = SharedBudgetRuntime.model_router_config
 
 
 class _ParentDetailOrchestrator:
@@ -201,6 +220,8 @@ async def _build_service(
     source_cost_limit: float | None = 10.0,
     target_token_limit: int = 100,
     target_cost_limit: float | None = 10.0,
+    usage_input_tokens: int | None = 3,
+    usage_output_tokens: int | None = 2,
     usage_cost_usd: float = 0.25,
 ) -> tuple[
     SQLAlchemyStorage,
@@ -209,9 +230,59 @@ async def _build_service(
     str,
     EventSink,
 ]:
+    frozen_targets = source_targets if source_targets is not None else ["agent-target"]
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'delegation-service.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
+    usage_token_total = (
+        usage_input_tokens + usage_output_tokens
+        if isinstance(usage_input_tokens, int)
+        and isinstance(usage_output_tokens, int)
+        and usage_input_tokens + usage_output_tokens > 0
+        else 1
+    )
+    usage_token_price = (
+        Decimal("0")
+        if source_cost_limit is None
+        else Decimal(str(usage_cost_usd)) / Decimal(usage_token_total)
+    )
+    target_snapshots: dict[str, dict[str, Any]] = {
+        target_id: {
+            "agent_id": target_id,
+            "descriptor_version": f"{target_id}-v1",
+            "model_policy": {
+                "provider": "fake",
+                "default_model": "fake-basic",
+                "fallback_models": [],
+            },
+            "target_budget": {
+                "max_tokens_per_run": target_token_limit,
+                "max_cost_usd_per_run": (None if source_cost_limit is None else target_cost_limit),
+            },
+            "routes": [
+                {
+                    "usage_kind": "model",
+                    "provider": "fake",
+                    "model": "fake-basic",
+                    "price_source_ref": "catalog:fake",
+                    "price_source_version": "catalog-v1",
+                    "input_token_price_usd": str(usage_token_price),
+                    "output_token_price_usd": str(usage_token_price),
+                    "soft_max_tokens_per_call": 100,
+                },
+                {
+                    "usage_kind": "embedding",
+                    "provider": "local",
+                    "model": "mock-small",
+                    "price_source_ref": "catalog:local:mock-small",
+                    "price_source_version": "catalog-v1",
+                    "input_token_price_usd": "0",
+                },
+            ],
+        }
+        for target_id in frozen_targets
+        if target_id != "agent-source"
+    }
     async with storage.uow() as uow:
         await uow.tenants.ensure("tenant-a")
         session = await uow.sessions.ensure(
@@ -230,6 +301,88 @@ async def _build_service(
                 trace_id="trace-parent",
             )
         )
+        await uow.shared_budget.create_ledger(
+            LedgerCreate(
+                tenant_id="tenant-a",
+                budget_owner_run_id=root.id,
+                token_limit=100,
+                cost_limit=(None if source_cost_limit is None else Decimal(str(source_cost_limit))),
+                registry_version="registry-v1",
+                config_version="config-v1",
+                catalog_version="catalog-v1",
+                snapshot_id=f"snapshot:{root.id}",
+                snapshot={
+                    "owner": {
+                        "agent_id": "agent-source",
+                        "root_run_id": root.id,
+                        "delegation_targets": list(frozen_targets),
+                        "max_tokens_per_run": 100,
+                        "max_cost_usd_per_run": source_cost_limit,
+                        "cost_enabled": source_cost_limit is not None,
+                    },
+                    "registry_version": "registry-v1",
+                    "config_version": "config-v1",
+                    "catalog_version": "catalog-v1",
+                    "agents": {
+                        "agent-source": {
+                            "agent_id": "agent-source",
+                            "descriptor_version": "agent-source-v1",
+                            "model_policy": {
+                                "provider": "fake",
+                                "default_model": "fake-basic",
+                                "fallback_models": [],
+                            },
+                            "target_budget": {
+                                "max_tokens_per_run": 100,
+                                "max_cost_usd_per_run": source_cost_limit,
+                            },
+                            "routes": [
+                                {
+                                    "usage_kind": "model",
+                                    "provider": "fake",
+                                    "model": "fake-basic",
+                                    "price_source_ref": "catalog:fake",
+                                    "price_source_version": "catalog-v1",
+                                    "input_token_price_usd": str(usage_token_price),
+                                    "output_token_price_usd": str(usage_token_price),
+                                    "soft_max_tokens_per_call": 100,
+                                },
+                                {
+                                    "usage_kind": "embedding",
+                                    "provider": "local",
+                                    "model": "mock-small",
+                                    "price_source_ref": "catalog:local:mock-small",
+                                    "price_source_version": "catalog-v1",
+                                    "input_token_price_usd": "0",
+                                },
+                            ],
+                        },
+                        **target_snapshots,
+                    },
+                },
+            )
+        )
+        if not include_target:
+            # 授权层的损坏 catalog 反例必须先经过合法首次写入，再模拟数据库外部
+            # 对 target sub-snapshot 与 hash 的一致篡改，不能弱化生产创建门禁。
+            ledger = await uow.session.get(ParentBudgetLedgerModel, ("tenant-a", root.id))
+            assert ledger is not None
+            snapshot = dict(ledger.snapshot_json)
+            agents = dict(snapshot["agents"])
+            for target_id in frozen_targets:
+                if target_id != "agent-source":
+                    agents.pop(target_id, None)
+            snapshot["agents"] = agents
+            ledger.snapshot_json = snapshot
+            ledger.snapshot_hash = hashlib.sha256(
+                json.dumps(
+                    snapshot,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
         parent = root
         if delegated_parent:
             parent = await uow.runs.create(
@@ -262,10 +415,17 @@ async def _build_service(
         usage_service = ModelInvocationService(
             router=ModelRouter(
                 config=ModelRouterConfig(default_model="fake-basic"),
-                providers={"fake": _UsageProvider(cost_usd=usage_cost_usd)},
+                providers={
+                    "fake": _UsageProvider(
+                        input_tokens=usage_input_tokens,
+                        output_tokens=usage_output_tokens,
+                        cost_usd=usage_cost_usd,
+                    )
+                },
             ),
             storage=storage,
             event_bus=event_bus,
+            shared_budget=_SharedBudgetRuntimeFixture(),
         )
     runtime = _InlineChildRuntime(
         storage,
@@ -279,7 +439,7 @@ async def _build_service(
             [
                 _descriptor(
                     "agent-source",
-                    targets=(source_targets if source_targets is not None else ["agent-target"]),
+                    targets=frozen_targets,
                     max_cost_usd=source_cost_limit,
                 )
             ]
@@ -345,6 +505,7 @@ __all__ = [
     "_InlineChildRuntime",
     "_ParentDetailOrchestrator",
     "_Policy",
+    "_SharedBudgetRuntimeFixture",
     "_UsageProvider",
     "_build_service",
     "_descriptor",
