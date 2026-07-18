@@ -14,3 +14,7 @@ Service profile SHALL 使用真实 PostgreSQL row lock/CAS 与 Redis worker deli
 #### Scenario: Cost-disabled service recovery 不误封锁
 - **WHEN** `max_cost_usd_per_run=null` 的普通model、embedding miss或delegated child在PostgreSQL/Redis流程返回可信token与合法`cost=null/cost_status=unavailable`并经历worker reclaim
 - **THEN** service按token维度幂等settle、cost impact为0且不单独needs_review，terminal在其他claim封闭后可见；非法cost/status反例仍稳定拒绝
+
+#### Scenario: Service fingerprint secret 复用 CFG-001
+- **WHEN** Compose 通过只读 `AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE` 为 API 与 worker 注入同一 fingerprint key，并分别执行正常启动及 direct/file 冲突、symlink、超限、非 UTF-8 失败反例
+- **THEN** 两个进程只经 typed settings 获得相同 key semantics，正常路径生成可重放 opaque fingerprint；失败路径在任何 run/provider/queue 副作用前结构化退出，Compose config、health、doctor、logs、PostgreSQL 与 artifacts 均不含原值

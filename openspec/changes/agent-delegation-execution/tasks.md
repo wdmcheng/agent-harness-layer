@@ -21,3 +21,8 @@
 - [x] 4.1 运行定向 unit/contract/integration/eval/local smoke，记录 AC-015/016 与 DLG-001 覆盖
 - [x] 4.2 运行真实 PostgreSQL/Redis service smoke，证明同一 parent 不同 key 预算竞争、其他 key 改变余额后原 key 稳定重放、并发幂等、queue reclaim、parent aggregation，以及真实 delegation 调用点在 PostgreSQL 中副作用前预约 event capacity；覆盖容量不足 `event.sequence_exhausted` 的零 child/queue/provider/业务 event、未知结果保持预约并阻止 terminal，并与 local 路径逐值一致
 - [x] 4.3 完成该 capability 的 3 个 fresh code-reviewer Stage 1/2 PASS，保持 change 为 ready-to-archive 且不归档
+
+## 5. 归档投影修正
+
+- [ ] 5.1 将本 change 对 `P0 HTTP 契约与运行时 OpenAPI 无漂移` 的最终修改写成完整 MODIFIED requirement，使 RUN-002 在累计 active-change 投影中唯一引用 `RunDetailResponse`，并以投影 contract 拒绝旧 `RunCreateResponse` MUST 残留
+- [ ] 5.2 随 Phase 13.8A 修复后重跑 RUN-001 至 RUN-005 局部/全量 OpenAPI drift tests、strict validation 与同一冻结 digest 的 fresh 代码 1+2，再恢复 `ready-to-archive`

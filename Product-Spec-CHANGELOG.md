@@ -1,5 +1,13 @@
 # 变更记录
 
+## [v1.8] - 2026-07-18
+### 规格维护
+
+- 将既有 `budget.max_tokens_per_run` / `budget.max_cost_usd_per_run` 在 P0 预发布阶段收紧为 parent execution tree 共享硬上限：root direct model/embedding、获准 delegation 及 child allocation 统一竞争同一 durable owner ledger；公开字段与 `/api/v1` shape 不变，cost 为 `null` 时只关闭 shared cost 维度。
+- 补齐 shared-budget 安全边界：tenant-scoped keyed request fingerprint 只能通过 typed settings 的 env / Docker secret file 边界加载，启动时 fail closed；任何 runtime、migration、evidence、错误或配置快照不得持久化或回显密钥原值。
+- 补齐 `0016` 历史迁移合同：DDL 前校验全库 parent-child 拓扑，拒绝嵌套、孤儿、循环、跨租户或 delegation relation 不唯一；未封闭 tree 只能使用独立 durable immutable source evidence 回填，cost-enabled snapshot 的必需价格不得为 null。
+- 统一 usage application UoW 错误优先级，并要求未封闭 shared-budget claim/allocation、unknown 或 needs-review 状态阻止 parent terminal；RUN-002 最终以 `RunDetailResponse` 为唯一合同，消除 active changes 归档投影冲突。
+
 ## [v1.7] - 2026-07-16
 ### 规格维护
 - 收紧 Run API 公开契约：按实际 operation 区分 response status，RUN-002 原子切换为 `RunDetailResponse`，并要求 route、schema、OpenAPI 与双向 drift test 保持一致。

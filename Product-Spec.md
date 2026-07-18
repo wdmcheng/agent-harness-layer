@@ -443,6 +443,7 @@ templates/service-app/
 - MUST 配置校验错误包含字段路径和修复提示。
 - MUST Docker secret file 只通过受控配置加载边界读取，拒绝目录、符号链接逃逸、不可读文件和空值；错误不得回显 secret 内容。
 - MUST P0 不引入只有单一实现的 `SecretProvider` 抽象；env、`.env` 与 Docker secret file 在同一 typed settings 合并边界收口，并在日志、错误、trace、eval 和 audit 前脱敏。
+- MUST shared-budget tenant-scoped request fingerprint 的 keyed secret 是 typed settings 字段，只能通过同一 env / Docker secret file 合并边界加载；缺失、direct/file 冲突、越界、symlink、超限、非 UTF-8 或空值必须在 application startup 失败，runtime 与 migration 不得自行读取环境变量或文件。
 - MUST 每个 agent config 显式声明受控 executor reference；缺失、越界或无效 executor 必须让 registry 整体失败，不得隐式 fallback。
 - SHOULD 配置加载边界为后续热更新保留 seam；P0 不要求 worker 运行中自动热重载，模型路由、预算和 provider 变更先走显式 reload / restart 路径。
 
@@ -543,6 +544,8 @@ templates/service-app/
 - MUST trace/eval/approval/storage 全部带 `agent_id`。
 - MUST delegation edge 在 config/policy 中显式声明。
 - MUST parent run 聚合 delegated run usage、trace 和 budget。
+- MUST root run 创建时冻结 parent execution tree 的 token/cost hard limits 与 registry/config/catalog、root/target descriptor、route、price versions；root direct model/embedding、delegation top-level claim 和 child allocation 必须以 root `run_id` 为同一非空 `budget_owner_run_id`，原子竞争同一 durable ledger，不能把各 child 的 per-run budget 相加放大总额度。
+- MUST child 只可进一步收紧 parent 已启用维度：token ceiling 取 parent hard limit 与 target ceiling 的更严者；parent cost 关闭时 child 不得重新启用 shared cost，parent cost 启用时 target null 不得取消 parent cost 上界。active、unknown 或 needs-review allocation 保守占用额度，不能按零或提前释放。
 - MUST RUN-002 的 `delegation_summary.children` 以持久化 parent-child relation 为成员真相源，而不是以 terminal aggregate row 是否已生成来判断。child 已持久化后，即使仍为 `created|running|waiting`，或已终态但 aggregation 尚未结算，也必须返回其 `run_id`、`agent_id`、durable `RunStatus` 与 trace refs；这些未结算 child 的 token/cost/latency 保持 unknown，并强制 parent `budget_status=incomplete`。已结算与未结算 child 并存时必须全部返回，只聚合已知数值且整体仍为 incomplete；只有 parent 确实不存在带 `child_run_id` 的 durable relation 时 `delegation_summary` 才为 null。
 - MUST 默认禁止任意 agent 互调。
 - MUST 每次获准 delegation 最多发布三条业务事件，顺序固定为 `delegation.claimed` -> `delegation.child.created` -> `delegation.completed|delegation.failed`；final 两种类型互斥。child 创建前的确定性执行失败只发布 claimed 与 failed；edge/policy/tenant/cycle/depth/budget/idempotency/event-capacity 拒绝不发布 delegation 业务事件。
@@ -771,6 +774,10 @@ auth_method: str
 - MUST 模型/embedding 调用记录 token、cost、latency trace。
 - MUST token、cost、latency 证据拒绝 bool、负数与非有限值；cache hit 仍记录本次调用级 evidence，但不得把首次 provider latency、token 或 cost 伪装成本次 provider 调用。
 - MUST 单次模型调用预计超过预算阈值时触发 policy。
+- MUST 软 review threshold 与 execution-tree shared hard limit 分层：先形成受信有限 intent 并通过静态 hard eligibility，再进入 soft policy/fallback/approval，最后在外部副作用前以 owner ledger 当前余额原子 reservation；审批不能提高、重置或覆盖 hard limit。
+- MUST model、embedding miss、embedding cache hit、delegation 与 child allocation 使用版本化 immutable identity；stable operation key 只定位记录，tenant-scoped keyed request fingerprint 与完整 identity 决定 exact replay 或 conflict。Fingerprint secret 只能来自 REQ-004 typed settings，原值不得进入 snapshot、event、trace、audit、error 或持久化字段。
+- MUST direct 与 delegation 共用同一 parent execution-tree ledger；`max_tokens_per_run` / `max_cost_usd_per_run` 在 P0 预发布阶段表示该 tree 的 shared hard limit，公开字段 shape 不变。`max_cost_usd_per_run=null` 只关闭 shared cost 维度，token 维度仍必须预约、结算、恢复和 terminal fencing。
+- MUST usage application UoW 按固定优先级处理：exact replay/identity conflict → authorization/owner/relation/snapshot → `event.sequence_state_invalid` → budget → `event.sequence_exhausted` → unique-race reread；前序失败不得被后序 budget/capacity 错误覆盖。
 - MUST 所有注入模型上下文的外部内容保留 `source_ref`、`trust_level` 和截断信息。
 - MUST ContextAssembler 在超预算时按可解释顺序降级：裁剪历史、压缩记忆、截断 tool/retrieval output、切换 fallback model 或触发 policy。
 - SHOULD 支持 cheap/flagship/local model routing。
@@ -781,6 +788,7 @@ auth_method: str
 - [x] AC-031: Given 重复 embedding 输入, when 第二次调用, then 命中 cache 或记录 cache miss 原因。
 - [x] AC-032: Given 历史、检索和 tool output 同时进入上下文, when 组装 prompt, then 输出 context assembly trace，包含来源、可信级别、token 预算和截断记录。
 - [x] AC-064: Given model、embedding provider 或 embedding cache 完成一次调用, when 记录 provider-neutral evidence, then 非负且有限的 token、cost、latency、provider/model、cache/provider side-effect decision 和 budget decision 可由同一 run/trace 关联，且业务 agent 不拼接 provider 原始事件。
+- [ ] AC-068: Given 一个 root execution tree 同时发生 direct model/embedding、delegation 与 child allocation, when 多进程并发预约、结算、崩溃恢复或 terminal, then 所有 operation 以同一非空 root owner ledger 竞争冻结的 token/cost hard limits，exact replay 不重复扣减，conflict/unknown/needs-review fail closed，拒绝路径无 provider/child/queue 副作用，且 SQLite 与真实 PostgreSQL 逐值一致。
 
 ### REQ-013: Retrieval 与 RAG
 
@@ -894,6 +902,7 @@ artifact.created
 - MUST 每个 run 内 `seq` 单调递增。
 - MUST `terminal=true` 当且仅当 event type 为 `run.completed` / `run.failed` / `run.cancelled`；三种 run terminal event 必须设置 `terminal=true`、`visibility=public`，其他类型必须设置 `terminal=false`。EventBus 与所有持久化 sink 必须在分配 seq、消费容量、物化 artifact 或 fan-out 前双向拒绝 type/terminal/visibility 不一致的 envelope。每个 run 只能有一个 terminal event；它是该 run 的最后一条 CanonicalEvent，持久化后必须拒绝任何后续业务事件。
 - MUST usage 结算、approval resolution 等 terminal 前置 evidence 由 durable outbox/settlement 状态协调；terminal 一旦可见，所有必需前置 evidence 必须已经存在，恢复只能重放稳定 event id，不能重放 provider/tool 副作用。
+- MUST parent terminal guard 同时校验 shared-budget ledger：存在未封闭 direct claim、delegation top-level claim、child allocation、`side_effect_state=started` 且无可信结果、unknown 或 needs-review 时不得发布 terminal；恢复只能补齐既有 claim/settlement/outbox，不能重放 provider、child 或 queue 副作用。
 - MUST delegation 生命周期只使用本节列出的四种 internal non-terminal event，遵守 REQ-007 的最多三条顺序、稳定 event id、阶段 payload 和 needs_review 无 final 规则；RUN-003、CLI 与后续 RUN-006 默认隐藏 internal event，只有通过 tenant/run 授权并显式请求 internal visibility 的 reader 才能读取 canonical event，不生成公开别名或第二套事件。
 - MUST run 创建时预留一个 terminal event 容量；任何可能产生后续 evidence 的 provider/tool/approval/delegation 副作用开始前，durable outbox 必须按受信、版本化、封闭的 operation kind 计算最大 event 数并原子预留，调用方不能自报较小数值。当前已持久化的最高 `seq`、未结算预约和 terminal 预约之和不得超过 CanonicalEvent `seq` 上限；不能用 event row count 代替最高 `seq`，因为历史或直接写入可能留下空洞。容量不足时必须在外部副作用前拒绝，不能等到结算阶段才发现无 seq 可写。
 - MUST `tool.call.args_delta` 可表示半截 JSON，不要求每个 delta 可解析。
@@ -1253,6 +1262,9 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | AgentDescriptor | agent 注册描述 | agent_id, version, input_schema, output_schema, config_ref |
 | Session | 用户会话 | session_id, tenant_id, user_id, agent_id, metadata |
 | AgentRun | 一次 agent 运行 | run_id, tenant_id, agent_id, session_id, status, parent_run_id |
+| ParentBudgetLedger | parent execution tree 的 durable shared hard-limit owner | tenant_id, budget_owner_run_id, hard_token_limit, hard_cost_limit, cost_enabled, snapshot_id, state_version |
+| BudgetOperationClaim | root direct 或 delegation top-level operation 的 immutable claim；预算契约中的 `delegation_claim_id` 唯一指既有 `AgentDelegation.id`，持久化列名为 `delegation_id` | tenant_id, budget_owner_run_id, operation_key, identity_hash, request_fingerprint, reserved/actual impact, side_effect_state, status |
+| DelegationBudgetAllocation | delegation 内 child model/embedding operation 的额度分配；预算语义中的 `delegation_claim_id` 与关联的 `AgentDelegation.id`/物理列 `delegation_id` 是同一个值，不是第二套标识 | tenant_id, budget_owner_run_id, delegation_id, usage_call_id, identity_hash, reserved/actual impact, status |
 | Checkpoint | durable runtime checkpoint | checkpoint_id, tenant_id, run_id, state_ref, resume_token, created_at |
 | Approval | HITL 审批记录 | approval_id, tenant_id, run_id, action, decision, approver_id, status |
 | PolicyRule | 权限策略 | rule_id, tenant_id, resource, action, effect, conditions |
@@ -1281,6 +1293,9 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | Session has many AgentRuns | 会话内可多次调用 agent |
 | AgentRun has many Checkpoints / Approvals / Events / ToolInvocations | 运行过程可恢复、可审计、可回放 |
 | AgentRun may have parent AgentRun | 支持受控 delegation |
+| Root AgentRun owns one ParentBudgetLedger | `budget_owner_run_id` 必须是同 tenant root run；同一 tree 的 direct/delegation/allocation 共用该 owner |
+| ParentBudgetLedger has many BudgetOperationClaims | stable key 定位 row，immutable identity 决定 exact replay 或 conflict |
+| Delegation BudgetOperationClaim has many DelegationBudgetAllocations | child allocation 受 top-level reservation 和 parent ledger 双重约束，parent 只应用 top-level 差额以避免双计 |
 | TraceRef belongs to AgentRun | trace 与运行关联 |
 | EvalCase can originate from TraceRef | failed/low-score trace 生成 draft case |
 | EvalRun has many EvalScores | eval run 产生多条指标分数 |
@@ -1294,6 +1309,9 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - `run_id`、`trace_id`、`event_id`、`approval_id`、`artifact_id` MUST 全局唯一。
 - `CanonicalEvent.seq` MUST 在同一 `run_id` 内单调递增。
 - `AgentRun` terminal status MUST 只能是 completed、failed、cancelled 之一。
+- `ParentBudgetLedger.budget_owner_run_id` MUST 非空并 tenant-fenced 指向 root `AgentRun.run_id`；任意 child 必须解析到唯一同租户 root 与唯一 delegation relation，P0 拒绝嵌套、孤儿、循环或跨租户 parent topology。
+- Budget claim/allocation 的 reserved、actual、unknown、needs-review 与 `side_effect_state` MUST 原子持久化并参与 terminal fencing；exact replay 不得重新读取余额或重复 reservation，identity conflict 必须在预算、event capacity 和外部副作用前拒绝。
+- `0016` 对未封闭 legacy tree 的 backfill MUST 引用与 backfill bundle 分离的 durable immutable source evidence，并逐值验证 snapshot/identity/hash/version；不得由 current config、默认值、reservation、actual 或自证 bundle 推导。Cost-enabled snapshot 的所有必需 model/embedding route price MUST 非 null、非 bool、非负且有限。
 - `eval-cases/approved` MUST 只能由审核流程写入。
 - Secret MUST 在进入 trace/eval/audit/artifact 前脱敏。
 - 外部输入、MCP output、tool output、retrieval chunk MUST 在进入模型上下文前带 `source_ref` 和 `trust_level`。

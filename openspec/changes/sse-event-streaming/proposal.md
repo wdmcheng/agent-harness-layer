@@ -9,6 +9,8 @@
 
 当前仓库只有 CanonicalEvent JSON 查询、SSE frame formatter 和 run 完成后的 CLI 摘要，没有可连接、续读、鉴权和终止的 HTTP transport，也没有逐条输出 CanonicalEvent 的 CLI stream adapter。Product P0 要求 HTTP 客户端能以 `Last-Event-ID -> seq` 恢复事件流，CLI 能通过同一授权 reader 逐条消费 canonical bytes，并提供首 frame 性能证据。
 
+本 change 保持待实现且不得提前启动：Phase 13.8A 必须先完成，七个前序 change 的联合归档投影必须稳定，随后才能承接最终 RUN-002、shared-budget 与 event-capacity 合同实施 Phase 13.9。
+
 ## What Changes
 
 - 新增 RUN-006 `GET /api/v1/runs/{run_id}/events/stream`，返回 `text/event-stream`。

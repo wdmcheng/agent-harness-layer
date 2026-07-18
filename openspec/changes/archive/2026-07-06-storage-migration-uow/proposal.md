@@ -21,7 +21,7 @@ Phase 3 必须先把可迁移、可事务化、可替换 adapter 的持久化边
 
 - 不实现 CanonicalEvent、artifact store、runtime state machine、checkpoint resume 或 DBOS adapter。
 - 不实现 RAG retrieval、policy engine、approval workflow、eval gate 或完整 API/worker 拆分。
-- 不修改 `/Volumes/develop/PyCharmProjects/wiki-brain`；如需 PostgreSQL Dockerfile/entrypoint，仅只读参考。
+- 不修改关联的 `wiki-brain` 项目；如需 PostgreSQL Dockerfile/entrypoint，仅作只读参考。
 
 ## Capabilities
 

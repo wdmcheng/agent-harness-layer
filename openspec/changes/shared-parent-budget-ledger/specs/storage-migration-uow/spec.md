@@ -1,7 +1,9 @@
 ## ADDED Requirements
 
 ### Requirement: 0016 前滚共享 parent budget ledger
-Alembic revision `0016` SHALL 直接依赖 `0015`，新增 tenant-scoped parent ledger、top-level operation claim 与 delegation child allocation（或经合同证明等价的受约束记录），并以唯一关联连接既有 `usage_call_id`、delegation claim/reservation。Ledger MUST 以非空 `(tenant_id,budget_owner_run_id)` 为唯一键并 tenant-fenced 引用 execution-tree root `AgentRun.run_id`；claim/allocation MUST 持有相同 owner FK，不得把 nullable `AgentRun.parent_run_id` 直接当作 owner。Ledger snapshot MUST保存owner envelope与root/允许target各自的agent sub-snapshot；direct claim/allocation MUST保存版本化immutable operation identity hash、schema/key version与非敏感关联refs。`0014` usage outbox/event capacity 与 `0015` relation/reservation/aggregate 的历史字段和职责 MUST 保持不变。所有 ledger mutation MUST 在 owner root/ledger row lock 或等价 CAS 的同一 UoW 中校验 token/cost 不变量，SQLite 与 PostgreSQL 结果一致。
+Alembic revision `0016` SHALL 直接依赖 `0015`，新增 tenant-scoped parent ledger、top-level operation claim 与 delegation child allocation（或经合同证明等价的受约束记录），并以唯一关联连接既有 `usage_call_id`、delegation claim/reservation。Ledger MUST 以非空 `(tenant_id,budget_owner_run_id)` 为唯一键并 tenant-fenced 引用 execution-tree root `AgentRun.run_id`；claim/allocation MUST 持有相同 owner FK，不得把 nullable `AgentRun.parent_run_id` 直接当作 owner。Ledger snapshot MUST保存owner envelope与root/允许target各自的agent sub-snapshot；direct、delegation top-level claim与allocation MUST保存对应版本化immutable operation identity hash、schema/key version、opaque fingerprint与非敏感关联refs。Delegation top-level row还 MUST保存既有`0015` request hash、target sub-snapshot与route/price catalog digest、可信reservation bounds，并以`(tenant_id,budget_owner_run_id,delegation_id)`唯一；delegation child allocation 的物理 stable key 与数据库 UNIQUE MUST固定为`(tenant_id,budget_owner_run_id,delegation_id,usage_call_id)`。这里两类物理列`delegation_id` MUST逐值引用唯一`AgentDelegation.id`，且与shared-budget spec中的`delegation_claim_id`完全等价，claim/allocation identity也 MUST绑定该同一值，不得另建映射或第二标识；`child_run_id`只用于relation与拓扑完整性校验，绝不进入allocation stable key或UNIQUE。数据库constraint MUST拒绝任何三类operation identity为null或ownership/schema形状不匹配。`0014` usage outbox/event capacity 与 `0015` relation/reservation/aggregate 的历史字段和职责 MUST 保持不变。所有 ledger mutation MUST 在 owner root/ledger row lock 或等价 CAS 的同一 UoW 中校验 token/cost 不变量，SQLite 与 PostgreSQL 结果一致。
+
+`0016` MUST 在任何 DDL/UPDATE 前读取全部 `agent_runs` 与相关 `agent_delegations` 并验证全库 parent graph，而不是只从 roots 遍历 direct children。每个非root run MUST 直接指向一个存在且同tenant的root，且 MUST 有且仅有一条 tenant/source/parent/child 一致的 delegation relation；P0 的嵌套 child、孤儿、循环、跨tenant parent、缺失或重复 relation及未被任何root分类覆盖的row MUST整批fail closed。
 
 全新 direct model/embedding operation SHALL 在同一 application UoW 中创建或重放 `0016` direct claim、`0014` usage settlement/outbox 与 event-capacity reservation；全新 delegation SHALL 在同一 UoW 中创建或重放 `0016` top-level claim、`0015` delegation relation/reservation 与 `0014` ordered evidence/event-capacity reservation。任一 owner、budget、capacity、relation、唯一键或 replay-integrity 检查失败 MUST 回滚整组，禁止留下只有 shared claim 或只有 `0014`/`0015` operation 的半提交状态。可信 provider/child result 的 durable persistence、direct/allocation settlement、delegation top-level delta 与 parent aggregate update MUST 同一 UoW 提交；event publish 位于提交后并复用既有 outbox recovery。
 
@@ -23,20 +25,24 @@ Alembic revision `0016` SHALL 直接依赖 `0015`，新增 tenant-scoped parent 
 
 #### Scenario: Backfill 区分 root direct 与 delegated child
 - **WHEN** migration 扫描既有 `run_evidence_outbox` usage，并能由 `agent_runs.parent_run_id` 与唯一 `agent_delegations.child_run_id` relation 逐值证明归属
-- **THEN** `parent_run_id IS NULL` 的 root 把自身 `run_id` 规范化为非空 `budget_owner_run_id`；child 必须由同 tenant 的 `parent_run_id` 与唯一 delegation relation 共同解析到该 root owner。只有 root 自身 usage 建立顶层 direct claim；child usage 从 direct scan 排除，并按 `(tenant,budget_owner_run_id,delegation,child_run_id,usage_call_id)` 建立唯一 allocation linkage。跨 tenant、嵌套 child、parent-child 字段不一致、child 缺失或命中多个 relation 时整批 fail closed
+- **THEN** `parent_run_id IS NULL` 的 root 把自身 `run_id` 规范化为非空 `budget_owner_run_id`；child 必须由同 tenant 的 `parent_run_id` 与唯一 delegation relation 共同解析到该 root owner。只有 root 自身 usage 建立顶层 direct claim；child usage 从 direct scan 排除，并按物理`(tenant_id,budget_owner_run_id,delegation_id,usage_call_id)`建立唯一 allocation。`child_run_id`只参与 relation 与拓扑完整性校验，不进入 stable key 或数据库 UNIQUE。跨 tenant、嵌套 child、parent-child 字段不一致、child 缺失或命中多个 relation 时整批 fail closed
 
 #### Scenario: Backfill 隔离多个 root 并合并同 root claims
 - **WHEN** 同一 tenant 存在两个 `parent_run_id=null` 的 root runs，且其中一个 root 同时有 direct usage 与唯一 child/delegation evidence
 - **THEN** migration 为两个 root 分别建立以各自 `run_id` 为 owner 的 ledger；同一 root 的 direct claim、delegation claim与child allocation使用同一owner，另一个root的余额和状态完全隔离
 
+#### Scenario: 全库拓扑反例在 DDL 前拒绝
+- **WHEN** legacy 数据包含三层 parent-child、孤儿 parent、parent cycle、跨tenant parent，或 child 缺失/命中多条 delegation relation中的任一反例，即使另有合法 root 可被旧的 root/direct-child 查询选中
+- **THEN** SQLite与PostgreSQL都在创建 `0016` 表或更新任何 legacy row 前整批拒绝；不得遗漏坏节点、部分升级合法 tree 或把 nested child 当成新的 root
+
 ### Requirement: 0016 只为可继续执行的 legacy tree 回填可证明 snapshot
 `0016` SHALL 在 DDL/UPDATE 前把每个 legacy root tree 整批分类为 `legacy_closed` 或 `snapshot_backfill_required`。`legacy_closed` MUST 同时满足：root 已 terminal 且具备dialect等价的durable terminal closure proof；全部 `0014` usage/ordered outbox 已处于 `published|cancelled`；event capacity 无 outstanding reservation；全部 `0015` delegation 已 `settled|released` 且无 needs-review、pending child、queue、approval 或 recovery 工作。PostgreSQL closure proof SHALL 是与root status逐值一致的唯一terminal canonical event；SQLite closure proof SHALL 是terminal run status、`run_event_capacity.terminal_reservation=0`与`outstanding_reserved_event_count=0`的组合，依赖既有local JSONL/capacity原子写合同，Alembic不得猜测或扫描未受约束路径。该类 tree SHALL 原样保留 `0014`/`0015` 历史，不建立 `0016` ledger/claim/allocation，也不得在升级后恢复任何新 operation。
 
-其余仍需继续执行或恢复的 `snapshot_backfill_required` tree，其 root ledger snapshot SHALL包含owner hard token/cost limits、cost-disabled状态、registry/config/catalog versions，以及root source和当时允许targets各自的descriptor/model-policy/target-budget/route/price sub-snapshot。Migration MUST只接受root run、checkpoint或durable evidence在创建/执行时已持久化引用的不可变版本标识，并用该标识解析内容可校验、hash/version一致的versioned registry、descriptor/config history与price catalog记录。Migration-time current resolver、当前reload后配置、当前price、`0015` reservation数值、usage actual、默认值或零值 MUST NOT作为历史snapshot来源。Child MUST逐值继承同一owner snapshot ID与hard limits，并命中与自身target `agent_id`一致的sub-snapshot；source/target descriptor不同是合法常态，不得要求child复制source descriptor。
+其余仍需继续执行或恢复的 `snapshot_backfill_required` tree，其 root ledger snapshot SHALL包含owner hard token/cost limits、cost-disabled状态、registry/config/catalog versions，以及root source和当时允许targets各自的descriptor/model-policy/target-budget/route/price sub-snapshot。Backfill bundle MUST 引用一个与自身记录ID不同的 durable immutable source checkpoint/evidence；该 source MUST 在 backfill bundle 之外保存创建/执行时的完整 snapshot 与 identity 基线，并能通过独立 record hash/version 校验。Migration MUST先解析该 source，再把bundle、source与versioned registry、descriptor/config history、price catalog逐值对照；bundle内部自带的snapshot/hash/version或相互一致字段 MUST NOT自证历史真实性。Migration-time current resolver、当前reload后配置、当前price、`0015` reservation数值、usage actual、默认值或零值 MUST NOT作为历史snapshot来源。Child MUST逐值继承同一owner snapshot ID与hard limits，并命中与自身target `agent_id`一致的sub-snapshot；source/target descriptor不同是合法常态，不得要求child复制source descriptor。
 
-Legacy direct与delegated child usage只有在durable evidence同时提供ownership kind、stable semantic operation slot、tenant-scoped keyed request fingerprint及key version、实际route/price refs、tree/agent sub-snapshot refs与trusted bound时，才 MAY分别回填为具备exact replay语义的direct claim或allocation；child还必须唯一绑定delegation claim。Migration MUST按当前change完全相同的canonical identity字段/算法重算并保存identity hash；缺少任一字段、fingerprint无法验证、delegation关联不唯一或hash/version冲突时 MUST整批fail closed，不得仅凭`usage_call_id`、provider result或当前配置猜测identity。Delegated child usage MUST绑定正确target sub-snapshot并建立allocation，MUST NOT建立direct claim。
+Legacy direct、delegation top-level与delegated child usage只有在独立durable source evidence同时提供各自ownership kind、stable semantic operation slot、tenant-scoped keyed request fingerprint及key version、tree/agent sub-snapshot refs与trusted bound时，才 MAY回填为具备exact replay语义的claim/allocation。Direct/allocation还必须提供实际route/price refs；child必须唯一绑定delegation claim。Delegation top-level必须唯一绑定`0015` relation/reservation，保存与`0015` normalized request hash同一canonical request bytes的fingerprint、target agent sub-snapshot、target frozen route/price catalog digest与可信top-level reservation bounds；provider/model/单一price/cache字段固定null。Migration MUST按当前change完全相同的对应canonical identity schema/算法重算并保存identity hash；缺少任一字段、fingerprint无法验证、top-level request hash与fingerprint来源不一致、delegation关联不唯一或hash/version冲突时 MUST整批fail closed，不得仅凭`usage_call_id`、`0015` request hash、provider result或当前配置猜测identity。Delegated child usage MUST绑定正确target sub-snapshot并建立allocation，MUST NOT建立direct claim。
 
-在任何DDL/UPDATE前，migration MUST整批验证分类条件；每个需回填root的引用必须存在且唯一、源记录可用、tenant/agent/registry/descriptor/config/catalog/hash/version一致、hard limits与root/targets允许route完整，并在owner cost启用时验证全部可用route的price refs/versions可解析。既不满足`legacy_closed`又缺少完整tree snapshot或direct immutable identity、只能取得当前配置、多来源冲突、内容hash/version不符、cost-enabled price缺失、child缺少对应target sub-snapshot或child evidence引用另一tree snapshot时 MUST整批fail closed。Source/target descriptor不同本身不得判冲突。维护流程 SHALL 先用旧 writer drain/reconcile 使无历史snapshot/identity的合法旧tree成为`legacy_closed`；不得以migration猜值替代该步骤。SQLite与PostgreSQL MUST逐值产生相同分类、snapshot、identity或拒绝。
+在任何DDL/UPDATE前，migration MUST整批验证分类条件；每个需回填root的独立 source 引用必须存在、唯一且不同于backfill bundle，源记录可用，tenant/agent/registry/descriptor/config/catalog/hash/version一致，hard limits与root/targets允许route完整。Owner cost启用时，所有允许model route的input/output price与embedding route的input price MUST存在且非null、非bool、非负、有限；只有price key存在但值为null不算可解析。既不满足`legacy_closed`又缺少完整tree snapshot或direct/delegation top-level/allocation任一所需immutable identity、只能取得当前配置、bundle自证、多来源冲突、内容hash/version不符、cost-enabled price缺失/null/非法、child缺少对应target sub-snapshot或child evidence引用另一tree snapshot时 MUST整批fail closed。Source/target descriptor不同本身不得判冲突。维护流程 SHALL 先用旧 writer drain/reconcile 使无历史snapshot/identity的合法旧tree成为`legacy_closed`；不得以migration猜值替代该步骤。SQLite与PostgreSQL MUST逐值产生相同分类、snapshot、identity或拒绝。
 
 #### Scenario: 无历史 snapshot 的封闭 legacy tree 可安全升级
 - **WHEN** 合法 `0015` 数据库中的旧 root 没有 immutable snapshot 引用，但 root 具备上述dialect等价terminal closure proof，全部 usage/delegation/event-capacity/queue/approval/recovery 状态都满足 `legacy_closed`
@@ -47,8 +53,16 @@ Legacy direct与delegated child usage只有在durable evidence同时提供owners
 - **THEN** SQLite 与 PostgreSQL 都在 DDL/UPDATE 前整批拒绝，并要求旧 writer 先完成 drain/reconcile；不得用 current config、reservation 或 actual 合成 snapshot
 
 #### Scenario: 可证明历史 snapshot 逐值回填
-- **WHEN** root的durable run/checkpoint/evidence引用唯一immutable descriptor/config version及其允许route/price versions，且child relation与root引用一致
-- **THEN** `0016`逐值回填hard limits、版本和route/price refs，child复用同一owner snapshot；迁移后reload不改变该root恢复、fallback或approval resume使用的snapshot
+- **WHEN** root的backfill bundle引用不同记录ID的durable immutable source checkpoint/evidence，该source独立保存并证明唯一descriptor/config/catalog snapshot及允许route/price versions，且child relation与source逐值一致
+- **THEN** `0016`先交叉验证source、bundle和versioned history，再回填hard limits、版本和route/price refs，child复用同一owner snapshot；迁移后reload不改变该root恢复、fallback或approval resume使用的snapshot
+
+#### Scenario: Self-contained backfill bundle 不能自证
+- **WHEN** 在途root只有一个包含完整snapshot、identity、hash与version且内部相互一致的backfill bundle，但未引用不同记录ID的durable immutable source checkpoint/evidence
+- **THEN** SQLite与PostgreSQL都在DDL/UPDATE前整批拒绝；migration不得因为bundle字段自洽就把它当作创建时历史来源
+
+#### Scenario: Cost-enabled null price 不能通过 snapshot 校验
+- **WHEN** owner cost启用，snapshot中的model route input/output price或embedding route input price键存在但值为null，或值为bool、负数、NaN、Infinity
+- **THEN** SQLite与PostgreSQL都在DDL/UPDATE前整批拒绝，不创建ledger且不把null解释为0或cost-disabled；同样snapshot在owner cost关闭时只跳过price上界要求，非法cost/status evidence仍按原合同拒绝
 
 #### Scenario: 当前配置不能替代缺失历史版本
 - **WHEN** `snapshot_backfill_required` root缺少immutable version引用、引用源已不存在/校验失败，或只能由migration-time current resolver取得配置和price
@@ -61,6 +75,14 @@ Legacy direct与delegated child usage只有在durable evidence同时提供owners
 #### Scenario: Legacy direct 缺少 immutable identity 时拒绝 backfill
 - **WHEN** 在途root direct usage只有稳定`usage_call_id`和provider result，但缺少可信operation slot、keyed request fingerprint/key version、actual route/snapshot refs或trusted bound任一项
 - **THEN** SQLite与PostgreSQL都在DDL/UPDATE前整批拒绝，不把`usage_call_id`当作完整identity；旧writer必须先drain到`legacy_closed`或补齐原本已durable存在的可验证证据，migration不得新造fingerprint
+
+#### Scenario: Legacy delegation top-level 缺少 immutable identity 时拒绝 backfill
+- **WHEN** 在途或待恢复`0015` delegation只有idempotency key、normalized request hash与reservation，但独立source缺少keyed request fingerprint/key version、owner/target snapshot、target route/price catalog digest或trusted top-level bound任一项
+- **THEN** SQLite与PostgreSQL都在DDL/UPDATE前整批拒绝，不把`0015` request hash当作完整budget identity；migration不得从current snapshot/reservation或bundle自造identity，旧writer必须先drain到`legacy_closed`或提供原本已durable存在的source evidence
+
+#### Scenario: Legacy delegation request hash 与 top-level identity 双重验证
+- **WHEN** 独立source提供完整delegation top-level identity，但其keyed fingerprint不是对`0015` normalized request hash所用同一canonical request bytes生成，或target catalog/bounds与source snapshot和reservation不一致
+- **THEN** migration在DDL/UPDATE前整批拒绝；只有request hash、fingerprint来源、tree/target catalog与trusted bounds逐值一致时才建立top-level claim
 
 #### Scenario: Legacy child 缺少 allocation identity 时拒绝 backfill
 - **WHEN** 在途delegated child usage只有`usage_call_id`与provider result，但缺少唯一delegation claim、target sub-snapshot、keyed request fingerprint/key version、actual route或trusted bound任一项

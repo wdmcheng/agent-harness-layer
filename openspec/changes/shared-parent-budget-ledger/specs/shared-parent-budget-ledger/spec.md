@@ -54,14 +54,22 @@ Direct 与 delegation 的全新 claim SHALL 在 SQLite/local 与 PostgreSQL/serv
 - **WHEN** operation 的 replay identity、owner/relation/snapshot、event state与hard budget均合法，但 event capacity 不足
 - **THEN** direct 与 delegation 都返回 `event.sequence_exhausted`，不建立shared claim、usage/delegation operation或任何外部副作用；该内部cross-cutting code不扩张既有`delegation.*`封闭集合
 
+#### Scenario: Embedding sequence state corruption 先于 budget 拒绝
+- **WHEN** 全新 embedding miss 的 event sequence state 已非法，且同一 operation 的 trusted intent 同时会被 shared hard budget 拒绝
+- **THEN** local/SQLite 与 service/PostgreSQL 都先返回 `event.sequence_state_invalid`，不建立 claim/outbox/capacity reservation且 provider 调用为零；不得因 invocation settlement 的 budget precheck 把该错误覆盖成 `budget.reservation_rejected`
+
 #### Scenario: Exact replay 不受当前余额或容量变化影响
 - **WHEN** stable key与immutable identity精确命中已提交operation，但当前budget余额或event capacity已被其他operation改变
 - **THEN** 系统重放首次durable state/result，不重新预约、不返回新的budget/capacity错误；若identity不一致则direct返回`budget.operation_conflict`、delegation返回`delegation.idempotency_conflict`
 
-### Requirement: Usage operation stable key 与 immutable operation identity 分离
-Direct stable key SHALL固定为`(tenant_id,budget_owner_run_id,usage_call_id)`；delegation child allocation stable key SHALL固定为`(tenant_id,budget_owner_run_id,delegation_claim_id,usage_call_id)`。两种key都不得包含动态余额、reservation结果或event capacity。每个direct claim与allocation MUST另外持久化`identity_schema_version`、immutable identity hash及其非敏感关联字段。Identity MUST在最终actual route与trusted intent确定后、任何shared reservation/event-capacity mutation或provider副作用前，由可信runtime对以下封闭字段生成：`ownership_kind=direct|allocation`、`run_id`、`agent_id`、allocation时非空的`delegation_claim_id`、`usage_kind`、稳定语义operation slot、tenant-scoped keyed request fingerprint及key version、owner tree snapshot ID、适用agent sub-snapshot ID、provider/model、price source ref/version、embedding cache-key digest（model时为null）、cost-enabled状态与各启用维度trusted bound。Request fingerprint MUST由versioned tenant-scoped key对canonical semantic request bytes生成；数据库只保存opaque fingerprint与key version，不保存key、prompt或embedding原文。Identity canonical JSON MUST使用UTF-8、排序键、紧凑分隔符并拒绝NaN/Infinity，随后以固定hash算法生成持久化hash。
+### Requirement: 所有 budget operation 的 stable key 与 immutable identity 分离
+Direct stable key SHALL固定为`(tenant_id,budget_owner_run_id,usage_call_id)`；delegation top-level stable key SHALL固定为`(tenant_id,budget_owner_run_id,delegation_claim_id)`；delegation child allocation stable key SHALL固定为`(tenant_id,budget_owner_run_id,delegation_claim_id,usage_call_id)`。本requirement中的`delegation_claim_id` MUST逐值等于`0015 AgentDelegation.id`，在`budget_operation_claims`与`delegation_budget_allocations`中的物理列名 MUST为`delegation_id`；系统 MUST NOT生成或接受第二套delegation claim标识。因此规范中的`delegation_claim_id` key与storage delta中的`delegation_id` key是同一个key。三类key都不得包含动态余额、reservation结果或event capacity。每个direct、delegation top-level claim与allocation MUST另外持久化`identity_schema_version`、immutable identity hash、tenant-scoped opaque request fingerprint及key version和对应非敏感关联字段。
 
-动态current balance、event capacity、approval result、cache hit/miss结果、provider result、latency和错误不得进入identity。Cache lookup的稳定cache-key digest进入identity，但hit/miss由首次原子提交的durable result决定：提交前失败可重做只读lookup，提交后同identity必须重放首次结果。相同stable key只有`identity_schema_version`与identity hash逐值相同才是exact replay；任一封闭字段、fingerprint或版本不同 MUST在owner/relation、delegation子额度、parent budget、capacity检查及外部副作用前返回内部`budget.operation_conflict`。Direct seam保持该内部code；allocation冲突若向parent delegation结果传播 MUST封闭映射为既有`delegation.execution_failed`，不得把identity字段或新错误码加入公开delegation响应。Insert/unique race MUST回滚后重读并应用相同判定。
+Direct/allocation identity MUST在最终actual route与trusted intent确定后、任何shared reservation/event-capacity mutation或provider副作用前，由可信runtime对以下封闭字段生成：`ownership_kind=direct|allocation`、`run_id`、`agent_id`、allocation时非空的`delegation_claim_id`、`usage_kind=model|embedding`、稳定语义operation slot、tenant-scoped keyed request fingerprint及key version、owner tree snapshot ID、适用agent sub-snapshot ID、provider/model、price source ref/version、embedding cache-key digest（model时为null）、cost-enabled状态与各启用维度trusted bound。
+
+Delegation top-level identity MUST在`0015`按`(tenant,parent,idempotency_key)`与normalized request hash唯一定位或准备创建relation之后、任何`0016`claim/reservation、event-capacity、child或queue副作用之前生成。其版本化canonical payload MUST封闭包含`ownership_kind=delegation`、parent `run_id`、source/target `agent_id`、`delegation_claim_id`、`usage_kind=delegation`、`operation_slot=idempotency_key`、对`0015`同一normalized request canonical bytes生成的tenant-scoped keyed fingerprint及key version、owner tree snapshot ID、target agent sub-snapshot ID、target frozen route/price catalog digest、cost-enabled状态与本次可信top-level token/cost reservation bound。Top-level claim本身不调用provider，因此provider/model/单一price source/cache-key字段 MUST固定为null；target catalog digest MUST覆盖该target封闭允许routes及每条route的price refs/versions和必需price值，不能用null字段跳过route/price绑定。`0015` request hash继续证明请求幂等，`0016` identity另外证明budget replay context；两者都必须一致才是exact replay。
+
+三类request fingerprint MUST由versioned tenant-scoped key对各自canonical semantic request bytes生成；数据库只保存opaque fingerprint与key version，不保存key、child input、prompt或embedding原文。Identity canonical JSON MUST使用UTF-8、排序键、紧凑分隔符并拒绝NaN/Infinity，随后以固定hash算法生成持久化hash。动态current balance、event capacity、approval result、cache hit/miss结果、provider result、latency和错误不得进入identity。Cache lookup的稳定cache-key digest进入usage identity，但hit/miss由首次原子提交的durable result决定：提交前失败可重做只读lookup，提交后同identity必须重放首次结果。相同stable key只有对应`identity_schema_version`与identity hash逐值相同才是exact replay；任一封闭字段、fingerprint或版本不同 MUST在owner/relation mutation、delegation子额度、parent budget、capacity检查及外部副作用前返回内部`budget.operation_conflict`。Direct seam保持该内部code；allocation冲突若向parent delegation结果传播 MUST封闭映射为既有`delegation.execution_failed`。Delegation top-level replay MUST先验证`0015` normalized request hash，再验证`0016` identity；request hash异值或同hash但identity异值都公开映射既有`delegation.idempotency_conflict`，内部MAY记录不含fingerprint、snapshot内容、route/price或动态数值的`budget.operation_conflict` evidence。Insert/unique race MUST回滚后重读并应用相同判定。
 
 #### Scenario: 相同 usage_call_id 的不同请求发生 identity conflict
 - **WHEN** 同一tenant/owner/`usage_call_id`以不同request fingerprint、usage kind、actual route、snapshot/sub-snapshot、price version或trusted bound重试
@@ -70,6 +78,14 @@ Direct stable key SHALL固定为`(tenant_id,budget_owner_run_id,usage_call_id)`�
 #### Scenario: Child allocation 同 key 异 identity 在子额度前冲突
 - **WHEN** 同一tenant/owner/delegation claim/`usage_call_id`以不同child request fingerprint、usage kind、actual route、target sub-snapshot、price version或trusted bound重试
 - **THEN** allocation在relation、子额度、parent balance与event capacity检查前返回内部`budget.operation_conflict`，不重放旧result、不新增allocation且provider调用为零；若parent delegation收口该失败，对外只使用`delegation.execution_failed`
+
+#### Scenario: Delegation 同 request hash 但 budget identity 不同仍冲突
+- **WHEN** 同一tenant/owner/idempotency key命中相同`0015` normalized request hash，但重试使用不同fingerprint key version、tree/target sub-snapshot、target route/price catalog digest或trusted top-level bound
+- **THEN** 系统在读取current balance、写relation/claim/capacity或创建child/queue前返回`delegation.idempotency_conflict`，内部可记脱敏`budget.operation_conflict`；不得仅凭旧request hash exact replay
+
+#### Scenario: Delegation top-level exact replay 不重算动态余额
+- **WHEN** delegation stable key、`0015` request hash与`0016` top-level identity逐值相同，但其他operation已改变current balance或event capacity
+- **THEN** 系统复用首次durable top-level claim/reservation/result，不重新预约或派生新identity，不创建第二个relation/child/queue，也不因当前余额变化返回新budget错误
 
 #### Scenario: Cache 状态变化不改写已提交 identity
 - **WHEN** 相同embedding stable key、request fingerprint、cache-key digest与route identity首次提交cache hit或miss结果，随后cache内容发生变化并重试
@@ -163,7 +179,7 @@ delegated child 的 model/embedding operation SHALL在既有delegation reservati
 - **THEN** 同一parent UoW把顶层delegation claim原子转为settled、impact从60替换为40，parent aggregate只减少顶层claim的20差额且不另加allocation
 
 ### Requirement: Stable claim 关联保证幂等恢复与 terminal fencing
-direct claim MUST 由 `(tenant_id,budget_owner_run_id,usage_call_id)` 唯一关联；child allocation MUST由`(tenant_id,budget_owner_run_id,delegation_claim_id,usage_call_id)`唯一关联；两者都按本spec的同一版本化immutable operation identity区分exact replay与内部`budget.operation_conflict`。Delegation top-level claim MUST 复用既有稳定 idempotency/request hash并持有同一非空 owner FK；allocation还 MUST绑定同一owner与正确target sub-snapshot identity。恢复 SHALL 复用原 claim/allocation、identity、reservation 与结果，MUST NOT 重复预约或重放外部调用。任一 active `reserved|needs_review` shared-budget claim MUST 阻止其 budget owner root terminal；terminal 一旦可见，shared ledger MUST 不再接受新的 operation claim。
+direct claim MUST由`(tenant_id,budget_owner_run_id,usage_call_id)`唯一关联；delegation top-level claim MUST由`(tenant_id,budget_owner_run_id,delegation_claim_id)`唯一关联并同时保存既有稳定idempotency/request hash与本spec的top-level immutable identity；child allocation MUST由`(tenant_id,budget_owner_run_id,delegation_claim_id,usage_call_id)`唯一关联。三者都按对应版本化immutable identity区分exact replay与内部`budget.operation_conflict`；allocation还 MUST绑定同一owner与正确target sub-snapshot identity。恢复 SHALL复用原claim/allocation、request hash、identity、reservation与结果，MUST NOT重复预约或重放外部调用。任一active `reserved|needs_review` shared-budget claim MUST阻止其budget owner root terminal；terminal一旦可见，shared ledger MUST不再接受新的operation claim。
 
 #### Scenario: 副作用前崩溃可确定释放
 - **WHEN** reservation 已提交且durable `side_effect_state=not_started`，受信 fencing 证明 provider、child 与 queue 副作用均未开始

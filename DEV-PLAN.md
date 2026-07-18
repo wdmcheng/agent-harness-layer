@@ -7,12 +7,12 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-16 的 v1.7。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-18 的 v1.8。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；历史 Phase 1-13 changes 已归档。Phase 13.5、13.6、13.6A、13.7、13.8 已停在 `ready-to-archive` 基线；Phase 13.8 `agent-delegation-execution` 已完成 12/12 tasks，CanonicalEvent 生命周期合同、terminal guard、精确目录、local/真实 PostgreSQL/Redis 证据与最终代码 1+2 均已通过；SSE 尚未实施。
-- 代码状态: Phase 1-13 已完成当时计划的实现与验证，但不等于 P0 完成。Phase 13.5 已收紧 Run OpenAPI，Phase 13.6 已补齐 application startup failure 与 Docker secret file，Phase 13.6A 已完成 canonical trace 基线。Phase 13.7 已完成、三审并提交；Phase 13.8 已完成真实受控 delegation、`0015` durable reservation/aggregation、RUN-002 detail、local/service recovery、39 项 CanonicalEvent 精确目录、terminal 双向门禁，以及生产与历史测试文件的职责拆分；完整门禁和 fresh 代码 1+2 已通过。SSE transport 与首 frame 性能仍缺失。Phase 14、15 均未开始。
+- OpenSpec: 仓库存在 `openspec/`；历史 Phase 1-13 changes 已归档。当前七个已实现 change 与未实现的 `sse-event-streaming` 保持 active；归档前联合审查发现 `shared-parent-budget-ledger`、RUN-002 投影及跨 change 主线文档存在冲突，七个候选 change 暂不再视为 `ready-to-archive`，SSE 仍保持 0/17 且本轮不实施。
+- 代码状态: Phase 1-13 已完成当时计划的实现与验证，但最新 shared-budget 归档审查已使旧门禁失效。Phase 13.8A 正在修复 typed fingerprint secret 旁路、RUN-002 最终投影、`0016` 全拓扑/独立历史证据/cost price 与 usage UoW 错误优先级；修复后必须重跑完整验证与 fresh 代码 1+2。SSE transport 与首 frame 性能仍缺失。Phase 14、15 均未开始。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
@@ -20,19 +20,19 @@
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
 | 总体状态 | Phase 1-13 历史交付已归档，P0 基线补缺待实现 | Phase 13.5-13.9 必须先闭环；Phase 14-15 未开始。 |
-| 当前 Phase | Phase 13.8 `ready-to-archive` | 12/12 tasks、生产与历史测试职责拆分、完整门禁及 fresh 代码 1+2 均已完成；按用户指示在本地提交后停止，不进入 Phase 13.9。 |
+| 当前 Phase | Phase 13.8A shared parent budget 修正中 | 归档联合审查 Stage 1 FAIL；按新设计方向修契约与实现，完成后从第 1 位 fresh reviewer 重启 1+2。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 已按 queue → split runtime → deployment proof 顺序同步主规格并归档。 |
-| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`embedding-cache-tenant-isolation`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`sse-event-streaming` | 前六项为 Phase 13.5/13.6/13.6A/13.7/13.8 的 `ready-to-archive` 基线；13.8 为 12/12 tasks；13.9 为 0/17 tasks。不 archive、不 push。 |
-| 当前验证基线 | Phase 13.8 完整门禁与代码 1+2 已通过 | quality、全仓 961 项、真实 PostgreSQL/Redis、local/service smoke、build、license、pre-commit 与 strict validation 均通过；拆分后的生产/模板文件最大 450 行、测试文件最大 398 行。 |
-| 当前阻塞项 | P0 完成路径缺失已进入补缺计划 | Phase 14/15 不得在 13.5-13.9 完成前被标记完成。 |
-| 当前建议下一步 | 提交 Phase 13.8 拆分版本后停止 | 不进入 Phase 13.9，不 archive、不 push、不发布或部署；后续是否继续由用户另行决定。 |
+| 当前 OpenSpec change | `run-openapi-contract-accuracy`、`config-secret-file-loading`、`embedding-cache-tenant-isolation`、`run-trace-correlation`、`model-usage-evidence`、`agent-delegation-execution`、`shared-parent-budget-ledger`、`sse-event-streaming` | 前七项是本轮修正、复验与待归档范围；SSE 为 0/17，明确保留 active。 |
+| 当前验证基线 | 旧基线已被最新归档审查 findings 失效 | 旧 HEAD 曾通过 quality、886 passed/191 skipped、local/service smoke、eval、build、license、pre-commit 与 strict validation；修复 diff 尚未重新建立冻结证据。 |
+| 当前阻塞项 | Phase 13.8A 归档审查 findings | typed secret、RUN-002 投影、0016 topology/source/price、embedding 错误优先级与主线文档必须闭环。 |
+| 当前建议下一步 | 完成 Phase 13.8A 修正、完整验证和 1+2 | 三审全 PASS 后同步并归档前七项，只保留 `sse-event-streaming`；不 push、不发布或部署。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
 - Phase 13 三个历史 change 已按依赖顺序归档；不自动 push 或发布。
-- 先完成 Phase 13.5-13.9 的聚焦 change、实现、验证和 ready-to-archive 收口；不得自动 archive。
+- 先完成 Phase 13.8A findings 修正、完整验证和 1+2；随后按用户明确授权同步并归档七个已实现 change，只保留 13.9 SSE active。
 - Phase 14 只能在上述 P0 gap 闭环后开始，Phase 15 仍保持未开始。
 
 ### 后续 Phase
@@ -44,8 +44,9 @@
 - Phase 13.6: 配置启动失败与 Docker secret file 加载，异常链与 frame locals 泄漏已修复并通过三审，停在 `ready-to-archive`；不自动归档。
 - Phase 13.6A: Canonical run trace 与 approval/event 关联已完成、提交并停在 `ready-to-archive`，作为 Phase 13.7 直接基线；依赖 Phase 13.6。
 - Phase 13.7: Model/Embedding usage evidence、durable settlement 与 local latency 已完成 17/17 tasks、同 digest 代码 1+2 全 PASS 并提交，停在 `ready-to-archive`；不自动归档；依赖 Phase 13.6A。
-- Phase 13.8: 真实受控 delegation 与 parent aggregation 已完成 12/12 tasks、完整门禁及 fresh 代码 1+2，停在 `ready-to-archive`；依赖 Phase 13.7，不自动归档。
-- Phase 13.9: SSE transport、Last-Event-ID 与首 frame 性能，待实现；依赖 Phase 13.8。
+- Phase 13.8: 真实受控 delegation 与 parent aggregation 主体原 12/12 tasks 已完成；归档投影修正后为 12/14，新增 5.1/5.2 尚未实现，因此不再是 `ready-to-archive`；依赖 Phase 13.7，需与 Phase 13.8A 完成联合修复、完整门禁和 fresh 1+2 后才能归档。
+- Phase 13.8A: Parent execution-tree shared budget、typed fingerprint secret 与 `0016` 历史迁移修正中；依赖 Phase 13.8，归档前必须重新完成完整门禁和 1+2。
+- Phase 13.9: SSE transport、Last-Event-ID 与首 frame 性能，待实现；依赖 Phase 13.8A 完成且七个前序 change 的归档投影稳定，本轮不归档。
 - Phase 14: 深度文档、ADR 与维护者指南。
 - Phase 15: CI/CD、Release Automation 与合规收口。
 
@@ -56,6 +57,7 @@
 - FLOW-003 / ApprovalRecord trace：Phase 13.6A 已切换为 canonical run trace 非空生成、传播与历史 backfill；跨 tenant/不同 idempotency key 的同 trace 竞争由全局 trace 锁覆盖锁内复检、guardrail/audit 与 root claim，相同 event-id 仅允许除 seq/timestamp 外完整稳定语义一致的重试，terminal/approval 恢复先复用既有确定性 evidence。该 Phase 已提交并停在 `ready-to-archive`。
 - AC-064、AC-065：model/embedding evidence、stable semantic slot、queued run 执行前 recovery 与 local fake run `<5s` 已实现，完整门禁与同 digest 代码 1+2 已通过，Phase 13.7 已本地提交并停在 `ready-to-archive`。
 - AC-015、AC-016：真实受控 delegation、child run、durable parent aggregation 与 local/service recovery 已实现，并通过 Phase 13.8 完整门禁和 fresh 代码 1+2。
+- AC-068：shared parent ledger 已有主体实现，但最新归档审查发现 typed secret 旁路、0016 topology/source/price 与错误优先级缺口；修正和重新 1+2 完成前不得标记归档就绪。
 - AC-038、AC-066：现有 SSE 只有 formatter，HTTP transport、Last-Event-ID 和首 frame 时延尚未实现。
 - AC-050：由各 change 的 `tasks.md`、Phase 本地提交以及 review/test 命令证据持续维护 REQ/AC -> production -> test 追溯；Phase 15 release matrix 必须汇总并重新校验，新 change 仍需保留 red evidence。
 - Phase 14 深度文档和 Phase 15 release automation 尚未实现。
@@ -137,9 +139,10 @@ Phase 1 Monorepo / quality spine
                       -> Phase 13.6A Canonical run trace correlation
                         -> Phase 13.7 Model / embedding usage evidence
                           -> Phase 13.8 Delegation execution / parent aggregation
-                            -> Phase 13.9 SSE transport / Last-Event-ID / latency
-                              -> Phase 14 Docs / ADR / maintainer guide
-                                -> Phase 15 CI/CD / release automation / compliance
+                            -> Phase 13.8A Shared parent budget / migration hardening
+                              -> Phase 13.9 SSE transport / Last-Event-ID / latency
+                                -> Phase 14 Docs / ADR / maintainer guide
+                                  -> Phase 15 CI/CD / release automation / compliance
 ```
 
 并行规则：Phase 2 之后，文档草稿可以和代码并行，但每个 Phase 的验收必须等代码、测试和文档证据一致后才算通过。
@@ -793,7 +796,33 @@ Phase 1 Monorepo / quality spine
 - Product/API/OpenSpec 的固定 event catalog 与 `CanonicalEventType` 精确等于 39 种；只允许三种 run terminal type 设置 `terminal=true`，且三种都必须 public/terminal，其他类型必须 internal/public 各自按契约保持 non-terminal；非法组合在 seq、容量、artifact 和 fan-out 前零副作用拒绝。
 - 获准 delegation 按 claimed -> child.created -> completed|failed 最多三条发布；pre-child failure、needs_review 无 final、稳定 event id、parent run/trace/source agent、internal visibility、阶段 payload、敏感字段禁止与 local/service/reclaim 重放均逐值验收。
 
-**状态**：`ready-to-archive`，12/12 tasks；可信 identity、真实 parent remaining budget、最坏 token/cost 预算、terminal parent 零副作用、多 usage completeness、39 项 CanonicalEvent 精确目录、delegation lifecycle payload 与 terminal 双向门禁均已实现。RUN-002 尚未结算 durable child 的遗漏已通过 relation/run/reservation/aggregate 联合修复，并以仅活动 child、已完成未聚合 child、完成与活动 child 并存三类合同覆盖；生产代码与历史大测试已按职责和行为域拆分，公开 facade、ORM 注册顺序与 `typing.Literal` 身份兼容均有回归合同。完整质量、全仓 961 项、local/真实 PostgreSQL/Redis、build、license、pre-commit、strict validation 与 fresh 代码 1+2 均已通过。不自动归档。
+**状态**：主体实现完成，但归档投影已新增 5.1/5.2 两项修正任务，当前为 12/14，尚未实现且不再视为 `ready-to-archive`。RUN-002 的最终投影合同已统一为 `RunDetailResponse`；仍须与 Phase 13.8A 一并完成生产修复、完整门禁，并在同一冻结 digest 上重新执行 fresh 1+2。
+
+---
+
+## Phase 13.8A: Parent Execution-Tree Shared Budget 与 0016 Hardening
+
+**交付内容**：
+- 以 `shared-parent-budget-ledger` 收口 root execution tree 的单一 durable budget owner：direct model/embedding、delegation top-level claim 与 child allocation 竞争同一 token/cost hard limit；`max_cost_usd_per_run=null` 只关闭 shared cost 维度。
+- 把 tenant-scoped keyed request fingerprint 改为 `BudgetSettings` typed secret，经 `AGENT_HARNESS_BUDGET__FINGERPRINT_KEY` / `_FILE` 在统一 loader 中启动时 fail closed；runtime 不再直接读取 env/path，secret 从 settings payload、snapshot 和 evidence 中排除。
+- 修复 `0016`：DDL 前扫描完整 parent topology，拒绝嵌套、孤儿、循环、跨租户或 relation 不唯一；未封闭 tree 必须从与 backfill bundle 分离的 durable immutable source evidence 回填；cost-enabled snapshot 的必需 prices 不得为 null。
+- 固定 usage application UoW 错误优先级，确保 `event.sequence_state_invalid` 先于 budget；未封闭 claim/allocation、unknown 与 needs-review 继续 fence terminal。
+- 让 `agent-delegation-execution` 的最终 RUN-002 MODIFIED requirement 唯一指向 `RunDetailResponse`，消除归档后 canonical spec 冲突。
+
+**关键文件**：
+- `Product-Spec.md`、`Product-Spec-CHANGELOG.md`、`API-Contract.md`、`DEV-PLAN.md` 与相关 active OpenSpec changes。
+- `packages/agent-harness/src/agent_harness/config/schemas.py`、`runtime/shared_budget.py`、service runtime composition 与 secret-file tests/smoke。
+- `packages/agent-harness/src/agent_harness/storage/migrations/versions/_shared_parent_budget_0016/`、`0016_shared_parent_budget_ledger.py` 与 SQLite/PostgreSQL migration contracts。
+- model/embedding invocation settlement UoW 及错误优先级 contracts。
+
+**验收标准**：
+- 缺失或非法 fingerprint secret 在四类 application startup 前结构化失败；valid env/file 精确保留内容语义，任何错误、日志、snapshot、evidence 和 traceback frame locals 不泄密。
+- RUN-002 归档投影只保留一个 `P0 HTTP 契约与运行时 OpenAPI 无漂移` requirement，GET detail 的 200 response 唯一为 `RunDetailResponse`。
+- SQLite 与真实 PostgreSQL 都在 DDL/UPDATE 前拒绝三层 parent、孤儿、循环、跨租户、relation 不唯一、自证 bundle、缺失独立 source evidence 与 cost-enabled null price；合法独立 evidence backfill 逐值一致。
+- Embedding/model/delegation application UoW 按 `replay/conflict -> auth/owner/relation/snapshot -> sequence state -> budget -> capacity -> unique reread` 返回稳定错误且拒绝路径外部副作用为零。
+- 完整 quality/test/local+service smoke/eval/build/license/pre-commit/strict validation 通过；第 1 位 fresh reviewer PASS 后才并行派第 2、3 位，三者对同一冻结 digest 的 Stage 1/2 全 PASS。
+
+**状态**：修正中。归档审查 findings 已写入上游契约；实现、完整验证和 fresh 代码 1+2 尚未完成。
 
 ---
 
@@ -822,7 +851,7 @@ Phase 1 Monorepo / quality spine
 - P0 不增加 event 清理、TTL 或 retention job；run 存续期间 CanonicalEvent evidence 保留。未来 retention 必须另建 behavior change 定义 expired cursor，不能在 Phase 13.9 中隐式加入。
 - 已存在可见 event 时首 frame 小于 1 秒；局部 OpenAPI drift、HTTP/CLI transport contracts、local/service transport smoke 和断线重连通过。
 
-**状态**：待实现；依赖 Phase 13.8，并在其完成 run route/schema 修改后顺序实施；所有相关 change 必须先完成联合审查。
+**状态**：待实现；依赖 Phase 13.8A 完成且七个前序 change 的归档投影稳定，再承接累计 run route/schema 与 shared-budget/event-capacity 合同顺序实施；所有相关 change 必须先完成联合审查。
 
 ---
 
@@ -913,6 +942,9 @@ Phase 1 Monorepo / quality spine
 | `agent_delegations` | Phase 13.8 (`0015`) | parent/child、request hash、幂等 claim、状态与 evidence refs；RUN-002 以其中非空 `child_run_id` relation 决定 summary membership，不依赖 aggregate row 是否已生成。 |
 | `delegation_budget_reservations` | Phase 13.8 (`0015`) | parent 级 token/cost reservation、结算/释放与 needs_review 状态。 |
 | `delegation_aggregates` | Phase 13.8 (`0015`) | child terminal/model evidence 的可重入结算投影与 incomplete/needs_review 状态；只补充已结算数值，不决定 child 是否存在。 |
+| `parent_budget_ledgers` | Phase 13.8A (`0016`) | 以非空同 tenant root `budget_owner_run_id` 冻结 execution-tree shared token/cost hard limits、cost-enabled 与完整 root/target snapshot。 |
+| `budget_operation_claims` | Phase 13.8A (`0016`) | root direct 与 delegation top-level operation 的 stable key、immutable identity、opaque fingerprint、reservation/actual、side-effect 与 recovery 状态。 |
+| `delegation_budget_allocations` | Phase 13.8A (`0016`) | delegation 内 child model/embedding allocation；受 top-level reservation 与 parent ledger 双重约束，避免 parent aggregate 双计。 |
 | `eval_dataset_splits` | Phase 12.5 | behavior tag、optimization / holdout / regression subset 和 case membership。 |
 | `eval_experiments` | Phase 12.5 | baseline/candidate harness experiment、score delta、holdout result 和 comparison evidence。 |
 | `harness_acceptance_records` | Phase 12.5 | 人工 acceptance decision、policy decision、audit ref 和 accepted harness version。 |
@@ -925,17 +957,17 @@ Phase 1 Monorepo / quality spine
 | REQ-001 Monorepo / uv workspace | Phase 1 |
 | REQ-002 核心包与上游隔离 | Phase 2, Phase 6, Phase 10, Phase 12 |
 | REQ-003 后端服务型模板 | Phase 1, Phase 12 |
-| REQ-004 配置系统 | Phase 2, Phase 12, Phase 13.6 |
-| REQ-005 存储、迁移与事务边界 | Phase 3, Phase 12, Phase 13.6A, Phase 13.8 |
-| REQ-006 Durable runtime、checkpoint、resume | Phase 5, Phase 12, Phase 13, Phase 13.6A, Phase 13.8 |
-| REQ-007 多 agent registry 与 delegation | Phase 6（registry/summary seam）, Phase 13.8（真实执行/聚合） |
+| REQ-004 配置系统 | Phase 2, Phase 12, Phase 13.6, Phase 13.8A（fingerprint typed secret） |
+| REQ-005 存储、迁移与事务边界 | Phase 3, Phase 12, Phase 13.6A, Phase 13.8, Phase 13.8A |
+| REQ-006 Durable runtime、checkpoint、resume | Phase 5, Phase 12, Phase 13, Phase 13.6A, Phase 13.8, Phase 13.8A |
+| REQ-007 多 agent registry 与 delegation | Phase 6（registry/summary seam）, Phase 13.8（真实执行/聚合）, Phase 13.8A（共享 owner/allocation） |
 | REQ-008 API、CLI 与管理面 | Phase 5, Phase 7, Phase 11, Phase 12, Phase 13.5, Phase 13.8, Phase 13.9 |
 | REQ-009 租户、身份与认证 | Phase 2, Phase 7, Phase 13.6A, Phase 13.8, Phase 13.9 |
 | REQ-010 PolicyEngine、权限拦截、InputGuardrail 与 HITL | Phase 2, Phase 4, Phase 7, Phase 12, Phase 13.6A, Phase 13.8, Phase 13.9 |
 | REQ-011 工具系统、Shell、File、MCP | Phase 8, Phase 12 |
-| REQ-012 模型、预算、上下文组装与 embedding | Phase 2, Phase 4, Phase 6, Phase 13.6A, Phase 13.7 |
+| REQ-012 模型、预算、上下文组装与 embedding | Phase 2, Phase 4, Phase 6, Phase 13.6A, Phase 13.7, Phase 13.8A |
 | REQ-013 Retrieval 与 RAG | Phase 6, Phase 9, Phase 12 |
-| REQ-014 CanonicalEvent 与流式输出 | Phase 4, Phase 5, Phase 13.6A, Phase 13.7, Phase 13.8, Phase 13.9 |
+| REQ-014 CanonicalEvent 与流式输出 | Phase 4, Phase 5, Phase 13.6A, Phase 13.7, Phase 13.8, Phase 13.8A, Phase 13.9 |
 | REQ-015 Observability 转换层 | Phase 4, Phase 10, Phase 13.6A, Phase 13.7, Phase 13.8 |
 | REQ-016 Eval Gate 与 trace/eval 闭环 | Phase 10, Phase 11, Phase 12.5 |
 | REQ-017 示例 agent | Phase 12 |
@@ -950,10 +982,10 @@ Phase 1 Monorepo / quality spine
 - 包管理器只用 `uv`；不使用 poetry、pipenv、npm 作为 Python 依赖主流程。
 - 每个 Phase 必须先有失败测试或 contract test，再实现代码；不接受先堆代码后补测试作为 Phase 完成方式。
 - 新增或修改 HTTP endpoint 必须先更新 `API-Contract.md`，再新增局部 OpenAPI drift contract test，最后实现 route；发布前全量复扫只做证据汇总，不作为第一次发现契约问题的入口。
-- 同一目标的多个 OpenSpec change 只要共享 run/event/config/测试或验收，就必须在任何实现开始前完成逐 change 严格校验，并由 3 个 fresh code-reviewer 按 1+2 执行同一冻结范围的联合审查：第 1 名对每个 change 及组合范围给出 Stage 1/2 PASS 后，才并行派第 2、3 名；三名都必须同时给出逐 change 与联合 PASS。任一 finding、修复或受审 diff 都使既有 PASS 失效并从第 1 名重启，不再重复建立一套与联合审查分离的逐 change reviewer 队列。本轮 13.5-13.9 的七个 active change 不得声称彼此独立，其中 `embedding-cache-tenant-isolation` 是 Phase 13.6A 的强制前置。
-- Phase 13.5-13.9 实现严格按 `13.5 -> 13.6 -> 13.6A -> 13.7 -> 13.8 -> 13.9` 串行。后序 change 在前序未归档 diff 上继续工作并必须重跑全部受影响合同；不得并行编辑共享文件，也不得用后序 change 覆盖前序已通过行为。
+- 同一目标的多个 OpenSpec change 只要共享 run/event/config/测试或验收，就必须在任何实现开始前完成逐 change 严格校验，并由 3 个 fresh code-reviewer 按 1+2 执行同一冻结范围的联合审查：第 1 名对每个 change 及组合范围给出 Stage 1/2 PASS 后，才并行派第 2、3 名；三名都必须同时给出逐 change 与联合 PASS。任一 finding、修复或受审 diff 都使既有 PASS 失效并从第 1 名重启，不再重复建立一套与联合审查分离的逐 change reviewer 队列。本轮 13.5-13.9 包含七个归档候选 change 与一个保持 active 的 `sse-event-streaming`，八者不得声称彼此独立，其中 `embedding-cache-tenant-isolation` 是 Phase 13.6A 的强制前置。
+- Phase 13.5-13.9 实现严格按 `13.5 -> 13.6 -> 13.6A -> 13.7 -> 13.8 -> 13.8A -> 13.9` 串行。后序 change 在前序未归档 diff 上继续工作并必须重跑全部受影响合同；不得并行编辑共享文件，也不得用后序 change 覆盖前序已通过行为。
 - 共享文件按接力所有权收口：`app/api/routes/runs.py` 由 13.5 建立精确 response map、13.6A 固定 trace header/生成、13.8 扩展 detail、13.9 最终加入 SSE并保留累计合同；`app/api/schemas.py` 由 13.8 建立 delegation schema、13.9 只追加 SSE 所需 schema；`app/runtime.py` 依次承接 13.6 startup、13.6A trace、13.7 usage、13.8 delegation；`app/main.py` 由 13.5 先接入窄化 OpenAPI factory、13.6 固定 startup、13.6A 接入 trace normalizer、13.9 再装配 SSE；`scripts/smoke_local.py` 由 13.6A 先固定 run trace、13.7 再固定 fake latency、13.9 最终追加首 frame 门禁。每次 Phase 接力后的 1+2 审查覆盖累计行为。
-- 共享 storage/event 文件同样按串行接力：`storage/models.py`、`storage/repositories.py`、`storage/migrations/versions` 与 migration contracts 先以 `0012a_embedding_cache_tenant_scope` 闭环 Phase 6 cache 租户隔离并把物理表切换为 `tenant_embedding_cache`；再由 13.6A 的 `0013` 建立 trace binding/backfill，并以 `0013a_run_trace_event_hardening` 在不改写已应用 revision 的前提下统一旧/fresh 事件 shape；13.7 的 `0014` 必须直接依赖 `0013a`，增加 durable evidence outbox/usage settlement与 event capacity reservation并把 approval resolution/terminal 纳入有序恢复，13.8 在 `0015` 追加 delegation/aggregation/budget reservation且保留前序约束。`0013a -> 0013` 只回退 stamp并保留硬化 schema；其余破坏性 downgrade 仍必须满足 evidence 全空和精确 Alembic opt-in。
+- 共享 storage/event 文件同样按串行接力：`storage/models.py`、`storage/repositories.py`、`storage/migrations/versions` 与 migration contracts 先以 `0012a_embedding_cache_tenant_scope` 闭环 Phase 6 cache 租户隔离并把物理表切换为 `tenant_embedding_cache`；再由 13.6A 的 `0013` 建立 trace binding/backfill，并以 `0013a_run_trace_event_hardening` 在不改写已应用 revision 的前提下统一旧/fresh 事件 shape；13.7 的 `0014` 必须直接依赖 `0013a`，增加 durable evidence outbox/usage settlement与 event capacity reservation并把 approval resolution/terminal 纳入有序恢复，13.8 在 `0015` 追加 delegation/aggregation/budget reservation，13.8A 的 `0016` 再引入 shared owner ledger/top-level claim/child allocation并在 DDL 前完成全拓扑和独立历史证据 preflight。`0013a -> 0013` 只回退 stamp并保留硬化 schema；其余破坏性 downgrade 仍必须满足 evidence 全空和精确 Alembic opt-in。
 - 每完成一个 Phase 执行四步走：Code Review -> 测试完整性 -> 编译验证 -> 功能测试。
 - 四步走全部通过后才能 commit；commit message 用 `feat`、`fix`、`refactor`、`chore` 前缀。
 - `packages/agent-harness` 不依赖 `templates/*` 或 `examples/*`；模板只能通过 path dependency 或 wheel 使用核心包。
@@ -980,6 +1012,9 @@ Phase 1 Monorepo / quality spine
 | Eval 只用已知 case 做优化会过拟合，尤其是示例 agent 数量少时。 | Eval experiment、harness prompt/tool description/config 变更、release gate。 | Phase 12.5、Phase 15 | 部分缓解 | Phase 12.5 已按 behavior tags 拆分 optimization / holdout、保留 regression subset，并用人工 review 拦截无意义或过拟合的 harness 变更；Phase 15 仍需把这些证据接入 release gate，并持续扩充生产分布 case。 |
 | Prompt injection / tool output injection 如果后补，会污染所有 agent 和 eval 证据。 | Access input、MCP、tools、retrieval、context assembly、audit。 | Phase 2、Phase 4、Phase 6、Phase 8、Phase 9 | 已缓解 | Phase 2 已定义 trust marker/source_ref/context ref 和 guardrail decision DTO；Phase 6 已在 ContextAssembler 保留 per-fragment source/trust/token/truncation trace；Phase 8 已处理 tool/MCP output；Phase 9 已让 retrieval chunk 进入 context 前保留 citation/source_ref/trust_level，prompt injection 文本只作为 untrusted citation 内容。 |
 | Docker secret file 若直接当普通路径读取，会引入 symlink/越界、冲突优先级和错误泄密。 | settings、API/worker/migration startup、doctor/health/log。 | Phase 13.6 | 已缓解 | CFG-001 已实现受信 root、普通文件、64 KiB、direct/file 冲突、四入口结构化失败；真实 service smoke 扫描 health、doctor、logs、PostgreSQL 与 artifacts，并证明成功、失败和中断清理。 |
+| Shared-budget fingerprint 若由 runtime 自行读取 env/path，会绕过 typed secret 的受信根、大小、冲突和脱敏门禁。 | settings、runtime/service composition、snapshot/evidence。 | Phase 13.8A | 修正中 | 改为 `BudgetSettings` secret 字段并由 CFG-001 loader 唯一注入；四启动入口、wheel-only、Compose 与 traceback locals 共同验证 fail closed 和原值不落 payload。 |
+| `0016` 只扫描 root/direct child 或允许 self-contained bundle 自证，会让嵌套/孤儿/cycle、current-config 漂移和错误历史身份进入 shared ledger。 | Alembic、legacy recovery、SQLite/PostgreSQL。 | Phase 13.8A | 修正中 | DDL 前验证全表 topology；未封闭 tree 要求与 backfill bundle 分离的 durable immutable source evidence，逐值核对 snapshot/identity/hash/version，缺失或冲突整批拒绝。 |
+| Cost-enabled snapshot 允许 null price 或 usage UoW 先返回 budget，会把不可证明 reservation 当成合法并遮蔽 event sequence corruption。 | model/embedding reservation、migration、recovery。 | Phase 13.8A | 修正中 | 必需 route price 必须非 null、非 bool、非负有限；固定 sequence-state 在 budget/capacity 前的错误优先级，并以零外部副作用合同覆盖。 |
 | Run/approval/event 允许空 trace 或宽松 event-id 重放会让审计、usage 与 delegation 产生不兼容关联。 | runtime、worker、checkpoint、approval、CanonicalEvent、model usage。 | Phase 13.6A | 已缓解 | `run-trace-correlation` 已在副作用前生成 canonical trace，以全局锁覆盖跨 tenant/不同 key 竞争，跨进程传播并确定性 backfill；合法 non-run evidence 保留独立 nullable trace，数据库三列复合外键守住 run/tenant/trace 联合归属，完整事件指纹与既有 evidence 恢复守住 event-id 语义，并以 `0013a` 前滚旧 shape。Phase 13.6A 已提交并停在 `ready-to-archive`，作为 Phase 13.7 的只读基线，不在本轮重复开发。 |
 | Provider usage 若由业务 agent 手工拼接，delegation budget 与 trace/eval 证据不可审计。 | model/embedding adapter、event/trace、parent aggregation。 | Phase 13.7、13.8 | 已缓解 | MOD-001 已建立并验证 durable provider-neutral evidence；DLG-001 只从持久化 child evidence 聚合，等待 Phase 13.8 同 digest 代码 1+2。 |
 | 真实 delegation 容易造成循环、跨租户、预算放大、重复 child run 和 service crash 后双计费。 | registry、policy、runtime、RunQueue、storage、events。 | Phase 13.8 | 已缓解 | edge + policy + cycle/depth/budget 前置门禁、parent 级幂等 reservation、service crash/reclaim 与 durable aggregation 已由 local/真实 PostgreSQL/Redis 证据覆盖，等待代码 1+2。 |

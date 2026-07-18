@@ -80,6 +80,7 @@
 
 - 所有当前版本 HTTP API 使用 `/api/v1/...`。
 - 破坏性 API 变更必须进入 `/api/v2`，不得在 `/api/v1` 静默改字段含义。
+- 本项目尚处于 P0 预发布阶段；本版对既有 `budget.max_tokens_per_run` / `budget.max_cost_usd_per_run` 做一次显式且文档化的安全语义收紧：字段 shape、名称和类型不变，但约束对象由单个 run 改为该 root 的整个 parent execution tree。P0 首次发布后不得继续在 `/api/v1` 以同类理由改变语义，后续破坏性调整必须进入新 API 版本。
 - 当前版本不定义完整 SaaS 前端 URL，也不提供登录、注册、组织邀请或计费页面。
 
 ### 4.2 认证与身份
@@ -454,8 +455,8 @@ payload 不得包含 child input、完整 identity/request hash、动态余额�
 | `model_policy.provider` | string | Yes | 模型 provider ID，例如 `fake`。 |
 | `model_policy.default_model` | string | Yes | 默认模型 ID。 |
 | `model_policy.fallback_models` | string[] | Yes | fallback 模型 ID 列表。 |
-| `budget.max_tokens_per_run` | integer | Yes | 单 run token 预算。 |
-| `budget.max_cost_usd_per_run` | number \| null | Yes | 单 run 成本预算；`null` 表示未设置成本上限。 |
+| `budget.max_tokens_per_run` | integer | Yes | Parent execution tree 共享 token hard limit；root direct model/embedding、delegation 与 child allocation 统一竞争，不是每个 child 各自获得一份额度。 |
+| `budget.max_cost_usd_per_run` | number \| null | Yes | Parent execution tree 共享 cost hard limit；`null` 只表示关闭 shared cost 维度，token 维度仍启用。 |
 | `eval_dataset` | string \| null | Yes | eval dataset 引用。 |
 | `delegation_targets` | string[] | Yes | 显式允许 delegation 的目标 agent ID。 |
 
@@ -1247,16 +1248,32 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 ## 10. P0 Runtime Completion Seams
 
+### BGT-001 Parent execution-tree shared budget
+
+| 字段 | 约束 |
+|---|---|
+| 状态 | 修正中；公开 HTTP shape 不变，内部 shared-budget seam 必须在归档前通过完整门禁与代码 1+2。 |
+| owner | 每个 root run 创建唯一同 tenant `ParentBudgetLedger`，`budget_owner_run_id=root.run_id` 且非空；该 root 的 direct model/embedding、delegation top-level claim 和 child allocation 共用同一 owner。P0 拒绝嵌套、孤儿、循环、跨租户或 delegation relation 不唯一的 topology。 |
+| frozen snapshot | Root 创建时冻结 token/cost hard limits、cost-enabled 状态、registry/config/catalog versions，以及 root 和当时显式 targets 各自的 descriptor/model-policy/route/price sub-snapshot。Child 继承同一 owner snapshot ID/hard limits，只能按自己的 target sub-snapshot 进一步收紧已启用维度；reload 只影响新 root。 |
+| typed secret | Tenant-scoped keyed request fingerprint 使用 `AGENT_HARNESS_BUDGET__FINGERPRINT_KEY` 或对应 `_FILE` typed setting。缺失、direct/file 冲突、越界、symlink、超限、非 UTF-8 或空值在 application startup fail closed；runtime/migration 不得直接读取 env/path，secret 原值不得进入 payload、snapshot、event、trace、audit、error 或数据库。 |
+| identity / replay | Stable operation key 只定位 row；预算语义中的 `delegation_claim_id` 唯一等于既有 `AgentDelegation.id`，在 `budget_operation_claims` 与 `delegation_budget_allocations` 中持久化为 `delegation_id`，不得派生第二个 claim 标识。版本化 immutable identity、opaque keyed request fingerprint/key version、owner/snapshot/route/price/trusted bound 共同决定 exact replay 或 `budget.operation_conflict`。Exact replay 复用首次 reservation/result，不重新读取当前余额；conflict 在 ledger、relation、event capacity 与外部副作用前拒绝。 |
+| reservation / settlement | 先形成受信有限 intent并通过 static hard eligibility，再执行 soft policy/fallback/approval，最后在 provider/child/queue 副作用前，以 owner ledger row lock/CAS 原子 reservation。Cost-disabled 合法 null/unavailable 不产生 cost impact；unknown、actual-over或 needs-review 保守占用并 fence 新 operation/terminal。Parent 只应用 delegation top-level claim 的差额，child allocation 不直接重复扣 parent aggregate。 |
+| UoW 优先级 | `exact replay / identity conflict` → `authorization / owner / relation / snapshot` → `event.sequence_state_invalid` → `budget` → `event.sequence_exhausted` → unique-race reread。前序错误不得被后序 budget/capacity 错误覆盖；direct 公开为 `budget.reservation_rejected`，内部 reason 使用封闭枚举且不得泄漏动态余额。 |
+| migration | `0016` 在 DDL 前扫描并验证全库 root/child topology。严格 `legacy_closed` tree 只保留旧历史；其他 tree 必须由与 backfill bundle 分离的 durable immutable source evidence 逐值证明 snapshot、identity、hash/version、ownership、route、trusted bound 与 child relation。不得使用 current config/default/reservation/actual/自证 bundle 推导；cost-enabled route 的必需 prices 必须非 null、非 bool、非负且有限。 |
+| terminal / recovery | 未封闭 direct/delegation claim、child allocation、effect-started 无可信 result、unknown 或 needs-review 阻止 parent terminal。恢复只重用 durable claim/settlement 并补投稳定 outbox event，不重放 provider、child 或 queue 副作用。 |
+| 公开边界 | P0 不新增 budget ledger HTTP route、公开 DTO 字段或动态余额查询。现有 agent budget 字段仅以本节明确的 shared hard-limit 语义解释。 |
+| 验证 | SQLite/真实 PostgreSQL 覆盖混合并发、token/cost 双维、cost-disabled、replay/conflict、cache hit/miss、fallback/approval、三个 crash window、terminal fencing、full-topology migration 与独立 source evidence；拒绝路径 provider/child/queue 为零。 |
+
 ### DLG-001 受控 agent delegation
 
 | 字段 | 约束 |
 |---|---|
-| 状态 | 验收中；真实执行、durable reservation/aggregation 与 local/service recovery 已实现，等待同一 digest 的代码 1+2 审核。 |
+| 状态 | shared-budget 修正中；真实执行保持不变，但预算 ownership、allocation、migration 与 terminal 必须符合 BGT-001 后重新完成同一 digest 的代码 1+2。 |
 | 入口 | runtime/worker 注册的内置 `agent.delegate` tool/module seam；P0 不新增公开 delegation HTTP endpoint。 |
 | 请求 | parent `run_id`、source/target `agent_id`、child input、显式 idempotency key、IdentityContext、request/trace context。 |
 | 策略 | 先校验 source descriptor 的 delegation edge，再执行 `agent.delegate` PolicyEngine check；任一步 deny 都不得创建 child run、queue message、provider call 或业务 CanonicalEvent；允许写一次脱敏 policy/audit denial evidence。 |
 | 执行 | local profile 复用 orchestrator inline seam；service profile 复用 durable RunQueue。child `agent_runs.parent_run_id` 必须指向 parent，tenant/session/identity 不得由 child input 覆盖。 |
-| 预算 | child 继承 parent 剩余 token/cost/depth 上限。ownership/edge/policy/tenant/cycle/depth 校验不创建 delegation/预算/child 业务状态；通过后，系统在同一事务中先按 `(tenant_id,parent_run_id,idempotency_key)` 读取或创建 claim 并核对稳定 request hash：既有同 hash 直接重放或恢复首次持久化的 operation/reservation，不读取当前 parent 余额重新派生 hash 或预留；既有异 hash 在预算写入前返回 `delegation.idempotency_conflict`。只有全新 claim 才以 parent 级行锁/CAS 按当时 parent 剩余额度、当前 policy/descriptor ceiling 与稳定预算意图计算本次最坏情况有效预留额，并把计算结果单独持久化到 reservation。不同 key 串行竞争同一剩余额度。预留在 child 创建前确定性失败时释放，创建后保持 durable，按最终 usage 结算；usage 不确定时保持 reserved/needs_review，不得当 0 或提前释放。cycle、超深度或预算不足必须稳定拒绝；允许的脱敏 policy/audit evidence 不算 delegation 业务状态。 |
+| 预算 | 遵循 BGT-001。Delegation top-level claim 与 root direct operation 竞争同一非空 owner ledger；child 在 top-level reservation 内取得 allocation，不另建 per-child ledger 或放大额度。ownership/edge/policy/tenant/cycle/depth 校验不创建 delegation/预算/child 业务状态；通过后，系统在同一事务中按 stable key/immutable identity exact replay 或创建 claim，同 identity 复用首次 reservation，异 identity 在预算写入前拒绝。预留在 child 创建前确定性失败时释放，创建后保持 durable并按可信 usage 结算；unknown/needs-review 不得当 0 或提前释放。 |
 | 幂等 | 规范化 request hash 覆盖 tenant、identity、parent/source/target、child input 与稳定预算意图。P0 没有显式预算参数时，预算意图固定为 `inherit_parent`；hash 不得包含动态 parent 剩余额度、锁内计算的有效预留额或其他会在重试间变化的余额投影。新 idempotency claim 与首次有效 reservation 必须在同一事务提交或回滚；同 key 同 hash 只产生一个 claim/reservation/child run 并重放或恢复 durable 结果，即使其他 key 已改变 parent 余额也复用首次 reservation；同 key 异 hash 在 reservation 前返回 `delegation.idempotency_conflict`，且零 child/queue/provider/业务事件副作用。 |
 | 结果 | 返回 `DelegationSummary`；parent 聚合只能读取已经通过非 bool、非负、有限数值和 cost-status 组合校验的持久化 child run、`ModelUsageEvidence` 和 trace refs，不能相信业务 agent 手填 summary或让负数反向冲减预算。 |
 | 事件证据 | 获准请求在 parent run 上最多发布 `delegation.claimed` -> `delegation.child.created` -> `delegation.completed|delegation.failed` 三条 internal non-terminal CanonicalEvent；event id、payload、pre-child failure、needs_review 无 final、默认过滤与重放规则精确遵循 5.9，拒绝路径为零 delegation 业务事件。 |
@@ -1290,6 +1307,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | 合并顺序 | profile YAML -> agent YAML -> `.env` -> Docker secret file -> process env -> explicit overrides；冲突检查优先于 merge。 |
 | 错误 | 文件拒绝返回 `config.secret_file_invalid`，direct/file 冲突返回 `config.secret_file_conflict`；两者均包含安全 field path 与修复提示，但不得包含文件内容、解析后的 secret 或受信 root 外绝对路径。 |
 | 验证 | 成功加载、direct/file 冲突、相对路径、目录、symlink、越界、空文件、非 UTF-8、超限、日志/error/health/doctor redaction 和 application startup failure；Compose 的 application DSN 与 PostgreSQL password 均使用独立只读 secret file，`docker compose config` 不展开 secret 原值。 |
+| shared-budget key | `AGENT_HARNESS_BUDGET__FINGERPRINT_KEY` / `_FILE` 复用本 seam；该字段必须由 typed settings 注入 BGT-001 composition，禁止 runtime 通过 `os.environ`、`Path.read_text()` 或自定义 `.strip()` 旁路读取。 |
 
 ## 11. Eval Gate API
 
@@ -1630,8 +1648,9 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | `agent-harness tools list/call` | 等价于 `TLS-001` / `TLS-002` 的 tool execution seam | CLI 不走 HTTP，但必须使用同一 `ToolRegistry`、PolicyEngine、workspace guard、artifact store、audit 和 DTO 语义。 |
 | runtime / worker tool call | 等价于 `TLS-003` 的 module seam | runtime/worker 必须通过 `ToolRegistry`，不得直接调用 FileTool、ShellTool、MCP SDK、subprocess 或文件系统危险操作。 |
 | runtime / worker delegation | `DLG-001` module seam | 通过内置 `agent.delegate` 复用 registry、PolicyEngine、orchestrator/RunQueue、storage/event；P0 不新增远程 delegation route。 |
+| runtime / worker shared budget | `BGT-001` module seam | direct model/embedding、delegation 与 child allocation 复用同一 owner ledger/UoW；P0 不新增 budget ledger route 或公开动态余额。 |
 | model / embedding adapter | `MOD-001` evidence seam | adapter 必须输出 provider-neutral `ModelUsageEvidence`，并通过 EventBus/TelemetryFacade 关联 run/trace；业务 agent 不拼 raw usage。 |
-| service config loader | `CFG-001` settings seam | `<BASE_ENV>_FILE` 只在受控 typed settings 边界读取；P0 不引入 SecretProvider。 |
+| service config loader | `CFG-001` settings seam | `<BASE_ENV>_FILE` 只在受控 typed settings 边界读取，包括 BGT-001 keyed fingerprint secret；P0 不引入 SecretProvider。 |
 | OpenAPI 调用方 | 当前 `AGT-001`、`RUN-001` 到 `RUN-005`；P0 待实现 `RUN-006` | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
 | service-app FastAPI | 当前 `AGT-001`、`RUN-001` 到 `RUN-005`；P0 待实现 `RUN-006` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
 | runtime worker | 当前 service profile 独立进程；不暴露 HTTP 管理面 | worker 通过 runtime components消费 Redis queue，使用稳定 DBOS executor id并从 PostgreSQL恢复 execution identity/checkpoint；不直接泄漏 ORM/DBOS/provider对象。 |
@@ -1697,7 +1716,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
 - [x] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致，并由局部双向 drift contract 持续校验。
 - [x] 已明确当前 events JSON seam、P0 待实现 RUN-006 SSE 与 P1 可选 WS 的边界。
-- [x] 已固定 DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；CFG-001、MOD-001 已停在 `ready-to-archive`，DLG-001 已实现并等待完整门禁与代码 1+2。
+- [ ] 已固定并实现 BGT-001、DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；当前需完成 typed fingerprint secret、`0016` topology/source/price、usage 错误优先级修正，并按同一 digest 重新通过完整门禁与代码 1+2。
 - [x] 已明确 `reasoning.delta` 默认不可见。
 - [x] 已明确 API route 不得暴露 ORM、DBOS、provider SDK 或进程内 handle。
 - [x] 已明确新增/修改 endpoint 必须先改本契约，再做局部 OpenAPI drift 检查。
