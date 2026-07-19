@@ -15,13 +15,20 @@ from agent_harness.events.capacity import (
 )
 from agent_harness.events.serialization import canonical_event_bytes, validate_persisted_event_bytes
 from agent_harness.events.sinks.base import (
+    DEFAULT_EVENT_PAGE_SIZE,
+    MAX_EVENT_PAGE_BYTES,
     EventSinkTerminalConflict,
     validate_event_replay,
     validate_event_scope,
     validate_terminal_visibility,
 )
+from agent_harness.events.sinks.reader import EventPageAccumulator, validate_page_limits
 from agent_harness.events.types import CanonicalEvent, CanonicalEventType
 from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
+from agent_harness.storage.event_capacity_repositories import (
+    EventCapacityExceeded,
+    EventSequenceStateInvalid,
+)
 from agent_harness.storage.evidence_repositories import (
     MAX_EVENT_SEQ,
     EvidenceOperationKind,
@@ -141,14 +148,33 @@ class PostgreSQLEventSink:
                     )
                 )
                 latest_seq = int(latest.scalar_one() or 0)
-                persisted = event.model_copy(update={"seq": latest_seq + 1})
-                if persisted.seq > MAX_EVENT_SEQ:
-                    raise RuntimeError("event.sequence_exhausted")
                 if capacity_row is not None:
-                    if capacity_row.highest_persisted_seq != latest_seq:
-                        raise RuntimeError("run event capacity high-water mark is invalid")
                     outstanding = capacity_row.outstanding_reserved_event_count
                     terminal_reservation = capacity_row.terminal_reservation
+                    if (
+                        capacity_row.highest_persisted_seq != latest_seq
+                        or capacity_row.highest_persisted_seq < 0
+                        or outstanding < 0
+                        or terminal_reservation != 1
+                        or capacity_row.highest_persisted_seq + outstanding + terminal_reservation
+                        > MAX_EVENT_SEQ
+                        or latest_seq == MAX_EVENT_SEQ
+                    ):
+                        raise EventSequenceStateInvalid
+                persisted = event.model_copy(update={"seq": latest_seq + 1})
+                if persisted.seq > MAX_EVENT_SEQ:
+                    raise EventCapacityExceeded
+                if persisted.seq == MAX_EVENT_SEQ and not persisted.terminal:
+                    raise EventSequenceStateInvalid
+                # seq 是 sink 在锁内分配的 envelope 字段；位数增长可能让调用方
+                # 通过的 65536B 边界超限，必须用最终 shape 在任何 capacity/outbox
+                # 更新和 INSERT 前重新校验。
+                canonical_event_bytes(persisted)
+                if capacity_row is not None:
+                    # SQLAlchemy ``Row`` 的窄化不能跨越上面的 event 构造；在实际
+                    # 消费分支重新取值，也让后续更新明确只依赖同一锁定快照。
+                    outstanding = int(capacity_row.outstanding_reserved_event_count)
+                    terminal_reservation = int(capacity_row.terminal_reservation)
                     usage_binding = usage_capacity_binding(event)
                     if usage_binding is not None:
                         usage_outbox = await connection.execute(
@@ -236,7 +262,7 @@ class PostgreSQLEventSink:
                                 raise RuntimeError("outbox event has no capacity reservation")
                             outstanding -= outbox_row.reserved_event_count
                     if persisted.seq + outstanding + terminal_reservation > MAX_EVENT_SEQ:
-                        raise RuntimeError("event.sequence_exhausted")
+                        raise EventCapacityExceeded
                     await connection.execute(
                         update(RunEventCapacityModel)
                         .where(
@@ -314,6 +340,74 @@ class PostgreSQLEventSink:
                 .order_by(CanonicalEventModel.seq.asc())
             )
             return [self._event_from_row(row) for row in rows.all()]
+
+    async def read_page(
+        self,
+        *,
+        run_id: str,
+        after_seq: int = 0,
+        include_internal: bool = False,
+        max_events: int = DEFAULT_EVENT_PAGE_SIZE,
+        max_bytes: int = MAX_EVENT_PAGE_BYTES,
+    ) -> list[CanonicalEvent]:
+        validate_page_limits(max_events=max_events, max_bytes=max_bytes)
+        predicates = [
+            CanonicalEventModel.run_id == run_id,
+            CanonicalEventModel.seq > after_seq,
+        ]
+        if not include_internal:
+            predicates.append(CanonicalEventModel.visibility == "public")
+        async with AsyncSession(self._storage.engine) as session:
+            rows = await session.stream_scalars(
+                select(CanonicalEventModel)
+                .where(*predicates)
+                .order_by(CanonicalEventModel.seq.asc())
+                .execution_options(yield_per=1)
+            )
+            page = EventPageAccumulator(
+                max_events=max_events,
+                max_bytes=max_bytes,
+            )
+            async for row in rows:
+                # SQL WHERE 已先构造当前授权可见性视图；页内每个 row 随取随验，
+                # 不调用 rows.all()，byte 上限命中后立即关闭当前 DB cursor。
+                if not page.append(self._event_from_row(row)):
+                    break
+            await rows.close()
+            return page.events
+
+    async def contains_seq(
+        self,
+        *,
+        run_id: str,
+        seq: int,
+        include_internal: bool = False,
+    ) -> bool:
+        if seq <= 0:
+            return False
+        page = await self.read_page(
+            run_id=run_id,
+            after_seq=seq - 1,
+            include_internal=include_internal,
+            max_events=1,
+        )
+        return bool(page and page[0].seq == seq)
+
+    async def terminal_event(
+        self,
+        *,
+        run_id: str,
+        include_internal: bool = False,
+    ) -> CanonicalEvent | None:
+        predicates = [
+            CanonicalEventModel.run_id == run_id,
+            CanonicalEventModel.terminal.is_(True),
+        ]
+        if not include_internal:
+            predicates.append(CanonicalEventModel.visibility == "public")
+        async with AsyncSession(self._storage.engine) as session:
+            row = await session.scalar(select(CanonicalEventModel).where(*predicates))
+            return self._event_from_row(row) if row is not None else None
 
     async def latest_seq(self, run_id: str) -> int:
         async with self._storage.engine.connect() as connection:

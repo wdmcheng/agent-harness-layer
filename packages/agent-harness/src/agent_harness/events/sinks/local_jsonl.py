@@ -24,14 +24,18 @@ from agent_harness.events.capacity import (
 )
 from agent_harness.events.serialization import canonical_event_bytes, validate_persisted_event_bytes
 from agent_harness.events.sinks.base import (
+    DEFAULT_EVENT_PAGE_SIZE,
+    MAX_EVENT_PAGE_BYTES,
     EventSink,
     EventSinkTerminalConflict,
     validate_event_replay,
     validate_event_scope,
     validate_terminal_visibility,
 )
+from agent_harness.events.sinks.reader import EventPageAccumulator, validate_page_limits
 from agent_harness.events.types import CanonicalEvent
 from agent_harness.local_state import register_local_state_file
+from agent_harness.storage.event_capacity_repositories import EventSequenceStateInvalid
 from agent_harness.storage.run_trace_gate import RunTraceResolver, RunTraceScopeConflict
 
 CapacityClaim = Callable[[CanonicalEvent], AbstractAsyncContextManager[None]]
@@ -322,6 +326,89 @@ class LocalJsonlEventSink(EventSink):
                     for event in self._load_events_unlocked()
                     if event.run_id == run_id and event.seq > after_seq
                 ]
+
+    async def read_page(
+        self,
+        *,
+        run_id: str,
+        after_seq: int = 0,
+        include_internal: bool = False,
+        max_events: int = DEFAULT_EVENT_PAGE_SIZE,
+        max_bytes: int = MAX_EVENT_PAGE_BYTES,
+    ) -> list[CanonicalEvent]:
+        """只验证当前可见页，避免后续非法 row 被空页或预取掩盖。"""
+
+        validate_page_limits(max_events=max_events, max_bytes=max_bytes)
+        async with _path_lock_for_current_loop(self.path):
+            if not self.path.exists():
+                return []
+            with self._file_lock():
+                page = EventPageAccumulator(
+                    max_events=max_events,
+                    max_bytes=max_bytes,
+                )
+                # local JSONL 保持 append 顺序；逐行解析使 100-event 页不会把长
+                # run 的全部未读 envelope 搬入内存，也不会触碰下一页的行。
+                last_run_seq = 0
+                with self.path.open("r", encoding="utf-8") as file:
+                    for line in file:
+                        if not line.strip():
+                            continue
+                        event = CanonicalEvent.model_validate(json.loads(line))
+                        if event.run_id != run_id:
+                            continue
+                        if event.seq <= last_run_seq:
+                            raise EventSequenceStateInvalid
+                        last_run_seq = event.seq
+                        if event.seq <= after_seq:
+                            continue
+                        # 这是等价于 PostgreSQL WHERE visibility 的授权视图筛选；
+                        # 隐藏 row 不属于本 reader 的候选页，也不能形成错误 oracle。
+                        if not include_internal and event.visibility != "public":
+                            continue
+                        if not page.append(event):
+                            break
+                return page.events
+
+    async def contains_seq(
+        self,
+        *,
+        run_id: str,
+        seq: int,
+        include_internal: bool = False,
+    ) -> bool:
+        if seq <= 0:
+            return False
+        page = await self.read_page(
+            run_id=run_id,
+            after_seq=seq - 1,
+            include_internal=include_internal,
+            max_events=1,
+        )
+        return bool(page and page[0].seq == seq)
+
+    async def terminal_event(
+        self,
+        *,
+        run_id: str,
+        include_internal: bool = False,
+    ) -> CanonicalEvent | None:
+        async with _path_lock_for_current_loop(self.path):
+            if not self.path.exists():
+                return None
+            with self._file_lock(), self.path.open("r", encoding="utf-8") as file:
+                for line in file:
+                    if not line.strip():
+                        continue
+                    event = CanonicalEvent.model_validate(json.loads(line))
+                    if (
+                        event.run_id == run_id
+                        and event.terminal
+                        and (include_internal or event.visibility == "public")
+                    ):
+                        validate_persisted_event_bytes(event)
+                        return event
+        return None
 
     async def latest_seq(self, run_id: str) -> int:
         events = await self.read(run_id=run_id)

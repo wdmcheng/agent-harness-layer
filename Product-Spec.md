@@ -33,7 +33,7 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 全景图重点表达：
 
 - 纵向 5 层运行中轴：Access、Runtime、Engine、Tools、Infra。
-- 目标主链路回边：当前 Runtime 通过稳定 orchestrator/adapter seam 驱动 Agent；P1 可在该 seam 后引入 Graph 节点。Engine 与 Tools 形成 Agent Loop；P0 待实现 SSE 向 Access 流式回传，WS 属于 P1 可选 adapter；HITL 审批回到 Runtime/Access 后 resume。
+- 目标主链路回边：当前 Runtime 通过稳定 orchestrator/adapter seam 驱动 Agent；P1 可在该 seam 后引入 Graph 节点。Engine 与 Tools 形成 Agent Loop；P0 已实现 SSE 向 Access 流式回传，WS 属于 P1 可选 adapter；HITL 审批回到 Runtime/Access 后 resume。
 - Access / Tools / Retrieval 的信任边界：外部输入、MCP tool output、检索内容都必须先标记来源和可信级别，再进入上下文组装或执行路径。
 - Engine 层上下文组装收口：历史裁剪、检索注入、工具结果截断、预算控制和异步记忆压缩不能散落在业务 agent 里。
 - 左翼 Eval Gate：分层 eval、release gate、trace 低分样本回流。
@@ -612,7 +612,7 @@ agent-harness scaffold agent <agent_id>
 - MUST 破坏性 API 变更进入 `/api/v2`。
 
 **验收标准：**
-- [ ] AC-017: Given OpenAPI schema, when 运行 schema 测试, then P0 endpoints 均存在。
+- [x] AC-017: Given OpenAPI schema, when 运行 schema 测试, then P0 endpoints 均存在。
 - [x] AC-018: Given CLI, when 执行 `agent-harness doctor`, then 输出 profile、storage、queue、observability、eval 目录状态。
 
 ### REQ-009: 租户、身份与认证
@@ -915,7 +915,7 @@ artifact.created
 
 **验收标准：**
 - [x] AC-037: Given 一个 run, when event stream 完成, then terminal event 只有一个。
-- [ ] AC-038: Given SSE 客户端断开后按 seq 恢复, when 重新连接, then 可继续获取未读事件。
+- [x] AC-038: Given SSE 客户端断开后按 seq 恢复, when 重新连接, then 可继续获取未读事件。
 - [x] AC-039: Given 普通用户 visibility, when reasoning event 产生, then 默认不发送给用户流。
 - [x] AC-040: Given guardrail/context assembly 事件产生, when 写入 local/jsonl, then 包含 source/trust/truncation 摘要但不泄露 secret 或完整大 payload。
 - [x] AC-067: Given CanonicalEvent catalog 与真实 delegation 生命周期, when 事件由 EventBus 或 local/PostgreSQL sink 接受并发生重试、失败或 needs_review, then 39 种固定类型与代码枚举精确一致，terminal type/flag/visibility 双向一致，delegation 最多三条且顺序、稳定 event id、payload、internal 可见性和零拒绝副作用均满足本规格。
@@ -1368,7 +1368,7 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 非功能验收：
 
 - [x] AC-065: Given local profile 与 fake provider, when 从入口创建并完成 single agent run, then 稳定 smoke 记录的总时延小于 5 秒。
-- [ ] AC-066: Given 已建立 SSE 连接且存在可见事件, when 服务开始流式响应, then 首个 event frame 在 1 秒内返回；测试必须区分握手前错误和握手后错误事件。
+- [x] AC-066: Given 已建立 SSE 连接且存在可见事件, when 服务开始流式响应, then 首个 event frame 在 1 秒内返回；测试必须区分握手前错误和握手后错误事件。
 
 ## 9. P0 完成定义
 
@@ -1383,7 +1383,7 @@ P0 完成条件：
 - [x] service profile 可通过 Docker Compose 跑 PostgreSQL/Redis smoke。
 - [x] Trace -> EvalCaseDraft -> Human Review -> Approved Dataset -> EvalRun -> ScoreSink 闭环跑通。
 - [x] Policy/HITL 对默认危险动作生效。
-- [x] CanonicalEvent terminal event 唯一性和 JSON events `after_seq` resume 测试通过；SSE `Last-Event-ID` resume 仍由 AC-038 验收。
+- [x] CanonicalEvent terminal event 唯一性、JSON events `after_seq` resume 与 SSE `Last-Event-ID` resume 测试通过。
 - [ ] README 和深度文档已覆盖目录边界、扩展方式、安全策略、release process。
 - [x] README / architecture docs 已覆盖未来微服务拆分边界；service profile 可验证 API 与 worker 分进程协作。
 - [ ] GitHub Actions 和 GitLab CI 都能跑等价质量门禁。

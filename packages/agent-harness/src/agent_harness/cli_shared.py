@@ -76,10 +76,14 @@ def event_path(settings: HarnessSettings, events_path: Path | None) -> Path:
 def policy_engine(
     settings: HarnessSettings,
     storage: SQLAlchemyStorage,
-    audit: AuditService,
+    audit: AuditService | None,
     profiles_dir: Path | None = None,
 ) -> PolicyEngine:
-    """按 profile 构造 CLI 使用的 PolicyEngine。"""
+    """按 profile 构造 CLI 使用的 PolicyEngine。
+
+    只读命令可传 ``audit=None``，继续复用完全相同的 policy provider，且不会把
+    普通读取写成业务 audit outcome；会改变状态的 CLI 仍显式传入 AuditService。
+    """
 
     if settings.policy.provider == "db":
         provider = DatabasePolicyProvider(storage=storage)

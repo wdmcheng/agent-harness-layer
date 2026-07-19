@@ -1,5 +1,11 @@
 # 变更记录
 
+## [v1.9] - 2026-07-19
+### Phase 13.9 状态同步
+
+- 根据 `sse-event-streaming` 实现与验证证据，完成 RUN-006 SSE transport、`Last-Event-ID` 恢复、CLI-EVT-001 canonical NDJSON、统一授权 EventSink reader 与首 frame P95 门禁；WebSocket、跨 run multiplex、外部 broker gateway 和 event retention 仍不在本次 P0 范围。
+- 勾选 AC-017、AC-038、AC-066；真实 PostgreSQL/Redis service smoke 已覆盖 SSE 初始读取、exclusive resume、terminal EOF、非法第二 cursor 与零业务副作用，3 名 fresh reviewer 已完成 Stage 1/2，active change 保持未归档并进入 `ready-to-archive`。
+
 ## [v1.8] - 2026-07-18
 ### 规格维护
 

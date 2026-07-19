@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, Request, Response
 
 from agent_harness.approvals import ApprovalService
 from agent_harness.contracts.trust import GuardrailDecisionStatus
 from agent_harness.delegation import DelegationService
-from agent_harness.events import CanonicalEventType, EventSink
+from agent_harness.events import CanonicalEventType
 from agent_harness.identity import IdentityContext
 from agent_harness.policy import (
     InputGuardrail,
@@ -26,6 +26,7 @@ from app.api.dependencies import (
     get_optional_approval_service,
     get_policy_engine,
 )
+from app.api.routes.run_events import router as run_events_router
 from app.api.routes.run_support import (
     AgentRunCreateRequest as AgentRunCreateRequest,
 )
@@ -86,6 +87,10 @@ for _public_route_object in (
 del _public_route_object
 
 router = APIRouter(prefix="/api/v1", tags=["runs"])
+# FastAPI 0.139 会把嵌套 APIRouter 保留为延迟节点，模板 app 再 include 时不会
+# 展开第二层 routes。event 子模块已经固定完整 `/api/v1` prefix，这里只合并
+# BaseRoute 对象，保持对外 router/OpenAPI 身份不变。
+router.routes.extend(run_events_router.routes)
 
 
 async def create_run_with_orchestrator(
@@ -299,34 +304,6 @@ async def get_run(
     )
 
 
-@router.get(
-    "/runs/{run_id}/events",
-    response_model=RunEventsResponse,
-    responses=error_responses(401, 403, 404, 422, 500),
-)
-async def read_run_events(
-    http_request: Request,
-    run_id: str,
-    identity: Annotated[IdentityContext, Depends(current_identity)],
-    event_sink: Annotated[EventSink, Depends(get_event_sink)],
-    orchestrator: Annotated[RunOrchestrator, Depends(get_run_orchestrator)],
-    policy: Annotated[PolicyEngine | None, Depends(get_policy_engine)],
-    after_seq: int = Query(default=0, ge=0),
-    include_internal: bool = Query(default=False),
-) -> RunEventsResponse:
-    """按 seq 读取 event stream，供 SSE/API resume 共用。"""
-
-    # 这里读取 CanonicalEvent DTO，而不是返回 storage/event sink 私有对象。
-    await orchestrator.get_run(run_id, identity=identity)
-    if include_internal:
-        await _check_internal_event_permission(policy=policy, identity=identity, run_id=run_id)
-    events = await event_sink.read(run_id=run_id, after_seq=after_seq)
-    return RunEventsResponse(
-        request_id=request_id_from(http_request),
-        events=public_events(events, include_internal=include_internal),
-    )
-
-
 @router.post(
     "/runs/{run_id}/cancel",
     response_model=RunCreateResponse,
@@ -413,23 +390,6 @@ async def resume_run(
 # 兼容 contract tests 和 template examples：它们可以直接调用同一段适配逻辑，
 # 不必为了证明 route 逻辑而启动完整 FastAPI app。
 create_run_for_test = create_run_with_orchestrator
-
-
-async def _check_internal_event_permission(
-    *,
-    policy: PolicyEngine | None,
-    identity: IdentityContext,
-    run_id: str,
-) -> None:
-    engine = policy or PolicyEngine(provider=YamlPolicyProvider.default())
-    await engine.require_allowed(
-        PolicyCheck(
-            actor=identity,
-            action="events.read_internal",
-            resource=f"run:{run_id}:events",
-            context={"include_internal": True},
-        )
-    )
 
 
 async def _check_run_create_permission(

@@ -32,8 +32,9 @@ class OperationContract:
 
     path: str
     method: str
-    response_schema: str
+    response_schema: str | None
     error_statuses: tuple[str, ...]
+    success_media_type: str = "application/json"
 
 
 OPERATIONS = (
@@ -54,6 +55,13 @@ OPERATIONS = (
         "get",
         "RunEventsResponse",
         ("401", "403", "404", "422", "500"),
+    ),
+    OperationContract(
+        "/api/v1/runs/{run_id}/events/stream",
+        "get",
+        None,
+        ("401", "403", "404", "422", "500"),
+        "text/event-stream",
     ),
     OperationContract(
         "/api/v1/runs/{run_id}/cancel",

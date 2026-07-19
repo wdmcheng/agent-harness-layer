@@ -60,6 +60,20 @@ uv run agent-harness run examples.basic \
   --agents-dir ./agents
 ```
 
+已有 run 可通过同一授权 EventSink reader 逐条读取 canonical event：
+
+```bash
+uv run agent-harness events stream <run_id> \
+  --profile local \
+  --profiles-dir ./configs/profiles \
+  --storage-dsn sqlite+aiosqlite:////tmp/agent-harness-basic/state.db \
+  --events-path /tmp/agent-harness-basic/events.jsonl
+```
+
+CLI 的 `--after-seq` 是 exclusive cursor；HTTP 调用方使用
+`GET /api/v1/runs/{run_id}/events/stream` 与唯一 `Last-Event-ID` header。两者默认只读
+public event，terminal 后结束；需要 internal visibility 时必须通过同一策略授权。
+
 四个示例的真实 run/eval 命令、能力差异和安全边界见 [`docs/examples.md`](docs/examples.md)。快速验证全部 approved fake-model case：
 
 ```bash
@@ -89,7 +103,7 @@ service profile 的真实依赖验证使用：
 make smoke-service
 ```
 
-它先构建核心 wheel，再把模板复制到 workspace 外，以单一 wheel-only 镜像启动 PostgreSQL、Redis、migration、API 和 worker。验证内容包括真实 API-key 认证与 401 零副作用、HTTP RUN-001 到 Redis 四字段、DBOS owner 落库后的 worker 硬退出与 `XAUTOCLAIM` 恢复、唯一 terminal、shared checkpoint、approval enqueue failure 补投、approve continuation、deny 零 continuation，以及默认删除本轮 container/network/volume/credential。health 只做进程与配置摘要，不能替代 service smoke。
+它先构建核心 wheel，再把模板复制到 workspace 外，以单一 wheel-only 镜像启动 PostgreSQL、Redis、migration、API 和 worker。验证内容包括真实 API-key 认证与 401 零副作用、HTTP RUN-001 到 Redis 四字段、DBOS owner 落库后的 worker 硬退出与 `XAUTOCLAIM` 恢复、唯一 terminal、RUN-006 SSE 初始读取/resume/terminal EOF 与零读副作用、shared checkpoint、approval enqueue failure 补投、approve continuation、deny 零 continuation，以及默认删除本轮 container/network/volume/credential。health 只做进程与配置摘要，不能替代 service smoke。
 
 如需保留本轮 PostgreSQL volume 诊断：
 

@@ -10,6 +10,9 @@ from typing import Protocol
 from agent_harness.contracts.run_trace import TRACE_ID_PATTERN, RunTraceValidationError
 from agent_harness.events.types import CanonicalEvent, validate_terminal_semantics
 
+DEFAULT_EVENT_PAGE_SIZE = 100
+MAX_EVENT_PAGE_BYTES = 1_048_576
+
 
 class EventSinkTerminalConflict(RuntimeError):
     """数据库级唯一约束拒绝同一 run 的第二个 terminal。"""
@@ -81,7 +84,11 @@ class EventSink(Protocol):
         ...
 
     async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
-        """返回指定 run 在调用方已观察 seq 之后的事件。"""
+        """返回指定 run 在调用方已观察 seq 之后的全部事件。
+
+        这是保留给既有 RUN-003 等调用方的兼容 seam；新增流式入口应使用
+        ``read_page``，避免一次把长 run 的全部未读 evidence 搬入内存。
+        """
         ...
 
     async def latest_seq(self, run_id: str) -> int:
@@ -90,6 +97,45 @@ class EventSink(Protocol):
 
     async def has_terminal(self, run_id: str) -> bool:
         """报告指定 run 是否已经有 terminal event。"""
+        ...
+
+
+class EventReader(Protocol):
+    """RUN-006 与 CLI-EVT-001 复用的授权分页读取能力。
+
+    该协议与 ``EventSink`` 分离，避免只负责写入与旧 JSON 读取的第三方 sink
+    被迫实现流式 transport；service/local 的正式 event store 同时实现两者。
+    """
+
+    async def read_page(
+        self,
+        *,
+        run_id: str,
+        after_seq: int = 0,
+        include_internal: bool = False,
+        max_events: int = DEFAULT_EVENT_PAGE_SIZE,
+        max_bytes: int = MAX_EVENT_PAGE_BYTES,
+    ) -> list[CanonicalEvent]:
+        """按 exclusive cursor 返回受调用值与合同硬上限共同约束的一页。"""
+        ...
+
+    async def contains_seq(
+        self,
+        *,
+        run_id: str,
+        seq: int,
+        include_internal: bool = False,
+    ) -> bool:
+        """只在当前可见性视图中判断 ``seq`` membership，供授权层复用。"""
+        ...
+
+    async def terminal_event(
+        self,
+        *,
+        run_id: str,
+        include_internal: bool = False,
+    ) -> CanonicalEvent | None:
+        """返回当前可见性视图中的唯一 terminal marker；不存在时返回 ``None``。"""
         ...
 
 

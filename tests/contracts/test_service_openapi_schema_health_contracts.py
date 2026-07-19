@@ -123,7 +123,12 @@ def test_service_openapi_has_no_path_method_or_schema_drift(tmp_path: Path) -> N
 
     for contract in OPERATIONS:
         operation = paths[contract.path][contract.method]
-        assert _response_ref(operation, "200").endswith(f"/{contract.response_schema}")
+        success_content = operation["responses"]["200"]["content"]
+        assert set(success_content) == {contract.success_media_type}
+        if contract.response_schema is None:
+            assert success_content[contract.success_media_type]["schema"] == {"type": "string"}
+        else:
+            assert _response_ref(operation, "200").endswith(f"/{contract.response_schema}")
         if (contract.path, contract.method) in {
             ("/api/v1/agents/{agent_id}/runs", "post"),
             ("/api/v1/runs/{run_id}/approvals/{approval_id}", "post"),

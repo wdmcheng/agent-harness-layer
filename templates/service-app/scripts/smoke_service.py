@@ -52,6 +52,7 @@ from service_smoke_support import (
     run,
     stream_length,
 )
+from service_sse_smoke import run_sse_smoke
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 STREAM = "agent-harness:service:runs:stream"
@@ -273,6 +274,13 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
         if str(exc).startswith("service.inspect."):
             env["SERVICE_APP_SMOKE_BOUNDARY"] = str(exc)
         raise
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "postgres-sse-transport"
+    sse_evidence = run_sse_smoke(
+        env,
+        base_url=base_url,
+        token=token,
+        run_id=run_id,
+    )
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "dbos-event-usage"
     try:
         postgres_evidence = postgres_terminal_evidence(
@@ -321,6 +329,7 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
             "hard_crash_exit": 23,
         },
         "run": {"run_id": run_id, "status": "completed", "terminal_count": 1},
+        "sse": sse_evidence,
         "postgresql": postgres_evidence,
         "postgresql_budget_race": budget_race,
         "postgresql_budget_topology": budget_topology,

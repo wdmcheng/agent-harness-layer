@@ -285,6 +285,7 @@ def test_template_router_exposes_create_run_route() -> None:
         ("/api/v1/agents/{agent_id}/runs", "POST"),
         ("/api/v1/runs/{run_id}", "GET"),
         ("/api/v1/runs/{run_id}/events", "GET"),
+        ("/api/v1/runs/{run_id}/events/stream", "GET"),
         ("/api/v1/runs/{run_id}/cancel", "POST"),
         ("/api/v1/runs/{run_id}/resume", "POST"),
     } <= route_methods
@@ -292,7 +293,7 @@ def test_template_router_exposes_create_run_route() -> None:
 
 
 def test_run_openapi_response_status_and_schema_are_exact(tmp_path: Path) -> None:
-    """最终 OpenAPI 必须逐 operation 精确对齐 RUN-001 至 RUN-005。"""
+    """最终 OpenAPI 必须逐 operation 精确对齐 RUN-001 至 RUN-006。"""
 
     app = create_app(
         orchestrator=cast(RunOrchestrator, object()),
@@ -323,6 +324,17 @@ def test_run_openapi_response_status_and_schema_are_exact(tmp_path: Path) -> Non
     run_detail_schema = json.dumps(run_detail_operation, sort_keys=True)
     assert "RunDetailResponse" in run_detail_schema
     assert "RunCreateResponse" not in run_detail_schema
+
+    stream_operation = paths["/api/v1/runs/{run_id}/events/stream"]["get"]
+    stream_responses = stream_operation["responses"]
+    assert set(stream_responses) == {"200", "401", "403", "404", "422", "500"}
+    assert set(stream_responses["200"]["content"]) == {"text/event-stream"}
+    assert stream_responses["200"]["content"]["text/event-stream"]["schema"] == {"type": "string"}
+    for status in {"401", "403", "404", "422", "500"}:
+        assert (
+            stream_responses[status]["content"]["application/json"]["schema"]["$ref"]
+            == "#/components/schemas/ApiErrorEnvelope"
+        )
 
 
 def test_fastapi_auto_422_is_removed_only_from_allowlisted_run_operations(

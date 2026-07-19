@@ -72,6 +72,15 @@ def _smoke_service(monkeypatch: pytest.MonkeyPatch) -> Any:
     http_module = importlib.util.module_from_spec(http_spec)
     http_spec.loader.exec_module(http_module)
     monkeypatch.setitem(sys.modules, "service_http_smoke", http_module)
+    sse_path = TEMPLATE / "scripts" / "service_sse_smoke.py"
+    sse_spec = importlib.util.spec_from_file_location(
+        "service_sse_smoke_contract",
+        sse_path,
+    )
+    assert sse_spec is not None and sse_spec.loader is not None
+    sse_module = importlib.util.module_from_spec(sse_spec)
+    sse_spec.loader.exec_module(sse_module)
+    monkeypatch.setitem(sys.modules, "service_sse_smoke", sse_module)
     secret_path = TEMPLATE / "scripts" / "service_secret_smoke.py"
     secret_spec = importlib.util.spec_from_file_location(
         "service_secret_smoke_contract",

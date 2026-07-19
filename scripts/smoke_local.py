@@ -181,6 +181,10 @@ def validate_fake_run_result(
 def check_fake_run() -> int:
     """从公开 CLI 入口运行固定 fake model，并计时到唯一 terminal。"""
 
+    # 延迟导入让只验证通用时延 helper 的静态合同无需装配 FastAPI transport；
+    # 正常脚本执行仍从同目录加载拆分后的 local event probe。
+    from smoke_local_events import validate_local_event_transports
+
     with tempfile.TemporaryDirectory(prefix="agent-harness-fake-run-") as directory:
         state_dir = Path(directory)
         dsn = f"sqlite+aiosqlite:///{state_dir / 'fake-run.db'}"
@@ -231,6 +235,25 @@ def check_fake_run() -> int:
         if checked != 0:
             return checked
         terminal = next(item for item in events if item.get("terminal") is True)
+        try:
+            transport_evidence = validate_local_event_transports(
+                root=ROOT,
+                service_app=SERVICE_APP,
+                environment=_smoke_env(),
+                dsn=dsn,
+                events_path=events_path,
+                run_id=str(terminal["run_id"]),
+                events=events,
+            )
+        except RuntimeError as exc:
+            return _fail(str(exc))
+        print(
+            "smoke-local: event_transports "
+            f"run_id={terminal['run_id']} "
+            f"public_events={transport_evidence['public_events']} "
+            f"terminal_seq={transport_evidence['terminal_seq']} "
+            "cli_ndjson=ok sse_resume_eof=ok"
+        )
         usage = next(item for item in events if item.get("event_type") == "model.usage.updated")
         correlation = usage.get("payload", {}).get("correlation", {})
         print(

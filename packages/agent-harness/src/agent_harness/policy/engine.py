@@ -225,6 +225,18 @@ class PolicyEngine:
             raise PolicyDeniedError(result.reason)
         return result
 
+    async def require_allowed_readonly(self, check: PolicyCheck) -> PolicyEvaluation:
+        """只接受显式 allow，但不把纯读取写成 policy audit outcome。
+
+        只读入口没有 approval continuation，因而 ``require_approval`` 与 ``deny``
+        都必须 fail closed，不能把尚待人工批准的 internal visibility 当成授权。
+        """
+
+        result = await self._provider.evaluate(check)
+        if result.decision != GuardrailDecisionStatus.ALLOW.value:
+            raise PolicyDeniedError(result.reason)
+        return result
+
 
 class InputGuardrail:
     """run 创建前检查用户输入中明显的 prompt-injection 风险。

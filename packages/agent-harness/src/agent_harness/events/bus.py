@@ -109,6 +109,10 @@ class EventBus:
     async def terminal_event(self, run_id: str) -> CanonicalEvent | None:
         """返回已经持久化的 terminal evidence，缺失时由 runtime 决定是否补写。"""
 
+        terminal_reader = getattr(self._sink, "terminal_event", None)
+        if terminal_reader is not None:
+            return await terminal_reader(run_id=run_id, include_internal=True)
+        # 保留对已有第三方/测试 sink 的兼容；内置 sink 均走上面的受限查询。
         events = await self._sink.read(run_id=run_id)
         terminals = [event for event in events if event.terminal]
         return max(terminals, key=lambda event: event.seq, default=None)

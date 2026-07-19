@@ -17,6 +17,7 @@ from agent_harness.audit import AuditService
 from agent_harness.cli_access import register_access_commands
 from agent_harness.cli_eval_commands import register_eval_commands
 from agent_harness.cli_eval_experiment import register_eval_experiment_commands
+from agent_harness.cli_events import register_event_commands
 from agent_harness.delegation import AgentDelegationModule, DelegationService
 from agent_harness.events import CanonicalEventType, EventBus, LocalJsonlEventSink
 from agent_harness.policy import InputGuardrail, PolicyCheck, PolicyDeniedError
@@ -42,6 +43,7 @@ app.add_typer(eval_app, name="eval")
 eval_app.add_typer(eval_experiment_app, name="experiment")
 app.add_typer(scaffold_app, name="scaffold")
 register_access_commands(app)
+register_event_commands(app)
 register_eval_commands(eval_app)
 register_eval_experiment_commands(eval_experiment_app)
 cli_local_state.register_local_state_commands(app)

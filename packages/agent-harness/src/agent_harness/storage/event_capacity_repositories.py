@@ -179,7 +179,9 @@ class EventCapacityRepository:
         if model.outstanding_reserved_event_count:
             raise RuntimeError("pending evidence blocks local prefix reconciliation")
         if highest_persisted_seq + model.terminal_reservation > MAX_EVENT_SEQ:
-            raise EventCapacityExceeded
+            # legacy/direct-write 前缀已经侵占 terminal 预留槽，属于 durable
+            # 状态损坏而非普通容量不足；调用方必须 fail closed 并人工处置。
+            raise EventSequenceStateInvalid
         model.highest_persisted_seq = highest_persisted_seq
         await self._session.flush()
 
@@ -193,6 +195,9 @@ class EventCapacityRepository:
                 update(RunEventCapacityModel)
                 .where(
                     RunEventCapacityModel.run_id == run_id,
+                    RunEventCapacityModel.highest_persisted_seq >= 0,
+                    RunEventCapacityModel.outstanding_reserved_event_count >= 0,
+                    RunEventCapacityModel.terminal_reservation == 1,
                     RunEventCapacityModel.highest_persisted_seq
                     + RunEventCapacityModel.outstanding_reserved_event_count
                     <= MAX_EVENT_SEQ - required - RunEventCapacityModel.terminal_reservation,
@@ -206,11 +211,21 @@ class EventCapacityRepository:
         )
         if changed.rowcount == 1:
             return required
-        exists = await self._session.scalar(
-            select(RunEventCapacityModel.run_id).where(RunEventCapacityModel.run_id == run_id)
+        model = await self._session.scalar(
+            select(RunEventCapacityModel).where(RunEventCapacityModel.run_id == run_id)
         )
-        if exists is None:
+        if model is None:
             raise LookupError(f"event capacity is not initialized: {run_id}")
+        if (
+            model.highest_persisted_seq < 0
+            or model.outstanding_reserved_event_count < 0
+            or model.terminal_reservation != 1
+            or model.highest_persisted_seq
+            + model.outstanding_reserved_event_count
+            + model.terminal_reservation
+            > MAX_EVENT_SEQ
+        ):
+            raise EventSequenceStateInvalid
         raise EventCapacityExceeded
 
     async def settle(self, *, run_id: str, reserved_event_count: int, consumed: int) -> None:
@@ -287,24 +302,36 @@ class EventCapacityRepository:
         model = await self._session.get(RunEventCapacityModel, run_id)
         if model is None:
             raise RuntimeError("run event capacity is not initialized")
+        if (
+            model.highest_persisted_seq < 0
+            or model.outstanding_reserved_event_count < 0
+            or model.terminal_reservation not in {0, 1}
+            or model.highest_persisted_seq
+            + model.outstanding_reserved_event_count
+            + model.terminal_reservation
+            > MAX_EVENT_SEQ
+        ):
+            raise EventSequenceStateInvalid
         if seq <= model.highest_persisted_seq:
             # 同一 event-id 重放可能发生在 capacity 已提交但调用方未收到确认后。
             # high-water 只能按连续 seq 前进，因此落在已提交前缀内即为幂等成功；
             # 不能再次扣减预约或 terminal reservation。
             return
         if seq != model.highest_persisted_seq + 1 or seq > MAX_EVENT_SEQ:
-            raise RuntimeError("local event high-water mark is invalid")
+            raise EventSequenceStateInvalid
+        if seq == MAX_EVENT_SEQ and not terminal:
+            raise EventSequenceStateInvalid
         outstanding = model.outstanding_reserved_event_count
         if reserved_event_count:
             if outstanding < reserved_event_count:
-                raise RuntimeError("event reservation state is invalid")
+                raise EventSequenceStateInvalid
             outstanding -= reserved_event_count
         terminal_reservation = model.terminal_reservation
         if terminal:
             if outstanding:
                 raise RuntimeError("pending evidence blocks terminal")
             if terminal_reservation != 1:
-                raise RuntimeError("terminal reservation is unavailable")
+                raise EventSequenceStateInvalid
             terminal_reservation = 0
         if seq + outstanding + terminal_reservation > MAX_EVENT_SEQ:
             raise EventCapacityExceeded

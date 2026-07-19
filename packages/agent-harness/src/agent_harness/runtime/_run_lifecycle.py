@@ -10,6 +10,7 @@ from agent_harness.runtime._orchestrator_support import policy_checkpoint_state,
 from agent_harness.runtime._run_lifecycle_persistence import RunLifecyclePersistence
 from agent_harness.runtime.checkpoints import IdempotencyKey
 from agent_harness.runtime.continuation import InvalidRunTransition, idempotency_value
+from agent_harness.runtime.event_read import RunReadAuthorization, authorize_run_read
 from agent_harness.runtime.evidence import publish_terminal_evidence
 from agent_harness.runtime.executor import (
     AgentExecutionRequest,
@@ -342,6 +343,20 @@ class RunLifecycle(RunLifecyclePersistence):
                 )
             terminal_event = terminal.event_type.value
         return RunResult(run_id=run_id, status=status, terminal_event=terminal_event)
+
+    async def authorize_run_read(
+        self,
+        run_id: str,
+        *,
+        identity: IdentityContext | None = None,
+    ) -> RunReadAuthorization:
+        """复用只读 ownership seam，不触发 get_run 的 terminal evidence 恢复。"""
+
+        return await authorize_run_read(
+            self._storage,
+            run_id=run_id,
+            identity=identity or self._identity,
+        )
 
     async def get_run_detail(
         self,

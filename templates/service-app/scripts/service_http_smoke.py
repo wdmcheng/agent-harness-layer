@@ -40,6 +40,43 @@ def request(
         return exc.code, cast(dict[str, Any], json.loads(exc.read()))
 
 
+def stream(
+    base_url: str,
+    path: str,
+    *,
+    token: str | None = None,
+    last_event_id: int | None = None,
+    request_id: str | None = None,
+) -> tuple[int, dict[str, str], bytes]:
+    """读取一个会终止的 SSE 响应，保留 headers 与原始 frame bytes。"""
+
+    headers = {"Accept": "text/event-stream"}
+    if token is not None:
+        headers["Authorization"] = f"Bearer {token}"
+    if last_event_id is not None:
+        headers["Last-Event-ID"] = str(last_event_id)
+    if request_id is not None:
+        headers["X-Request-Id"] = request_id
+    http_request = urllib.request.Request(
+        f"{base_url}{path}",
+        headers=headers,
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(http_request, timeout=5) as response:
+            return (
+                response.status,
+                {key.lower(): value for key, value in response.headers.items()},
+                response.read(),
+            )
+    except urllib.error.HTTPError as exc:
+        return (
+            exc.code,
+            {key.lower(): value for key, value in exc.headers.items()},
+            exc.read(),
+        )
+
+
 def wait_for(
     description: str,
     predicate: Callable[[], Any],

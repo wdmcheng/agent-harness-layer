@@ -101,7 +101,7 @@
 
 | Header | 必填 | 说明 |
 |---|---:|---|
-| `Accept` | No | 默认 `application/json`；P0 待实现 RUN-006 SSE 使用 `text/event-stream`。 |
+| `Accept` | No | 默认 `application/json`；RUN-006 SSE 使用 `text/event-stream`。 |
 | `Content-Type` | Conditional | JSON mutating request 使用 `application/json`。 |
 | `X-Request-Id` | No | 调用方可传；服务端没有收到时生成 UUID，并写入响应 body 的 `request_id`。 |
 | `X-Trace-Id` | No | RUN-001 使用 provider-neutral normalizer：调用方值必须匹配 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`，不 trim、不折叠大小写；缺失时 runtime 在业务副作用前生成 lowercase RFC 4122 UUID canonical trace；非法格式返回 `422 validation_error`，已绑定其他 root run 返回 `409 trace.conflict`。同一 idempotency key 缺失 trace 或提供首次 canonical trace 时复用首次 run；提供不同 trace 返回 `409 trace.idempotency_conflict`。 |
@@ -968,7 +968,7 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `RUN-003` |
-| 状态 | 已实现为 JSON event read seam；P0 SSE transport 由待实现 RUN-006 承担，P1 可选 WS；都不是当前 route。 |
+| 状态 | 已实现为 JSON event read seam；P0 SSE transport 由独立 RUN-006 route 承担，P1 可选 WS；本 route 始终只返回 JSON。 |
 | 入口 / 调用方 | OpenAPI 调用方、service-app、未来 SSE adapter、debug 工具、worker smoke。 |
 | 用途 | 按 `seq` 读取 `CanonicalEvent`，供断线恢复、debug、SSE/API resume 共用。 |
 | 方法 | `GET` |
@@ -1043,7 +1043,7 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `RUN-006` |
-| 状态 | 规划中（P0）；不得用 RUN-003 JSON response 冒充 SSE。 |
+| 状态 | 已实现（P0）；不得用 RUN-003 JSON response 冒充 SSE。 |
 | 入口 / 调用方 | OpenAPI 调用方、service-app、未来 Access gateway。 |
 | 用途 | 将可见 `CanonicalEvent` 映射为 SSE frame，并按 `Last-Event-ID` 恢复未读事件。 |
 | 方法 | `GET` |
@@ -1069,7 +1069,7 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `CLI-EVT-001` |
-| 状态 | 规划中（P0）；满足 REQ-014 的 CLI stream adapter，不得以 run 完成后的三行摘要冒充流式输出。 |
+| 状态 | 已实现（P0）；满足 REQ-014 的 CLI stream adapter，不得以 run 完成后的三行摘要冒充流式输出。 |
 | 命令 | `agent-harness events stream <run_id> [--after-seq <0..2147483647>] [--include-internal]`，并复用既有 profile/storage/events-path/identity 配置选项。 |
 | 用途 | 通过同一授权 EventSink reader 在终端逐条消费 `CanonicalEvent`；不经 HTTP/SSE framing，也不建立第二套 event store。 |
 | Cursor | `--after-seq` 是 CLI 专属 exclusive cursor，默认 `0`；非零值必须命中当前身份与 `--include-internal` 权限下可见的既有 event。它不进入 RUN-006 query，也不改变 HTTP 唯一 `Last-Event-ID` 契约。 |
@@ -1651,8 +1651,8 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | runtime / worker shared budget | `BGT-001` module seam | direct model/embedding、delegation 与 child allocation 复用同一 owner ledger/UoW；P0 不新增 budget ledger route 或公开动态余额。 |
 | model / embedding adapter | `MOD-001` evidence seam | adapter 必须输出 provider-neutral `ModelUsageEvidence`，并通过 EventBus/TelemetryFacade 关联 run/trace；业务 agent 不拼 raw usage。 |
 | service config loader | `CFG-001` settings seam | `<BASE_ENV>_FILE` 只在受控 typed settings 边界读取，包括 BGT-001 keyed fingerprint secret；P0 不引入 SecretProvider。 |
-| OpenAPI 调用方 | 当前 `AGT-001`、`RUN-001` 到 `RUN-005`；P0 待实现 `RUN-006` | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
-| service-app FastAPI | 当前 `AGT-001`、`RUN-001` 到 `RUN-005`；P0 待实现 `RUN-006` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
+| OpenAPI 调用方 | 当前 `AGT-001`、`RUN-001` 到 `RUN-006` | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
+| service-app FastAPI | 当前 `AGT-001`、`RUN-001` 到 `RUN-006` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
 | runtime worker | 当前 service profile 独立进程；不暴露 HTTP 管理面 | worker 通过 runtime components消费 Redis queue，使用稳定 DBOS executor id并从 PostgreSQL恢复 execution identity/checkpoint；不直接泄漏 ORM/DBOS/provider对象。 |
 | HITL approval flow | `APR-001` / `APR-002` + runtime 内部 resume seam | approval continuation 必须关联 checkpoint、audit、tenant、identity、agent、run、action/resource 和 arguments hash；公开 `RUN-005` 只服务普通 checkpoint，不能执行 approval-gated 动作。 |
 | Eval review / experiment flow | `EVL-*` | draft 到 approved 必须人工确认，secret/隐私脱敏是写入门禁；experiment accept 必须有人审、policy/audit 和回归证据。 |
@@ -1664,15 +1664,17 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 - `GET /api/v1/runs/{run_id}/events` 返回 JSON `RunEventsResponse`。
 - 该 route 按 `after_seq` 读取 `CanonicalEvent`，不是 SSE 握手 endpoint。
+- `GET /api/v1/runs/{run_id}/events/stream` 返回 `text/event-stream`，以唯一 `Last-Event-ID` header 续读同一授权 EventSink reader，并在 terminal 后关闭。
+- `agent-harness events stream <run_id>` 以 CLI 专属 `--after-seq` 输出 canonical NDJSON；不经 HTTP framing，不建立第二事件状态。
 
-P0 待实现 SSE 与 P1 可选 WS：
+P0 已实现 SSE 与 P1 可选 WS：
 
 - SSE 是 P0 Access 层输出协议，WS 是 P1 可选 adapter；二者都不能替代内部 `CanonicalEvent` 模型。
 - SSE event 必须由 `CanonicalEvent` 显式映射，保留 `seq`、`event_type`、`terminal`、`visibility` 和适用的 `trace_id/request_id`。
 - SSE adapter 必须把客户端 `Last-Event-ID` 映射为 `CanonicalEvent.seq` 续读起点；JSON events seam 继续使用 `after_seq`。
 - 断线恢复必须以 `seq` 为准；final 结算以 terminal event 为准。
 - 握手前错误走 `ApiErrorEnvelope`；握手后错误必须转成可序列化 event，且不得泄露 secret/provider 原始错误。
-- P0 endpoint、header、content type、可见性和性能验收以 `RUN-006` 为准；未实现前不得把 formatter 或 RUN-003 JSON route 标成 transport 已完成。
+- P0 endpoint、header、content type、可见性和性能验收以 `RUN-006` 为准；formatter 或 RUN-003 JSON route 不能冒充该 transport。
 
 ## 15. OpenAPI 生成与漂移检查
 
@@ -1715,7 +1717,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] 已区分当前已实现 run API 与保留 API。
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
 - [x] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致，并由局部双向 drift contract 持续校验。
-- [x] 已明确当前 events JSON seam、P0 待实现 RUN-006 SSE 与 P1 可选 WS 的边界。
+- [x] 已实现并验证 events JSON seam、P0 RUN-006 SSE、CLI-EVT-001 与 P1 可选 WS 的边界。
 - [x] 已固定并实现 BGT-001、DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；typed fingerprint secret、`0016` topology/source/price、usage 错误优先级修正、完整门禁、同一冻结摘要的 fresh 代码 1+2 与审查后收口均已完成，对应 changes 已归档并同步主规格。
 - [x] 已明确 `reasoning.delta` 默认不可见。
 - [x] 已明确 API route 不得暴露 ORM、DBOS、provider SDK 或进程内 handle。

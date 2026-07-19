@@ -7,25 +7,25 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-18 的 v1.8。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-19 的 v1.9。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-13.8A 的已完成 changes 均已归档并同步主规格。当前仅 `sse-event-streaming` 保持 active，任务为 0/17，Phase 13.9 尚未实施。
-- 代码状态: Phase 1-13.8A 已完成计划内实现、验证、fresh Stage 1/2 审查与归档。Phase 13.8A 的 typed fingerprint secret、RUN-002 最终投影、`0016` 全拓扑/独立历史证据/cost price、usage UoW 错误优先级及审查追加项均已修复。SSE transport 与首 frame 性能仍缺失。Phase 14、15 均未开始。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-13.8A 的已完成 changes 均已归档并同步主规格。当前仅 `sse-event-streaming` 保持 active，任务为 17/17，状态为 `ready-to-archive`；按约束不自动归档。
+- 代码状态: Phase 1-13.8A 已完成计划内实现、验证、fresh Stage 1/2 审查与归档。Phase 13.9 已实现 RUN-006、CLI-EVT-001、统一授权 EventSink reader/capacity 边界和首 frame P95，并通过完整门禁及最终 3 名 fresh reviewer；Phase 14、15 均未开始。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | Phase 1-13.8A 已实现、审查并归档 | 七个补缺 change 已于 2026-07-19 同步主规格并归档；Phase 13.9、14、15 未开始。 |
-| 当前 Phase | Phase 13.9 SSE transport 待实现 | `sse-event-streaming` 为唯一 active change，当前 0/17。 |
+| 总体状态 | Phase 1-13.9 已实现、验证并审查；13.9 待用户决定归档 | 七个补缺 change 已于 2026-07-19 同步主规格并归档；`sse-event-streaming` 保持 active、`ready-to-archive`，Phase 14、15 未开始。 |
+| 当前 Phase | Phase 13.9 SSE transport 已完成 | `sse-event-streaming` 为唯一 active change，当前 17/17。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 已按 queue → split runtime → deployment proof 顺序同步主规格并归档。 |
-| 当前 OpenSpec change | `sse-event-streaming` | 七个已完成 change 已归档；SSE 为 0/17，继续保留 active。 |
-| 当前验证基线 | Phase 13.8A 归档后门禁已通过 | quality、937 passed/218 skipped、真实 PostgreSQL 69 tests、local/service smoke、eval 11/11、build、license、pre-commit、归档后 OpenSpec 27/27 与 diff check 均通过；生产代码未再变化。 |
-| 当前阻塞项 | 无归档阻塞；Phase 13.9 尚未实现 | SSE transport、Last-Event-ID 与首 frame 性能仍待开发。 |
-| 当前建议下一步 | 按后续授权进入 Phase 13.9 | 不自动实施、不 push、不发布或部署。 |
+| 当前 OpenSpec change | `sse-event-streaming` | 17/17；保持 active、`ready-to-archive`，未归档。 |
+| 当前验证基线 | Phase 13.9 完整门禁与最终 3-review 已通过 | 真实 PostgreSQL 定向 `63 passed`；全量 `996 passed, 222 skipped`；30 样本首 frame P95 `4.059ms`；quality、eval `11/11`、local smoke、真实 PostgreSQL/Redis service smoke、build、license、strict 与 diff check 均通过。 |
+| 当前阻塞项 | 无 | 阶段标签收口改动按用户显式裁决无需重新 review；其余受审实现、契约与测试保持冻结。 |
+| 当前建议下一步 | 等待用户决定是否归档 active change | 不自动 push、不 archive、不发布或部署。 |
 
 ## 剩余工作
 
@@ -46,19 +46,19 @@
 - Phase 13.7: Model/Embedding usage evidence、durable settlement 与 local latency 已完成 17/17 tasks、审查，并于 2026-07-19 归档；依赖 Phase 13.6A。
 - Phase 13.8: 真实受控 delegation 与 parent aggregation 已完成 14/14 tasks、联合审查，并于 2026-07-19 归档；依赖 Phase 13.7。
 - Phase 13.8A: Parent execution-tree shared budget、typed fingerprint secret 与 `0016` 历史迁移修正已完成 27/27 tasks、联合审查，并于 2026-07-19 归档；依赖 Phase 13.8。
-- Phase 13.9: SSE transport、Last-Event-ID 与首 frame 性能待实现；依赖 Phase 13.8A 的已归档主规格，当前 active change 为 0/17。
+- Phase 13.9: SSE transport、Last-Event-ID、CLI stream 与首 frame 性能已实现并通过完整门禁及最终 3-review；当前 active change 为 17/17、`ready-to-archive`，未归档。
 - Phase 14: 深度文档、ADR 与维护者指南。
 - Phase 15: CI/CD、Release Automation 与合规收口。
 
 ### 关键验收状态
 
-- AC-017：P0 RUN-006 尚不存在；Phase 13.5 已收紧并三审通过 RUN-001 至 RUN-005 的 OpenAPI 精确性，13.9 再补 endpoint，因此 AC 仍未完成。
+- AC-017：RUN-001 至 RUN-006 已全部进入运行时 OpenAPI，并由 path/header/query/media type/status 双向精确合同覆盖；Phase 13.9 的最终 3-review 仍单独按 active change 门禁收口。
 - AC-008、AC-063：Phase 13.6 已实现并提交 application startup fail-closed、受控 Docker secret file 加载和公开 evidence 脱敏；异常链与 frame locals 泄漏已修复，对应 change 已归档。
 - FLOW-003 / ApprovalRecord trace：Phase 13.6A 已切换为 canonical run trace 非空生成、传播与历史 backfill；跨 tenant/不同 idempotency key 的同 trace 竞争由全局 trace 锁覆盖锁内复检、guardrail/audit 与 root claim，相同 event-id 仅允许除 seq/timestamp 外完整稳定语义一致的重试，terminal/approval 恢复先复用既有确定性 evidence。对应 changes 已归档。
 - AC-064、AC-065：model/embedding evidence、stable semantic slot、queued run 执行前 recovery 与 local fake run `<5s` 已实现，完整门禁与阶段独立代码 1+2 已通过，对应 change 已归档。
 - AC-015、AC-016：真实受控 delegation、child run、durable parent aggregation 与 local/service recovery 已实现并通过完整门禁及与 Phase 13.8A 的联合代码 1+2。
 - AC-068：shared parent ledger、typed secret、0016 topology/source/price、错误优先级及审查追加项均已修复，并通过完整门禁、代码 1+2 与审查后收口。
-- AC-038、AC-066：现有 SSE 只有 formatter，HTTP transport、Last-Event-ID 和首 frame 时延尚未实现。
+- AC-038、AC-066：RUN-006 HTTP transport、Last-Event-ID 恢复与固定 30 样本首 frame P95 已实现并验证；WebSocket 仍为 P1。
 - AC-050：由各 change 的 `tasks.md`、Phase 本地提交以及 review/test 命令证据持续维护 REQ/AC -> production -> test 追溯；Phase 15 release matrix 必须汇总并重新校验，新 change 仍需保留 red evidence。
 - Phase 14 深度文档和 Phase 15 release automation 尚未实现。
 - GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
@@ -76,7 +76,7 @@
 | Agent runtime 底座 | pydantic-ai / pydantic-ai-slim | `2.5.0` | 默认底座，但业务 agent 只依赖 `agent_harness` 公共接口；优先使用 slim + extras 降低依赖面。 |
 | Agent capability library | pydantic-ai-harness | 不作为 P0 必选依赖；按能力块引入时重新核验并锁版本 | 官方 capability library，用于 CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等可选能力；进入实现前必须走受控 integration boundary。 |
 | 数据校验 | Pydantic | `2.13.4` | 配置、DTO、API schema、CanonicalEvent 和 adapter contract 的统一 schema 基础。 |
-| HTTP API | FastAPI | `0.139.0` | 当前实现 `/api/v1/...`、OpenAPI、Swagger、Redoc 和 JSON events；P0 SSE endpoint 由 Phase 13.9 实现。 |
+| HTTP API | FastAPI | `0.139.0` | 当前实现 `/api/v1/...`、OpenAPI、Swagger、Redoc、JSON events 与 RUN-006 SSE endpoint。 |
 | ASGI Server | Uvicorn | `0.50.2` | service app 本地 API 入口；开发态使用 `uvicorn[standard]`，CI 可用基础安装。 |
 | CLI | Typer | `0.26.8` | 实现 `agent-harness doctor/run/eval/policy/scaffold/approvals`。 |
 | Durable execution | DBOS | `2.26.0` | service profile 默认 adapter；local profile 保留 SQLite-backed checkpoint。 |
@@ -836,11 +836,11 @@ Phase 1 Monorepo / quality spine
 
 **关键文件**：
 - `templates/service-app/app/api/sse.py` - frame、heartbeat、stream error 映射。
-- `templates/service-app/app/api/routes/runs.py`、`app/api/schemas.py`、`app/main.py` - RUN-006 route 与 OpenAPI。
+- `templates/service-app/app/api/routes/run_events.py`、`app/api/routes/runs.py`、`app/api/schemas.py`、`app/main.py` - RUN-003/RUN-006 route 分组与 OpenAPI。
 - `packages/agent-harness/src/agent_harness/cli.py` - `events stream` 命令、CLI cursor/visibility/error 与 NDJSON 输出；只调用授权 EventSink reader。
 - event sink/read repository - 按 seq 增量读取，不新增第二套 event 真相源。
 - EventBus/sink 与 `0014` evidence outbox - 固定 `1..2147483647` 写入容量，run 创建时预留 terminal，副作用前原子预留最大 prerequisite event 数；容量基数使用 `highest_persisted_seq` 而非 row count。公共 canonical JSON serializer 固定 UTF-8/排序键/紧凑分隔符/拒绝 NaN，正常 envelope 硬上限 `65536` bytes。SSE 使用同一 serializer 做 `100` event / `1048576` bytes 的受限分页，generator 同时只持有一个 page。
-- 新增 SSE transport/OpenAPI/security tests、`scripts/smoke_local.py` 与 service smoke probes。
+- 新增 SSE transport/OpenAPI/security tests、`scripts/smoke_local_events.py`、`scripts/smoke_local.py` 与 `service_sse_smoke.py` service probe。
 
 **验收标准**：
 - `Content-Type: text/event-stream`，frame `id` 等于 seq；`Last-Event-ID=n` 只发送 `seq>n` 的可见事件。
@@ -851,7 +851,7 @@ Phase 1 Monorepo / quality spine
 - P0 不增加 event 清理、TTL 或 retention job；run 存续期间 CanonicalEvent evidence 保留。未来 retention 必须另建 behavior change 定义 expired cursor，不能在 Phase 13.9 中隐式加入。
 - 已存在可见 event 时首 frame 小于 1 秒；局部 OpenAPI drift、HTTP/CLI transport contracts、local/service transport smoke 和断线重连通过。
 
-**状态**：待实现；七个前序 change 已归档并形成稳定主规格，后续承接累计 run route/schema 与 shared-budget/event-capacity 合同顺序实施；所有相关增量 change 必须先完成联合审查。
+**状态**：实现、完整验证与最终 3-review 已完成，OpenSpec 任务 17/17；定向合同、local smoke、真实 PostgreSQL reader、PostgreSQL/Redis service smoke 与 30 样本首 frame P95 均通过，active change 为 `ready-to-archive`，按约束不自动归档。
 
 ---
 
@@ -1018,4 +1018,4 @@ Phase 1 Monorepo / quality spine
 | Run/approval/event 允许空 trace 或宽松 event-id 重放会让审计、usage 与 delegation 产生不兼容关联。 | runtime、worker、checkpoint、approval、CanonicalEvent、model usage。 | Phase 13.6A | 已缓解 | `run-trace-correlation` 已在副作用前生成 canonical trace，以全局锁覆盖跨 tenant/不同 key 竞争，跨进程传播并确定性 backfill；合法 non-run evidence 保留独立 nullable trace，数据库三列复合外键守住 run/tenant/trace 联合归属，完整事件指纹与既有 evidence 恢复守住 event-id 语义，并以 `0013a` 前滚旧 shape。Phase 13.6A 的独立 `ready-to-archive` 历史基线已由本轮联合代码 1+2 再次确认，作为 Phase 13.7 的只读基线，不在本轮重复开发。 |
 | Provider usage 若由业务 agent 手工拼接，delegation budget 与 trace/eval 证据不可审计。 | model/embedding adapter、event/trace、parent aggregation。 | Phase 13.7、13.8 | 已缓解 | MOD-001 已建立并验证 durable provider-neutral evidence；DLG-001 只从持久化 child evidence 聚合，等待 Phase 13.8 同 digest 代码 1+2。 |
 | 真实 delegation 容易造成循环、跨租户、预算放大、重复 child run 和 service crash 后双计费。 | registry、policy、runtime、RunQueue、storage、events。 | Phase 13.8 | 已缓解 | edge + policy + cycle/depth/budget 前置门禁、parent 级幂等 reservation、service crash/reclaim 与 durable aggregation 已由 local/真实 PostgreSQL/Redis 证据覆盖，等待代码 1+2。 |
-| SSE 若复用 JSON route 或引入第二套事件状态，会造成 resume 漂移、visibility 泄漏和代理缓冲。 | Access、CanonicalEvent、OpenAPI、service deployment。 | Phase 13.9 | 未处理 | RUN-006 只映射现有 event store，Last-Event-ID 为唯一 SSE 续读输入，握手前/后错误分离并验证首 frame 时延。 |
+| SSE 若复用 JSON route 或引入第二套事件状态，会造成 resume 漂移、visibility 泄漏和代理缓冲。 | Access、CanonicalEvent、OpenAPI、service deployment。 | Phase 13.9 | 已缓解 | RUN-006 与 CLI-EVT-001 复用统一授权 EventSink reader，Last-Event-ID 为唯一 SSE 续读输入，握手前/后错误分离，并已验证背压、真实 service resume 与首 frame P95。 |

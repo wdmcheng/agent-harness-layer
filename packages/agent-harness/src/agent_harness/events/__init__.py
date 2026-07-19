@@ -16,6 +16,11 @@ from agent_harness.events.serialization import canonical_json_bytes as canonical
 from agent_harness.events.serialization import (
     validate_persisted_event_bytes as validate_persisted_event_bytes,
 )
+from agent_harness.events.sinks.base import (
+    DEFAULT_EVENT_PAGE_SIZE as DEFAULT_EVENT_PAGE_SIZE,
+)
+from agent_harness.events.sinks.base import MAX_EVENT_PAGE_BYTES as MAX_EVENT_PAGE_BYTES
+from agent_harness.events.sinks.base import EventReader as EventReader
 from agent_harness.events.sinks.base import EventSink as EventSink
 from agent_harness.events.sinks.local_jsonl import LocalJsonlEventSink as LocalJsonlEventSink
 from agent_harness.events.sinks.postgresql import PostgreSQLEventSink as PostgreSQLEventSink
@@ -34,6 +39,9 @@ _EVENT_BUS_EXPORTS = [
 
 _EVENT_SINK_EXPORTS = [
     "EventSink",
+    "EventReader",
+    "DEFAULT_EVENT_PAGE_SIZE",
+    "MAX_EVENT_PAGE_BYTES",
     "LocalJsonlEventSink",
     "PostgreSQLEventSink",
     "MAX_CANONICAL_EVENT_BYTES",

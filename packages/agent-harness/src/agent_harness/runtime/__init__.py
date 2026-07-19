@@ -13,6 +13,8 @@ from agent_harness.runtime.checkpoints import (
     ResumeToken as ResumeToken,
 )
 from agent_harness.runtime.continuation import InvalidRunTransition as InvalidRunTransition
+from agent_harness.runtime.event_read import RunReadAuthorization as RunReadAuthorization
+from agent_harness.runtime.event_read import authorize_run_read as authorize_run_read
 from agent_harness.runtime.executor import AgentApprovalRequest as AgentApprovalRequest
 from agent_harness.runtime.executor import AgentExecutionContext as AgentExecutionContext
 from agent_harness.runtime.executor import AgentExecutionLeaseLost as AgentExecutionLeaseLost
@@ -71,6 +73,8 @@ _ORCHESTRATOR_EXPORTS = [
     "RunTraceError",
     "RunTraceIdempotencyConflict",
     "RunTraceValidationError",
+    "RunReadAuthorization",
+    "authorize_run_read",
     "normalize_trace_id",
 ]
 
