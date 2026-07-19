@@ -227,6 +227,7 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
 
     readme = (TEMPLATE / "README.md").read_text(encoding="utf-8")
     docs = (TEMPLATE / "docs" / "README.md").read_text(encoding="utf-8")
+    env_example = (TEMPLATE / ".env.example").read_text(encoding="utf-8")
 
     for marker in (
         "## Quick Start",
@@ -240,7 +241,11 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
         "agent-harness run examples.basic",
         "/docs",
         "/redoc",
-        "后续文档交付",
+        "../../docs/extension-guide.md",
+        "当前仓库只提供人工",
+        "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY",
+        "app/migrate.py",
+        "AGENT_HARNESS_STORAGE__DSN",
         "scaffold agent",
     ):
         assert marker in readme
@@ -250,7 +255,66 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
     assert "审核" in readme
     assert "app/*" in readme and "agent_harness" in readme
     assert "agent-harness = { workspace = true }" not in readme
-    assert "后续文档交付" in docs
+    assert "../../../docs/adapter-contracts.md" in docs
+    assert "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY=" in env_example
+    assert "同一状态库生命周期内保持稳定" in env_example
+    assert "后续文档交付" not in readme
+    assert "后续文档交付" not in docs
+
+
+def test_root_readme_preserves_product_overview_and_delegation_boundary() -> None:
+    """保护根入口的产品定位与委派门禁，避免维护文档把关键约束下沉后导致入口失真。"""
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "## What this scaffold is" in readme
+    assert "Multi-agent delegation" in readme
+    assert "AgentRegistry" in readme
+    assert "PolicyEngine" in readme
+
+
+def test_service_boundary_adr_links_back_to_maintainer_navigation() -> None:
+    """确保服务边界 ADR 能返回维护者入口，并能继续访问两个直接相关的架构决策。"""
+
+    adr_0001 = (ROOT / "docs" / "adr" / "0001-p0-service-boundaries.md").read_text(encoding="utf-8")
+
+    for marker in ("../../README.md", "../architecture/README.md", "0002-", "0003-"):
+        assert marker in adr_0001
+
+
+def test_tool_guide_distinguishes_public_exports_from_internal_executor() -> None:
+    """防止扩展指南把审批执行内部实现误写为公开导出，迫使调用方依赖不稳定模块。"""
+
+    extension = (ROOT / "docs" / "extension-guide.md").read_text(encoding="utf-8")
+
+    assert "ApprovedToolExecutor` 是 registry 内部" in extension
+    assert "ApprovedToolExecutor`、" not in extension
+
+
+def test_adapter_contract_records_complete_sqlalchemy_ownership_boundary() -> None:
+    """锁定 ORM 的受控所有权，避免维护者在 repository 与 UoW 之外直接操作 session。"""
+
+    adapters = (ROOT / "docs" / "adapter-contracts.md").read_text(encoding="utf-8")
+
+    assert "model、repository、migration" in adapters
+    assert "API、worker 和 service 只能组合 repository/UoW" in adapters
+    assert "唯一允许接触相应 SDK、driver 或 ORM" not in adapters
+
+
+def test_redis_runtime_adr_records_triggered_security_review_before_release() -> None:
+    """让 Redis 复审决策绑定真实 Compose 入口，防止无效变量掩盖生产前的安全升级。"""
+
+    redis_adr = (ROOT / "docs" / "adr" / "0003-redis-runtime-license-policy.md").read_text(
+        encoding="utf-8"
+    )
+    compose = (TEMPLATE / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "安全复审条件已经触发" in redis_adr
+    assert "生产使用或" in redis_adr
+    assert "重新选择补丁版本" in redis_adr
+    assert "SERVICE_APP_REDIS_IMAGE" in redis_adr
+    assert "SERVICE_APP_REDIS_VERSION" not in redis_adr
+    assert "${SERVICE_APP_REDIS_IMAGE:-redis:8.0.1}" in compose
 
 
 def test_cli_inventory_keeps_core_and_template_ownership_separate() -> None:

@@ -1,6 +1,10 @@
 # Eval 与 Observability 闭环
 
-本文是 Phase 11 approved-only 基础链路与 Phase 12.5 experiment 闭环的维护者指南。它说明 case 准入、标签、split、harness manifest、comparison、人工 acceptance 和 provider 降级的真实运行边界；Phase 14 可以扩展背景材料，但不能改变这里已实现的安全语义。
+适用读者：维护 trace-to-eval、experiment、provider fan-out 和人工 acceptance 的 app developer 与 scaffold maintainer。
+
+导航：[根 README](../README.md) · [扩展指南](extension-guide.md) · [Adapter 合同](adapter-contracts.md) · [Context 与信任边界](context-and-trust-boundary.md) · [安全策略](security-policy.md) · [Release 边界](release-process.md)
+
+本文说明 Phase 11 approved-only 基础链路与 Phase 12.5 experiment 闭环，包括 case 准入、标签、split、harness manifest、comparison、人工 acceptance 和 provider 降级的真实运行边界。当前实现保持 provider-neutral；provider adapter 和 evaluator 都不能绕过本地证据、policy 或人工批准。
 
 ## 基础链路保持不变
 
@@ -133,20 +137,28 @@ HTTP 使用 EVL-004 四个路径：
 
 Service profile 使用 HTTPBearer；tenant 来自 identity。读取其他 tenant 与不存在统一返回 404。Create/read 分别要求 `eval.experiment.create` / `eval.experiment.read` 或 `*` 权限；accept 由 policy seam 判定。
 
-CLI 使用同一 service/DTO/persistence：
+CLI 使用同一 service/DTO/persistence。以下 local 命令必须从 service-app 根目录运行，并先完成 [`templates/service-app` Quick Start](../templates/service-app/README.md#quick-start) 的 fingerprint key、`STORAGE_DSN` 与 SQLite migration；`experiment.json` 必须按下文 DTO 说明准备，`EXPERIMENT_ID` 和 `CANDIDATE_VERSION` 分别取自 create 结果和 candidate manifest：
 
 ```bash
-agent-harness eval experiment create \
+uv run agent-harness eval experiment create \
   --request-file experiment.json \
-  --idempotency-key harness-candidate-2026-07-11
+  --idempotency-key harness-candidate-2026-07-11 \
+  --profile local \
+  --profiles-dir ./configs/profiles \
+  --storage-dsn "$STORAGE_DSN"
 
-agent-harness eval experiment show <experiment_id>
-agent-harness eval experiment compare <experiment_id>
-agent-harness eval experiment accept <experiment_id> \
+uv run agent-harness eval experiment show "$EXPERIMENT_ID" \
+  --profile local --profiles-dir ./configs/profiles --storage-dsn "$STORAGE_DSN"
+uv run agent-harness eval experiment compare "$EXPERIMENT_ID" \
+  --profile local --profiles-dir ./configs/profiles --storage-dsn "$STORAGE_DSN"
+uv run agent-harness eval experiment accept "$EXPERIMENT_ID" \
   --decision accepted \
   --reason "人工核对目标标签、holdout 和 regression 后通过" \
-  --accepted-harness-version <candidate_version> \
-  --reviewer <reviewer_id>
+  --accepted-harness-version "$CANDIDATE_VERSION" \
+  --reviewer local-reviewer \
+  --profile local \
+  --profiles-dir ./configs/profiles \
+  --storage-dsn "$STORAGE_DSN"
 ```
 
 `experiment.json` 对应 `EvalExperimentCreateRequest`，包含 agent、dataset、tags、split strategy、baseline manifest 和可选 candidate manifest；不要放 tenant、reviewer、secret 或 provider object。四个命令成功时输出单个稳定 JSON object，失败输出带 `code`、`message`、`request_id` 的脱敏 error object 并以非零状态退出。
@@ -160,4 +172,20 @@ Phase 12.5 的真相源是：
 - `DEV-PLAN.md` Phase 12.5
 - 本文的操作和维护边界
 
-本阶段按 `foundation -> comparison -> API acceptance` 的依赖顺序交付，并于 2026-07-11 归档为 `2026-07-11-eval-dataset-split-foundation`、`2026-07-11-eval-harness-experiment-comparison`、`2026-07-11-eval-experiment-api-acceptance`。对应 main specs 已同步；后续维护不得把 Phase 13 API/worker split、Phase 14 全套深度文档或 Phase 15 release automation 混回本闭环。
+本阶段按 `foundation -> comparison -> API acceptance` 的依赖顺序交付，并于 2026-07-11 归档为 `2026-07-11-eval-dataset-split-foundation`、`2026-07-11-eval-harness-experiment-comparison`、`2026-07-11-eval-experiment-api-acceptance`。对应 main specs 已同步；后续维护不得把 Phase 13 API/worker split 或 Phase 15 release automation 混回本闭环。
+
+## 公开 seam、验证与排障
+
+公开扩展点是 `ApprovedCaseExecutor`、`ExperimentEvaluator`、`ExperimentEvidencePublisher`、case/dataset/experiment repository、score sink、`TelemetryFacade` 与 `ProviderTelemetryAdapter`。新增 evaluator/provider 时保持 DTO、split、metric version、local-first persistence、redaction 和 degradation 语义，不让 SDK object 或 raw response 越界。
+
+```bash
+make eval        # 只运行 approved cases
+make test        # eval、experiment、provider 与恢复合同
+make smoke-local # fake model + local JSONL evidence
+# 真实 API/worker/PostgreSQL/Redis 组合才使用：
+make smoke-service
+```
+
+证据入口包括 `tests/contracts/test_eval_gate_trace_loop_contracts.py`、`tests/contracts/test_eval_execution_contracts.py`、`tests/contracts/test_eval_experiment_api_contracts.py`、`tests/contracts/test_eval_experiment_evidence_boundaries_contracts.py`、`tests/contracts/test_observability_local_first_fanout_contracts.py` 和 `templates/service-app/eval-cases/`。
+
+常见故障：`no-approved-cases` 表示没有可执行的已审核样本；provider degraded 时先确认 local score/event 已提交；comparison 不接受时检查 holdout、critical regression、metric version 和安全 refs，而非只看总分；`needs_review` 表示执行副作用无法被证明，必须人工核对 claim 与外部 evidence，当前没有强制重跑入口。Phase 15 才负责把这些证据接入自动 release gate；本 checkout 没有该自动化。

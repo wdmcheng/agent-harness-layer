@@ -1061,7 +1061,7 @@ README 是入口，深度文档解释架构和维护边界。
 
 **验收标准：**
 - [x] AC-048: Given README, when 新开发者阅读 Project Structure, then 能知道每个目录职责和禁止跨边界规则。
-- [ ] AC-049: Given scaffold maintainer, when 阅读 docs, then 能找到 adapter contract、release process、安全策略和 ADR。
+- [x] AC-049: Given scaffold maintainer, when 阅读 docs, then 能找到 adapter contract、release process、安全策略和 ADR。
 
 ### REQ-019: TDD、测试与质量门禁
 
@@ -1384,7 +1384,7 @@ P0 完成条件：
 - [x] Trace -> EvalCaseDraft -> Human Review -> Approved Dataset -> EvalRun -> ScoreSink 闭环跑通。
 - [x] Policy/HITL 对默认危险动作生效。
 - [x] CanonicalEvent terminal event 唯一性、JSON events `after_seq` resume 与 SSE `Last-Event-ID` resume 测试通过。
-- [ ] README 和深度文档已覆盖目录边界、扩展方式、安全策略、release process。
+- [x] README 和深度文档已覆盖目录边界、扩展方式、安全策略、release process。
 - [x] README / architecture docs 已覆盖未来微服务拆分边界；service profile 可验证 API 与 worker 分进程协作。
 - [ ] GitHub Actions 和 GitLab CI 都能跑等价质量门禁。
 - [ ] Release automation dry-run 能生成版本、tag、CHANGELOG 预览和 wheel/sdist artifacts。

@@ -2,6 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-07-11
+- 关联：[根 README](../../README.md) · [架构边界](../architecture/README.md) · [ADR-0002](0002-vendor-adapter-isolation.md) · [ADR-0003](0003-redis-runtime-license-policy.md)
 
 ## 背景
 

@@ -1,8 +1,10 @@
 # Agent Harness Layer
 
+## What this scaffold is
+
 Agent Harness Layer is a Python scaffold and core package for enterprise backend agent applications. It provides the repository shape, package boundary, verification commands, and future extension points needed to build agent services with backend engineering discipline.
 
-The current scaffold proves the workspace and package boundary, a copyable FastAPI/CLI/worker service app, typed configuration and identity, durable run and approval continuation, policy-controlled tools, retrieval, observability adapters, the base trace-to-eval gate, four runnable example agents, a safe agent scaffold command, and a Compose service profile with physically separate API and runtime-worker processes. Deep maintainer documentation and CI/release automation remain later phases.
+The current scaffold proves the workspace and package boundary, a copyable FastAPI/CLI/worker service app, typed configuration and identity, durable run and approval continuation, policy-controlled tools, retrieval, observability adapters, the trace-to-eval gate, four runnable example agents, a safe agent scaffold command, and a Compose service profile with physically separate API and runtime-worker processes. The maintainer documentation is available under `docs/`. CI and release automation remain Phase 15 work and do not exist in this checkout.
 
 ## Quick Start
 
@@ -14,13 +16,21 @@ make smoke-local
 make eval
 # Requires Docker Compose, PostgreSQL, and Redis:
 make smoke-service
-uv run agent-harness doctor --profile local
-uv run agent-harness agents list
 make build
 make license-check
 ```
 
-`templates/service-app` uses the `local` profile and fake/local provider defaults. Real model keys and external observability providers are not required for local smoke or doctor checks.
+`make smoke-local` creates isolated local state, injects an ephemeral budget fingerprint key, runs the required migration, and exercises the packaged CLI. `templates/service-app` uses fake/local provider defaults, so real model keys and external observability providers are not required. Direct `doctor`、`agents list`、run 或 `make dev` calls still require a stable fingerprint key and migrated local database; follow the [service-app Quick Start](templates/service-app/README.md#quick-start) instead of invoking them against an uninitialized profile.
+
+| Command | Profile / prerequisite | Evidence boundary |
+|---|---|---|
+| `make quality` | local toolchain | format、lint、type 和 import boundary |
+| `make test` | local dependency set | unit、contract 和离线 integration |
+| `make eval` | approved fake-model cases | reviewed eval cases；不代表生产模型质量 |
+| `make smoke-local` | SQLite/in-memory/fake model | local runtime；不替代 service profile |
+| `make smoke-service` | Docker Compose、PostgreSQL、Redis | wheel-only API/worker 跨进程和恢复证据 |
+| `make build` | uv build | 本地 wheel/sdist；不发布 |
+| `make license-check` | repository files | LICENSE/NOTICE/vendoring 基础检查；不是 SBOM |
 
 ## Project Structure
 
@@ -45,7 +55,7 @@ project/
 - `packages/agent-harness` is the buildable core package. It exposes public configuration, identity, DTO, error, trust, and boundary contracts. It must not depend on `templates/*` or `examples/*`.
 - `templates/service-app` is the backend service application template. It depends on `agent-harness` through the package boundary and contains the runnable P0 examples under `agents/examples`.
 - The root `examples` directory remains reserved for package-level examples; the maintained service-app examples live with the template they exercise.
-- `docs` is reserved for architecture, extension, adapter, security, eval/observability, release, and ADR documentation.
+- `docs` contains the architecture, extension, adapter, context/trust, security, eval/observability, release-boundary, and ADR documentation.
 - `scripts` contains local quality, boundary, smoke, and compliance checks.
 - `openspec` contains change contracts. It does not replace `Product-Spec.md` or `DEV-PLAN.md`.
 
@@ -63,7 +73,14 @@ Start from `templates/service-app`. It currently provides:
 
 The application entrypoint packages are not business agent directories. Agent logic belongs under agent-specific directories in `agents/*`.
 
-The template Makefile exposes `run-rag`, `run-ticket`, `run-repo`, `run-dev`, `eval`, `smoke-local`, and `smoke-service`. Use `agent-harness scaffold agent <agent_id>` from a copied service-app root to generate a validated, no-tool-permission Agent package; review its draft eval case before moving it into the approved dataset.
+Use the following maintainer guides while extending a copied app:
+
+- [Extension guide](docs/extension-guide.md): supported seams for agents, tools, models, retrieval, observability, and eval.
+- [Context and trust boundary](docs/context-and-trust-boundary.md): untrusted input, context assembly, guardrails, HITL, and event return paths.
+- [Security policy](docs/security-policy.md): identity, permissions, policy, approvals, workspace access, secrets, and audit evidence.
+- [Service-app guide](templates/service-app/README.md): copy/bootstrap, local profile, service profile, and runnable examples.
+
+The template Makefile exposes `run-rag`, `run-ticket`, `run-repo`, `run-dev`, `eval`, `smoke-local`, and `smoke-service`. After completing the copied app's local initialization, use `uv run agent-harness scaffold agent support.triage` to generate a validated, no-tool-permission Agent package; review its draft eval case before moving it into the approved dataset.
 
 ## For Scaffold Maintainers
 
@@ -75,10 +92,13 @@ Maintain the package boundary first:
 - Template app code should import settings, identity, trust, and DTO types from `agent_harness.*` instead of reading YAML or provider SDKs directly.
 - `eval-cases/approved` is written only by the approval flow; automatic trace detectors may create drafts, but must not write approved cases directly.
 - Run, approval, tool, trace, and eval evidence must retain the applicable tenant, agent, run, request, and trace correlation fields.
+- Multi-agent delegation must go through `AgentRegistry` and `PolicyEngine`; callers must not invoke a child executor directly or bypass tenant, cycle/depth, budget, permission, and approval checks.
 
 Run `make quality` before committing. It checks formatting, linting, type checking, and import boundaries.
 
-Run `uv run agent-harness doctor --profile local` to verify the selected profile can be loaded through the packaged CLI seam. The command reports profile, storage, queue, observability, policy, identity, and model status without opening database, queue, model, or observability connections.
+Run `make smoke-local` to verify the packaged local CLI seam with isolated state. After completing the [service-app local initialization](templates/service-app/README.md#quick-start), direct `doctor` reports profile, storage, queue, observability, policy, identity, model, and migration status without opening external queue, model, or observability connections.
+
+The detailed maintainer contracts are [architecture](docs/architecture/README.md), [adapter contracts](docs/adapter-contracts.md), [eval and observability](docs/eval-observability-loop.md), [release process](docs/release-process.md), and the [current ADRs](docs/adr/0001-p0-service-boundaries.md). `make quality` enforces core/template/import boundaries; vendor integrations are only allowed behind the locations documented in the adapter contracts.
 
 ## P0 Deployment Boundaries
 
@@ -97,15 +117,18 @@ Cross-boundary data should move through Pydantic DTOs, context refs, identity/pe
 
 ## Deep Docs
 
-Deep documentation is introduced incrementally:
+| Maintainer question | Contract |
+|---|---|
+| What runs today, and what may split later? | [Architecture and deployment boundaries](docs/architecture/README.md) |
+| Where can I add an agent or capability? | [Extension guide](docs/extension-guide.md) |
+| Which DTO, protocol, facade, repository, and UoW boundaries must stay stable? | [Adapter contracts](docs/adapter-contracts.md) |
+| How are untrusted inputs assembled, governed, approved, and returned? | [Context and trust boundary](docs/context-and-trust-boundary.md) |
+| How do auth, permissions, policy, workspace controls, secrets, and audit interact? | [Security policy](docs/security-policy.md) |
+| How do traces become reviewed eval evidence? | [Eval and observability loop](docs/eval-observability-loop.md) |
+| What can be verified and built now, and what still belongs to Phase 15? | [Release process](docs/release-process.md) |
+| Why were the service, vendor, and Redis boundaries chosen? | [ADR-0001](docs/adr/0001-p0-service-boundaries.md), [ADR-0002](docs/adr/0002-vendor-adapter-isolation.md), [ADR-0003](docs/adr/0003-redis-runtime-license-policy.md) |
 
-- `docs/architecture/README.md` contains architecture diagram sources, PNG previews, and deployment boundary notes.
-- `docs/extension-guide.md` is reserved for extension guidance.
-- `docs/adapter-contracts.md` is reserved for adapter contracts.
-- `docs/eval-observability-loop.md` records the implemented trace-to-eval foundation and eval experiment / harness acceptance loop; the corresponding OpenSpec changes are archived.
-- `docs/security-policy.md` is reserved for security and HITL policy.
-- `docs/release-process.md` is reserved for release automation.
-- `docs/adr/` is reserved for architecture decisions.
+All command examples in these guides are either runnable in this checkout or explicitly marked as requiring the Docker Compose service profile. They distinguish repository-controlled dependency versions, Compose image tags, external CLI versions observed during verification, and runtime versions reported by a concrete smoke run.
 
 ## License & Compliance
 
@@ -121,10 +144,10 @@ The current codebase does not vendor third-party source. Do not copy third-party
 
 ## Release Process
 
-Release automation is not implemented yet. The core package can be built locally with:
+The current checkout supports manual quality, test, eval, local/service smoke, build, and license verification. The core package can be built locally with:
 
 ```bash
 make build
 ```
 
-Future changes will add semantic versioning, changelog generation, release artifacts, and private registry publishing.
+This creates local wheel/sdist artifacts; it does not publish them. Automated version calculation, tags, CHANGELOG generation, CI workflows, release dry-run, and registry publishing are Phase 15 work and are not implemented. See the [release process](docs/release-process.md) for the exact current gate and evidence boundary.

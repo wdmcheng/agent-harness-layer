@@ -7,33 +7,33 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-19 的 v1.10。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-20 的 v1.11。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-13.9 的已完成 changes 均已归档并同步主规格，当前无 active change。
-- 代码状态: Phase 1-13.8A 已完成计划内实现、验证、fresh Stage 1/2 审查与归档。Phase 13.9 已实现 RUN-006、CLI-EVT-001、统一授权 EventSink reader/capacity 边界和首 frame P95，并通过完整门禁及最终 3 名 fresh reviewer；Phase 14、15 均未开始。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-14 的已完成 changes 均已归档并同步主规格，当前无 active change。
+- 代码状态: Phase 1-14 已完成计划内实现或文档交付、验证、fresh Stage 1/2 审查与归档；Phase 15 未开始。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | Phase 1-13.9 已实现、验证、审查并归档 | Phase 13.5-13.9 的八个补缺 change 已于 2026-07-19 同步主规格并归档；Phase 14、15 未开始。 |
-| 当前 Phase | Phase 14 待开始 | Phase 13.9 的 `sse-event-streaming` 已以 17/17 归档。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 已按 queue → split runtime → deployment proof 顺序同步主规格并归档。 |
-| 当前 OpenSpec change | 无 | `openspec list --json` 返回空列表；`sse-event-streaming` 已归档到 `openspec/changes/archive/2026-07-19-sse-event-streaming/`。 |
-| 当前验证基线 | Phase 13.9 完整门禁与最终 3-review 已通过 | 真实 PostgreSQL 定向 `63 passed`；全量 `996 passed, 222 skipped`；30 样本首 frame P95 `4.059ms`；quality、eval `11/11`、local smoke、真实 PostgreSQL/Redis service smoke、build、license、strict 与 diff check 均通过。 |
-| 当前阻塞项 | 无 | 阶段标签收口改动按用户显式裁决无需重新 review；其余受审实现、契约与测试保持冻结。 |
-| 当前建议下一步 | 进入 Phase 14 深度文档、ADR 与维护者指南 | 不自动 push、发布或部署。 |
+| 总体状态 | Phase 1-14 已完成并归档 | `maintainer-deep-documentation` 已同步主规格并归档；Phase 15 未开始。 |
+| 当前 Phase | Phase 15 未开始 | 是否进入 CI/CD、Release Automation 与合规收口由用户另行决定。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14 | Phase 13 与 Phase 14 的 changes 均已同步主规格并归档。 |
+| 当前 OpenSpec change | 无 | `openspec list --json` 返回空 active changes。 |
+| 当前验证基线 | Phase 14 完整门禁通过 | quality 通过；全量 `1001 passed, 222 skipped`；eval `11/11`、local smoke、复制模板的 fingerprint/migration/smoke/run/dev-health Quick Start、真实 PostgreSQL/Redis/DBOS service smoke、build、license、链接/锚点/外链/版本、strict 与 diff check 均通过。 |
+| 当前阻塞项 | 无 | Phase 14 归档差异仍需通过 fresh Stage 1/2 review 后才可写入 `clean`。 |
+| 当前建议下一步 | 等待用户决定是否启动 Phase 15 | 不自动创建 Phase 15 change，不 commit、push、发布或部署。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
-- Phase 13 三个历史 change 已按依赖顺序归档；不自动 push 或发布。
-- Phase 13.5-13.9 的八个已实现 change 已同步主规格并归档，当前无 active change。
-- Phase 14 只能在上述 P0 gap 闭环后开始，Phase 15 仍保持未开始。
+- Phase 13.5-13.9 的已实现 changes 已同步主规格并归档。
+- Phase 14 的交付、验证、主规格同步与归档已完成；归档路径为 `openspec/changes/archive/2026-07-19-maintainer-deep-documentation/`。
+- Phase 15 仍保持未开始，不因 Phase 14 文档中的未来合同自动开工。
 
 ### 后续 Phase
 
@@ -47,7 +47,7 @@
 - Phase 13.8: 真实受控 delegation 与 parent aggregation 已完成 14/14 tasks、联合审查，并于 2026-07-19 归档；依赖 Phase 13.7。
 - Phase 13.8A: Parent execution-tree shared budget、typed fingerprint secret 与 `0016` 历史迁移修正已完成 27/27 tasks、联合审查，并于 2026-07-19 归档；依赖 Phase 13.8。
 - Phase 13.9: SSE transport、Last-Event-ID、CLI stream 与首 frame 性能已实现并通过完整门禁及最终 3-review，并于 2026-07-19 归档。
-- Phase 14: 深度文档、ADR 与维护者指南。
+- Phase 14: 深度文档、ADR 与维护者指南，已交付、验证、同步主规格并归档。
 - Phase 15: CI/CD、Release Automation 与合规收口。
 
 ### 关键验收状态
@@ -60,18 +60,18 @@
 - AC-068：shared parent ledger、typed secret、0016 topology/source/price、错误优先级及审查追加项均已修复，并通过完整门禁、代码 1+2 与审查后收口。
 - AC-038、AC-066：RUN-006 HTTP transport、Last-Event-ID 恢复与固定 30 样本首 frame P95 已实现并验证；WebSocket 仍为 P1。
 - AC-050：由各 change 的 `tasks.md`、Phase 本地提交以及 review/test 命令证据持续维护 REQ/AC -> production -> test 追溯；Phase 15 release matrix 必须汇总并重新校验，新 change 仍需保留 red evidence。
-- Phase 14 深度文档和 Phase 15 release automation 尚未实现。
+- Phase 14 深度文档已交付并通过完整门禁；Phase 15 release automation 尚未实现。
 - GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
-- Phase 14 的扩展指南、安全策略、维护者手册与 release 深度文档尚未完成。
+- Phase 14 已补齐扩展指南、安全策略、维护者手册与当前/未来边界明确的 release 文档。
 
 ## 技术栈决策
 
-以下版本于 2026-07-05 通过官方文档、PyPI、GitHub Release 或项目官网核验；Phase 10 provider 版本于 2026-07-09 追加核验。开发时使用 `uv.lock` 锁定实际解析版本；本表给出 P0 目标线和上限策略。
+Python dependency 的声明范围以各 `pyproject.toml` 为准，实际解析版本以 `uv.lock` 为准；Docker runtime 以 Compose image reference 为准。uv、Docker、Compose 等外部 CLI 未由仓库锁定，只能记录某次验证环境，不能冒充 lock 内容。本表给出当前受控事实和仍属后续 Phase 的目标。
 
 | 层级 | 技术 | 版本 | 说明 |
 |------|------|------|------|
-| 运行语言 | Python | `>=3.12`，CI 首批跑 3.12 和 3.13 | Spec 要求 Python 3.12+；Pydantic AI 2.5.0 PyPI 元数据覆盖 Python 3.10-3.13，因此 P0 先把 3.12/3.13 作为强门禁。 |
-| 包管理 / Workspace | uv | `0.11.26` | GitHub Release 2026-06-30 最新稳定版；负责 workspace、lock、build、publish。 |
+| 运行语言 | Python | `>=3.12` | 由 `pyproject.toml` 声明；2026-07-20 Phase 14 本机验证为 3.14.5。Phase 15 才定义并证明 CI Python matrix。 |
+| 包管理 / Workspace | uv | 仓库未锁定；2026-07-20 本机验证 `0.11.19` | 负责 workspace、lock 与 build；publish 命令虽由工具提供，但本仓库发布流程尚未实现。 |
 | Build backend | hatchling | `1.30.1` | 现代 Python build backend，配合 `uv build` 产出 wheel/sdist。 |
 | Agent runtime 底座 | pydantic-ai / pydantic-ai-slim | `2.5.0` | 默认底座，但业务 agent 只依赖 `agent_harness` 公共接口；优先使用 slim + extras 降低依赖面。 |
 | Agent capability library | pydantic-ai-harness | 不作为 P0 必选依赖；按能力块引入时重新核验并锁版本 | 官方 capability library，用于 CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等可选能力；进入实现前必须走受控 integration boundary。 |
@@ -84,10 +84,10 @@
 | Migration | Alembic | `1.18.5` | 统一 SQLite/PostgreSQL schema migration。 |
 | PostgreSQL driver | asyncpg | `0.31.0` | service profile async driver；repository contract tests 以 async 路径为准。 |
 | SQLite async bridge | aiosqlite | `0.22.1` | local profile 和 CI 使用 SQLite async adapter。 |
-| Service database | PostgreSQL | `18.4` | 官网 2026-05-14 最新稳定补丁线；Docker Compose 可先固定 `postgres:18.4`。 |
+| Service database | PostgreSQL | Compose 默认 `postgres:18` | 只固定 major tag；具体 server patch/digest 由每次真实 service smoke 记录，不能写成仓库已 pin `18.4`。 |
 | Durable queue | Redis server | `8.0.1` for Docker Compose | 当前只承担 Streams/XAUTOCLAIM RunQueue；session cache 属于 P1 可选能力。Phase 15 发布前重新核验镜像与许可证材料。 |
 | Redis client | redis-py | `8.0.1` | Durable queue 只依赖 Redis Streams consumer group、claim/ack 与幂等状态 seam。 |
-| Observability 底座 | OpenTelemetry Python | `1.43.0` current；Phase 10 `observability` extra 锁 `1.42.1` SDK/exporter | 2026-07-09 通过 PyPI 核验 current 为 1.43.0；Logfire 4.37.0 当前要求 `opentelemetry-sdk<1.43.0`，因此 provider extra 先锁可解析的 1.42.1 SDK/exporter 组合，OTel API/SDK 仍作为 provider adapter 前的统一协议。 |
+| Observability 底座 | OpenTelemetry Python | `observability` extra 解析为 `1.42.1` SDK/exporter | 以 `uv.lock` 为当前解析真相；OTel API/SDK 作为 provider adapter 前的统一协议。升级需重新解析 Logfire/Phoenix/Langfuse 组合。 |
 | 推荐观测 provider | Logfire | `4.37.0` | 推荐 adapter；业务代码不直接 import。 |
 | 可选观测 provider | Arize Phoenix | `17.21.0` | 2026-07-09 通过 PyPI 重新核验；可选 adapter contract，覆盖 trace/dataset/eval/feedback 工作流。 |
 | 可选观测 provider | Langfuse Python SDK | `4.13.2` | 2026-07-09 通过 PyPI 重新核验；v4 SDK；adapter 层处理 v4 API，不污染核心接口。 |
@@ -99,7 +99,7 @@
 | Async tests | pytest-asyncio | `1.4.0` | runtime、storage、API、event stream 的 async tests。 |
 | Coverage | coverage.py | `7.15.0` | 产出 CI coverage artifact；和 pytest 分离配置。 |
 | Git hooks | pre-commit | `4.6.0` | 本地 quality hook 和 license/header check 入口。 |
-| Release automation | python-semantic-release | `10.6.0` | 统一 GitHub/GitLab 的 SemVer、tag、CHANGELOG、release artifact dry-run；不选 release-please 作为 P0 主线。 |
+| Release automation | 待 Phase 15 决策 | 尚未引入或锁定 | 当前没有 SemVer/tag/CHANGELOG/release artifact dry-run 或 publish automation；Phase 15 重新选型并验证 GitHub/GitLab 等价门禁。 |
 | 部署目标 | Docker Compose | Compose v2 | P0 只做本地 service profile，验证 PostgreSQL + Redis + API + worker 协作；不引入 Kubernetes。 |
 
 ## 技术栈验证来源
@@ -870,7 +870,7 @@ Phase 1 Monorepo / quality spine
 - `docs/context-and-trust-boundary.md` - Agent Loop、HITL 回边、SSE/WS 回传、ContextAssembler 和 untrusted input 处理。
 - `docs/eval-observability-loop.md` - trace -> eval -> score -> provider 闭环。
 - `docs/security-policy.md` - auth、policy、approval、workspace、secret redaction。
-- `docs/release-process.md` - SemVer、tag、CHANGELOG、private publish、artifact。
+- `docs/release-process.md` - 当前人工质量/构建/license 边界，以及 Phase 15 的 SemVer、tag、CHANGELOG、private publish 未来合同。
 - `docs/adr/0002-vendor-adapter-isolation.md` - 上游隔离决策。
 - `docs/adr/0003-redis-runtime-license-policy.md` - Redis runtime pin 与 license review 决策。
 
@@ -879,6 +879,8 @@ Phase 1 Monorepo / quality spine
 - 新开发者阅读 README 后能运行 local profile、理解目录职责和禁止跨边界规则。
 - 所有文档命令都能在当前 repo 执行或明确标注需要 service profile。
 - 文档中的技术栈版本和 `pyproject.toml` / `uv.lock` 保持一致。
+
+**状态**：README、八份深度文档入口与三份 ADR 已互链；内部路径/锚点、四个官方外链、dependency lock、Compose image 与未锁定外部 CLI 已分别核验。quality 通过；全量 `1001 passed, 222 skipped`；approved eval `11/11`；local smoke、从干净复制模板逐字执行的 fingerprint key/migration/smoke-local/run-basic/dev-health Quick Start、真实 PostgreSQL/Redis/DBOS service smoke、build、license、OpenSpec strict 和 diff check 均通过。`maintainer-deep-documentation` 的 14/14 tasks 已同步到 `openspec/specs/maintainer-documentation/spec.md` 并归档到 `openspec/changes/archive/2026-07-19-maintainer-deep-documentation/`；Phase 15 保持未开始。
 
 ---
 

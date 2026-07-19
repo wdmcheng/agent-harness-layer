@@ -1,5 +1,11 @@
 # 变更记录
 
+## [v1.11] - 2026-07-20
+### Phase 14 状态同步
+
+- 根据 `maintainer-deep-documentation` 的 README、架构/扩展/adapter/context/安全/eval/release 文档、ADR、链接/版本核验和完整本地/真实 service 门禁证据，勾选 AC-049 与 P0 深度文档完成项；不修改运行时、API、schema 或依赖。
+- Phase 14 完成声明绑定包含本状态更新的冻结 diff 与 fresh Stage 1/2 review；`maintainer-documentation` 主规格已同步，change 已归档到 `openspec/changes/archive/2026-07-19-maintainer-deep-documentation/`。Phase 15 的 CI、自动版本/tag/CHANGELOG、release dry-run、registry publish 和 P0 acceptance matrix 仍未开始。
+
 ## [v1.10] - 2026-07-19
 ### Phase 13.9 归档
 
