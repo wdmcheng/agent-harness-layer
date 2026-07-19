@@ -23,10 +23,18 @@ class LocalEventCapacityClaim:
     """在 JSONL append 前校验账本，并在 append 成功后提交同一 UoW。"""
 
     def __init__(self, storage: SQLAlchemyStorage) -> None:
+        """注入本地状态 UoW 工厂，使 JSONL 与容量账本共享提交判定。"""
+
         self._storage = storage
 
     @asynccontextmanager
     async def claim(self, event: CanonicalEvent) -> AsyncGenerator[None]:
+        """为一次本地事件写入保留容量并在 append 成功后提交账本。
+
+        若提交结果不明确，会在新 UoW 中读取最高已落盘序号：已越过当前
+        序号说明提交实际成功，否则将原错误交给调用方，避免重复追加 JSONL。
+        """
+
         async with self._storage.uow() as uow:
             if event.record_scope == "non_run" and not await uow.event_capacity.exists(
                 event.run_id

@@ -37,7 +37,12 @@ def shared_budget_crash_smoke(
     base_url: str,
     token: str,
 ) -> dict[str, object]:
-    """在真实 Redis reclaim 中逐个钉住 shared claim 三个 durable window。"""
+    """在真实 Redis reclaim 中逐个验证 shared claim 的三个 durable 状态窗口。
+
+    每轮故障注入都使用独立 run、容器名和 marker 文件：恢复成功时应复用既有
+    claim/outbox，结果未知时必须保持 `needs_review`。脚本同时检查 reclaim
+    receipt，避免把旧 owner 的重复执行误判为正常恢复。
+    """
 
     evidence: dict[str, object] = {}
     for phase, exit_code in (
@@ -101,6 +106,8 @@ def shared_budget_crash_smoke(
                 crash_name: str = crash_name,
                 crash_state: dict[str, str] = crash_state,
             ) -> bool:
+                """轮询故障容器，保存最近状态以便失败时给出可定位诊断。"""
+
                 inspected = run(
                     [
                         "docker",
@@ -131,6 +138,8 @@ def shared_budget_crash_smoke(
             receipt_a_path = Path(env["SERVICE_APP_SMOKE_DIR"]) / f"budget-{phase}-receipt-a.json"
             marker = json.loads(marker_path.read_text(encoding="utf-8"))
             receipt_a = json.loads(receipt_a_path.read_text(encoding="utf-8"))
+            # worker marker 的既有键属于隔离 smoke 协议；读取方不能为词面统一
+            # 而擅自切换 schema，否则真实 crash/recovery 验证会失去兼容性。
             if marker != {"phase": phase, "run_id": run_id}:
                 raise RuntimeError(f"shared budget {phase} crash marker mismatch: {marker}")
             env["SERVICE_APP_SMOKE_BOUNDARY"] = f"shared-budget-crash-windows-{phase}-reclaim-start"
@@ -171,6 +180,8 @@ def shared_budget_crash_smoke(
                 run_id: str = run_id,
                 phase: str = phase,
             ) -> bool:
+                """等待恢复容器成功收口，或记录异常退出以保留完整诊断上下文。"""
+
                 inspected = run(
                     [
                         "docker",
@@ -255,6 +266,8 @@ def shared_budget_crash_smoke(
             else:
 
                 def needs_review(run_id: str = run_id) -> bool:
+                    """等待未知外部结果把 claim 保持在 ``needs_review``。"""
+
                     state = inspect_run(env, run_id)
                     shared = cast(dict[str, object], state.get("shared_budget") or {})
                     claims = cast(list[dict[str, object]], shared.get("claims", []))

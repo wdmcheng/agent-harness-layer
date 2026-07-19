@@ -47,7 +47,10 @@ class ApprovalQueueEnqueueMixin:
             run_id: str,
             approval_id: str,
             request_id: str,
-        ) -> None: ...
+        ) -> None:
+            """声明组合服务必须提供的冲突恢复 seam，排队 mixin 不自行接管 continuation。"""
+
+            ...
 
     async def _enqueue_approval(
         self,

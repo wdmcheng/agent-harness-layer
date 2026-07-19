@@ -223,6 +223,9 @@ def test_0016_backfills_0015_delegation_four_state_matrix(
             and release_case != "missing-lifecycle"
             and not missing_reservation
         ):
+            # released 只有在 child、队列和 provider 均未产生副作用时才允许回填。
+            # 因此夹具固定构造 claimed/child/final 三条 outbox 记录，再用不同
+            # 状态组合证明迁移只接受可唯一解释的 pre-child 失败证据。
             claimed_result = {
                 "delegation_id": "delegation-a",
                 "parent_run_id": "root-a",

@@ -42,10 +42,14 @@ class RecordingProviderAdapter(ProviderTelemetryAdapter):
     provider_name = "recording"
 
     def __init__(self, *, fail_with: Exception | None = None) -> None:
+        """初始化脱敏记录列表，并可选配置确定性 provider 失败以覆盖降级路径。"""
+
         self.records: list[TelemetryRecord] = []
         self.fail_with = fail_with
 
     async def send(self, record: TelemetryRecord) -> TelemetryStatus:
+        """保存 facade 已处理的 DTO；配置失败时在 provider 边界抛出异常。"""
+
         self.records.append(record)
         if self.fail_with is not None:
             raise self.fail_with

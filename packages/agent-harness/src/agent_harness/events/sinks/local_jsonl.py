@@ -74,6 +74,13 @@ class LocalJsonlEventSink(EventSink):
         state_dir: Path | None = None,
         run_trace_resolver: RunTraceResolver | None = None,
     ) -> None:
+        """初始化一个以单个 JSONL 文件为边界的本地事件存储。
+
+        `state_dir` 只用于登记可恢复的本地状态；`run_trace_resolver` 可延后由
+        composition 注入，但 run-scoped 写入开始前必须已确定，防止文件内混入
+        不属于该 run 的 trace。
+        """
+
         self.path = path
         self.state_dir = state_dir
         self._run_trace_resolver = run_trace_resolver
@@ -111,6 +118,8 @@ class LocalJsonlEventSink(EventSink):
         *,
         after_claim: Callable[[], None] | None = None,
     ) -> CanonicalEvent:
+        """按默认容量 claim 追加事件，并返回带 sink 分配序号的 envelope。"""
+
         return await self._write_claimed(
             event,
             after_claim=after_claim,
@@ -171,6 +180,13 @@ class LocalJsonlEventSink(EventSink):
         artifact_claim: ArtifactClaim | None = None,
         capacity_claim: CapacityClaim | None = None,
     ) -> CanonicalEvent:
+        """在文件锁内校验、预约、追加并在失败时补偿单条事件。
+
+        参数中的 claim 均由上层 composition 提供：本方法不推导容量或 artifact
+        所有权，只保证它们与 JSONL 追加处于同一临界区，令重试可以用稳定
+        event id 收敛为同一持久化结果。
+        """
+
         validate_event_scope(event)
         validate_terminal_visibility(event)
         if event.record_scope == "run":
@@ -315,6 +331,8 @@ class LocalJsonlEventSink(EventSink):
             os.close(descriptor)
 
     async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
+        """读取指定 run 在游标之后的全部事件，仅供内部恢复与管理路径使用。"""
+
         async with _path_lock_for_current_loop(self.path):
             if not self.path.exists():
                 return []
@@ -377,6 +395,8 @@ class LocalJsonlEventSink(EventSink):
         seq: int,
         include_internal: bool = False,
     ) -> bool:
+        """在授权可见性范围内判断某个正序号是否存在。"""
+
         if seq <= 0:
             return False
         page = await self.read_page(
@@ -393,6 +413,8 @@ class LocalJsonlEventSink(EventSink):
         run_id: str,
         include_internal: bool = False,
     ) -> CanonicalEvent | None:
+        """读取指定 run 的可见终态事件；不存在时返回 ``None``。"""
+
         async with _path_lock_for_current_loop(self.path):
             if not self.path.exists():
                 return None
@@ -411,15 +433,21 @@ class LocalJsonlEventSink(EventSink):
         return None
 
     async def latest_seq(self, run_id: str) -> int:
+        """返回指定 run 已持久化的最大序号，空流使用零作为容量高水位。"""
+
         events = await self.read(run_id=run_id)
         if not events:
             return 0
         return max(event.seq for event in events)
 
     async def has_terminal(self, run_id: str) -> bool:
+        """判断指定 run 是否已有任意终态，供写入前的 fail-closed 门禁使用。"""
+
         return any(event.terminal for event in await self.read(run_id=run_id))
 
     def _load_events_unlocked(self) -> list[CanonicalEvent]:
+        """在调用方已持有文件锁时重建并校验完整 JSONL 前缀。"""
+
         if not self.path.exists():
             return []
         events = [

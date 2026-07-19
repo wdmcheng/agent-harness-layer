@@ -24,6 +24,8 @@ from agent_harness.storage.evidence_repositories import EvidenceOperationKind
 
 
 def _started_evidence(*, run_id: str) -> ModelUsageEvidence:
+    """构造 provider 尚未调用时的固定 started evidence，用于绑定身份校验。"""
+
     return ModelUsageEvidence(
         usage_kind="model",
         tenant_id="tenant-a",
@@ -43,6 +45,8 @@ def _started_evidence(*, run_id: str) -> ModelUsageEvidence:
 
 
 def _final_evidence(*, run_id: str) -> ModelUsageEvidence:
+    """构造已获得可信使用量后的固定 final evidence，用于逐值对照。"""
+
     return ModelUsageEvidence(
         usage_kind="model",
         tenant_id="tenant-a",
@@ -68,7 +72,7 @@ async def _claim_usage(
     usage_call_id: str,
     started: ModelUsageEvidence,
 ) -> None:
-    """用受信 invocation 在 provider 副作用前冻结 started 身份。"""
+    """通过受信 outbox 为一次调用建立预约与不可变 started 身份。"""
 
     async with storage.uow() as uow:
         await uow.evidence_outbox.claim_usage(
@@ -88,6 +92,8 @@ async def _persist_final(
     usage_call_id: str,
     final: ModelUsageEvidence,
 ) -> None:
+    """把可信 final evidence 写入既有 outbox，不发布任何 CanonicalEvent。"""
+
     async with storage.uow() as uow:
         await uow.evidence_outbox.persist_result(
             tenant_id="tenant-a",
@@ -105,6 +111,8 @@ async def _publish_forged_final(
     outcome: str = "completed",
     error_code: str | None = None,
 ) -> None:
+    """直接拼装 final 事件正文，用于验证 sink 拒绝绕过 lifecycle 的伪造写入。"""
+
     payload: dict[str, Any] = {
         "correlation": {"usage_call_id": usage_call_id},
         "usage": evidence.to_payload(),
@@ -145,6 +153,8 @@ async def test_local_usage_events_reject_bound_payload_tampering(tmp_path: Path)
         )
         bus = event_bus(storage=storage, event_path=event_path)
 
+        # 同一调用标识只能对应首次 durable started identity；先验证 outbox 层
+        # 拒绝篡改，再验证 sink 不会让伪造事件绕过这道持久化边界。
         forged_started = started.model_copy(update={"provider": "forged-provider"})
         with pytest.raises(ValueError, match="another started identity"):
             async with storage.uow() as uow:
@@ -182,6 +192,8 @@ async def test_local_usage_events_reject_bound_payload_tampering(tmp_path: Path)
         ).publish_started()
         await _persist_final(storage=storage, usage_call_id=usage_call_id, final=final)
 
+        # final 事件必须完整复用已持久化的结果。分别替换 provider、用量、
+        # 关联身份和结果状态，确保比较的是完整正文而非只比较调用标识。
         forged_finals = [
             (final.model_copy(update={"provider": "forged-provider"}), "completed", None),
             (final.model_copy(update={"input_tokens": 999_999}), "completed", None),
@@ -206,6 +218,8 @@ async def test_local_usage_events_reject_bound_payload_tampering(tmp_path: Path)
         assert snapshot.highest_persisted_seq == 1
         assert snapshot.outstanding_reserved_event_count == 1
 
+        # 只有真实 final 通过时才消费第二格预约；这也证明前面的失败写入没有
+        # 偷偷推进序号或改变容量高水位。
         await UsageEvidenceLifecycle(
             event_bus=bus,
             evidence=final,
@@ -279,12 +293,16 @@ async def test_postgresql_usage_payload_and_phase_are_bound_to_settlement() -> N
             )
 
             async def resolve_trace(**_: object) -> str:
+                """提供已绑定 trace，避免 PostgreSQL sink 以猜测值补全运行归属。"""
+
                 return "trace-a"
 
             bus = EventBus(
                 sink=PostgreSQLEventSink(storage),
                 run_trace_resolver=resolve_trace,
             )
+            # 先验证数据库事务不会接受替换后的 started 身份；随后在结果已持久化
+            # 但 canonical started 缺失时验证 final 仍被严格阻止。
             forged_started = started.model_copy(update={"model": "forged-model"})
             with pytest.raises(ValueError, match="durable settlement"):
                 await UsageEvidenceLifecycle(
@@ -307,6 +325,8 @@ async def test_postgresql_usage_payload_and_phase_are_bound_to_settlement() -> N
                 usage_call_id=usage_call_id,
             ).publish_started()
             forged_final = final.model_copy(update={"input_tokens": 999_999})
+            # started 已落库后，仅篡改 final 使用量仍必须失败，且容量只能保留在
+            # 已写的 started 事件所消费的一格，不能被 forged final 结算。
             with pytest.raises(ValueError, match="durable settlement"):
                 await _publish_forged_final(
                     bus=bus,

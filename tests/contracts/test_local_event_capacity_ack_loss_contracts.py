@@ -29,6 +29,8 @@ async def test_capacity_commit_ack_loss_preserves_durable_jsonl_and_sequence(
         acknowledgement_lost = False
 
         async def commit_then_lose_ack(uow: SQLAlchemyUnitOfWork) -> None:
+            """先完成真实提交再模拟确认丢失，复现调用方无法判断提交结果的窗口。"""
+
             nonlocal acknowledgement_lost
             await original_commit(uow)
             if not acknowledgement_lost:

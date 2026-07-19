@@ -62,6 +62,8 @@ from agent_harness.storage.shared_budget_models import (
 async def test_corrupted_child_usage_scope_fails_closed_without_releasing_budget(
     tmp_path: Path,
 ) -> None:
+    """已持久化的子用量若伪造 agent 归属，恢复只能转人工复核，不能释放父预算。"""
+
     storage, service, _runtime, parent_run_id, sink = await _build_service(
         tmp_path,
         trustworthy_usage=True,
@@ -108,6 +110,8 @@ async def test_corrupted_child_usage_scope_fails_closed_without_releasing_budget
 
 @pytest.mark.asyncio
 async def test_failed_child_records_closed_error_and_is_not_reexecuted(tmp_path: Path) -> None:
+    """子运行已失败时重放委派须返回同一闭合错误，不得重新调度或重复占用预算。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(
         tmp_path,
         trustworthy_usage=True,
@@ -152,6 +156,8 @@ async def test_failed_child_records_closed_error_and_is_not_reexecuted(tmp_path:
 
 @pytest.mark.asyncio
 async def test_policy_deny_has_zero_delegation_business_side_effects(tmp_path: Path) -> None:
+    """权限策略拒绝必须发生在 runtime、delegation 记录和事件写入之前，保持零业务副作用。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(tmp_path)
     try:
         with pytest.raises(DelegationError) as captured:
@@ -281,6 +287,8 @@ async def test_managed_delegation_replay_rejects_missing_top_level_claim(
 async def test_delegation_top_level_claim_persists_versioned_immutable_identity(
     tmp_path: Path,
 ) -> None:
+    """服务模式的顶层预算 claim 必须持久化版本化、不可变的委派身份，供后续重放校验。"""
+
     storage, service, _runtime, parent_run_id, _sink = await _build_service(
         tmp_path,
         mode="service",
@@ -367,6 +375,8 @@ async def test_database_rejects_delegation_identity_json_shape_mismatch(tmp_path
 async def test_same_request_hash_with_changed_budget_identity_conflicts_before_mutation(
     tmp_path: Path,
 ) -> None:
+    """请求哈希相同但预算身份版本变化时必须报幂等冲突，且不能改动既有账本和关系。"""
+
     storage, service, runtime, parent_run_id, _sink = await _build_service(
         tmp_path,
         mode="service",

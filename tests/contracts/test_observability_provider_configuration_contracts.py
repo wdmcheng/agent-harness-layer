@@ -53,7 +53,11 @@ def test_provider_adapters_accept_fake_clients_and_keep_payload_provider_neutral
     sent: list[tuple[str, dict[str, Any]]] = []
 
     class FakeClient:
+        """记录各 provider 接收到的规范化 payload，避免接入真实 SaaS 客户端。"""
+
         def send(self, provider: str, payload: dict[str, Any]) -> None:
+            """保存 provider 名与 payload，供统一脱敏和 provider-neutral 断言使用。"""
+
             sent.append((provider, payload))
 
     record = TelemetryRecord(

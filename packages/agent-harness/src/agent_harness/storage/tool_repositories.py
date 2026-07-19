@@ -66,9 +66,13 @@ class WorkspaceRepository:
     """workspace 表 repository，调用方不直接接触 ORM model。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定当前 UoW session；调用方负责事务提交或回滚。"""
+
         self._session = session
 
     async def create(self, data: WorkspaceCreate) -> WorkspaceRecord:
+        """创建一个带策略引用的 workspace 记录，不解释或访问宿主文件路径。"""
+
         model = WorkspaceModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
@@ -83,6 +87,8 @@ class WorkspaceRepository:
         return _workspace_record(model)
 
     async def get(self, workspace_id: str) -> WorkspaceRecord | None:
+        """按主键读取 workspace 摘要，缺失时返回 ``None`` 供服务层映射。"""
+
         model = await self._session.get(WorkspaceModel, workspace_id)
         return None if model is None else _workspace_record(model)
 
@@ -91,11 +97,16 @@ class ToolInvocationRepository:
     """tool_invocations 表 repository，保存参数/result artifact 引用。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定工具调用持久化所使用的当前异步 session。"""
+
         self._session = session
 
     async def create(self, data: ToolInvocationCreate) -> ToolInvocationRecord:
+        """持久化工具调用元数据，并在关联运行时投影可信 canonical trace。"""
+
         trace_id = data.trace_id
         if data.run_id is not None:
+            # 调用方传入的 trace 只能作为一致性校验，不能覆盖已持久化的运行归属。
             trace_id = await project_canonical_run_trace(
                 self._session,
                 tenant_id=data.tenant_id,
@@ -124,10 +135,14 @@ class ToolInvocationRepository:
         return _tool_invocation_record(model)
 
     async def get(self, invocation_id: str) -> ToolInvocationRecord | None:
+        """按主键读取工具调用记录，不改变 approval 或执行状态。"""
+
         model = await self._session.get(ToolInvocationModel, invocation_id)
         return None if model is None else _tool_invocation_record(model)
 
     async def get_by_approval_id(self, approval_id: str) -> ToolInvocationRecord | None:
+        """读取审批对应的唯一工具 claim，供续跑和审计路径复用。"""
+
         result = await self._session.scalars(
             select(ToolInvocationModel).where(ToolInvocationModel.approval_id == approval_id)
         )
@@ -169,6 +184,8 @@ class ToolInvocationRepository:
 
 
 def _workspace_record(model: WorkspaceModel) -> WorkspaceRecord:
+    """将 workspace ORM 模型映射为公共记录，隔离 SQLAlchemy 对象生命周期。"""
+
     return WorkspaceRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -183,6 +200,8 @@ def _workspace_record(model: WorkspaceModel) -> WorkspaceRecord:
 
 
 def _tool_invocation_record(model: ToolInvocationModel) -> ToolInvocationRecord:
+    """将工具调用 ORM 模型映射为含 artifact 引用的领域摘要。"""
+
     return ToolInvocationRecord(
         id=model.id,
         tenant_id=model.tenant_id,

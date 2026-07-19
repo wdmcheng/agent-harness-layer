@@ -76,6 +76,8 @@ async def test_canonical_usage_local_write_failure_prevents_provider_fanout(
     facade = TelemetryFacade(local_sink=sink, providers=[provider])
 
     async def fail_write(_event: object) -> None:
+        """模拟 durable sink 写入失败，验证 provider fan-out 不会在本地失败后继续。"""
+
         raise OSError("durable sink unavailable")
 
     monkeypatch.setattr(sink, "write", fail_write)
@@ -146,6 +148,8 @@ async def test_canonical_usage_fanout_rejects_same_id_with_different_envelope(
 
 @pytest.mark.asyncio
 async def test_canonical_usage_direct_facade_publish_is_rejected(tmp_path: Path) -> None:
+    """验证伪造或未由 EventBus 落库的 usage 事件不能直接进入 telemetry facade。"""
+
     dsn = sqlite_dsn(tmp_path / "usage-direct.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

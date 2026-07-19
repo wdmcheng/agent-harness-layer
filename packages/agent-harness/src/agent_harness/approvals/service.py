@@ -60,6 +60,12 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
         recovery_lease_timeout_seconds: float = 300.0,
         queue: RunQueue | None = None,
     ) -> None:
+        """装配审批状态机及其外部协作者，并把服务回绑定给 orchestrator。
+
+        ``queue`` 缺失时使用本地同步续接；存在时只由 worker 执行 continuation。
+        租约超时被限制为非负值，避免错误配置将失效 lease 变成永久占用。
+        """
+
         self._storage = storage
         self._event_bus = event_bus
         self._orchestrator = orchestrator

@@ -1,4 +1,4 @@
-"""通过 ExampleEvalAdapter 运行四个 approved fake-model dataset。"""
+"""通过 ExampleEvalAdapter 运行四个已批准的 fake-model 数据集。"""
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ AGENTS = (
 
 
 def parse_args() -> argparse.Namespace:
+    """解析可重复指定的示例 Agent 过滤条件与本地证据目录。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--agent", choices=AGENTS, action="append")
     parser.add_argument("--state-dir", type=Path, default=APP_ROOT / ".agent-harness" / "eval")
@@ -94,6 +95,7 @@ async def run(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    """运行异步评测入口，并将本地状态迁移错误映射为稳定退出码。"""
     try:
         return asyncio.run(run(parse_args()))
     except LocalStateMigrationError as exc:

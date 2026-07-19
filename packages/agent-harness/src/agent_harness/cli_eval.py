@@ -49,6 +49,8 @@ def draft_eval_case(
     )
 
     async def _draft() -> EvalCaseRecord:
+        """在同步 CLI 包装内创建 draft，并确保任意失败路径都释放 storage 连接。"""
+
         try:
             return await service.draft_from_trace(
                 EvalTraceSource(
@@ -96,6 +98,8 @@ def approve_eval_case(
     actor = settings.identity.default.model_copy(update={"user_id": reviewer})
 
     async def _approve() -> EvalCaseRecord:
+        """在同步 CLI 包装内提交人工审批，并确保连接不会遗留给后续命令。"""
+
         try:
             result = await service.approve_case(
                 actor=actor,
@@ -118,6 +122,8 @@ def _eval_service_from_cli(
     dataset_dir: Path,
     scores_path: Path,
 ) -> tuple[HarnessSettings, SQLAlchemyStorage, EvalService]:
+    """加载 profile、验证本地状态并装配 eval service；不在此处执行任何评测写入。"""
+
     settings = load_settings_or_exit(profile, profiles_dir)
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
     require_schema_or_exit(resolved_dsn)
@@ -134,6 +140,8 @@ def _eval_service_from_cli(
 
 
 def _parse_eval_scores(score_items: list[str] | None) -> dict[str, float]:
+    """解析重复的 ``metric=value`` CLI 选项，格式或数值异常统一退出码 2。"""
+
     scores: dict[str, float] = {}
     for item in score_items or []:
         metric, separator, value = item.partition("=")

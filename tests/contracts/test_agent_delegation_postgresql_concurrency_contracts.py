@@ -39,6 +39,8 @@ from tests.contracts.test_agent_delegation_postgresql_contracts import (
 
 @pytest.mark.asyncio
 async def test_postgresql_same_key_concurrency_reuses_one_claim_and_reservation() -> None:
+    """验证并发相同幂等键在真实 PostgreSQL 中只创建一份 claim 与预算预约。"""
+
     async with isolated_database("delegation_same_key") as dsn:
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -53,6 +55,8 @@ async def test_postgresql_same_key_concurrency_reuses_one_claim_and_reservation(
             )
 
             async def create_once() -> tuple[str, str, bool]:
+                """在独立 UoW 内提交同一 claim，用于放大唯一约束竞争窗口。"""
+
                 async with storage.uow() as uow:
                     result = await uow.delegations.claim_and_reserve(claim)
                     await uow.commit()

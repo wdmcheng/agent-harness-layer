@@ -12,6 +12,8 @@ from agent_harness.storage import run_migrations
 
 
 def _dsn(path: Path) -> str:
+    """生成隔离 SQLite 数据库的异步 DSN，避免图拓扑反例之间共享 revision 或脏数据。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
@@ -23,6 +25,8 @@ def _run(
     parent_run_id: str | None,
     agent_id: str,
 ) -> None:
+    """直接写入旧 schema 的 run 节点，允许构造迁移前正常 API 无法表示的图形反例。"""
+
     connection.execute(
         "insert into agent_runs(id,tenant_id,session_id,agent_id,status,trace_id,input_json,"
         "parent_run_id) values (?,?,?,?,?,?,?,?)",
@@ -49,6 +53,8 @@ def _relation(
     source_agent_id: str,
     target_agent_id: str,
 ) -> None:
+    """直接写入旧委派关系边，配合 run 节点验证 migration 会检查整张 parent graph。"""
+
     connection.execute(
         "insert into agent_delegations(id,tenant_id,parent_run_id,child_run_id,source_agent_id,"
         "target_agent_id,idempotency_key,request_hash,budget_intent,child_input_json,identity_json,"
@@ -98,6 +104,8 @@ def _allow_duplicate_child_relations(connection: sqlite3.Connection) -> None:
     ],
 )
 def test_0016_rejects_invalid_full_parent_graph_before_ddl(tmp_path: Path, case: str) -> None:
+    """任何孤儿、环、跨租户、深层或关系不一致都必须在 0016 创建新表前被 fail-closed 拒绝。"""
+
     path = tmp_path / f"topology-{case}.sqlite3"
     run_migrations(_dsn(path), "0015_agent_delegation")
     with sqlite3.connect(path) as connection:

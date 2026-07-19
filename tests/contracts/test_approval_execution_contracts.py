@@ -44,11 +44,17 @@ from agent_harness.tools import (
 
 
 def sqlite_dsn(path: Path) -> str:
+    """将每个临时 SQLite 文件转换为异步 storage DSN，避免测试共用状态。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
 class _ApprovedToolExecutor:
+    """最小审批型执行器：首次等待授权，恢复后只能通过受控的 approved-tool seam 调用。"""
+
     def __init__(self, registry: ToolRegistry, arguments: dict[str, Any]) -> None:
+        """保存受控工具注册表和固定参数，使 grant 的参数哈希绑定可由合同稳定验证。"""
+
         self.registry = registry
         self.arguments = arguments
 
@@ -57,6 +63,8 @@ class _ApprovedToolExecutor:
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
+        """声明需要审批的工具 continuation，不在等待阶段执行任何外部工具副作用。"""
+
         del context
         return AgentExecutionResult.waiting(
             AgentApprovalRequest(
@@ -75,6 +83,8 @@ class _ApprovedToolExecutor:
         context: AgentExecutionContext,
         grant: ApprovalGrant,
     ) -> AgentExecutionResult:
+        """使用已签发 grant 调用工具，并将受控结果映射为编排器可持久化的终态。"""
+
         tool_result = await self.registry.call_approved(
             ToolCallRequest(
                 tool_name="shell.execute",
@@ -110,6 +120,8 @@ async def build_approval_flow(
     ToolRegistry,
     RunResult,
 ]:
+    """组装隔离的审批、工具、事件与可选队列环境，供下游合同聚焦一个恢复边界。"""
+
     dsn = sqlite_dsn(tmp_path / "approval.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

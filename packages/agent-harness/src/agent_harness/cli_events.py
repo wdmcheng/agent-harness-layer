@@ -33,6 +33,8 @@ class CliEventStreamError(RuntimeError):
     """CLI stream 的稳定脱敏错误；不携带 event、payload 或内部异常。"""
 
     def __init__(self, code: str, message: str) -> None:
+        """保存面向 CLI 的稳定错误码，禁止原始 sink 异常直接穿透。"""
+
         super().__init__(message)
         self.code = code
 
@@ -47,10 +49,14 @@ class EventStreamRuntime:
     identity: IdentityContext
 
     async def close(self) -> None:
+        """释放只读 stream 使用的 storage 连接；sink 本身不拥有额外生命周期。"""
+
         await self.storage.dispose()
 
 
 def _parse_after_seq(raw: str) -> int:
+    """解析受限范围内的十进制 exclusive cursor，拒绝符号、空白和溢出输入。"""
+
     if not raw.isdecimal():
         raise CliEventStreamError("validation_error", "after-seq must be a decimal integer")
     value = int(raw)

@@ -1,4 +1,4 @@
-"""Embedding provider interface 与 local/mock provider。"""
+"""嵌入 Provider 协议与确定性本地实现，明确租户缓存和调用副作用边界。"""
 
 from __future__ import annotations
 
@@ -41,7 +41,9 @@ class PreflightEmbeddingCacheStore(EmbeddingCacheStore, Protocol):
         provider: str,
         model: str,
         input_hash: str,
-    ) -> EmbeddingCacheRecord | None: ...
+    ) -> EmbeddingCacheRecord | None:
+        """纯读预检缓存，不写命中证据，供预算预约前判断是否需要 Provider 调用。"""
+        ...
 
     async def mark_hit(
         self,
@@ -50,7 +52,9 @@ class PreflightEmbeddingCacheStore(EmbeddingCacheStore, Protocol):
         provider: str,
         model: str,
         input_hash: str,
-    ) -> EmbeddingCacheRecord: ...
+    ) -> EmbeddingCacheRecord:
+        """在调用路径确认命中后持久化命中证据，不能被纯读预检提前触发。"""
+        ...
 
 
 class EmbeddingRequest(HarnessDTO):
@@ -70,6 +74,7 @@ class EmbeddingCacheInfo(HarnessDTO):
     @field_validator("hit", mode="before")
     @classmethod
     def validate_hit(cls, value: object) -> object:
+        """拒绝把数值或字符串隐式转换为命中状态，保持用量分支语义可审计。"""
         if not isinstance(value, bool):
             raise ValueError("embedding cache hit must be a boolean")
         return value
@@ -110,9 +115,13 @@ class EmbeddingProvider(Protocol):
 class PreflightEmbeddingCacheProvider(EmbeddingProvider, Protocol):
     """允许 tenant-fenced 纯读 cache lookup 位于 shared reservation 之前。"""
 
-    async def lookup_cache(self, request: EmbeddingRequest) -> EmbeddingResponse | None: ...
+    async def lookup_cache(self, request: EmbeddingRequest) -> EmbeddingResponse | None:
+        """在预算预约前进行纯读缓存查询；命中时返回可直接结算的响应。"""
+        ...
 
-    async def embed_cache_miss(self, request: EmbeddingRequest) -> EmbeddingResponse: ...
+    async def embed_cache_miss(self, request: EmbeddingRequest) -> EmbeddingResponse:
+        """仅在预约成功后执行真实 miss 调用并写入缓存。"""
+        ...
 
 
 class LocalEmbeddingProvider:
@@ -125,11 +134,17 @@ class LocalEmbeddingProvider:
         provider: str = "local",
         model: str = "mock-small",
     ) -> None:
+        """注入 tenant-scoped 缓存和稳定 Provider 身份，供测试与本地运行复用。"""
         self.provider = provider
         self.model = model
         self._cache = cache
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+        """执行完整缓存路径：命中后记录证据，未命中后才进入生成和写入。
+
+        此方法兼容不经过共享预算预检的调用者；预算感知路径会直接分别调用
+        ``lookup_cache`` 和 ``embed_cache_miss``，以便把副作用严格放在预约之后。
+        """
         cached = await self.lookup_cache(request)
         if cached is None:
             return await self.embed_cache_miss(request)

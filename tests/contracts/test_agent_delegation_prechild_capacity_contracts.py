@@ -29,6 +29,8 @@ from tests.contracts.test_agent_delegation_service_contracts import (
 async def test_pre_child_deterministic_failure_releases_once_and_replays_failure(
     tmp_path: Path,
 ) -> None:
+    """child 创建前的确定性失败必须释放一次预约并稳定重放失败，后续新 key 仍可安全使用剩余预算。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(
         tmp_path,
         launch_error=True,
@@ -92,6 +94,8 @@ async def test_pre_child_deterministic_failure_releases_once_and_replays_failure
 
 @pytest.mark.asyncio
 async def test_capacity_exhaustion_rejects_before_child_or_business_event(tmp_path: Path) -> None:
+    """事件容量耗尽时服务要在 child、claim、outbox 和业务事件之前拒绝委派，维持零副作用。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(
         tmp_path,
         database_events=True,
@@ -143,6 +147,8 @@ async def test_stateless_authorization_denies_before_claim(
     include_target: bool,
     expected_code: str,
 ) -> None:
+    """环、缺失 target 或未授权边必须在持久化 claim 前被纯状态校验拒绝，不能启动 runtime。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(
         tmp_path,
         source_targets=source_targets,
@@ -171,6 +177,8 @@ async def test_stateless_authorization_denies_before_claim(
 
 @pytest.mark.asyncio
 async def test_single_level_depth_denies_child_parent_delegation(tmp_path: Path) -> None:
+    """已是 child 的运行不得再派生 child，单层深度规则须在任何业务状态变化前执行。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(
         tmp_path,
         delegated_parent=True,

@@ -39,6 +39,8 @@ pytestmark = pytest.mark.skipif(
 
 
 def _service_profiles(tmp_path: Path) -> Path:
+    """复制 service 模板并仅打开测试所需的父子委派边，避免修改仓库内示例配置。"""
+
     source = Path(__file__).resolve().parents[2] / "templates" / "service-app"
     target = tmp_path / "service-app"
     shutil.copytree(source, target)
@@ -61,6 +63,8 @@ class _ApprovalDelegatingExecutor:
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
+        """首次执行稳定进入审批等待态，确保委派动作不会在授权前触达服务。"""
+
         del request, context
         return AgentExecutionResult.waiting(
             AgentApprovalRequest(
@@ -79,6 +83,8 @@ class _ApprovalDelegatingExecutor:
         context: AgentExecutionContext,
         grant: ApprovalGrant,
     ) -> AgentExecutionResult:
+        """获得 grant 后从可信 context 调用委派模块，并返回 parent 恢复所需的 child 关联坐标。"""
+
         del grant
         module = cast(Any, context.require_service("agent.delegate"))
         result = await module.delegate(
@@ -97,9 +103,13 @@ class _ApprovalDelegatingExecutor:
 
 
 class _ReportedCostFakeProvider:
+    """提供固定已报告成本的模型替身，使 service 集成测试能验证预算与证据收敛而不访问供应商。"""
+
     provider_id = "fake"
 
     def complete(self, request: Any, *, model: str) -> ModelResponse:
+        """返回确定性正文、token 和成本，消除模型结果差异对审批委派恢复顺序的干扰。"""
+
         return ModelResponse(
             provider=self.provider_id,
             model=model,
@@ -145,6 +155,8 @@ async def test_service_approval_delegation_resumes_parent_and_evidence_once(
     parent_executor = _ApprovalDelegatingExecutor()
 
     def resolve_executor(self: AgentRegistry, agent_id: str) -> Any:
+        """只替换父 agent 的审批委派 executor，其余 agent 继续按真实 registry 解析。"""
+
         if agent_id == "examples.basic":
             return parent_executor
         return original_resolve(self, agent_id)

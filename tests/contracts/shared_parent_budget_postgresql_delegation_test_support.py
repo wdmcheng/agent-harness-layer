@@ -375,6 +375,9 @@ async def assert_postgresql_0016_delegation_actual_over_and_released_proof(
                     "trace_id": "trace-a",
                 }
                 failed = {**claimed, "status": "failed"}
+                # released proof 只接受固定顺序的 delegation evidence；故意保留
+                # cancelled child 占位，验证 migration 不会把未创建 child 的记录
+                # 误认成已发生外部副作用。
                 for sequence, phase, state, payload in (
                     (1, "claimed", "published", claimed),
                     (2, "child", "cancelled", claimed),

@@ -19,6 +19,8 @@ from agent_harness.storage.models import RunEventCapacityModel, RunEvidenceOutbo
 
 
 def sqlite_dsn(path: Path) -> str:
+    """将隔离临时路径转换为异步 SQLite 连接串，避免测试共享状态。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 

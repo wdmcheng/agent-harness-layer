@@ -23,6 +23,8 @@ class ModelRequest(HarnessDTO):
     @field_validator("estimated_input_tokens", "max_output_tokens", mode="before")
     @classmethod
     def validate_token_bound(cls, value: object) -> object:
+        """拒绝 bool、负数和非整数请求预算，避免路由估算出现类型漂移。"""
+
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise ValueError("model token bounds must be non-negative integers")
         return value
@@ -70,6 +72,8 @@ class ModelResponse(HarnessDTO):
     @field_validator("latency_ms", mode="before")
     @classmethod
     def validate_latency(cls, value: object) -> object:
+        """验证 provider 返回的延迟为非负整数，禁止 SDK 的隐式字符串数值。"""
+
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise ValueError("model latency must be a non-negative integer")
         return value
@@ -77,6 +81,8 @@ class ModelResponse(HarnessDTO):
     @field_validator("cost_usd", mode="before")
     @classmethod
     def validate_cost(cls, value: object) -> object:
+        """验证可选成本为有限非负数；``None`` 仅由 unavailable 语义解释。"""
+
         if value is None:
             return value
         if (

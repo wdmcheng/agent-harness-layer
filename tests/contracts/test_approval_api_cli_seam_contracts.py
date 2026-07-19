@@ -72,6 +72,11 @@ from tests.contracts.test_auth_policy_hitl_approval_contracts import (
 
 @pytest.mark.asyncio
 async def test_approval_api_and_cli_share_service_seam(tmp_path: Path) -> None:
+    """固定 API 与 CLI 的审批结果及脱敏边界，避免客户端语义逐渐分叉。
+
+    同时验证公开读模型、审计记录和事件输出不会携带恢复令牌或原始工具
+    载荷，确保两个入口共享同一服务层时仍遵守最小暴露原则。
+    """
     from agent_harness.approvals import ApprovalService
     from agent_harness.audit import AuditService
     from agent_harness.auth import StaticTokenVerifier

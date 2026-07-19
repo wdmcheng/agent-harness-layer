@@ -21,6 +21,8 @@ from agent_harness.storage import (
 
 
 def request_hash(request: ExperimentRequest) -> str:
+    """生成执行请求的语义哈希，排除传输级 request id 与幂等键。"""
+
     payload = request.to_payload()
     payload.pop("request_id", None)
     payload.pop("idempotency_key", None)
@@ -41,6 +43,8 @@ def create_request_hash(request: ExperimentCreateRequest) -> str:
 def experiment_request_from_create(
     request: ExperimentCreateRequest, split_id: str
 ) -> ExperimentRequest:
+    """将创建请求与已持久化的 split id 结合为可执行实验请求。"""
+
     return ExperimentRequest(
         request_id=request.request_id,
         tenant_id=request.tenant_id,
@@ -59,6 +63,8 @@ def experiment_request_from_create(
 def experiment_create_data(
     request: ExperimentRequest, request_hash_value: str
 ) -> EvalExperimentCreate:
+    """投影执行请求为 repository 写入 DTO，保留版本化 harness 的不可变载荷。"""
+
     return EvalExperimentCreate(
         tenant_id=request.tenant_id,
         idempotency_key=request.idempotency_key,
@@ -85,6 +91,12 @@ def result_from_record(
     *,
     request_id: str,
 ) -> ExperimentResult:
+    """把持久化 experiment 与 split 还原为公开结果，并为本次响应注入 request id。
+
+    comparison 中的 provider 状态来自数据库当前快照，而不是调用方传入值；这样
+    terminal 后追加的外部 provider 信息不会被旧内存对象覆盖。
+    """
+
     baseline_payload = record.baseline_harness
     candidate_payload = record.candidate_harness
     comparison = (

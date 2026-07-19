@@ -57,6 +57,8 @@ async def seed_run(storage: SQLAlchemyStorage, *, request_id: str | None = None)
 
 
 async def resolve_trace(**_: object) -> str:
+    """为本地容量夹具返回稳定 trace，避免测试路径依赖额外的持久化查询。"""
+
     return "trace-a"
 
 

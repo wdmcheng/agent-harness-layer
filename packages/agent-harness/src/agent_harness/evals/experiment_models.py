@@ -41,6 +41,8 @@ RecommendationReasonCode = Literal[
 
 
 def _empty_provider_statuses() -> list[dict[str, object]]:
+    """为 Pydantic 提供独立的默认列表，避免不同实验结果共享可变状态。"""
+
     return []
 
 
@@ -57,11 +59,15 @@ class ExperimentCaseResult(HarnessDTO):
     @field_validator("evidence_refs")
     @classmethod
     def validate_evidence_refs(cls, value: list[str]) -> list[str]:
+        """限制单个 case 暴露的证据引用，防止把本地路径或秘密带入结果。"""
+
         validate_safe_evidence_refs(value, field_path="case_result.evidence_refs")
         return value
 
     @property
     def aggregate_score(self) -> float:
+        """返回指标分数的简单均值；没有可比较指标时稳定地返回零。"""
+
         if not self.metric_scores:
             return 0.0
         return sum(self.metric_scores.values()) / len(self.metric_scores)
@@ -79,6 +85,8 @@ class ExperimentEvaluationResult(HarnessDTO):
     @field_validator("local_evidence_refs")
     @classmethod
     def validate_local_evidence_refs(cls, value: list[str]) -> list[str]:
+        """校验本地耐久证据引用仍适合出现在评估结果的公共边界。"""
+
         validate_safe_evidence_refs(value, field_path="evaluation.local_evidence_refs")
         return value
 
@@ -87,6 +95,8 @@ class ExperimentEvaluationFailure(RuntimeError):
     """Evaluator 失败并携带已经完成、已落本地 evidence 的 case 结果。"""
 
     def __init__(self, message: str, *, partial_result: ExperimentEvaluationResult) -> None:
+        """保留可恢复的局部结果，供调用方落证据后再报告原始失败原因。"""
+
         super().__init__(message)
         self.partial_result = partial_result
 
@@ -104,7 +114,10 @@ class ExperimentEvaluator(Protocol):
         harness_version: HarnessVersionManifest,
         evaluator_profile: dict[str, Any],
         metric_versions: dict[str, str],
-    ) -> ExperimentEvaluationResult: ...
+    ) -> ExperimentEvaluationResult:
+        """在固定数据切分和版本上执行评估，并返回可比较的完整 case 结果。"""
+
+        ...
 
 
 class ExperimentEvidencePublisher(Protocol):
@@ -112,7 +125,10 @@ class ExperimentEvidencePublisher(Protocol):
 
     provider_name: str
 
-    async def publish(self, payload: dict[str, Any]) -> dict[str, object]: ...
+    async def publish(self, payload: dict[str, Any]) -> dict[str, object]:
+        """在本地证据已经提交后向单个外部 provider 发布脱敏摘要。"""
+
+        ...
 
 
 class ExperimentProviderStatus(HarnessDTO):
@@ -125,11 +141,15 @@ class ExperimentProviderStatus(HarnessDTO):
 
     @model_validator(mode="after")
     def validate_safe_summary(self) -> ExperimentProviderStatus:
+        """在状态摘要入库或扇出前复用公共值的大小与脱敏校验。"""
+
         _validate_safe_public_value(self.to_payload(), field_path="provider_status")
         return self
 
 
 class PerTagComparison(HarnessDTO):
+    """同一标签在基线与候选版本间的可审计分数对比。"""
+
     tag: str
     baseline_score: float
     candidate_score: float
@@ -137,6 +157,8 @@ class PerTagComparison(HarnessDTO):
 
 
 class FailureDifference(HarnessDTO):
+    """描述某个 case 在两份评估结果间的失败变化，并只携带安全证据引用。"""
+
     case_id: str
     subset: SubsetName
     tags: list[str]
@@ -147,11 +169,19 @@ class FailureDifference(HarnessDTO):
     @field_validator("evidence_refs")
     @classmethod
     def validate_evidence_refs(cls, value: list[str]) -> list[str]:
+        """确保失败变化不会因调试证据而突破公共结果边界。"""
+
         validate_safe_evidence_refs(value, field_path="failure_difference.evidence_refs")
         return value
 
 
 class ExperimentComparison(HarnessDTO):
+    """候选版本相对基线的汇总比较结果。
+
+    大型失败明细刻意不参与公开 DTO 序列化，只通过稳定引用指向本地证据，避免接口
+    响应和外部发布通道承载未经脱敏的调试内容。
+    """
+
     request_id: str | None = None
     experiment_id: str
     candidate_harness_version: str
@@ -173,19 +203,26 @@ class ExperimentComparison(HarnessDTO):
     @field_validator("local_evidence_refs")
     @classmethod
     def validate_local_evidence_refs(cls, value: list[str]) -> list[str]:
+        """约束比较汇总中可公开的本地证据引用集合。"""
+
         validate_safe_evidence_refs(value, field_path="comparison.local_evidence_refs")
         return value
 
     @field_validator("failure_details_ref")
     @classmethod
     def validate_failure_details_ref(cls, value: str | None) -> str | None:
+        """若提供明细引用，按单元素证据集合复用同一安全规则。"""
+
         if value is not None:
             validate_safe_evidence_refs([value], field_path="comparison.failure_details_ref")
         return value
 
 
 class ExperimentRequest(HarnessDTO):
-    """内部 service 输入；HTTP adapter 负责创建 split 并补默认 evaluator。"""
+    """内部 service 输入；HTTP adapter 负责创建 split 并补默认 evaluator。
+
+    与入口 body 分离后，执行服务不必信任 HTTP 层传来的身份、幂等键或评估器配置。
+    """
 
     request_id: str
     tenant_id: str
@@ -217,23 +254,34 @@ class ExperimentCreateBody(HarnessDTO):
     @field_validator("tags")
     @classmethod
     def normalize_tags(cls, value: list[BehaviorTag]) -> list[BehaviorTag]:
+        """去重并排序标签，保证数据切分和幂等身份不依赖请求数组顺序。"""
+
         return sorted(set(value), key=str)
 
     @field_validator("metadata")
     @classmethod
     def validate_safe_metadata(cls, value: dict[str, Any]) -> dict[str, Any]:
+        """仅允许可序列化、脱敏且有明确大小上限的调用方元数据。"""
+
         _validate_safe_public_value(value, field_path="metadata", max_bytes=16_384)
         return value
 
     @model_validator(mode="after")
     def validate_ratios(self) -> ExperimentCreateBody:
+        """要求优化集与留出集覆盖完整数据集，避免悄悄遗失或重复 case。"""
+
+        # 使用小容差兼容十进制字面量转为二进制浮点后的表示误差。
         if abs(self.optimization_ratio + self.holdout_ratio - 1.0) > 1e-9:
             raise ValueError("optimization_ratio and holdout_ratio must sum to 1")
         return self
 
 
 class ExperimentCreateRequest(ExperimentCreateBody):
-    """入口补入 identity、幂等与固定 evaluator profile 后的 service 输入。"""
+    """入口补入 identity、幂等与固定 evaluator profile 后的 service 输入。
+
+    默认 profile 只用于未显式配置的受控入口，持久化后由请求记录冻结，不能在重放时
+    根据当前默认值重新计算。
+    """
 
     request_id: str = Field(min_length=1)
     tenant_id: str = Field(min_length=1)
@@ -249,6 +297,8 @@ class ExperimentCreateRequest(ExperimentCreateBody):
 
 
 class ExperimentResult(HarnessDTO):
+    """创建或查询实验时返回的稳定摘要，不直接嵌入大型本地失败证据。"""
+
     request_id: str
     experiment_id: str
     status: ExperimentStatus
@@ -269,12 +319,17 @@ class ExperimentResult(HarnessDTO):
     @field_validator("local_evidence_refs")
     @classmethod
     def validate_local_evidence_refs(cls, value: list[str]) -> list[str]:
+        """校验实验摘要引用，保证 API、存储和 provider 扇出使用相同边界。"""
+
         validate_safe_evidence_refs(value, field_path="experiment.local_evidence_refs")
         return value
 
 
 class ExperimentCreateOutcome(HarnessDTO):
-    """让 adapter 区分 201 新建与 200 幂等重放，不暴露持久化细节。"""
+    """让 adapter 区分 201 新建与 200 幂等重放，不暴露持久化细节。
+
+    ``created`` 只描述本次请求是否新建记录，不能被客户端当作实验执行是否成功的状态。
+    """
 
     result: ExperimentResult
     created: bool
@@ -286,6 +341,12 @@ def _validate_safe_public_value(
     field_path: str,
     max_bytes: int = 4_096,
 ) -> None:
+    """验证任意将跨存储、接口或 provider 边界传递的值可安全内联。
+
+    这里先以稳定 JSON 序列化测量真实字节数，再拒绝秘密形态和本地绝对路径；不能只
+    依赖调用方字段名，因为嵌套 metadata 或 provider 明细也可能携带敏感内容。
+    """
+
     try:
         encoded = json.dumps(value, ensure_ascii=False, sort_keys=True).encode()
     except (TypeError, ValueError) as exc:
@@ -303,7 +364,11 @@ def validate_safe_evidence_refs(
     max_items: int = 100,
     max_bytes: int = 16_384,
 ) -> None:
-    """统一约束公开、持久化和 provider fan-out 共用的逻辑 evidence refs。"""
+    """统一约束公开、持久化和 provider fan-out 共用的逻辑 evidence refs。
+
+    除逐项长度外，整个集合也要通过公共值校验；这样既限制响应体膨胀，也阻止引用中
+    混入秘密、绝对路径或其他仅能留在本地诊断记录中的内容。
+    """
 
     if len(value) > max_items:
         raise ValueError(f"{field_path} exceeds the safe item count")
@@ -318,7 +383,11 @@ def bounded_public_evidence_refs(
     truth_ref: str,
     field_path: str,
 ) -> list[str]:
-    """合并结果超出公共边界时，只保留指向完整数据库证据的稳定引用。"""
+    """合并结果超出公共边界时，只保留指向完整数据库证据的稳定引用。
+
+    truth reference 必须始终保留：截断后调用方仍能沿着该引用取得完整事实，不能因
+    为发布通道的长度限制而丢失审计可追溯性。
+    """
 
     refs = sorted({truth_ref, *value})
     validate_safe_evidence_refs(
@@ -330,24 +399,30 @@ def bounded_public_evidence_refs(
     try:
         validate_safe_evidence_refs(refs, field_path=field_path)
     except ValueError:
+        # 明细超过公共边界并非执行失败；降级为单一真相引用，完整证据仍在本地。
         validate_safe_evidence_refs([truth_ref], field_path=field_path)
         return [truth_ref]
     return refs
 
 
 def _contains_unsafe_string(value: object) -> bool:
+    """递归识别会泄露本地位置或与脱敏结果混淆的文本形态。"""
+
     if isinstance(value, dict):
         mapping = cast(Mapping[object, object], value)
+        # 字典键也可能包含路径或秘密标签，不能只检查值。
         return any(
             _contains_unsafe_string(key) or _contains_unsafe_string(item)
             for key, item in mapping.items()
         )
     if isinstance(value, list):
+        # 只沿 JSON 可表示的容器递归；其他对象已由序列化校验拒绝。
         return any(_contains_unsafe_string(item) for item in cast(list[object], value))
     if not isinstance(value, str):
         return False
     return (
         "[REDACTED]" in value
+        # 两套 Path 判断覆盖运行环境和调用方可能传入的 Windows 文本路径。
         or Path(value).is_absolute()
         or PureWindowsPath(value).is_absolute()
         or value.casefold().startswith("file://")

@@ -71,6 +71,8 @@ async def test_queued_idempotency_conflict_window_reconciles_first_run(
         *args: Any,
         **kwargs: Any,
     ) -> Any:
+        """在 loser 建队前注入 winner，复现 repository 冲突后的回读窗口。"""
+
         nonlocal injected
         if not injected:
             injected = True
@@ -149,6 +151,8 @@ async def test_queued_trace_conflict_without_idempotent_winner_stays_conflict(
         *_args: Any,
         **_kwargs: Any,
     ) -> Any:
+        """持续模拟无归属 trace 冲突，确保 orchestrator 不会伪造重放结果。"""
+
         raise RunTraceRepositoryConflict("trace.conflict")
 
     monkeypatch.setattr(RunRepository, "create_queued", reject_trace)
@@ -213,6 +217,8 @@ async def test_postgresql_queued_same_key_same_trace_conflict_window_replays_fir
             *args: Any,
             **kwargs: Any,
         ) -> Any:
+            """在真实 PG 双连接中注入首个提交者，验证相同 race 的可重放收口。"""
+
             nonlocal injected
             if not injected:
                 injected = True

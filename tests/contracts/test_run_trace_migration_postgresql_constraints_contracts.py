@@ -26,6 +26,8 @@ async def test_0013_postgresql_canonical_event_run_owner_rejects_direct_bypass()
     from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
     async def snapshot(connection: AsyncConnection) -> str:
+        """读取事件表的稳定快照，用于证明数据库拒绝旁路写入时没有残留副作用。"""
+
         return str(
             (
                 await connection.execute(

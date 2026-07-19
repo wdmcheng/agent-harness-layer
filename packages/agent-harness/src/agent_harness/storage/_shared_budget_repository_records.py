@@ -24,6 +24,8 @@ _ZERO = Decimal("0")
 
 
 def _snapshot_hash(snapshot: object) -> str:
+    """以固定 JSON 编码计算冻结快照摘要，用于检测持久化内容漂移。"""
+
     encoded = json.dumps(
         snapshot,
         ensure_ascii=False,
@@ -41,6 +43,8 @@ def _ledger_snapshot_valid(model: ParentBudgetLedgerModel) -> bool:
 
 
 def _snapshot_decimal(value: object) -> Decimal | None:
+    """将快照中的金额解析为有限非负 Decimal，拒绝布尔值和非数值输入。"""
+
     if value is None:
         return None
     if isinstance(value, bool):
@@ -52,6 +56,8 @@ def _snapshot_decimal(value: object) -> Decimal | None:
 
 
 def _non_empty_string(value: object) -> bool:
+    """判断快照字段是否为非空字符串，避免 ``str(value)`` 掩盖类型错误。"""
+
     return isinstance(value, str) and bool(value)
 
 
@@ -60,12 +66,15 @@ def _snapshot_route_valid(
     *,
     allowed_model_routes: set[tuple[str, str]],
 ) -> bool:
+    """验证单条冻结路由的字段、价格和模型授权范围是否完整一致。"""
+
     if not isinstance(route, dict):
         return False
     typed = cast(dict[str, object], route)
     usage_kind = typed.get("usage_kind")
     provider = typed.get("provider")
     model = typed.get("model")
+    # 价格来源和版本是可审计身份的一部分，缺失时不能由运行时默认值补全。
     if (
         usage_kind not in {"model", "embedding"}
         or not _non_empty_string(provider)
@@ -101,12 +110,15 @@ def _agent_sub_snapshot_valid(
     owner_token_limit: int,
     owner_cost_limit: Decimal | None,
 ) -> bool:
+    """验证单个 agent 的子快照不突破 owner 预算且覆盖其允许模型路由。"""
+
     if not isinstance(value, dict):
         return False
     typed = cast(dict[str, object], value)
     model_policy = typed.get("model_policy")
     target_budget = typed.get("target_budget")
     routes = typed.get("routes")
+    # agent 身份、模型策略、目标预算和路线必须一起出现；部分对象视为无效快照。
     if (
         typed.get("agent_id") != agent_id
         or not _non_empty_string(typed.get("descriptor_version"))
@@ -219,10 +231,14 @@ def _ledger_create_snapshot_valid(data: LedgerCreate, root: AgentRunModel) -> bo
 
 
 def _decimal(value: Decimal | None) -> Decimal:
+    """将可选账本影响统一为可安全累加的零值 Decimal。"""
+
     return _ZERO if value is None else value
 
 
 def _ledger_record(model: ParentBudgetLedgerModel) -> LedgerRecord:
+    """将账本 ORM 模型映射为领域记录，不暴露冻结快照原文。"""
+
     return LedgerRecord(
         tenant_id=model.tenant_id,
         budget_owner_run_id=model.budget_owner_run_id,
@@ -237,6 +253,8 @@ def _ledger_record(model: ParentBudgetLedgerModel) -> LedgerRecord:
 
 
 def _claim_record(model: BudgetOperationClaimModel, *, replayed: bool = False) -> ClaimRecord:
+    """将直接预算 claim 映射为领域记录，并显式标记本次是否来自重放。"""
+
     return ClaimRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -256,6 +274,8 @@ def _claim_record(model: BudgetOperationClaimModel, *, replayed: bool = False) -
 def _allocation_record(
     model: DelegationBudgetAllocationModel, *, replayed: bool = False
 ) -> AllocationRecord:
+    """将委派预算分配映射为领域记录，保留副作用状态供恢复逻辑判断。"""
+
     return AllocationRecord(
         id=model.id,
         tenant_id=model.tenant_id,

@@ -1,4 +1,4 @@
-"""Eval experiment 创建、比较与人工 acceptance 路由。"""
+"""评测实验的创建、只读比较与人工验收 API 路由。"""
 
 from __future__ import annotations
 
@@ -130,6 +130,7 @@ def _require_experiment_permission(identity: IdentityContext, action: str) -> No
 
 
 def _experiment_response(result: ExperimentResult) -> EvalExperimentResponse:
+    """投影实验结果为公共摘要，刻意不在创建或读取响应内联 comparison 明细。"""
     payload = result.model_dump(mode="json", exclude_none=False)
     payload.pop("comparison", None)
     return EvalExperimentResponse.model_validate(payload)
@@ -138,10 +139,12 @@ def _experiment_response(result: ExperimentResult) -> EvalExperimentResponse:
 def _comparison_response(
     comparison: ExperimentComparison,
 ) -> EvalExperimentComparisonResponse:
+    """将已持久化比较结果转换为响应模型，不重新运行评测或 Provider。"""
     return EvalExperimentComparisonResponse.model_validate(comparison.to_payload())
 
 
 def _request_validation_error(exc: ValidationError) -> RequestValidationError:
+    """把领域 DTO 的校验错误交给 FastAPI 统一的 422 错误信封。"""
     return RequestValidationError(exc.errors())
 
 

@@ -53,11 +53,13 @@ class ModelRouter:
         config: ModelRouterConfig,
         providers: Mapping[str, ModelProvider],
     ) -> None:
+        """冻结当前路由配置并复制 provider 映射，隔离调用方后续字典修改。"""
+
         self.config = config
         self._providers = dict(providers)
 
     def reload(self, config: ModelRouterConfig) -> None:
-        """显式 reload seam；P0 不做 worker 运行中自动热重载。"""
+        """显式 reload seam；当前实现不做 worker 运行中的自动热重载。"""
 
         self.config = config
 
@@ -80,9 +82,8 @@ class ModelRouter:
         provider_id = request.provider or active.default_provider
         if provider_id not in self._providers:
             raise KeyError(f"model provider is not configured: {provider_id}")
-        # UTF-8 byte count is deliberately conservative: no supported tokenizer can
-        # produce more than one billable token per byte. Caller estimates are evidence
-        # only and never shrink this provider-enforced bound.
+        # UTF-8 字节数是保守上界：受支持 tokenizer 的计费 token 数不会超过字节数。
+        # 调用方估算仅作为 evidence，绝不能缩小 provider 强制执行的这个边界。
         trusted_input_bound = len(request.prompt.encode("utf-8"))
         estimated_tokens = trusted_input_bound + request.max_output_tokens
         selected_model = request.model or active.default_model

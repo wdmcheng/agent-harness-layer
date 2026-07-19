@@ -30,6 +30,8 @@ class ExtensionStatus:
 
 
 def eval_directory_for_profiles(profiles_dir: Path | None) -> Path:
+    """根据 profile 目录或当前工作目录推导评测用例目录，保持 CLI 默认可预测。"""
+
     if profiles_dir is not None:
         return profiles_dir.parent.parent / "eval-cases"
     cwd_candidate = Path.cwd() / "templates" / "service-app" / "eval-cases"
@@ -39,11 +41,15 @@ def eval_directory_for_profiles(profiles_dir: Path | None) -> Path:
 
 
 def migration_revision(settings: HarnessSettings, storage_dsn: str | None = None) -> str | None:
+    """读取配置或显式 DSN 所指数据库的当前迁移版本，不产生任何写入。"""
+
     dsn = storage_dsn or storage_dsn_from_settings(settings)
     return get_current_revision(dsn)
 
 
 def _directory_writable(path: Path) -> tuple[bool, str]:
+    """通过创建并删除短生命周期探针文件验证目录的实际写入能力。"""
+
     if not path.exists():
         return False, "missing"
     if not path.is_dir():
@@ -61,12 +67,16 @@ def _directory_writable(path: Path) -> tuple[bool, str]:
 
 
 def eval_directory_status(profiles_dir: Path | None) -> tuple[bool, str, Path]:
+    """返回评测目录的可写状态、诊断信息和最终解析路径。"""
+
     directory = eval_directory_for_profiles(profiles_dir)
     ok, message = _directory_writable(directory)
     return ok, message, directory
 
 
 def observability_status(settings: HarnessSettings) -> tuple[bool, str]:
+    """验证本地 JSONL 观测落点可写；非本地后端仅报告其已配置状态。"""
+
     if settings.observability.kind != "local-jsonl":
         return True, f"{settings.observability.kind} configured"
 
@@ -93,6 +103,8 @@ def observability_provider_statuses(settings: HarnessSettings) -> list[str]:
 
 
 def _format_observability_provider(provider: ObservabilityProviderSettings) -> str:
+    """生成不泄露 token 值的外部观测 provider 摘要，并说明本地回退仍可用。"""
+
     if not provider.enabled:
         return f"{provider.kind}: disabled (optional; local-jsonl remains active)"
     if provider.token_env is not None:
@@ -106,6 +118,8 @@ def _format_observability_provider(provider: ObservabilityProviderSettings) -> s
 
 
 def redis_status(settings: HarnessSettings, timeout_seconds: float = 1.0) -> tuple[bool, str]:
+    """对已启用 Redis 队列执行有界 PING 探测，避免 doctor 长时间阻塞。"""
+
     if settings.queue.kind != "redis":
         return True, "not required"
     if not settings.queue.dsn:
@@ -115,6 +129,7 @@ def redis_status(settings: HarnessSettings, timeout_seconds: float = 1.0) -> tup
     host = parsed.hostname or "localhost"
     port = parsed.port or 6379
     try:
+        # 直接发送最小 RESP PING，避免为诊断命令引入额外 Redis 客户端状态。
         with socket.create_connection((host, port), timeout=timeout_seconds) as connection:
             connection.sendall(b"*1\r\n$4\r\nPING\r\n")
             response = connection.recv(16)
@@ -167,15 +182,20 @@ def format_retrieval_extension_status(status: ExtensionStatus) -> str:
 
 
 def _run_extension_probe(dsn: str, names: tuple[str, ...]) -> list[ExtensionStatus]:
+    """在同步 doctor 命令中运行异步扩展探测，保持调用方无需管理事件循环。"""
+
     import asyncio
 
     return asyncio.run(_extension_probe(dsn, names))
 
 
 async def _extension_probe(dsn: str, names: tuple[str, ...]) -> list[ExtensionStatus]:
+    """查询 PostgreSQL 可选扩展可用性；任何连接异常降级为可展示诊断结果。"""
+
     engine = create_async_engine(dsn)
     statuses: list[ExtensionStatus] = []
     try:
+        # 每个扩展独立记录状态，缺失可选能力不会让整个 doctor 命令失败。
         async with engine.connect() as connection:
             for name in names:
                 result = await connection.execute(

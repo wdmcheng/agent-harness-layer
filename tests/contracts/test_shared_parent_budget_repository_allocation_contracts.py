@@ -10,6 +10,8 @@ from agent_harness.delegation.models import delegation_relation_id
 
 @pytest.mark.asyncio
 async def test_child_allocation_replays_without_parent_double_charge(tmp_path: Path) -> None:
+    """验证 child allocation 重放复用既有结算，父账本不会因此再次计入预算影响。"""
+
     dsn = sqlite_dsn(tmp_path / "allocation.sqlite3")
     run_migrations(dsn)
     storage = SQLAlchemyStorage(dsn)
@@ -264,6 +266,8 @@ async def test_atomic_delegation_rejects_target_missing_from_explicit_edge(
 
 @pytest.mark.asyncio
 async def test_delegation_0014_0015_0016_claim_is_one_uow(tmp_path: Path) -> None:
+    """验证 delegation claim、共享预算预约和有序证据组由同一 UoW 原子提交。"""
+
     dsn = sqlite_dsn(tmp_path / "delegation-uow.sqlite3")
     run_migrations(dsn)
     storage = SQLAlchemyStorage(dsn)

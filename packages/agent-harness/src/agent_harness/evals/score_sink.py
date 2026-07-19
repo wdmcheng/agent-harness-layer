@@ -21,6 +21,8 @@ from agent_harness.storage import EvalScoreCreate
 
 
 def _empty_telemetry_statuses() -> list[TelemetryStatus]:
+    """为每个写入结果创建独立 provider 状态列表，避免 Pydantic 默认值共享。"""
+
     return []
 
 
@@ -42,6 +44,8 @@ class ScoreSink:
         telemetry: TelemetryFacade | None = None,
         state_dir: Path | None = None,
     ) -> None:
+        """保存 local-first 目标与可选观测门面；不在构造时创建状态文件。"""
+
         self._local_path = local_path
         self._telemetry = telemetry
         self._state_dir = state_dir

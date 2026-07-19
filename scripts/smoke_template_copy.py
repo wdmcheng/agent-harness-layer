@@ -39,6 +39,8 @@ def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> subprocess.Co
 
 
 def _free_port() -> int:
+    """向操作系统申请短暂 loopback 端口，供独立复制模板进程监听。"""
+
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         return int(listener.getsockname()[1])
@@ -98,6 +100,8 @@ def _compose_down(*, copied: Path, env: dict[str, str]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """解析是否额外启动复制项目的 PostgreSQL/Redis 服务冒烟。"""
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--service",

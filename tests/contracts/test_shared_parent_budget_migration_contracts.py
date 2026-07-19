@@ -21,10 +21,14 @@ from agent_harness.storage.shared_budget import OperationIdentity
 
 
 def sqlite_dsn(path: Path) -> str:
+    """为共享预算迁移测试创建隔离 SQLite 异步 DSN。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
 def canonical_hash(value: object) -> str:
+    """按迁移契约使用稳定 JSON 序列化计算哈希，避免字典顺序影响证据校验。"""
+
     return hashlib.sha256(
         json.dumps(
             value,

@@ -17,11 +17,17 @@ from agent_harness.identity import IdentityContext
 
 
 class NeverEvaluator:
+    """接受决策路径不应再次运行评估器；任何调用都表示服务边界被绕过。"""
+
     async def evaluate(self, **_kwargs: Any) -> Any:
+        """直接失败以证明接受服务只读取已完成实验和比较结果。"""
+
         raise AssertionError("acceptance read path must not rerun evaluator")
 
 
 def _actor(user_id: str = "reviewer-1", *, allowed: bool = True) -> IdentityContext:
+    """构造具备或缺少实验接受权限的评审身份夹具。"""
+
     return IdentityContext(
         tenant_id="tenant-a",
         user_id=user_id,
@@ -32,6 +38,8 @@ def _actor(user_id: str = "reviewer-1", *, allowed: bool = True) -> IdentityCont
 
 
 def _manifest(seed: str):
+    """构造完整可验证的 harness 版本清单，供接受记录冻结 candidate 身份。"""
+
     from agent_harness.evals import HarnessInputSource, HarnessVersionBuilder
 
     return HarnessVersionBuilder().build(
@@ -51,6 +59,12 @@ async def _seed_experiment(
     *,
     recommendation: Literal["accept", "reject"] = "accept",
 ) -> tuple[str, str]:
+    """持久化一个已完成实验与比较结果，返回实验和 candidate 版本标识。
+
+    夹具直接写入执行结果而不调用真实评估器，使接受测试聚焦决策、策略、审计和原子
+    性，而非数据集切分或模型调用。
+    """
+
     from agent_harness.evals import ExperimentComparison, PerTagComparison
     from agent_harness.evals.experiment_models import RecommendationReasonCode
     from agent_harness.storage import EvalDatasetSplitCreate, EvalExperimentCreate
@@ -94,6 +108,7 @@ async def _seed_experiment(
                 candidate_harness=candidate.to_payload(),
             )
         )
+        # 两种推荐分别覆盖接受绑定和拒绝后续处理的决策分支。
         reason_codes: list[RecommendationReasonCode] = (
             [
                 "target_tag_improved",
@@ -146,6 +161,8 @@ async def _seed_experiment(
 
 
 def _acceptance_service(storage: Any, policy: Any):
+    """用禁止评估的实验服务装配接受服务，确保测试不意外产生二次执行。"""
+
     from agent_harness.evals import AcceptanceService, ExperimentService
 
     experiments = ExperimentService(storage=storage, evaluator=NeverEvaluator())
@@ -153,6 +170,8 @@ def _acceptance_service(storage: Any, policy: Any):
 
 
 def test_acceptance_request_rejects_blank_secret_and_unsafe_refs() -> None:
+    """接受请求在入口拒绝空白/敏感理由和不安全的后续引用。"""
+
     from agent_harness.evals import ExperimentAcceptanceRequest
 
     for reason in ("   ", "api_key=acceptance-secret-12345"):
@@ -174,6 +193,8 @@ def test_acceptance_request_rejects_blank_secret_and_unsafe_refs() -> None:
 
 @pytest.mark.asyncio
 async def test_acceptance_is_atomic_idempotent_and_reviewer_bound(tmp_path: Path) -> None:
+    """相同决策幂等重放为一条决定与审计记录，并绑定最初评审者。"""
+
     from agent_harness.evals import EvalExperimentError, ExperimentAcceptanceRequest
     from agent_harness.policy import PolicyEngine, YamlPolicyProvider
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
@@ -191,6 +212,7 @@ async def test_acceptance_is_atomic_idempotent_and_reviewer_bound(tmp_path: Path
             reason="all experiment evidence reviewed",
             accepted_harness_version=candidate_version,
         )
+        # 第二次调用只改变请求标识，验证重放不创建新的审计副作用。
         accepted = await service.decide(
             actor=_actor(), experiment_id=experiment_id, request=request
         )
@@ -229,6 +251,8 @@ async def test_acceptance_is_atomic_idempotent_and_reviewer_bound(tmp_path: Path
 
 @pytest.mark.asyncio
 async def test_concurrent_identical_accept_reconciles_to_one_decision(tmp_path: Path) -> None:
+    """并发相同接受请求必须收敛到一条决定与一条审计记录。"""
+
     from agent_harness.evals import ExperimentAcceptanceRequest
     from agent_harness.policy import PolicyEngine, YamlPolicyProvider
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
@@ -246,6 +270,7 @@ async def test_concurrent_identical_accept_reconciles_to_one_decision(tmp_path: 
             reason="same concurrent review",
             accepted_harness_version=candidate_version,
         )
+        # 同一 storage 并发请求覆盖唯一键竞争与服务层重读协调。
         first, second = await asyncio.gather(
             service.decide(actor=_actor(), experiment_id=experiment_id, request=request),
             service.decide(
@@ -263,6 +288,8 @@ async def test_concurrent_identical_accept_reconciles_to_one_decision(tmp_path: 
 
 @pytest.mark.asyncio
 async def test_acceptance_version_policy_and_gate_fail_without_decision(tmp_path: Path) -> None:
+    """版本不匹配、策略拒绝或要求额外审批时都不得留下任何接受或审计记录。"""
+
     from agent_harness.evals import EvalExperimentError, ExperimentAcceptanceRequest
     from agent_harness.policy import PolicyEngine, YamlPolicyProvider
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
@@ -314,6 +341,8 @@ async def test_acceptance_version_policy_and_gate_fail_without_decision(tmp_path
 
 @pytest.mark.asyncio
 async def test_rejected_decision_records_audit_without_production_binding(tmp_path: Path) -> None:
+    """拒绝决定仍需审计，但不能写入将 candidate 绑定到生产的字段。"""
+
     from agent_harness.evals import ExperimentAcceptanceRequest
     from agent_harness.policy import PolicyEngine, YamlPolicyProvider
     from agent_harness.storage import SQLAlchemyStorage, run_migrations

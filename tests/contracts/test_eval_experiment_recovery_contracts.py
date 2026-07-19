@@ -16,11 +16,18 @@ from tests.contracts.test_eval_experiment_api_contracts import (
 
 
 def experiment_body() -> tuple[dict[str, object], str]:
+    """构造可比较的 baseline/candidate harness 请求体。
+
+    同时返回候选版本标识，供 evaluator 夹具与目标版本建立稳定绑定。
+    """
+
     from agent_harness.evals import HarnessInputSource, HarnessVersionBuilder
 
     builder = HarnessVersionBuilder()
 
     def manifest(seed: str):
+        """从固定输入维度构建一个脱敏 harness 版本，seed 仅改变版本内容以制造比较双方。"""
+
         return builder.build(
             {
                 "prompt_instruction": HarnessInputSource(value={"prompt": seed}),
@@ -48,6 +55,8 @@ def experiment_body() -> tuple[dict[str, object], str]:
 
 
 async def seed_approved_cases(storage: Any) -> None:
+    """写入并批准最小多标签评测集，确保实验恢复用例不会被草稿过滤逻辑干扰。"""
+
     from agent_harness.storage import EvalCaseCreate
 
     async with storage.uow() as uow:
@@ -72,6 +81,8 @@ async def seed_approved_cases(storage: Any) -> None:
 
 
 def experiment_request(*, key: str, tags: list[str] | None = None):
+    """基于共享完整请求体生成带稳定幂等键的创建 DTO，可选覆盖目标标签以测试冲突。"""
+
     from agent_harness.evals import ExperimentCreateRequest
 
     body, _candidate_id = experiment_body()

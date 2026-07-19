@@ -65,9 +65,13 @@ async def asgi_request(
     raw_body = b"" if body is None else json.dumps(body).encode()
 
     async def receive() -> dict[str, Any]:
+        """提供单段请求体，模拟无分块的 ASGI 客户端输入。"""
+
         return {"type": "http.request", "body": raw_body, "more_body": False}
 
     async def send(message: dict[str, Any]) -> None:
+        """收集 app 写出的 ASGI 帧，供调用方还原状态码与 JSON 响应。"""
+
         messages.append(message)
 
     request_headers = [

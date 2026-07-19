@@ -22,7 +22,11 @@ from agent_harness.tools.workspace import WorkspaceAccessError, WorkspacePolicy
 
 
 class FileTool:
-    """内置 workspace 文件工具；直接调用时也返回 ToolCallResult。"""
+    """内置工作区文件工具；直接调用时也返回 ``ToolCallResult``。
+
+    所有路径必须先经过 ``WorkspacePolicy``，危险写入和删除还必须通过已批准 grant 或
+    ``PolicyEngine``；结果统一走输出守卫，避免大文件内容或敏感文本直接进入事件边界。
+    """
 
     def __init__(
         self,
@@ -32,6 +36,8 @@ class FileTool:
         policy: PolicyEngine | None = None,
         inline_result_bytes: int = 8192,
     ) -> None:
+        """绑定工作区、artifact 存储和可选策略入口，并固定内联结果的字节上限。"""
+
         self._workspace = workspace
         self._artifact_store = artifact_store
         self._policy = policy
@@ -43,6 +49,8 @@ class FileTool:
         *,
         context: ToolRuntimeContext,
     ) -> ToolCallResult:
+        """在工作区边界内读取 UTF-8 文件，并将内容交给输出守卫决定是否外置 artifact。"""
+
         path = str(request.arguments.get("path", ""))
         try:
             target = self._workspace.resolve(path)
@@ -66,6 +74,8 @@ class FileTool:
         *,
         context: ToolRuntimeContext,
     ) -> ToolCallResult:
+        """经审批或策略放行后写入 UTF-8 文件；路径解析仍由工作区边界强制约束。"""
+
         policy_error = await self._dangerous_policy_error(
             request,
             context,
@@ -78,6 +88,7 @@ class FileTool:
         content = str(request.arguments.get("content", ""))
         try:
             target = self._workspace.resolve(path)
+            # 父目录只能在解析后的工作区内创建，不能由原始参数绕过根目录限制。
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
             payload = {
@@ -100,6 +111,8 @@ class FileTool:
         *,
         context: ToolRuntimeContext,
     ) -> ToolCallResult:
+        """列出工作区内直接子项，并过滤策略标记为忽略的路径。"""
+
         path = str(request.arguments.get("path", "."))
         try:
             target = self._workspace.resolve(path)
@@ -124,6 +137,8 @@ class FileTool:
         *,
         context: ToolRuntimeContext,
     ) -> ToolCallResult:
+        """在未忽略的工作区普通文件中搜索文本，只返回匹配路径而不回传文件内容。"""
+
         query = str(request.arguments.get("query", ""))
         try:
             matches = _search_workspace(self._workspace.root, query, self._workspace)
@@ -143,7 +158,11 @@ class FileTool:
         *,
         context: ToolRuntimeContext,
     ) -> ToolCallResult:
-        """对单文件执行受控文本替换 patch。"""
+        """对单文件执行受控文本替换 patch。
+
+        仅替换首个完全匹配的旧文本，找不到旧文本时不写入；这使调用方能根据结果区分
+        并发或前置状态变化，而不是无界地应用模糊替换。
+        """
 
         policy_error = await self._dangerous_policy_error(
             request,
@@ -189,6 +208,8 @@ class FileTool:
         *,
         context: ToolRuntimeContext,
     ) -> ToolCallResult:
+        """经审批或策略放行后删除工作区内单个文件，不提供递归目录删除能力。"""
+
         policy_error = await self._dangerous_policy_error(
             request,
             context,
@@ -220,6 +241,12 @@ class FileTool:
         action: str,
         resource: str,
     ) -> ToolCallResult | None:
+        """为危险文件操作复用已批准 grant，或向策略入口请求允许、拒绝或审批决定。
+
+        返回 ``None`` 表示可以继续执行；其他返回值已经是可直接交给调用方的标准错误
+        结果，调用者必须立即返回而不能在策略拒绝后继续碰触文件系统。
+        """
+
         # grant 已由 ToolRegistry 对 approval/tenant/identity/run/action/resource/
         # arguments hash 和持久化 lease 全量校验；这里不能再次返回
         # require_approval，否则 approved continuation 永远无法执行真实文件动作。
@@ -266,6 +293,8 @@ def _file_success(
     artifact_store: FileArtifactStore,
     inline_result_bytes: int,
 ) -> ToolCallResult:
+    """把文件工具成功载荷包装为带独立 invocation id、artifact 引用和 trace 的标准结果。"""
+
     invocation_id = str(uuid4())
     result, artifact_ref, truncation = guarded_tool_payload(
         tool_name=request.tool_name,
@@ -295,6 +324,8 @@ def _file_error(
     *,
     policy: dict[str, Any] | None = None,
 ) -> ToolCallResult:
+    """把路径、策略或执行错误收敛为稳定工具错误，不泄露未授权文件内容。"""
+
     invocation_id = str(uuid4())
     return ToolCallResult(
         tool_name=request.tool_name,
@@ -309,10 +340,14 @@ def _file_error(
 
 
 def _relative_to_root(path: Path, root: Path) -> str:
+    """将已验证的工作区内绝对路径转换为对调用方可见的相对 POSIX 路径。"""
+
     return path.relative_to(root).as_posix()
 
 
 def _search_workspace(root: Path, query: str, workspace: WorkspacePolicy) -> list[dict[str, Any]]:
+    """遍历未忽略工作区文件查找文本，跳过无法读取或不再满足边界的候选文件。"""
+
     matches: list[dict[str, Any]] = []
     if not query:
         return matches
@@ -321,6 +356,7 @@ def _search_workspace(root: Path, query: str, workspace: WorkspacePolicy) -> lis
         if workspace.is_ignored(relative):
             continue
         try:
+            # 每个候选再次通过 policy 解析，防止遍历期间出现的符号链接或边界变化越权。
             target = workspace.resolve(relative)
             if not target.is_file():
                 continue

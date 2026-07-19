@@ -18,6 +18,8 @@ class FakeContractExecutor:
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
+        """返回固定完成结果，隔离 runtime 编排测试与真实模型或工具副作用。"""
+
         del request, context
         return AgentExecutionResult.completed({"result": "fake-ok"})
 
@@ -27,6 +29,8 @@ class FakeContractExecutor:
         context: AgentExecutionContext,
         grant: ApprovalGrant,
     ) -> AgentExecutionResult:
+        """返回固定恢复结果，验证审批恢复协议而不执行外部动作。"""
+
         del request, context, grant
         return AgentExecutionResult.completed({"resumed": True})
 

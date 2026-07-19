@@ -19,6 +19,11 @@ from app.main import create_app
 
 @pytest.mark.asyncio
 async def test_internal_run_events_require_policy_permission(tmp_path: Path) -> None:
+    """验证内部事件默认脱敏，只有获授权主体才能请求完整运行轨迹。
+
+    该边界同时防止低权限用户通过查询参数提升可见性，并确认任何返回模型
+    都不会把恢复令牌一类运行控制信息泄露给调用方。
+    """
     from agent_harness.auth import StaticTokenVerifier
     from agent_harness.policy import PolicyEngine, YamlPolicyProvider
 

@@ -54,6 +54,8 @@ class SharedBudgetRepository(
     """所有调用都运行在 application UoW 的同一个 AsyncSession 内。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定调用方持有的 UoW，会话提交与回滚仍由上层统一控制。"""
+
         self._session = session
 
     async def create_ledger(self, data: LedgerCreate) -> LedgerRecord:
@@ -109,6 +111,8 @@ class SharedBudgetRepository(
         return _ledger_record(model)
 
     async def get_ledger(self, tenant_id: str, budget_owner_run_id: str) -> LedgerRecord | None:
+        """读取有效账本快照，拒绝把损坏或过期快照暴露给预算决策层。"""
+
         model = await self._session.get(
             ParentBudgetLedgerModel,
             (tenant_id, budget_owner_run_id),

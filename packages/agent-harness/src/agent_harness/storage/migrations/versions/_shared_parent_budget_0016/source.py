@@ -113,6 +113,12 @@ def _versioned_history_matches(
     snapshot: Mapping[str, object],
     delegation_fingerprint_proofs_hash: str,
 ) -> bool:
+    """验证版本化 history 是否与冻结账本、代理目录及 delegation 证明完全一致。
+
+    迁移恢复不能仅相信单个 hash：此处逐项重建 descriptor/catalog 投影，确保
+    checkpoint 所声称的历史确实来自同一份 durable snapshot。
+    """
+
     raw_agents = snapshot.get("agents")
     if not isinstance(raw_agents, Mapping):
         return False

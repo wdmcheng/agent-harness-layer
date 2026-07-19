@@ -1,4 +1,4 @@
-"""封闭有序 evidence group 的持久化操作。"""
+"""封闭有序证据组的持久化操作，保护 resolution 与 terminal 的发布顺序。"""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from agent_harness.storage.models import RunEvidenceOutboxModel
 
 
 def _required_text(item: Mapping[str, object], key: str) -> str:
+    """读取组项目的必填非空文本字段，拒绝把缺失 ID 或类型错误带入 outbox。"""
     value = item.get(key)
     if not isinstance(value, str) or not value:
         raise ValueError(f"ordered evidence item requires non-empty {key}")
@@ -21,6 +22,7 @@ def _required_text(item: Mapping[str, object], key: str) -> str:
 
 
 def _required_non_negative_int(item: Mapping[str, object], key: str) -> int:
+    """读取非负整数容量或序号字段，显式拒绝 bool 等 Python 子类型混入计数。"""
     value = item.get(key)
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f"ordered evidence item requires non-negative integer {key}")
@@ -28,6 +30,7 @@ def _required_non_negative_int(item: Mapping[str, object], key: str) -> int:
 
 
 def _optional_result(item: Mapping[str, object]) -> dict[str, Any] | None:
+    """规范化可选结果对象，复制 mapping 以免调用方随后原地修改持久化意图。"""
     value = item.get("result")
     if value is None:
         return None
@@ -100,6 +103,7 @@ class OrderedEvidenceRepositoryMixin:
         return models
 
     async def ordered_group(self, *, group_id: str) -> list[RunEvidenceOutboxModel]:
+        """按 sequence_in_group 读取完整证据组，供恢复与一致性比较使用。"""
         result = await self._session.scalars(
             select(RunEvidenceOutboxModel)
             .where(RunEvidenceOutboxModel.group_id == group_id)
@@ -108,6 +112,7 @@ class OrderedEvidenceRepositoryMixin:
         return list(result.all())
 
     async def mark_group_published(self, *, group_id: str) -> int:
+        """将整个组标记为已发布；缺失组必须失败，不能把恢复误报为成功。"""
         changed = cast(
             CursorResult[Any],
             await self._session.execute(
@@ -126,6 +131,7 @@ class OrderedEvidenceRepositoryMixin:
         group_id: str,
         result: Mapping[str, object],
     ) -> int:
+        """只更新仍待发布组的共享结果，已发布组不可回写以维持证据不可变性。"""
         changed = cast(
             CursorResult[Any],
             await self._session.execute(

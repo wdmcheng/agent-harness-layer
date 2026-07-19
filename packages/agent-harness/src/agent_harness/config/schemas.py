@@ -36,6 +36,8 @@ class ObservabilityProviderSettings(HarnessDTO):
 
 
 def _empty_observability_providers() -> list[ObservabilityProviderSettings]:
+    """为每次配置解析创建独立 provider 列表，避免默认值跨 profile 共享。"""
+
     return []
 
 
@@ -106,6 +108,8 @@ class ServiceSettings(HarnessDTO):
 
 
 def _empty_string_list() -> list[str]:
+    """为 MCP 可变字符串配置提供独立默认容器，防止解析结果互相污染。"""
+
     return []
 
 

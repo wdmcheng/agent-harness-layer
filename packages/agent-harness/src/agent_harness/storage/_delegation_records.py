@@ -30,19 +30,23 @@ class DelegationStorageError(RuntimeError):
     """只暴露封闭 delegation 错误码，不回显租户或预算内部值。"""
 
     def __init__(self, code: str) -> None:
+        """保存可安全跨 service 边界传播的错误码。"""
+
         super().__init__(code)
         self.code = code
 
 
 class DelegationStorageConflict(DelegationStorageError):
-    pass
+    """表示 durable delegation 关系或重放证据相互矛盾。"""
 
 
 class DelegationBudgetExceeded(DelegationStorageError):
-    pass
+    """表示 delegation 预算记录不满足可安全结算的边界。"""
 
 
 class DelegationClaimCreate(HarnessDTO):
+    """创建或重放 delegation claim 时需要逐值固定的受信输入。"""
+
     delegation_id: str = Field(min_length=1)
     tenant_id: str = Field(min_length=1)
     parent_run_id: str = Field(min_length=1)
@@ -64,6 +68,8 @@ class DelegationClaimCreate(HarnessDTO):
     @field_validator("parent_token_limit", "requested_token_reservation", mode="before")
     @classmethod
     def validate_token_budget(cls, value: object) -> object:
+        """拒绝 bool、负数和隐式数值，避免错误预算改变 parent 占用。"""
+
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise ValueError("delegation token budget must be a non-negative integer")
         return value
@@ -71,6 +77,8 @@ class DelegationClaimCreate(HarnessDTO):
     @field_validator("parent_cost_limit", "requested_cost_reservation", mode="before")
     @classmethod
     def validate_cost_budget(cls, value: object) -> object:
+        """校验可选 cost 边界为有限非负数，保留 ``None`` 表示该维关闭。"""
+
         if value is None:
             return None
         if isinstance(value, bool) or not isinstance(value, int | float):
@@ -81,6 +89,8 @@ class DelegationClaimCreate(HarnessDTO):
 
 
 class DelegationRecord(HarnessDTO):
+    """跨 UoW 传递的 delegation 关系快照，不暴露 ORM 对象。"""
+
     id: str
     tenant_id: str
     parent_run_id: str
@@ -102,13 +112,15 @@ class DelegationRecord(HarnessDTO):
 
 
 class DelegationReplayIdentitySeed(HarnessDTO):
-    """Stable relation 与可选 0016 顶层预算身份的只读重放种子。"""
+    """稳定 relation 与可选顶层预算身份的只读重放种子。"""
 
     delegation: DelegationRecord
     budget_identity: OperationIdentity | None
 
 
 class DelegationBudgetReservationRecord(HarnessDTO):
+    """delegation 在 parent 共享账本中的预算预约与结算快照。"""
+
     id: str
     delegation_id: str
     tenant_id: str
@@ -124,12 +136,16 @@ class DelegationBudgetReservationRecord(HarnessDTO):
 
 
 class DelegationClaimResult(HarnessDTO):
+    """claim 操作的关系、预约和首次创建标记，供调用方决定重放路径。"""
+
     delegation: DelegationRecord
     reservation: DelegationBudgetReservationRecord
     created: bool
 
 
 class DelegationAggregateRecord(HarnessDTO):
+    """child 收口后写入的脱敏聚合结果与 evidence 引用。"""
+
     id: str
     delegation_id: str
     tenant_id: str
@@ -143,7 +159,7 @@ class DelegationAggregateRecord(HarnessDTO):
 
 
 class DelegatedChildRunRecord(HarnessDTO):
-    """RUN-002 汇总只需要的 durable child 生命周期投影。"""
+    """parent 汇总所需的 durable child 生命周期投影。"""
 
     id: str
     tenant_id: str
@@ -164,9 +180,11 @@ class DelegationSummaryProjectionRecord(HarnessDTO):
 
 
 class DelegationRecoveryCandidate(HarnessDTO):
-    """存在可推进 pending event 的 durable delegation operation。"""
+    """存在待补投 evidence 的 durable delegation operation。"""
 
     delegation: DelegationRecord
+    # 此既有恢复 DTO 字段的值为 claimed/child/final 等业务生命周期位置；保留它
+    # 可避免 storage/service 边界发生无授权的数据形状变化。
     pending_phases: list[str]
 
 
@@ -255,6 +273,8 @@ def replay_integrity_valid(
     ):
         return False
     expected_group_id = delegation_group_id(model.id)
+    # 一个 delegation group 只能有三条固定顺序的 evidence。逐行比较 event id、
+    # group、身份与结果来源，防止损坏 outbox 被误判为可安全重放。
     for row, phase, sequence in zip(
         group,
         ("claimed", "child", "final"),
@@ -282,6 +302,8 @@ def replay_integrity_valid(
 
 
 def reservation_token_impact(model: DelegationBudgetReservationModel) -> int:
+    """按预约状态计算 token 保守占用；非法 settled 值必须封闭失败。"""
+
     if model.state == "released":
         return 0
     if model.state == "settled":
@@ -303,6 +325,8 @@ def reservation_token_impact(model: DelegationBudgetReservationModel) -> int:
 
 
 def reservation_cost_impact(model: DelegationBudgetReservationModel) -> float:
+    """按预约状态计算 cost 保守占用，拒绝非有限或负数的持久化状态。"""
+
     if model.state == "released":
         return 0.0
     if model.state not in {"reserved", "settled", "needs_review"}:
@@ -319,10 +343,14 @@ def reservation_cost_impact(model: DelegationBudgetReservationModel) -> float:
 
 
 def delegation_group_id(delegation_id: str) -> str:
+    """返回一个 delegation 三条有序 evidence 共用的稳定 outbox group 标识。"""
+
     return f"delegation:{delegation_id}:evidence"
 
 
 def delegation_event_id(delegation_id: str, phase: str) -> str:
+    """按 delegation 身份和受控生命周期标识生成稳定事件标识。"""
+
     return f"delegation:{delegation_id}:{phase}"
 
 
@@ -331,6 +359,8 @@ def delegation_event_result(
     *,
     child_run_id: str | None = None,
 ) -> dict[str, Any]:
+    """提取 outbox 重放所需的最小关系结果，不暴露 child 输入或预算细节。"""
+
     return {
         "delegation_id": model.id,
         "parent_run_id": model.parent_run_id,
@@ -343,6 +373,8 @@ def delegation_event_result(
 
 
 def delegation_status_from_run(run_status: str) -> str:
+    """把 child run 状态收敛为 delegation 可公开的有限状态集合。"""
+
     if run_status == "completed":
         return "completed"
     if run_status in {"failed", "cancelled"}:
@@ -353,6 +385,8 @@ def delegation_status_from_run(run_status: str) -> str:
 
 
 def child_run_record(model: AgentRunModel) -> DelegatedChildRunRecord:
+    """将 child ORM 行映射为跨 UoW 使用的最小关系投影。"""
+
     return DelegatedChildRunRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -365,6 +399,8 @@ def child_run_record(model: AgentRunModel) -> DelegatedChildRunRecord:
 
 
 def delegation_record(model: AgentDelegationModel) -> DelegationRecord:
+    """将 delegation ORM 行映射为包含恢复所需字段的不可变快照。"""
+
     return DelegationRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -394,6 +430,8 @@ def delegation_record(model: AgentDelegationModel) -> DelegationRecord:
 def reservation_record(
     model: DelegationBudgetReservationModel,
 ) -> DelegationBudgetReservationRecord:
+    """将预算预约 ORM 行转换为数值已规范化的 DTO。"""
+
     return DelegationBudgetReservationRecord(
         id=model.id,
         delegation_id=model.delegation_id,
@@ -415,6 +453,8 @@ def reservation_record(
 
 
 def aggregate_record(model: DelegationAggregateModel) -> DelegationAggregateRecord:
+    """将 child 聚合 ORM 行转换为只含脱敏 summary 和 evidence 引用的 DTO。"""
+
     return DelegationAggregateRecord(
         id=model.id,
         delegation_id=model.delegation_id,

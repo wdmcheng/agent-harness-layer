@@ -399,6 +399,11 @@ async def _check_run_create_permission(
     agent_id: str,
     request_id: str,
 ) -> None:
+    """在首次提交前检查创建权限，并把请求关联键写入策略审计上下文。
+
+    调用方仅在非重放路径进入本函数；幂等重放必须复用既有运行而不再次产生
+    permission、guardrail 或审计副作用。
+    """
     engine = policy or PolicyEngine(provider=YamlPolicyProvider.default())
     await engine.require_allowed(
         PolicyCheck(

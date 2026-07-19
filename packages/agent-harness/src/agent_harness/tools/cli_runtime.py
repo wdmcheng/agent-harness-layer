@@ -1,4 +1,4 @@
-"""CLI tools 子命令复用的 ToolRegistry 装配和持久化。"""
+"""CLI 工具子命令复用的 ToolRegistry 装配、授权与持久化证据边界。"""
 
 from __future__ import annotations
 
@@ -340,6 +340,7 @@ async def record_cli_tool_invocation(
 
 
 def _schema_with_required(*fields: str) -> dict[str, Any]:
+    """构造最小对象 schema，供内置工具在进入 handler 前校验必填文本字段。"""
     return {
         "type": "object",
         "required": list(fields),
@@ -352,6 +353,12 @@ def _mcp_builtin_tools(
     *,
     requested_tool_name: str,
 ) -> list[BuiltinTool]:
+    """根据配置 allowlist 生成 MCP 工具描述，并显式表示本次越权请求。
+
+    已配置工具可正常发现；若调用方指定同一服务下的未授权工具，则仍创建一个
+    只会拒绝的描述符，让拒绝经统一 ToolRegistry、审计和错误信封返回，而不是
+    因“找不到工具”绕过 allowlist 语义。
+    """
     tools: list[BuiltinTool] = []
     for server in settings.tools.mcp_servers:
         allowlist = set(server.allowlist)
@@ -366,11 +373,18 @@ def _mcp_builtin_tools(
 
 
 def _mcp_builtin_tool(server: MCPServerSettings, remote_name: str, *, allowed: bool) -> BuiltinTool:
+    """创建单个 MCP 工具的受控包装，统一预检、连接与返回值投影。
+
+    ``allowed`` 为假时预检和 handler 都会拒绝，双层防护避免调用方绕过预检后
+    仍触达远端服务；为真时才延迟导入 SDK 并建立本次调用的客户端会话。
+    """
+
     def _preflight(
         request: ToolCallRequest,
         *,
         context: ToolRuntimeContext,
     ) -> ToolCallResult | None:
+        """在实际连接 MCP 前拒绝未列入 allowlist 的工具请求。"""
         if allowed:
             return None
         invocation_id = str(uuid4())
@@ -388,6 +402,7 @@ def _mcp_builtin_tool(server: MCPServerSettings, remote_name: str, *, allowed: b
         )
 
     async def _handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """在授权通过后调用远端 MCP 工具，并投影为注册表约定的对象载荷。"""
         if not allowed:
             raise ToolExecutionError(
                 ToolErrorCode.ALLOWLIST_DENIED,
@@ -416,6 +431,7 @@ def _mcp_builtin_tool(server: MCPServerSettings, remote_name: str, *, allowed: b
 
 
 def _mcp_payload(raw_result: Any) -> dict[str, Any]:
+    """把不同 SDK 返回形态收敛为 JSON 对象，保留无法结构化时的可审计文本。"""
     if isinstance(raw_result, dict):
         return cast(dict[str, Any], raw_result)
     if hasattr(raw_result, "to_payload"):
@@ -430,6 +446,7 @@ def _mcp_payload(raw_result: Any) -> dict[str, Any]:
 
 
 def _effective_agent_tool_allowlist(settings: HarnessSettings) -> list[str]:
+    """返回 Agent 显式声明的工具权限；空列表表示没有 CLI 调试例外。"""
     # 空 agent.tool_allowlist 表示没有工具权限；CLI 调试能力也必须由 profile
     # 或 agent config 显式声明，不能在 runtime seam 隐式扩权。
     return list(settings.agent.tool_allowlist)
@@ -441,6 +458,7 @@ def _policy_engine(
     audit: AuditService,
     profiles_dir: Path | None,
 ) -> PolicyEngine:
+    """复用 CLI 共享策略装配，避免工具命令与主 CLI 解析不同的 profile 规则。"""
     from agent_harness.cli_shared import policy_engine
 
     return policy_engine(settings, storage, audit, profiles_dir=profiles_dir)

@@ -1,4 +1,4 @@
-"""Embedding 调用的 durable usage 生命周期。"""
+"""嵌入调用的耐久用量生命周期，协调缓存、预算、事件与 Provider 副作用。"""
 
 from __future__ import annotations
 
@@ -39,7 +39,11 @@ from agent_harness.storage.shared_budget import (
 
 
 class _SharedBudgetIdentityRuntime(Protocol):
-    def operation_identity(self, **values: Any) -> OperationIdentity: ...
+    """嵌入服务依赖的共享预算身份与定价解析最小协议。"""
+
+    def operation_identity(self, **values: Any) -> OperationIdentity:
+        """从受控运行快照构造不可由 Agent 输入伪造的预算操作身份。"""
+        ...
 
     def embedding_price_config(
         self,
@@ -48,7 +52,9 @@ class _SharedBudgetIdentityRuntime(Protocol):
         agent_id: str,
         provider: str,
         model: str,
-    ) -> tuple[Decimal | None, str, str]: ...
+    ) -> tuple[Decimal | None, str, str]:
+        """从快照解析嵌入单价和定价来源版本，供结算保留可复核依据。"""
+        ...
 
 
 class BoundEmbeddingInvocationService:
@@ -60,6 +66,7 @@ class BoundEmbeddingInvocationService:
         service: EmbeddingInvocationService,
         context: UsageEvidenceContext,
     ) -> None:
+        """绑定原始服务与已固定的运行上下文，禁止业务 executor 传入任意身份。"""
         self._service = service
         self._context = context
 
@@ -96,6 +103,11 @@ class EmbeddingInvocationService(_EmbeddingSettlementMixin):
         price_source_ref: str | None = None,
         price_source_version: str | None = None,
     ) -> None:
+        """装配 Provider、存储、事件和可选预算/遥测依赖。
+
+        价格与预算配置来自受控 composition，而非调用请求；这样同一 usage call
+        在重放和恢复时能恢复首次选择的身份与结算规则。
+        """
         self._provider = provider
         self._storage = storage
         self._event_bus = event_bus
@@ -313,6 +325,11 @@ class EmbeddingInvocationService(_EmbeddingSettlementMixin):
         latency_ms: int,
         decision: dict[str, object],
     ) -> ModelUsageEvidence:
+        """构造 started 或失败路径所需的嵌入用量证据。
+
+        已确认 hit/miss 时委托统一 helper 生成完整 token 形状；纯预检或异常
+        状态保留 ``unavailable``，避免 Provider 尚未调用时虚构用量数据。
+        """
         if decision.get("cache_status") in {"hit", "miss"}:
             return embedding_usage_evidence(
                 provider=provider,
@@ -340,6 +357,7 @@ class EmbeddingInvocationService(_EmbeddingSettlementMixin):
 
     @staticmethod
     def _final_event_id(tenant_id: str, usage_call_id: str) -> str:
+        """生成租户内稳定的 final 事件 ID，使重放只会收敛到同一用量证据。"""
         return f"usage:{tenant_id}:{usage_call_id}:final"
 
 

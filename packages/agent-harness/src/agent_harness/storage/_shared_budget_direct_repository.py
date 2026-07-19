@@ -36,6 +36,8 @@ class _SharedBudgetDirectMixin:
     async def _direct_by_key(
         self, *, tenant_id: str, budget_owner_run_id: str, usage_call_id: str
     ) -> BudgetOperationClaimModel | None:
+        """按 direct 幂等键读取既有 claim，不在此处修改 ledger 或 claim 状态。"""
+
         return await self._session.scalar(
             select(BudgetOperationClaimModel).where(
                 BudgetOperationClaimModel.tenant_id == tenant_id,
@@ -172,6 +174,8 @@ class _SharedBudgetDirectMixin:
     async def mark_direct_started(
         self, *, tenant_id: str, budget_owner_run_id: str, usage_call_id: str
     ) -> ClaimRecord:
+        """在副作用实际开始前持久化 started；重复调用仅返回 replay 标记。"""
+
         claim = await self._require_direct_locked(tenant_id, budget_owner_run_id, usage_call_id)
         replayed = claim.side_effect_state != "not_started"
         if claim.side_effect_state == "not_started":

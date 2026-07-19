@@ -50,6 +50,8 @@ async def test_heartbeat_claim_loss_prevents_terminal_result_write(
     monkeypatch: pytest.MonkeyPatch,
     failure_mode: str,
 ) -> None:
+    """执行 claim 心跳丢失或报错后，实验必须收敛为需复核，禁止继续写终态评估结果。"""
+
     from agent_harness.evals import ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
     from agent_harness.storage.eval_experiment_repositories import EvalExperimentRepository
@@ -69,6 +71,8 @@ async def test_heartbeat_claim_loss_prevents_terminal_result_write(
     renew_attempted = asyncio.Event()
 
     async def lose_claim(self: Any, **_kwargs: Any) -> bool:
+        """在首次续租时模拟 claim 丢失或存储异常，保留计数以验证后台心跳确实运行过。"""
+
         nonlocal renew_calls
         renew_calls += 1
         renew_attempted.set()
@@ -121,6 +125,8 @@ async def test_heartbeat_claim_loss_prevents_terminal_result_write(
 async def test_result_write_failure_requires_review_without_repeating_evaluator(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """结果落库失败后需关闭 live claim 并转人工复核；同键重放不能再次调用 evaluator。"""
+
     from agent_harness.evals import ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
     from agent_harness.storage.eval_experiment_repositories import EvalExperimentRepository
@@ -140,6 +146,8 @@ async def test_result_write_failure_requires_review_without_repeating_evaluator(
     calls = 0
 
     async def fail_once(self: Any, **kwargs: Any):
+        """仅阻断第一次结果写入，构造 evaluator 已执行但持久化未完成的恢复边界。"""
+
         nonlocal calls
         calls += 1
         if calls == 1:

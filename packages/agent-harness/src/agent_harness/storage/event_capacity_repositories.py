@@ -1,4 +1,4 @@
-"""run 级 event high-water、终态槽位与副作用预约账本。"""
+"""运行级事件高水位、终态槽位与副作用容量预约账本。"""
 
 from __future__ import annotations
 
@@ -65,6 +65,7 @@ _OPERATION_EVENT_CAPACITY: Mapping[EvidenceOperationKind, OperationReservationSp
 
 
 def _require_operation_kind(value: object) -> EvidenceOperationKind:
+    """验证调用方传入的是封闭枚举成员，禁止从外部载荷伪造 operation kind。"""
     if not isinstance(value, EvidenceOperationKind):
         raise ValueError("unknown event operation kind")
     return value
@@ -94,6 +95,8 @@ class EventSequenceStateInvalid(RuntimeError):
 
 @dataclass(frozen=True)
 class EventCapacitySnapshot:
+    """某个运行当前已持久化序列、未结算预约与终态槽位的只读快照。"""
+
     run_id: str
     tenant_id: str
     highest_persisted_seq: int
@@ -105,9 +108,15 @@ class EventCapacityRepository:
     """以数据库锁/CAS 维护 run 级 high-water 与预约不变量。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定当前工作单元 session；容量变更与运行、证据写入必须同一事务提交。"""
         self._session = session
 
     async def ensure_run(self, *, tenant_id: str, run_id: str, terminal: bool = False) -> None:
+        """初始化运行容量账本；已存在时保持幂等，不重置已持久化高水位。
+
+        非终态运行预留一个最终事件槽位，终态历史记录则不再保留该槽位；这保证
+        后续副作用预约不能挤占唯一 terminal sequence。
+        """
         existing = await self._session.get(RunEventCapacityModel, run_id)
         if existing is not None:
             return
@@ -123,6 +132,7 @@ class EventCapacityRepository:
         await self._session.flush()
 
     async def snapshot(self, run_id: str) -> EventCapacitySnapshot:
+        """读取单个运行的容量快照，缺失账本表示调用方尚未完成运行初始化。"""
         model = await self._session.get(RunEventCapacityModel, run_id)
         if model is None:
             raise LookupError(f"event capacity is not initialized: {run_id}")
@@ -229,6 +239,11 @@ class EventCapacityRepository:
         raise EventCapacityExceeded
 
     async def settle(self, *, run_id: str, reserved_event_count: int, consumed: int) -> None:
+        """结算一次已预约操作，释放未消费槽位并推进真实已持久化高水位。
+
+        ``consumed`` 必须在预约范围内；任何少于预约的事件数都只释放余额，不能
+        让调用方通过传入负数或超额数目破坏容量不变量。
+        """
         if consumed < 0 or consumed > reserved_event_count:
             raise ValueError("invalid event reservation settlement")
         model = await self._session.get(RunEventCapacityModel, run_id)
@@ -239,6 +254,11 @@ class EventCapacityRepository:
         await self._session.flush()
 
     async def publish_terminal(self, *, run_id: str, seq: int) -> None:
+        """消耗唯一终态槽位并写入最终序列，前置证据尚未结算时严格拒绝。
+
+        终态序列必须大于当前高水位且不超过上限；该检查与 outbox 发布顺序共同
+        保证公共 terminal 不会早于需要审计的副作用证据。
+        """
         model = await self._session.get(RunEventCapacityModel, run_id)
         if model is None or model.terminal_reservation != 1:
             raise RuntimeError("terminal reservation is unavailable")

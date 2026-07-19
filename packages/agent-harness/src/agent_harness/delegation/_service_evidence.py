@@ -24,12 +24,16 @@ from agent_harness.storage.repositories import RunRecord
 
 
 def required_child_id(delegation: DelegationRecord) -> str:
+    """返回已绑定 child id；缺失时将不完整 delegation 归一为稳定领域错误。"""
+
     if delegation.child_run_id is None:
         raise DelegationError("delegation.execution_failed")
     return delegation.child_run_id
 
 
 def delegation_id_from_child_key(value: str) -> str | None:
+    """从内部 child 幂等键解析 delegation id，非本服务格式则返回 ``None``。"""
+
     prefix = "delegation:"
     return value[len(prefix) :] if value.startswith(prefix) and len(value) > len(prefix) else None
 
@@ -62,6 +66,12 @@ def child_evidence(
     child: RunRecord | DelegatedChildRunRecord,
     rows: list[DelegationUsageEvidenceRecord],
 ) -> DelegationChildEvidence:
+    """把 child 的已发布 usage 证据归一为可供父级结算的聚合输入。
+
+    未发布行会保留“不完整”状态，不能被当作零用量；只有已验证的 cache hit
+    才将空 token/cost 映射为已知零，避免遗漏 provider 回执时过早结算预约。
+    """
+
     evidence: list[ModelUsageEvidence] = []
     has_pending = False
     for row in rows:
@@ -145,6 +155,8 @@ def _is_known_zero_cache_hit(evidence: ModelUsageEvidence) -> bool:
 def unknown_child_evidence(
     child: RunRecord | DelegatedChildRunRecord,
 ) -> DelegationChildEvidence:
+    """构造无 usage 证据时的保守 child 视图，要求上游继续恢复或人工处理。"""
+
     return DelegationChildEvidence(
         run_id=child.id,
         agent_id=child.agent_id,
@@ -162,11 +174,15 @@ def unknown_child_evidence(
 
 
 def known_sum(values: list[int | None]) -> int | None:
+    """仅聚合已知值；全部未知时保留 ``None``，不以零掩盖证据缺口。"""
+
     known = [value for value in values if value is not None]
     return sum(known) if known else None
 
 
 def budget_exceeded(summary: DelegationSummary, reservation: Any) -> bool:
+    """比较已聚合的 child 用量与原预约，检测 token 或成本越界。"""
+
     tokens = (summary.input_tokens or 0) + (summary.output_tokens or 0)
     if tokens > reservation.reserved_tokens:
         return True

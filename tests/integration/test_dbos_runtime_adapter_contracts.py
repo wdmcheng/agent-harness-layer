@@ -29,6 +29,8 @@ from agent_harness.storage.repositories import (
 
 
 def test_workflow_id_is_stable_per_tenant_operation() -> None:
+    """验证 workflow 身份同时绑定 tenant 和 operation，避免跨租户或不同操作冲突。"""
+
     first = workflow_id_for_operation("tenant-a", "run:r:execute")
     assert first == workflow_id_for_operation("tenant-a", "run:r:execute")
     assert first != workflow_id_for_operation("tenant-b", "run:r:execute")
@@ -41,9 +43,13 @@ def test_workflow_id_is_stable_per_tenant_operation() -> None:
 )
 @pytest.mark.asyncio
 async def test_dbos_real_workflow_reuses_operation_id() -> None:
+    """验证 DBOS 对同一 operation_id 只执行一次并复用已持久化成功结果。"""
+
     calls: list[str] = []
 
     async def handler(operation: DBOSOperation) -> dict[str, str]:
+        """记录实际执行的 operation，并返回最小业务结果以验证工作流重放。"""
+
         calls.append(operation.operation_id)
         return {"run_id": operation.run_id}
 
@@ -78,7 +84,11 @@ async def test_dbos_real_workflow_reuses_operation_id() -> None:
 )
 @pytest.mark.asyncio
 async def test_dbos_maps_persisted_error_to_deterministic_outcome() -> None:
+    """验证 DBOS 持久化 handler 错误被映射为稳定 deterministic_failed 结果。"""
+
     async def handler(_operation: DBOSOperation) -> dict[str, str]:
+        """确定性抛出业务失败，覆盖 adapter 的错误结果归一化路径。"""
+
         raise RuntimeError("deterministic handler failure")
 
     adapter = DBOSServiceRuntimeAdapter(
@@ -111,7 +121,11 @@ async def test_dbos_maps_persisted_error_to_deterministic_outcome() -> None:
 )
 @pytest.mark.asyncio
 async def test_dbos_rejects_parallel_same_executor_id() -> None:
+    """验证同一 executor_id 的并行 worker 被 advisory lock 拒绝，避免双 consumer。"""
+
     async def handler(operation: DBOSOperation) -> dict[str, str]:
+        """返回最小成功结果；本场景只关注启动锁，不应实际执行该 handler。"""
+
         return {"run_id": operation.run_id}
 
     dsn = os.environ["AGENT_HARNESS_TEST_POSTGRES_DSN"]
@@ -147,6 +161,8 @@ def test_dbos_hard_crash_recovers_pending_workflow(tmp_path: Path) -> None:
     tenant_id = f"tenant-hard-crash-{uuid4()}"
 
     async def prepare_run() -> tuple[SQLAlchemyStorage, str]:
+        """创建已排队且持有 execution context 的真实 run，作为硬崩溃恢复起点。"""
+
         storage = SQLAlchemyStorage.from_dsn(dsn, cross_event_loop=True)
         async with storage.uow() as uow:
             await uow.tenants.ensure(tenant_id)
@@ -321,6 +337,8 @@ def test_dbos_hard_crash_recovers_pending_workflow(tmp_path: Path) -> None:
             RunExecutionRecord | None,
             list[CanonicalEvent],
         ]:
+            """读取 run、私有执行记录和事件流，验证崩溃前后 durable 状态转换。"""
+
             async with storage.uow() as uow:
                 run = await uow.runs.get(run_id)
                 private = await uow.runs.get_execution(run_id)

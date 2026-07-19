@@ -27,6 +27,11 @@ async def test_postgresql_mixed_direct_delegation_race_has_one_lock_order() -> N
                 assert snapshot is not None
 
                 async def compete_direct(root_id: str, case_suffix: str) -> str:
+                    """在独立 PostgreSQL 事务中竞争 direct claim。
+
+                    返回结果便于检测锁顺序下是否仍只有一个胜者。
+                    """
+
                     try:
                         async with storage.uow() as uow:
                             await uow.shared_budget.claim_direct(
@@ -49,6 +54,8 @@ async def test_postgresql_mixed_direct_delegation_race_has_one_lock_order() -> N
                     case_suffix: str,
                     case_index: int,
                 ) -> str:
+                    """以同一冻结目录竞争 delegation 预约，验证其锁顺序可与 direct 路径安全交错。"""
+
                     try:
                         async with storage.uow() as uow:
                             await uow.delegations.claim_and_reserve(
@@ -87,6 +94,8 @@ async def test_postgresql_token_cost_race_commits_only_safe_combination() -> Non
             root = await create_root(storage, suffix="pg-token-cost")
 
             async def compete(suffix: str) -> str:
+                """发起一次 token/cost 组合预约，将预算拒绝显式归类以比较并发事务结果。"""
+
                 async with storage.uow() as uow:
                     try:
                         await uow.shared_budget.claim_direct(
@@ -132,6 +141,8 @@ async def test_postgresql_same_key_unique_race_converges_to_exact_replay() -> No
             )
 
             async def compete() -> bool:
+                """用完全相同的 stable key 并发创建 claim，返回 replay 标记验证唯一约束收敛。"""
+
                 async with storage.uow() as uow:
                     result = await uow.shared_budget.claim_direct(claim)
                     await uow.commit()

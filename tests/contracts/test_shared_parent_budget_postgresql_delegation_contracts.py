@@ -27,6 +27,11 @@ async def test_postgresql_0016_delegation_actual_over_and_released_proof(
     mode: str,
     accepted: bool,
 ) -> None:
+    """验证真实数据库只接受可证明的委派结算或释放状态。
+
+    参数矩阵覆盖实际超额、正常释放及缺少生命周期或存在副作用的伪释放，
+    防止迁移回填把不可追溯的历史状态误标为安全。
+    """
     await assert_postgresql_0016_delegation_actual_over_and_released_proof(mode, accepted)
 
 

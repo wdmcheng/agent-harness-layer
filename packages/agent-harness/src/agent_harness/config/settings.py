@@ -113,6 +113,8 @@ def _resolve_profile_path(
     profiles_dir: Path | None,
     profile_path: Path | None,
 ) -> Path:
+    """优先使用显式 profile 文件；否则在给定或默认目录下解析 profile 名称。"""
+
     if profile_path is not None:
         return profile_path
     base = profiles_dir if profiles_dir is not None else _default_profiles_dir()
@@ -120,6 +122,8 @@ def _resolve_profile_path(
 
 
 def _default_profiles_dir() -> Path:
+    """在仓库开发环境优先定位模板配置，安装后回退到当前目录下的标准路径。"""
+
     cwd = Path.cwd()
     repo_template_dir = cwd / "templates" / "service-app" / "configs" / "profiles"
     if repo_template_dir.exists():
@@ -128,6 +132,8 @@ def _default_profiles_dir() -> Path:
 
 
 def _resolve_env_file(profile_path: Path, env_file: Path | None) -> Path | None:
+    """优先使用显式 `.env`，否则只在 profile 所属服务根目录查找可选覆盖文件。"""
+
     if env_file is not None:
         return env_file
     service_root = profile_path.parent.parent.parent
@@ -136,6 +142,8 @@ def _resolve_env_file(profile_path: Path, env_file: Path | None) -> Path | None:
 
 
 def _read_yaml_mapping(path: Path, *, field_prefix: str) -> dict[str, Any]:
+    """读取 YAML mapping，并将缺失、解码、语法和顶层类型错误映射为安全配置错误。"""
+
     safe_field = field_prefix or "profile"
     source_name = "agent YAML" if field_prefix == "agent" else "profile YAML"
     if not path.exists():
@@ -191,6 +199,8 @@ def _read_yaml_mapping(path: Path, *, field_prefix: str) -> dict[str, Any]:
 
 
 def _normalize_agent_data(agent_data: Mapping[str, Any]) -> dict[str, Any]:
+    """兼容 agent 文件带或不带顶层 ``agent`` 键的两种格式，但只写入 agent 子树。"""
+
     nested = agent_data.get("agent")
     if isinstance(nested, dict):
         return {"agent": cast(dict[str, Any], nested)}
@@ -198,6 +208,8 @@ def _normalize_agent_data(agent_data: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _load_env_values(path: Path | None) -> dict[str, str]:
+    """解析受限的本地 `.env` 格式，不执行 shell 展开、命令替换或复杂引用。"""
+
     if path is None or not path.exists():
         return {}
     try:
@@ -251,6 +263,8 @@ def _env_values_to_nested(values: Mapping[str, str]) -> dict[str, Any]:
 
 
 def _assign_nested(target: dict[str, Any], parts: list[str], value: Any) -> None:
+    """按双下划线路径写入嵌套配置；中间标量冲突由后来源替换为 mapping。"""
+
     current = target
     for part in parts[:-1]:
         next_value = current.setdefault(part, {})
@@ -293,8 +307,11 @@ def _deep_merge(base: Mapping[str, Any], overlay: Mapping[str, Any]) -> dict[str
 
 
 def _validation_errors(exc: ValidationError) -> list[ErrorDetail]:
+    """将 Pydantic 校验错误转换为不含原始输入值的结构化配置诊断。"""
+
     details: list[ErrorDetail] = []
     for item in exc.errors():
+        # 仅保留字段位置和通用消息，避免 Pydantic 的 input/context 重新暴露密钥。
         loc = item.get("loc", ())
         path = ".".join(str(part) for part in loc) if loc else None
         details.append(

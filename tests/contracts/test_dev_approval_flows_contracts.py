@@ -22,6 +22,8 @@ PROFILES = SERVICE_APP / "configs" / "profiles"
 
 
 def _dsn(path: Path) -> str:
+    """将临时数据库文件转换为审批流程 runtime 使用的异步 SQLite DSN。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
@@ -31,6 +33,8 @@ def _components(
     name: str,
     workspace_root: Path | None = None,
 ) -> tuple[RuntimeComponents, Path, Path]:
+    """创建隔离的本地 runtime、数据库和事件文件，供审批流程断言复用。"""
+
     db_path = tmp_path / f"{name}.db"
     events_path = tmp_path / f"{name}-events.jsonl"
     run_migrations(_dsn(db_path))

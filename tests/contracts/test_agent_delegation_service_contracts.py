@@ -95,6 +95,8 @@ async def _record_usage(
     provider: _UsageProvider,
     expect_failure: bool = False,
 ) -> None:
+    """通过真实模型调用服务写入 child usage evidence，可切换预期 provider 失败。"""
+
     usage_service = ModelInvocationService(
         router=ModelRouter(
             config=ModelRouterConfig(default_model="fake-basic"),
@@ -123,6 +125,8 @@ async def _record_usage(
 
 
 def _request(parent_run_id: str, **updates: object) -> DelegationRequest:
+    """构造默认合法的 delegation 请求，并允许各场景覆盖单一输入字段。"""
+
     payload: dict[str, object] = {
         "parent_run_id": parent_run_id,
         "source_agent_id": "agent-source",

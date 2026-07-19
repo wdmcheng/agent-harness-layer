@@ -14,6 +14,8 @@ class WorkspacePolicy:
     """把所有文件工具路径限制在单个 workspace root 内。"""
 
     def __init__(self, *, root: Path, ignore_file: str = ".agentignore") -> None:
+        """解析 workspace 根目录并加载简单 ignore 规则，后续路径检查均基于真实路径。"""
+
         self.root = root.resolve()
         self.ignore_file = ignore_file
         self._patterns = self._load_patterns()
@@ -40,6 +42,8 @@ class WorkspacePolicy:
         return False
 
     def _load_patterns(self) -> list[str]:
+        """读取忽略文件中的非空非注释 glob；故意不实现 gitignore 的否定和目录语义。"""
+
         ignore_path = self.root / self.ignore_file
         if not ignore_path.exists():
             return []

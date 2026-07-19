@@ -49,6 +49,8 @@ def valid_usage_payload(**updates: object) -> dict[str, object]:
 def event(
     *, event_type: CanonicalEventType, seq: int = 1, payload: dict[str, object] | None = None
 ) -> CanonicalEvent:
+    """构造带固定 run/trace 关联的 canonical event，仅开放本场景断言所需变量。"""
+
     return CanonicalEvent(
         event_id=f"event-{seq}",
         tenant_id="tenant-a",
@@ -70,6 +72,8 @@ def event(
 
 
 def test_canonical_event_bytes_is_order_and_unicode_stable() -> None:
+    """验证等价 payload 的键顺序不影响字节结果，且 Unicode 保持可读编码。"""
+
     first = event(
         event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
         payload={"z": "中文", "a": {"b": 1, "a": 2}},
@@ -81,6 +85,8 @@ def test_canonical_event_bytes_is_order_and_unicode_stable() -> None:
 
 
 def test_canonical_event_bytes_has_stable_json_escaping() -> None:
+    """验证引号、反斜杠和换行按 JSON 规则转义，同时不转义中文文本。"""
+
     serialized = canonical_event_bytes(
         event(
             event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
@@ -95,6 +101,8 @@ def test_canonical_event_bytes_has_stable_json_escaping() -> None:
 
 
 def test_canonical_event_bytes_rejects_nan() -> None:
+    """验证非有限数值在序列化前被拒绝，避免产生跨实现不一致的 JSON。"""
+
     with pytest.raises(ValueError, match="finite"):
         canonical_event_bytes(
             event(
@@ -105,6 +113,8 @@ def test_canonical_event_bytes_rejects_nan() -> None:
 
 
 def test_canonical_event_bytes_rejects_envelope_over_hard_limit() -> None:
+    """验证超过单 event 硬字节上限的 envelope 不能进入持久化或传输链路。"""
+
     invalid = event(
         event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
         payload={"value": "x" * 70_000},
@@ -115,6 +125,8 @@ def test_canonical_event_bytes_rejects_envelope_over_hard_limit() -> None:
 
 
 def test_canonical_event_bytes_accepts_exact_limit_and_rejects_next_byte() -> None:
+    """验证字节上限精确包含边界值，并明确拒绝超出一个字节的 envelope。"""
+
     base = event(
         event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
         payload={"value": ""},
@@ -133,6 +145,8 @@ def test_canonical_event_bytes_accepts_exact_limit_and_rejects_next_byte() -> No
 async def test_artifact_externalization_still_rejects_oversized_envelope_before_write(
     tmp_path: Path,
 ) -> None:
+    """验证 artifact 外置不能绕过 envelope 元数据大小限制，也不遗留文件。"""
+
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
     bus = EventBus(
         sink=sink,
@@ -208,6 +222,8 @@ async def test_event_bus_rejects_invalid_final_usage_before_persistence(
 
 @pytest.mark.asyncio
 async def test_local_reader_fails_closed_on_legacy_oversized_envelope(tmp_path: Path) -> None:
+    """验证 reader 遇到历史超大行时关闭式失败，避免跳过或返回不完整 evidence。"""
+
     path = tmp_path / "legacy.jsonl"
     oversized = event(
         event_type=CanonicalEventType.MODEL_USAGE_UPDATED,
@@ -226,6 +242,8 @@ async def test_local_reader_fails_closed_on_legacy_oversized_envelope(tmp_path: 
 
 @pytest.mark.asyncio
 async def test_event_bus_rejects_any_event_after_public_terminal(tmp_path: Path) -> None:
+    """验证公开 terminal 落盘后禁止继续追加事件，守住 run 终态序列不变量。"""
+
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
     bus = EventBus(sink=sink, run_trace_resolver=_trace)
 
@@ -249,4 +267,6 @@ async def test_event_bus_rejects_any_event_after_public_terminal(tmp_path: Path)
 
 
 async def _trace(**_: object) -> str:
+    """为本地事件测试返回固定 trace，避免各用例重复装配持久化 resolver。"""
+
     return "trace-a"

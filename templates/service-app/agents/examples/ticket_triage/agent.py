@@ -1,4 +1,4 @@
-"""确定性 ticket triage，同时调用 fake model 保留可替换 provider evidence。"""
+"""以确定性规则分流工单，并保留可替换模型调用的证据链示例。"""
 
 from __future__ import annotations
 
@@ -29,13 +29,23 @@ _RULES: tuple[tuple[TicketCategory, tuple[str, ...], TicketPriority, str], ...] 
 
 
 class TicketTriageExecutor:
-    """关键词规则给出可解释分类，fake model 只作为 provider seam evidence。"""
+    """先用可解释规则分类，再调用模型服务留下 Provider 接缝证据。
+
+    分类结果只来自本地规则，保证模板在离线与回归测试中可重复；模型调用
+    不参与决策，专门演示用量、审计和可替换 Provider 如何进入执行链路。
+    """
 
     async def run(
         self,
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
+        """规范化输入、执行确定性分流，并写入可追溯的执行事件。
+
+        ``prompt`` 是为交互入口保留的兼容字段，显式 ``text`` 始终优先。
+        未命中规则时返回人工复核而不是猜测类别，以避免示例误导使用者把
+        低置信度判断当成自动化处置结果。
+        """
         payload = dict(request.input)
         payload.pop("source", None)
         prompt = payload.pop("prompt", None)
@@ -89,11 +99,18 @@ class TicketTriageExecutor:
         context: AgentExecutionContext,
         grant: ApprovalGrant,
     ) -> AgentExecutionResult:
+        """明确拒绝恢复，说明该示例没有审批型 continuation。"""
         del request, context, grant
         return AgentExecutionResult.failed("ticket triage has no approval continuation")
 
 
 def _classify(text: str) -> tuple[TicketCategory, TicketPriority, str, float]:
+    """按固定优先级匹配关键词，返回类别、优先级、路由和置信度。
+
+    规则顺序具有业务含义：事故关键词必须先于通用 bug 等描述命中，避免
+    生产不可用事件被降级路由。未命中时保留 ``unknown``，由调用方触发
+    人工复核，而不是在此处引入不可解释的兜底分类。
+    """
     normalized = text.casefold()
     for category, keywords, priority, route in _RULES:
         if any(keyword in normalized for keyword in keywords):

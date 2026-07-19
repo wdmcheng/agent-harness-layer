@@ -53,9 +53,17 @@ class EvalDatasetSplitRepository:
     """split membership repository，不读取或返回 case payload。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定当前 UoW 的 session；调用方负责提交或回滚 split 变更。"""
+
         self._session = session
 
     async def create(self, data: EvalDatasetSplitCreate) -> EvalDatasetSplitRecord:
+        """创建可复现 split，或仅在所有成员和策略相同时幂等返回既有记录。
+
+        split id 是实验证据的稳定引用，不能把同一 id 指向另一批 case。并发插入
+        由唯一约束收敛为专用冲突，交给上层重新读取和判定，而不吞掉数据竞争。
+        """
+
         existing = await self._session.get(EvalDatasetSplitModel, data.split_id)
         if existing is not None:
             if not _split_matches(existing, data):
@@ -96,6 +104,8 @@ class EvalDatasetSplitRepository:
         return _split_record(model)
 
     async def get(self, tenant_id: str, split_id: str) -> EvalDatasetSplitRecord | None:
+        """按 tenant 读取 split；跨租户 id 与不存在项同样不可见。"""
+
         model = await self._session.get(EvalDatasetSplitModel, split_id)
         if model is None or model.tenant_id != tenant_id:
             return None
@@ -103,6 +113,8 @@ class EvalDatasetSplitRepository:
 
 
 def _split_record(model: EvalDatasetSplitModel) -> EvalDatasetSplitRecord:
+    """将 ORM 模型转换为不含原始 case 内容的公开持久化 DTO。"""
+
     return EvalDatasetSplitRecord(
         split_id=model.id,
         tenant_id=model.tenant_id,
@@ -130,6 +142,8 @@ def _split_record(model: EvalDatasetSplitModel) -> EvalDatasetSplitRecord:
 
 
 def _split_matches(model: EvalDatasetSplitModel, data: EvalDatasetSplitCreate) -> bool:
+    """比较影响可复现性的全部 split 身份字段，忽略仅由数据库生成的时间戳。"""
+
     return (
         model.tenant_id == data.tenant_id
         and model.agent_id == data.agent_id

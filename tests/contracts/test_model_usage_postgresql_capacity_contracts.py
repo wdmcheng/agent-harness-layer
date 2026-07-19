@@ -51,6 +51,8 @@ pytestmark = pytest.mark.skipif(
 
 
 async def _seed_run(storage: SQLAlchemyStorage, *, suffix: str) -> tuple[str, str, str]:
+    """创建独立租户、会话和 run，并返回 capacity 场景所需的三项关联标识。"""
+
     tenant_id = f"tenant-{suffix}"
     trace_id = f"trace-{suffix}"
     async with storage.uow() as uow:
@@ -97,6 +99,8 @@ def _started_evidence(
 
 
 def _json(value: Any) -> str:
+    """使用禁止 NaN 的稳定 JSON 编码，避免 PG JSON 断言受非标准数值影响。"""
+
     return json.dumps(value, ensure_ascii=False, allow_nan=False)
 
 

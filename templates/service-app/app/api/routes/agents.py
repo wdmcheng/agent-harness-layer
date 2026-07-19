@@ -1,4 +1,4 @@
-"""Agent registry API 路由。"""
+"""Agent registry API：按当前身份和策略公开可见的 Agent 描述符。"""
 
 from __future__ import annotations
 
@@ -35,7 +35,9 @@ class AgentListResponse(HarnessDTO):
 class AgentRegistryDependency(Protocol):
     """route 只依赖 registry seam，不直接读取模板目录。"""
 
-    def list_agents(self) -> list[AgentDescriptor]: ...
+    def list_agents(self) -> list[AgentDescriptor]:
+        """返回已通过注册表验证的公共描述符，不暴露执行器实现细节。"""
+        ...
 
 
 def get_agent_registry() -> AgentRegistryDependency:

@@ -48,6 +48,8 @@ class DelegationChildEvidence(HarnessDTO):
     @field_validator("input_tokens", "output_tokens", "latency_ms", mode="before")
     @classmethod
     def validate_optional_integer(cls, value: object) -> object:
+        """验证可选整型证据；``None`` 表示未知，零才表示已知的无消耗。"""
+
         if value is None:
             return None
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -57,6 +59,8 @@ class DelegationChildEvidence(HarnessDTO):
     @field_validator("cost_usd", mode="before")
     @classmethod
     def validate_optional_cost(cls, value: object) -> object:
+        """验证可选成本为非负有限数，排除 bool 和 NaN/inf 的伪测量值。"""
+
         if value is None:
             return None
         if isinstance(value, bool) or not isinstance(value, int | float):
@@ -67,6 +71,8 @@ class DelegationChildEvidence(HarnessDTO):
 
     @model_validator(mode="after")
     def validate_cost_status(self) -> DelegationChildEvidence:
+        """保持 cost 状态与数值一致，避免 unavailable 被错误聚合为零成本。"""
+
         if self.cost_status == "unavailable":
             if self.cost_usd is not None:
                 raise ValueError("unavailable delegation cost requires null value")
@@ -223,6 +229,8 @@ def aggregate_delegation_evidence(
 
 
 def _known_integer_sum(values: list[int | None]) -> int | None:
+    """只汇总已知整数；全为未知时返回 ``None`` 让上层保持不完整状态。"""
+
     known = [value for value in values if value is not None]
     return sum(known) if known else None
 

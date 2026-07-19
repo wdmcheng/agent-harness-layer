@@ -41,6 +41,8 @@ from tests.contracts.test_eval_experiment_evidence_boundaries_contracts import (
 async def test_evaluator_raw_error_is_replaced_by_bounded_structured_summary(
     tmp_path: Path,
 ) -> None:
+    """验证 evaluator 原始异常会被替换为有界、无敏感信息的结构化失败摘要。"""
+
     from agent_harness.evals import ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
@@ -76,6 +78,8 @@ async def test_evaluator_raw_error_is_replaced_by_bounded_structured_summary(
 async def test_successful_evaluator_result_rejects_unsafe_or_oversized_evidence(
     tmp_path: Path, unsafe_mode: str
 ) -> None:
+    """验证表面成功但携带不安全证据的 evaluator 结果仍会被失败关闭。"""
+
     from agent_harness.evals import ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
@@ -121,6 +125,8 @@ async def test_successful_evaluator_result_rejects_unsafe_or_oversized_evidence(
     ],
 )
 def test_evaluator_result_dto_rejects_unsafe_evidence_refs(unsafe_ref: str) -> None:
+    """验证 DTO 在入口拒绝秘密、绝对路径与超长 evidence 引用。"""
+
     from agent_harness.evals import ExperimentCaseResult
 
     with pytest.raises(ValidationError):

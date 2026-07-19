@@ -19,6 +19,8 @@ from app.runtime import build_runtime_components
 
 
 def _service_copy(tmp_path: Path) -> Path:
+    """复制可运行服务模板并注入唯一 delegation edge，隔离 CLI 端到端副作用。"""
+
     source = Path(__file__).resolve().parents[2] / "templates" / "service-app"
     target = tmp_path / "service-app"
     shutil.copytree(source, target)
@@ -40,6 +42,8 @@ async def _prepare_waiting_child(
     events_path: Path,
     decision: str,
 ) -> tuple[str, str, str]:
+    """构造等待审批的 delegated child，并返回父子运行及审批标识供 CLI 调用。"""
+
     components = build_runtime_components(
         profile="local",
         profiles_dir=service_root / "configs" / "profiles",
@@ -109,6 +113,8 @@ async def _read_terminal_state(
     parent_run_id: str,
     child_run_id: str,
 ) -> tuple[str, str, bool]:
+    """重建 runtime 后读取 child、父聚合和预算预约的终态收口结果。"""
+
     components = build_runtime_components(
         profile="local",
         profiles_dir=service_root / "configs" / "profiles",

@@ -13,11 +13,15 @@ from agent_harness.storage.evidence_repositories import (
 
 
 def sqlite_dsn(path: Path) -> str:
+    """为有序 outbox 合同创建独立 SQLite 异步 DSN。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
 @pytest.mark.asyncio
 async def test_approval_resolution_and_terminal_share_ordered_outbox_group(tmp_path: Path) -> None:
+    """验证审批解析事件与 run 终态事件作为一个有序组持久化，避免发布重排。"""
+
     path = tmp_path / "approval-outbox.db"
     dsn = sqlite_dsn(path)
     run_migrations(dsn)

@@ -160,6 +160,8 @@ def show_experiment(
     profiles_dir: Path | None,
     storage_dsn: str | None,
 ) -> None:
+    """按当前身份读取实验详情，并输出与 HTTP 响应一致的稳定 JSON。"""
+
     identity, storage, experiments, _acceptance = _services(
         profile=profile,
         profiles_dir=profiles_dir,
@@ -188,6 +190,8 @@ def compare_experiment(
     profiles_dir: Path | None,
     storage_dsn: str | None,
 ) -> None:
+    """读取已持久化的实验比较结果；读取权限与详情接口保持同一边界。"""
+
     identity, storage, experiments, _acceptance = _services(
         profile=profile,
         profiles_dir=profiles_dir,
@@ -221,11 +225,14 @@ def accept_experiment(
     profiles_dir: Path | None,
     storage_dsn: str | None,
 ) -> None:
+    """以指定评审身份写入唯一接受或拒绝决定，并保留服务层的策略校验。"""
+
     identity, storage, _experiments, acceptance = _services(
         profile=profile,
         profiles_dir=profiles_dir,
         storage_dsn=storage_dsn,
     )
+    # CLI 允许显式声明评审者，但租户、权限等安全上下文仍只能继承已加载配置。
     actor = identity.model_copy(update={"user_id": reviewer})
     try:
         request = ExperimentAcceptanceRequest(
@@ -254,6 +261,12 @@ def _services(
     profiles_dir: Path | None,
     storage_dsn: str | None,
 ) -> tuple[IdentityContext, SQLAlchemyStorage, ExperimentService, AcceptanceService]:
+    """按 profile 装配 CLI 所需服务，不在命令层复制领域规则。
+
+    schema 在创建存储前检查，避免命令执行一半才发现数据库未迁移；评审服务与实验
+    服务共享同一 storage，保证一次 CLI 调用中的读取和写入使用一致连接配置。
+    """
+
     settings = load_settings_or_exit(profile, profiles_dir)
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
     require_schema_or_exit(resolved_dsn)
@@ -272,6 +285,8 @@ def _services(
 
 
 def _load_json_object(path: Path) -> dict[str, Any]:
+    """读取请求文件并强制顶层为对象，拒绝数组或标量等歧义输入。"""
+
     raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("experiment request file must contain a JSON object")
@@ -279,12 +294,18 @@ def _load_json_object(path: Path) -> dict[str, Any]:
 
 
 def _require_permission(identity: IdentityContext, action: str) -> None:
+    """在进入领域服务前执行 CLI 身份权限门禁，支持显式通配授权。"""
+
     if "*" not in identity.permissions and action not in identity.permissions:
         raise EvalExperimentError("policy.denied", "permission missing", status_code=403)
 
 
 def _run[T](awaitable: Awaitable[T], *, storage: SQLAlchemyStorage) -> T:
+    """在同步 Typer 命令中执行协程，并保证运行结束后关闭 storage engine。"""
+
     async def execute() -> T:
+        """将资源释放放在 finally，使成功和领域异常走同一关闭路径。"""
+
         try:
             return await awaitable
         finally:
@@ -294,11 +315,14 @@ def _run[T](awaitable: Awaitable[T], *, storage: SQLAlchemyStorage) -> T:
 
 
 def _fail(exc: Exception, *, storage: SQLAlchemyStorage, request_id: str) -> NoReturn:
+    """将 CLI 异常映射为脱敏 JSON 错误，并在协程尚未启动时释放资源。"""
+
     # 若异常发生在 coroutine 构造前，仍需显式释放 engine。
     try:
         asyncio.run(storage.dispose())
     except RuntimeError:
         pass
+    # 只向调用者暴露稳定错误码；未知异常不透传实现细节或潜在敏感文本。
     if isinstance(exc, EvalExperimentError):
         code = exc.code
         message = str(exc)
@@ -325,6 +349,8 @@ def _fail(exc: Exception, *, storage: SQLAlchemyStorage, request_id: str) -> NoR
 
 
 def _write_json(payload: dict[str, Any], *, err: bool = False) -> None:
+    """以可复现键顺序输出 JSON，供脚本与 HTTP 合同测试稳定解析。"""
+
     typer.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True), err=err)
 
 

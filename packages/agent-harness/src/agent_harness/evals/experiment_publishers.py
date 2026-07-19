@@ -19,6 +19,12 @@ async def publish_experiment_evidence(
     record: EvalExperimentRecord,
     comparison: ExperimentComparison | None,
 ) -> list[dict[str, object]]:
+    """向可选证据提供方扇出实验摘要，并把单个失败降级为可审计状态。
+
+    本地持久化已经完成才会进入该函数，因此任何 provider 异常都不得反向
+    影响实验主结果；返回值仅保留经过类型和名称约束的公开状态。
+    """
+
     payload = {
         "experiment_id": record.experiment_id,
         "status": record.status,
@@ -51,4 +57,6 @@ async def publish_experiment_evidence(
 
 
 def _safe_provider_name(value: str) -> str:
+    """限制第三方名称的字符集和长度，防止异常内容污染证据与展示字段。"""
+
     return value if re.fullmatch(r"[A-Za-z0-9._-]{1,100}", value) else "invalid-provider"

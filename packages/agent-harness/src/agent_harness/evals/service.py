@@ -42,6 +42,8 @@ class EvalService:
         approved_dir: Path,
         audit: AuditService | None = None,
     ) -> None:
+        """装配 case 工厂、评审文件队列、评分 sink 和可选审计服务。"""
+
         self._storage = storage
         self._factory = factory
         self._detector = EvalDraftDetector(factory=factory)
@@ -128,6 +130,8 @@ class EvalService:
         dataset: str | None = None,
         agent_id: str | None = None,
     ) -> list[EvalCaseRecord]:
+        """按租户和可选状态、数据集、agent 条件列出 case，不跨租户聚合。"""
+
         async with self._storage.uow() as uow:
             return await uow.eval_cases.list(
                 tenant_id=tenant_id,
@@ -137,6 +141,8 @@ class EvalService:
             )
 
     async def create_eval_run(self, data: EvalRunCreate) -> EvalRunRecord:
+        """确保租户存在后创建评测运行，并在同一 UoW 内提交。"""
+
         async with self._storage.uow() as uow:
             await uow.tenants.ensure(data.tenant_id)
             run = await uow.eval_runs.create(data)
@@ -144,12 +150,16 @@ class EvalService:
             return run
 
     async def create_score(self, data: EvalScoreCreate) -> EvalScoreRecord:
+        """持久化单项评分；事务边界由服务层统一以便调用方获得已提交记录。"""
+
         async with self._storage.uow() as uow:
             score = await uow.eval_scores.create(data)
             await uow.commit()
             return score
 
     async def get_eval_run(self, eval_run_id: str) -> EvalRunRecord:
+        """读取评测运行，缺失时使用领域无关的查找异常交给路由映射。"""
+
         async with self._storage.uow() as uow:
             run = await uow.eval_runs.get(eval_run_id)
         if run is None:
@@ -163,6 +173,8 @@ class EvalService:
         score_summary: dict[str, object],
         provider_statuses: list[dict[str, object]],
     ) -> EvalRunRecord:
+        """原子更新评分汇总与 provider 状态证据，供实验比较与审计读取。"""
+
         async with self._storage.uow() as uow:
             run = await uow.eval_runs.update_score_evidence(
                 eval_run_id=eval_run_id,
@@ -173,9 +185,13 @@ class EvalService:
             return run
 
     async def list_scores(self, eval_run_id: str) -> list[EvalScoreRecord]:
+        """按评测运行读取全部持久化评分，不触发重新评分。"""
+
         async with self._storage.uow() as uow:
             return await uow.eval_scores.list_for_run(eval_run_id)
 
     @property
     def score_sink(self) -> ScoreSink:
+        """暴露已装配的评分接收器，供受控运行路径写入评分结果。"""
+
         return self._score_sink

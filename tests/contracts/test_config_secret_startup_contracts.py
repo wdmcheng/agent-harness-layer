@@ -52,6 +52,8 @@ def set_conflicting_storage_secret(
 
 
 def assert_structured_conflict(error: SettingsLoadError) -> None:
+    """统一校验 direct/file 密钥冲突的公开错误三元组，防止不同入口产生漂移诊断。"""
+
     detail = error.errors[0]
     assert detail.code == "config.secret_file_conflict"
     assert detail.field_path == "storage.dsn"
@@ -117,10 +119,14 @@ def test_fastapi_worker_and_migration_fail_before_external_side_effects(
     side_effects = {"runtime": 0, "migration": 0}
 
     def fail_runtime_build(**_kwargs: object) -> NoReturn:
+        """若配置失败后仍尝试构造 runtime 则立即暴露，保证外部连接前先完成 fail-closed 校验。"""
+
         side_effects["runtime"] += 1
         raise AssertionError("FastAPI 配置失败后不得构造 runtime")
 
     def fail_migration(_dsn: str) -> NoReturn:
+        """禁止配置失败路径进入数据库迁移，计数器用于证明没有外部副作用。"""
+
         side_effects["migration"] += 1
         raise AssertionError("配置失败后不得运行 migration")
 
@@ -172,13 +178,19 @@ def test_service_process_entrypoints_render_the_same_safe_diagnostic(
     side_effects = {"runtime": 0, "migration": 0}
 
     def fail_runtime_build(**_kwargs: object) -> NoReturn:
+        """阻止 CLI、API 与 worker 在无效配置后创建 runtime，保持三入口一致的零副作用边界。"""
+
         side_effects["runtime"] += 1
         raise AssertionError("配置失败后不得构造 runtime")
 
     def fail_uvicorn(*_args: object, **_kwargs: object) -> NoReturn:
+        """若 CLI 在配置验证前监听端口则立即失败，确保用户只会看到安全诊断。"""
+
         raise AssertionError("配置失败后不得监听端口")
 
     def fail_migration(_dsn: str) -> NoReturn:
+        """阻止 migration 入口越过 settings 错误；计数器用于断言它从未触达数据库。"""
+
         side_effects["migration"] += 1
         raise AssertionError("配置失败后不得运行 migration")
 

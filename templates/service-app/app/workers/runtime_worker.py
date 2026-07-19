@@ -1,4 +1,4 @@
-"""service profile 的 durable queue runtime worker。"""
+"""Service profile 的耐久队列 worker：负责恢复、栅栏执行与确认消息。"""
 
 from __future__ import annotations
 
@@ -50,6 +50,12 @@ RECLAIM_IDLE_SECONDS = float(os.environ.get("SERVICE_APP_RECLAIM_IDLE_SECONDS", 
 
 
 async def _recover_pending_enqueue(components: RuntimeComponents) -> None:
+    """在开始消费前补投已落库但尚未入队的运行和审批恢复操作。
+
+    入队与业务状态持久化不能依赖单一外部事务。此处按各记录的稳定标识重建
+    队列消息，并在入队成功后才写回关联 message ID，使 worker 重启不会漏掉
+    已提交的待执行工作，也不会把同一审批恢复错误地标记为新的操作。
+    """
     if components.queue is None:
         return
     async with components.storage.uow() as uow:
@@ -98,6 +104,11 @@ async def _prepare_approval_owner(
     *,
     message_id: str,
 ) -> None:
+    """为审批恢复消息抢占带栅栏的执行所有权，拒绝过期或被篡改的投递。
+
+    若抢占已由本 worker 或恢复流程完成，必须逐字段核对消息、租约和 workflow
+    身份仍指向同一审批决定；不匹配时立即失败，不能让旧 receipt 继续执行。
+    """
     assert message.approval_id is not None
     assert message.resolution_lease_id is not None
     workflow_id = workflow_id_for_operation(message.tenant_id, message.operation_id)
@@ -164,6 +175,12 @@ async def consume_one(
     *,
     consumer_id: str,
 ) -> str | None:
+    """认领或拉取一条队列消息，完成应用执行后才确认对应 receipt。
+
+    先尝试 reclaim 是为了接管故障 worker 遗留的 pending 消息；每个分支都在
+    durable 状态已确定后调用 ack。人为介入的共享预算状态是唯一的提前确认路径，
+    它明确保留非终态运行，避免同一无自动恢复价值的消息被无限重领。
+    """
     assert components.queue is not None
     delivery = await components.queue.reclaim(
         consumer_id=consumer_id,
@@ -253,7 +270,12 @@ async def _run_worker(
     workspace_root: Path | None = None,
     idempotency_key: str | None = None,
 ) -> str | None:
-    """启动一次runtime/DBOS生命周期并按模式消费queue。"""
+    """构造运行时与 DBOS 适配器，并按一次性或常驻模式消费耐久队列。
+
+    本地 profile 没有队列时保留旧的最小执行行为；service profile 则先恢复
+    enqueue 与 usage 证据，再启动 DBOS 并持续处理消息。所有退出路径都要
+    删除就绪标记、关闭 DBOS 和存储连接，避免 smoke 误判遗留 worker 仍可用。
+    """
 
     components = build_runtime_components(
         profile=profile,
@@ -278,6 +300,12 @@ async def _run_worker(
             await components.close()
 
     async def execute_handler(operation: DBOSOperation) -> dict[str, object]:
+        """在 DBOS workflow 内执行 run，并写入仅供 crash smoke 读取的恢复标记。
+
+        marker 只记录稳定的进入、完成或异常类别，不能泄露模型输入或 Provider
+        返回值。委派子运行的终态协调放在真实执行成功后，确保父子事件顺序由
+        已持久化的 operation 结果决定。
+        """
         _write_recovery_marker(operation, "entered")
         try:
             await _crash_after_application_owner(
@@ -305,6 +333,7 @@ async def _run_worker(
         return result.to_payload()
 
     async def approval_handler(operation: DBOSOperation) -> dict[str, object]:
+        """将审批恢复操作委派给专用服务，保持与普通运行相同的 DBOS 边界。"""
         return await execute_approval_operation(components, operation)
 
     dbos = DBOSServiceRuntimeAdapter(
@@ -353,7 +382,11 @@ async def run_once(
     workspace_root: Path | None = None,
     idempotency_key: str | None = None,
 ) -> str:
-    """local保持旧smoke；service消费并确认一条durable queue operation。"""
+    """运行一次 worker 迭代，并返回实际处理的运行 ID。
+
+    本地模式用于兼容既有 smoke；service 模式只在成功确认一条耐久操作后返回，
+    因而测试可以把返回值与队列、执行记录及最终事件逐一关联。
+    """
 
     run_id = await _run_worker(
         once=True,
@@ -378,7 +411,7 @@ async def run_forever(
     artifact_root: Path | None = None,
     workspace_root: Path | None = None,
 ) -> None:
-    """持续等待 durable operation；取消时由finally关闭DBOS与连接。"""
+    """常驻消费耐久操作，取消或异常时由底层 finally 回收所有运行时资源。"""
 
     await _run_worker(
         once=False,
@@ -393,6 +426,7 @@ async def run_forever(
 
 
 def parse_args() -> argparse.Namespace:
+    """解析 worker 启动参数；路径参数保持 Path 类型以便组合层做边界校验。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--once", action="store_true", help="Consume one durable task and exit.")
     parser.add_argument("--profile", default="local")
@@ -406,6 +440,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """作为命令行入口运行一次或常驻 worker，并把配置错误转为稳定退出码。"""
     args = parse_args()
     try:
         if args.once:

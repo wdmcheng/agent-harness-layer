@@ -165,6 +165,8 @@ def _normalize_metadata(raw: object, vector_ref: str) -> dict[str, Any]:
 
 
 def _metadata_object(raw: object) -> dict[str, Any]:
+    """解析旧 metadata JSON 对象；数组、标量或损坏文本不能进入 schema 迁移。"""
+
     if isinstance(raw, str):
         try:
             raw = json.loads(raw)
@@ -176,6 +178,8 @@ def _metadata_object(raw: object) -> dict[str, Any]:
 
 
 def _validate_latency(value: object) -> None:
+    """验证历史 provider latency 是非负有限数，并排除 Python bool 的伪数值。"""
+
     if (
         isinstance(value, bool)
         or not isinstance(value, int | float)
@@ -186,10 +190,14 @@ def _validate_latency(value: object) -> None:
 
 
 def _invalid_metadata() -> NoReturn:
+    """以稳定错误终止迁移，避免在日志中暴露历史 cache metadata。"""
+
     raise RuntimeError("embedding cache metadata is invalid")
 
 
 def _require_exact_empty_evidence_opt_in() -> None:
+    """要求唯一且精确的降级确认参数，拒绝模糊或叠加的 Alembic x 参数。"""
+
     arguments = context.get_x_argument(as_dictionary=False)
     matches = [item for item in arguments if item.startswith("allow_empty_evidence_downgrade")]
     if matches != [_OPT_IN]:

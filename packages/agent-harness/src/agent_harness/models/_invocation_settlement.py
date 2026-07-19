@@ -32,6 +32,8 @@ from agent_harness.storage.shared_budget import (
 
 @dataclass(frozen=True)
 class _SettlementStart:
+    """usage claim 启动后的耐久状态快照，决定调用方能否安全触发 provider 副作用。"""
+
     usage: UsageSettlementClaim
     ownership: BudgetOperationOwnership | None
     safe_to_start: bool = False
@@ -44,7 +46,12 @@ class ModelProviderInvocationError(RuntimeError):
 
 
 class _IdentityRuntime(Protocol):
-    def operation_identity(self, **values: Any) -> OperationIdentity: ...
+    """模型结算所需的共享预算身份构造能力，隔离具体运行时实现。"""
+
+    def operation_identity(self, **values: Any) -> OperationIdentity:
+        """用冻结的账本和路由事实构造可重放的不可变预算身份。"""
+
+        ...
 
     def model_router_config(
         self,
@@ -52,11 +59,18 @@ class _IdentityRuntime(Protocol):
         snapshot: dict[str, Any],
         agent_id: str,
         base: ModelRouterConfig,
-    ) -> ModelRouterConfig: ...
+    ) -> ModelRouterConfig:
+        """从指定快照恢复 agent 的模型路由配置，避免新调用读取漂移中的当前配置。"""
+
+        ...
 
 
 class _ModelSettlementMixin:
-    """承载 provider 调用前后必须保持原子一致的 usage 生命周期。"""
+    """承载 provider 调用前后必须保持原子一致的 usage 生命周期。
+
+    该 mixin 协调 shared budget、usage outbox、外部模型调用和 canonical event；任何
+    重放必须优先使用已耐久的身份与结果，不能按当前快照重新预留或再次调用 provider。
+    """
 
     _storage: SQLAlchemyStorage
     _event_bus: EventBus
@@ -64,16 +78,27 @@ class _ModelSettlementMixin:
     _telemetry: TelemetryFacade | None
 
     @staticmethod
-    def _final_event_id(tenant_id: str, usage_call_id: str) -> str: ...
+    def _final_event_id(tenant_id: str, usage_call_id: str) -> str:
+        """由具体调用器提供 usage 最终事件的稳定标识公式。"""
+
+        ...
 
     @staticmethod
-    def _safe_decision(*parts: dict[str, object]) -> dict[str, Any]: ...
+    def _safe_decision(*parts: dict[str, object]) -> dict[str, Any]:
+        """由具体调用器合并并脱敏可进入 evidence 的决策片段。"""
+
+        ...
 
     @staticmethod
-    def _durable_response(response: ModelResponse) -> dict[str, Any]: ...
+    def _durable_response(response: ModelResponse) -> dict[str, Any]:
+        """将 provider 响应收敛为可重放的耐久 DTO，不保留 adapter 私有对象。"""
+
+        ...
 
     @staticmethod
     def _semantic_request(request: ModelRequest) -> dict[str, object]:
+        """提取决定本次模型调用语义的字段，供 identity HMAC 比较而非直接持久化。"""
+
         return {
             "provider": request.provider,
             "model": request.model,
@@ -89,7 +114,11 @@ class _ModelSettlementMixin:
         context: UsageEvidenceContext,
         usage_call_id: str,
     ) -> _SettlementStart | None:
-        """先验证 durable identity/result；当前 snapshot 只约束新执行。"""
+        """先验证耐久 identity/result；当前快照只约束新执行。
+
+        此路径在读取新路由或价格配置之前运行，使中断后重试继续绑定原操作身份；仅当
+        原 claim 尚未开始外部副作用时，才返回 ``None`` 交由正常冻结快照路径恢复。
+        """
 
         if self._shared_budget is None:
             return None
@@ -157,6 +186,12 @@ class _ModelSettlementMixin:
         request: ModelRequest,
         plan: ModelRoutePlan,
     ) -> _SettlementStart:
+        """在同一工作单元中冻结预算身份、预留额度和 usage outbox，再允许副作用。
+
+        所有可能改变 parent budget 的校验在创建 provider 调用前完成；如果已有同一
+        claim，则返回其耐久状态而非以当前 route plan 重新解释请求。
+        """
+
         async with self._storage.uow() as uow:
             ownership: BudgetOperationOwnership | None = None
             safe_to_start = False
@@ -341,6 +376,8 @@ class _ModelSettlementMixin:
         usage_call_id: str,
         ownership: BudgetOperationOwnership | None,
     ) -> None:
+        """在 provider 真正开始前持久化副作用边界，使恢复代码不会误判为可安全重放。"""
+
         if ownership is None:
             return
         async with self._storage.uow() as uow:
@@ -366,7 +403,11 @@ class _ModelSettlementMixin:
         claim: UsageSettlementClaim,
         usage_call_id: str,
     ) -> ModelResponse:
-        """已有可信结果补投 event 后返回原 response；绝不重放 provider。"""
+        """已有可信结果补投 event 后返回原响应；绝不重放 provider。
+
+        只有已经耐久化的响应 DTO 可以恢复为 ``ModelResponse``。若历史记录只有 usage
+        evidence 而无业务响应，必须失败而非猜测输出或重新触发外部模型调用。
+        """
 
         if claim.state == "result_persisted" and claim.result_json is not None:
             result = claim.result_json
@@ -387,6 +428,8 @@ class _ModelSettlementMixin:
         *,
         claim: UsageSettlementClaim,
     ) -> ModelResponse:
+        """从耐久结果恢复 provider-neutral 响应；无法证明响应时严格拒绝重放。"""
+
         raw = result.get("response")
         if isinstance(raw, dict):
             return ModelResponse.model_validate(raw)
@@ -406,6 +449,12 @@ class _ModelSettlementMixin:
         ownership: BudgetOperationOwnership | None,
         response: ModelResponse | None,
     ) -> None:
+        """原子持久化最终 usage 结果并结算共享预算，提交后才发布最终事件。
+
+        先完成 outbox 与账本结算，保证 event 重试永远可从耐久事实恢复；最终事件属于
+        可补投副作用，不能先于结果与预算事实对外可见。
+        """
+
         result = {
             "evidence": evidence.to_payload(),
             "outcome": outcome,
@@ -428,6 +477,8 @@ class _ModelSettlementMixin:
                     or (input_tokens is not None and output_tokens is not None)
                     else None
                 )
+                # 未实际调用 provider 的拒绝/短路可确定为零用量；调用后缺少任一维度则
+                # 保持未知，不能伪造总 token 以换取账本结算通过。
                 actual_cost = None if evidence.cost_usd is None else Decimal(str(evidence.cost_usd))
                 if ownership.kind == "direct":
                     await uow.shared_budget.settle_direct(
@@ -467,6 +518,8 @@ class _ModelSettlementMixin:
         outcome: str,
         error_code: str | None,
     ) -> None:
+        """幂等发布 usage 最终事件，并在本地容量模式下同步已发布的耐久进度。"""
+
         lifecycle = UsageEvidenceLifecycle(
             event_bus=self._event_bus,
             evidence=evidence,
@@ -481,6 +534,7 @@ class _ModelSettlementMixin:
                 usage_call_id=usage_call_id,
             )
             if not self._event_bus.capacity_managed:
+                # 远程容量适配器自行提交进度；本地模式必须在 outbox 状态转换前补记它。
                 await uow.event_capacity.record_local_published(
                     run_id=evidence.run_id,
                     reserved_event_count=item.reserved_event_count,

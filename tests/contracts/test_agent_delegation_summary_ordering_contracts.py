@@ -64,6 +64,8 @@ async def test_service_mode_reports_active_child_as_incomplete_parent_summary(
     tmp_path: Path,
     child_status: RunStatus,
 ) -> None:
+    """服务模式的活动 child 应立即出现在 parent 摘要中，但未结算用量必须保持不完整而非猜测。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(
         tmp_path,
         mode="service",
@@ -108,6 +110,8 @@ async def test_service_mode_reports_unsettled_terminal_child_as_incomplete(
     tmp_path: Path,
     child_status: RunStatus,
 ) -> None:
+    """child 虽已终态但尚未结算时，parent 摘要仍需保持不完整，避免把生命周期误当预算收口。"""
+
     storage, service, _runtime, parent_run_id, _sink = await _build_service(
         tmp_path,
         mode="service",
@@ -144,6 +148,8 @@ async def test_fast_worker_reconciliation_preserves_delegation_event_order(
     original_submit = runtime.submit_run
 
     async def submit_and_reconcile_before_return(**kwargs: Any) -> RunResult:
+        """在 submit 返回前主动完成 child 聚合，构造极端快 worker 场景以验证事件顺序不倒置。"""
+
         child = await original_submit(**kwargs)
         await service.reconcile_child(child.run_id)
         return child
@@ -165,6 +171,8 @@ async def test_fast_worker_reconciliation_preserves_delegation_event_order(
 
 @pytest.mark.asyncio
 async def test_parent_without_durable_child_relation_returns_null_summary(tmp_path: Path) -> None:
+    """没有耐久子关系的 parent 不应产生虚构空摘要，API detail 也必须保持 null。"""
+
     storage, service, _runtime, parent_run_id, _sink = await _build_service(tmp_path)
     try:
         summary = await service.get_parent_summary(

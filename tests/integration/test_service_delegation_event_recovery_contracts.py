@@ -86,6 +86,8 @@ async def test_claimed_event_write_failure_recovers_child_before_parent_ack(
     original_resolve = AgentRegistry.resolve_executor
 
     def resolve_executor(self: AgentRegistry, agent_id: str) -> Any:
+        """仅替换父 agent 的执行器，使 child 仍走模板中真实注册表解析路径。"""
+
         if agent_id == "examples.basic":
             return parent_executor
         return original_resolve(self, agent_id)
@@ -97,6 +99,8 @@ async def test_claimed_event_write_failure_recovers_child_before_parent_ack(
         sink: PostgreSQLEventSink,
         event: CanonicalEvent,
     ) -> CanonicalEvent:
+        """在首次 claimed 事件写入处制造瞬断，保留随后重放的真实服务环境。"""
+
         nonlocal failed_once
         if event.event_type == CanonicalEventType.DELEGATION_CLAIMED and not failed_once:
             failed_once = True

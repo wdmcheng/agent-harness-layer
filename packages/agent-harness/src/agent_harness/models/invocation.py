@@ -35,7 +35,12 @@ from agent_harness.storage.shared_budget import (
 
 
 class _SharedBudgetIdentityRuntime(Protocol):
-    def operation_identity(self, **values: Any) -> OperationIdentity: ...
+    """向模型调用提供预算归属和快照派生配置的受限协作接口。"""
+
+    def operation_identity(self, **values: Any) -> OperationIdentity:
+        """从稳定业务字段派生可重放的共享预算操作身份。"""
+
+        ...
 
     def model_router_config(
         self,
@@ -43,10 +48,19 @@ class _SharedBudgetIdentityRuntime(Protocol):
         snapshot: dict[str, Any],
         agent_id: str,
         base: ModelRouterConfig,
-    ) -> ModelRouterConfig: ...
+    ) -> ModelRouterConfig:
+        """根据已冻结的树快照为当前 agent 派生模型路由配置。"""
+
+        ...
 
 
 class _ApprovedModelGrant(Protocol):
+    """审批续跑时必须携带的不可变授权声明。
+
+    模型请求在使用授权前会重新比对这些字段，防止一个审批被换 tenant、运行、资源或
+    参数后复用。
+    """
+
     approval_id: str
     tenant_id: str
     agent_id: str
@@ -65,6 +79,8 @@ class BoundModelInvocationService:
         service: ModelInvocationService,
         context: UsageEvidenceContext,
     ) -> None:
+        """绑定可信服务与单一运行上下文，后续调用不再接收可伪造身份字段。"""
+
         self._service = service
         self._context = context
 
@@ -134,6 +150,8 @@ class ModelInvocationService(_ModelSettlementMixin):
         telemetry: TelemetryFacade | None = None,
         shared_budget: _SharedBudgetIdentityRuntime | None = None,
     ) -> None:
+        """保存路由、持久化、事件和可选共享预算协作者。"""
+
         self._router = router
         self._storage = storage
         self._event_bus = event_bus
@@ -174,6 +192,7 @@ class ModelInvocationService(_ModelSettlementMixin):
     ) -> ModelResponse:
         """执行一次 model 调用；任何 provider 副作用都晚于 durable 预约。"""
 
+        # 重放检查和预约必须先于 provider 副作用，才能在重试中保持幂等结算。
         call_id = usage_call_id
         replay = await self._replay_settlement_before_current_snapshot(
             request=request,
@@ -227,6 +246,7 @@ class ModelInvocationService(_ModelSettlementMixin):
                 # 无法再新增 rejection event，但不能用较低优先级错误覆盖它。
                 pass
             raise
+        # 已存在但尚不可安全启动时只恢复其确定性结果，绝不能再次调用 provider。
         if not settlement.usage.created and not settlement.safe_to_start:
             return await self._resume_existing_settlement(
                 claim=settlement.usage,
@@ -315,8 +335,15 @@ class ModelInvocationService(_ModelSettlementMixin):
         context: UsageEvidenceContext,
         approved: bool,
     ) -> ModelRoutePlan:
+        """依据共享预算树快照或默认路由生成本次调用计划。
+
+        快照、账本和归属在同一个 UoW 中读取，确保路由限制来自同一持久化视图；任何
+        缺失或无效快照都转换成稳定预算拒绝，而不是悄悄回退到当前进程配置。
+        """
+
         if self._shared_budget is None:
             return self._router.plan(request, approved=approved)
+        # 三项读取必须保持一致，否则并发迁移预算树时可能组合出不存在的路由视图。
         async with self._storage.uow() as uow:
             ownership = await uow.shared_budget.resolve_operation_ownership(
                 tenant_id=context.tenant_id,
@@ -395,6 +422,8 @@ class ModelInvocationService(_ModelSettlementMixin):
         decision: dict[str, object],
         latency_ms: int = 0,
     ) -> ModelUsageEvidence:
+        """构造 provider 尚未产生计量时的 started 或失败证据基础对象。"""
+
         return ModelUsageEvidence(
             usage_kind="model",
             tenant_id=context.tenant_id,
@@ -414,10 +443,14 @@ class ModelInvocationService(_ModelSettlementMixin):
 
     @staticmethod
     def _final_event_id(tenant_id: str, usage_call_id: str) -> str:
+        """为每个租户调用槽位生成稳定终态事件标识，支持安全补投。"""
+
         return f"usage:{tenant_id}:{usage_call_id}:final"
 
     @staticmethod
     def _safe_decision(*parts: dict[str, object]) -> dict[str, Any]:
+        """按后传入优先合并决策片段，并在进入持久化前整体脱敏。"""
+
         merged: dict[str, object] = {}
         for part in parts:
             merged.update(part)

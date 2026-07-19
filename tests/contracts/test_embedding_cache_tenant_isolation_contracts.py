@@ -298,6 +298,8 @@ def test_0012a_downgrade_requires_exact_opt_in_and_empty_evidence(tmp_path: Path
     storage = SQLAlchemyStorage.from_dsn(used_dsn)
 
     async def seed() -> None:
+        """写入一条真实缓存证据，使降级保护不能被空库例外绕过。"""
+
         async with storage.uow() as uow:
             await uow.tenants.ensure("tenant-a")
             await LocalEmbeddingProvider(cache=uow.embedding_cache).embed(

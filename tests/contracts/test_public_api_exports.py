@@ -22,10 +22,14 @@ PUBLIC_FACADE_MODULES = [
 
 
 def _missing_exports(module: ModuleType) -> list[str]:
+    """返回模块 __all__ 中无法解析的名称，供公共 facade 完整性断言复用。"""
+
     return [export for export in module.__all__ if not hasattr(module, export)]
 
 
 def test_public_facade_exports_are_resolvable_and_unique() -> None:
+    """验证所有公开 facade 的导出名称唯一且实际可访问，避免安装后出现断链。"""
+
     for module_name in PUBLIC_FACADE_MODULES:
         module = importlib.import_module(module_name)
         assert len(module.__all__) == len(set(module.__all__)), module_name

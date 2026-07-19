@@ -283,6 +283,8 @@ class ApprovalQueueResolutionMixin(ApprovalQueueEnqueueMixin):
         approval_id: str,
         request_id: str | None,
     ) -> None:
+        """留给组合服务处理冲突恢复，避免队列 mixin 擅自选择继续执行策略。"""
+
         raise NotImplementedError
 
     async def _continue_with_recovery_marker(
@@ -292,4 +294,6 @@ class ApprovalQueueResolutionMixin(ApprovalQueueEnqueueMixin):
         lease: ApprovalResolutionLease,
         comment: str | None,
     ) -> ApprovalResolveResult:
+        """留给组合服务续接审批；实现必须保留 lease fencing 与恢复标记语义。"""
+
         raise NotImplementedError

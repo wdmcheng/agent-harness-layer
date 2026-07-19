@@ -97,6 +97,8 @@ async def test_postgresql_capacity_cas_allows_only_one_concurrent_reservation() 
                 await uow.commit()
 
             async def reserve_once() -> int | Exception:
+                """在独立 UoW 中争夺同一运行的最后容量，保留异常供并发断言比较。"""
+
                 try:
                     async with storage.uow() as uow:
                         reserved = await uow.event_capacity.reserve(
@@ -175,6 +177,8 @@ async def test_postgresql_usage_claim_allows_only_one_concurrent_winner() -> Non
             tenant_id, run_id, trace_id = await _seed_run(storage, suffix="claim")
 
             async def claim_once() -> bool:
+                """以相同 usage_call_id 创建 claim，验证数据库唯一约束先于容量预约生效。"""
+
                 async with storage.uow() as uow:
                     claim = await uow.evidence_outbox.claim_usage(
                         tenant_id=tenant_id,
@@ -204,6 +208,8 @@ async def test_postgresql_usage_claim_allows_only_one_concurrent_winner() -> Non
 
 @pytest.mark.asyncio
 async def test_postgresql_usage_claim_rejects_cross_tenant_run_before_reservation() -> None:
+    """攻击租户不能为他人运行创建用量 claim，拒绝必须发生在 outbox 与容量变更之前。"""
+
     async with isolated_database("usage_claim_tenant") as dsn:
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -240,11 +246,19 @@ async def test_postgresql_usage_claim_rejects_cross_tenant_run_before_reservatio
 
 @pytest.mark.asyncio
 async def test_postgresql_model_stable_call_id_does_not_replay_provider_or_leak_capacity() -> None:
+    """真实 PostgreSQL 下并发稳定调用必须只执行一次，并把所有预约容量最终结算干净。"""
+
     class CountingProvider(FakeModelProvider):
+        """为并发合同记录真实 provider 副作用次数，避免只凭事件条数掩盖重复调用。"""
+
         def __init__(self) -> None:
+            """从零初始化计数器，使每个隔离数据库用例都有独立的副作用观测值。"""
+
             self.calls = 0
 
         def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+            """在调用基础 fake provider 前递增计数，精确暴露是否出现不应有的重放。"""
+
             self.calls += 1
             return super().complete(request, model=model)
 

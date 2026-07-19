@@ -42,6 +42,8 @@ REQUIRED_TEMPLATE_PATHS = [
 
 
 def _fail(message: str) -> int:
+    """输出统一的本地冒烟失败信息并返回调用方可直接传播的退出码。"""
+
     print(f"smoke-local: {message}", file=sys.stderr)
     return 1
 

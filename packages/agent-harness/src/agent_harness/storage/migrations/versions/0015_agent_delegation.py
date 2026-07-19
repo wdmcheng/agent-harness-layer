@@ -19,6 +19,8 @@ _EVIDENCE_TABLES = (
 
 
 def upgrade() -> None:
+    """创建 delegation claim、预约和聚合表，保存 parent/child 关系的 durable 证据。"""
+
     op.create_table(
         "agent_delegations",
         sa.Column("id", sa.String(36), primary_key=True),
@@ -211,6 +213,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """仅在显式确认且 delegation 证据及关联 child run 全为空时移除本迁移 schema。
+
+    parent_run_id 属于既有核心表，不能只检查本迁移新建表；任何关联 child run 都是
+    不可无损降级的 delegation 历史，必须在执行 drop DDL 前拒绝。
+    """
+
     arguments = context.get_x_argument(as_dictionary=False)
     if arguments != [_OPT_IN]:
         raise RuntimeError("0015 downgrade requires explicit opt-in")

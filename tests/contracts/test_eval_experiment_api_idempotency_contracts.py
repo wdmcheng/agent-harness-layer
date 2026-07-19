@@ -56,6 +56,8 @@ from tests.contracts.test_eval_experiment_api_contracts import (
 
 
 def test_public_create_body_normalizes_tag_order_and_duplicates() -> None:
+    """验证公开创建 DTO 将 tag 视为去重、顺序无关的幂等输入集合。"""
+
     from agent_harness.evals import ExperimentCreateBody
 
     body, _candidate_id = experiment_body()
@@ -76,6 +78,8 @@ def test_public_create_body_normalizes_tag_order_and_duplicates() -> None:
 
 
 def test_public_create_body_normalizes_regression_policy_set_order() -> None:
+    """验证回归策略中的 case 集合规范化后不受客户端提交顺序影响。"""
+
     from agent_harness.evals import ExperimentCreateBody
 
     body, _candidate_id = experiment_body()
@@ -104,6 +108,8 @@ def test_public_create_body_normalizes_regression_policy_set_order() -> None:
 async def test_eval_experiment_http_loop_is_tenant_safe_and_idempotent(
     tmp_path: Path,
 ) -> None:
+    """验证实验 HTTP 生命周期同时保持租户隔离、幂等重放与安全错误边界。"""
+
     from agent_harness.auth import StaticTokenVerifier
     from agent_harness.evals import AcceptanceService, ExperimentService
     from agent_harness.policy import PolicyEngine, YamlPolicyProvider

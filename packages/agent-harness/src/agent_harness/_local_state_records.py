@@ -106,11 +106,15 @@ def _legacy_real_run_id(record: Mapping[str, Any], *, kind: LocalStateKind) -> s
 
 
 def _top_level_run_id(record: Mapping[str, Any]) -> str | None:
+    """仅接受非空字符串 run_id，避免 JSON 标量被误当作可关联运行。"""
+
     raw = record.get("run_id")
     return raw if isinstance(raw, str) and raw else None
 
 
 def _rewrite_telemetry_context(record: dict[str, Any], trace_id: str) -> None:
+    """在兼容迁移中补回嵌套 telemetry trace，不创建缺失的业务 payload 结构。"""
+
     payload = record.get("payload")
     if not isinstance(payload, dict):
         return

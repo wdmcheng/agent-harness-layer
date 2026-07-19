@@ -31,6 +31,8 @@ class FailingScoreProvider(ProviderTelemetryAdapter):
     provider_name = "score-provider"
 
     async def send(self, record: Any) -> TelemetryStatus:
+        """抛出含敏感样例的提供方异常，验证上游日志与证据会进行脱敏。"""
+
         del record
         raise RuntimeError(
             "provider failed Authorization: Bearer score-secret-12345; "

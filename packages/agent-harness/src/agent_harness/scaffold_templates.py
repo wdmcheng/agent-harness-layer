@@ -35,6 +35,12 @@ def _render_agent_files(
     *,
     namespace: str,
 ) -> dict[Path, str]:
+    """生成单个 agent package 的静态文件内容，所有引用都指向 staging 命名空间。
+
+    该函数只返回内容而不写盘，使调用方能先在隔离目录完成校验；生成的默认工具、
+    评测样例和配置均采用最小权限，业务项目需要显式审核后再扩展。
+    """
+
     package_ref = ".".join((namespace, *parts))
     title = " ".join(part.replace("_", " ").title() for part in parts)
     path_ref = "/".join((namespace, *parts, "evals", "approved"))
@@ -82,6 +88,8 @@ def _render_agent_files(
 
 
 def _agent_source(agent_id: str) -> str:
+    """生成离线 fake executor 源码，保留 run/resume 的公开协议与安全默认值。"""
+
     return f'''"""{agent_id} 的离线默认 executor；业务实现应保持公共 seam。"""
 
 from agent_harness.runtime import (
@@ -100,6 +108,8 @@ class ScaffoldAgentExecutor:
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
+        """返回确定性离线结果，用于验证 registry 与 runtime 的基础连接。"""
+
         del request, context
         return AgentExecutionResult.completed(
             {{"agent_id": "{agent_id}", "result": "scaffold-ready", "model_provider": "fake"}}
@@ -111,6 +121,8 @@ class ScaffoldAgentExecutor:
         context: AgentExecutionContext,
         grant: ApprovalGrant,
     ) -> AgentExecutionResult:
+        """明确拒绝审批续跑，因为 scaffold 默认没有可授权的副作用。"""
+
         del request, context, grant
         return AgentExecutionResult.failed("scaffold agent has no approval-gated action")
 
@@ -120,6 +132,8 @@ executor = ScaffoldAgentExecutor()
 
 
 def _schemas_source() -> str:
+    """生成 scaffold 输入输出 DTO 源码，避免模板把 provider SDK 对象暴露为契约。"""
+
     return '''"""scaffold agent 的类型化输入输出边界。"""
 
 from agent_harness.contracts.dto import HarnessDTO
@@ -141,6 +155,8 @@ class ScaffoldOutput(HarnessDTO):
 
 
 def _write_text(path: Path, content: str) -> None:
+    """创建父目录后以 UTF-8 写入 staging 文件；调用方保证目标仍位于隔离根内。"""
+
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
 

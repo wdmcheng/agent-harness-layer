@@ -22,6 +22,8 @@ from agent_harness.storage.evidence_repositories import EventSequenceStateInvali
 
 
 async def _trace(**_: object) -> str:
+    """为本地 sink 提供固定 canonical trace，隔离 reader 合同与 trace 存储。"""
+
     return "trace-a"
 
 
@@ -32,6 +34,8 @@ def _event(
     terminal: bool = False,
     payload: dict[str, object] | None = None,
 ) -> CanonicalEvent:
+    """构造具有固定租户、run 与时间戳的事件，变量只保留 reader 覆盖维度。"""
+
     return CanonicalEvent(
         event_id=f"event-{seq}-{visibility}-{'terminal' if terminal else 'ordinary'}",
         tenant_id="tenant-a",
@@ -56,6 +60,8 @@ def _write_direct(path: Path, events: list[CanonicalEvent]) -> None:
 
 
 def _sized_event(seq: int, target_bytes: int) -> CanonicalEvent:
+    """构造精确序列化字节数的事件，用于验证页大小边界不依赖字符长度。"""
+
     base = _event(seq, payload={"text": ""})
     overhead = len(canonical_json_bytes(base.to_payload()))
     assert target_bytes >= overhead
@@ -100,6 +106,8 @@ def _sized_run_event(run_id: str, target_bytes: int) -> CanonicalEvent:
 async def test_local_reader_keeps_old_read_and_adds_visibility_membership_terminal_seams(
     tmp_path: Path,
 ) -> None:
+    """验证 local reader 同时保持兼容 read、可见性、存在性与终态查询契约。"""
+
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl", run_trace_resolver=_trace)
     public = await sink.write(_event(0))
     internal = await sink.write(_event(0, visibility="internal"))
@@ -132,6 +140,8 @@ async def test_local_reader_keeps_old_read_and_adds_visibility_membership_termin
 async def test_local_reader_enforces_100_event_page_without_loss_or_duplicates(
     tmp_path: Path,
 ) -> None:
+    """验证 100 条硬分页在 legacy JSONL 上连续、无丢失也不重复。"""
+
     path = tmp_path / "events.jsonl"
     _write_direct(path, [_event(seq) for seq in range(1, 102)])
     sink = LocalJsonlEventSink(path, run_trace_resolver=_trace)
@@ -145,6 +155,8 @@ async def test_local_reader_enforces_100_event_page_without_loss_or_duplicates(
 
 @pytest.mark.asyncio
 async def test_local_100_event_page_does_not_parse_or_hold_the_next_page(tmp_path: Path) -> None:
+    """验证满页后不会解析下一行，因此损坏的下一页不影响当前合法页面。"""
+
     path = tmp_path / "bounded-read.jsonl"
     path.write_bytes(
         b"".join(canonical_json_bytes(_event(seq).to_payload()) + b"\n" for seq in range(1, 101))
@@ -159,6 +171,8 @@ async def test_local_100_event_page_does_not_parse_or_hold_the_next_page(tmp_pat
 
 @pytest.mark.asyncio
 async def test_local_reader_rejects_non_increasing_direct_write_sequence(tmp_path: Path) -> None:
+    """验证 reader 不容忍绕过写端造成的倒序序号，避免流游标含义失真。"""
+
     path = tmp_path / "out-of-order.jsonl"
     _write_direct(path, [_event(2), _event(1)])
     sink = LocalJsonlEventSink(path, run_trace_resolver=_trace)
@@ -172,6 +186,8 @@ async def test_local_reader_rejects_non_increasing_direct_write_sequence(tmp_pat
 async def test_local_reader_enforces_canonical_byte_page_on_complete_event_boundary(
     tmp_path: Path,
 ) -> None:
+    """验证字节上限只在完整 canonical event 边界分页，避免截断事件。"""
+
     path = tmp_path / "events.jsonl"
     events = [_event(seq, payload={"text": "中" * 20_000}) for seq in range(1, 20)]
     assert all(len(canonical_event_bytes(event)) <= 65_536 for event in events)
@@ -199,6 +215,8 @@ async def test_local_reader_enforces_canonical_byte_page_on_complete_event_bound
 async def test_local_reader_accepts_exact_1mib_and_defers_1048577th_byte_boundary(
     tmp_path: Path,
 ) -> None:
+    """验证恰好 1 MiB 可进入同页，而多出的一个字节必须完整推迟到下一页。"""
+
     exact_path = tmp_path / "exact-page.jsonl"
     exact_events = [_sized_event(seq, 65_536) for seq in range(1, 17)]
     next_page_oversized = _event(17, payload={"text": "中" * 30_000})
@@ -231,6 +249,8 @@ async def test_local_reader_accepts_exact_1mib_and_defers_1048577th_byte_boundar
 async def test_local_reader_fails_on_next_legacy_oversized_row_without_empty_page_or_skip(
     tmp_path: Path,
 ) -> None:
+    """验证翻到超大 legacy 行时明确失败，既不返回空页也不悄悄跳过证据。"""
+
     path = tmp_path / "events.jsonl"
     valid = _event(1)
     oversized = _event(2, payload={"text": "中" * 30_000})
@@ -249,6 +269,8 @@ async def test_local_reader_fails_on_next_legacy_oversized_row_without_empty_pag
 async def test_local_reader_validates_every_row_in_authorized_visibility_view(
     tmp_path: Path,
 ) -> None:
+    """验证包含 internal 视图时也校验每行 envelope，不能因默认隐藏绕过损坏检测。"""
+
     path = tmp_path / "hidden-oversized.jsonl"
     hidden = _event(1, visibility="internal", payload={"text": "中" * 30_000})
     public = _event(2)
@@ -270,6 +292,8 @@ async def test_local_reader_rejects_limits_outside_contract_hard_bounds(
     max_events: int,
     max_bytes: int,
 ) -> None:
+    """验证 reader 拒绝超出事件数和字节数硬上限的任意分页参数组合。"""
+
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl", run_trace_resolver=_trace)
 
     with pytest.raises(ValueError):
@@ -284,6 +308,8 @@ async def test_local_reader_rejects_limits_outside_contract_hard_bounds(
 async def test_sqlite_relational_reader_uses_same_visibility_page_and_terminal_seams(
     tmp_path: Path,
 ) -> None:
+    """验证 relational sink 与 local sink 遵循同一可见性、分页和终态读取语义。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'reader.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

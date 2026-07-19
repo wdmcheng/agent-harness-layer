@@ -16,9 +16,13 @@ from agent_harness.models import (
 
 @pytest.mark.asyncio
 async def test_usage_lifecycle_reuses_correlation_and_final_event_id(tmp_path: Path) -> None:
+    """验证 usage started/final 共用关联字段，且 final 重放以固定事件标识去重。"""
+
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
 
     async def resolve_trace(**_: object) -> str:
+        """为本地事件总线提供确定 trace，避免 fixture 依赖持久化 run 查询。"""
+
         return "trace-a"
 
     bus = EventBus(sink=sink, run_trace_resolver=resolve_trace)

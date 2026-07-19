@@ -18,6 +18,11 @@ def _write_agent(
     schema_source: str,
     import_marker: Path | None = None,
 ) -> None:
+    """写入最小 agent 包及可控 schema/executor 源码。
+
+    用于验证 registry 先校验 schema 再导入执行器。
+    """
+
     package = root / name
     package.mkdir(parents=True)
     marker_statement = (
@@ -91,6 +96,11 @@ def test_registry_rejects_invalid_schema_before_importing_any_executor(
     schema_ref: str,
     schema_source: str,
 ) -> None:
+    """任一 agent schema 引用无效时 registry 必须整体失败。
+
+    失败前不得 import 其他 executor 产生副作用。
+    """
+
     marker = tmp_path / "executor-imported.txt"
     agents_root = tmp_path / "agents"
     _write_agent(
@@ -120,6 +130,8 @@ def test_registry_rejects_invalid_schema_before_importing_any_executor(
 def test_non_identifier_roots_with_same_basename_do_not_share_schema_cache(
     tmp_path: Path,
 ) -> None:
+    """不同物理根即使 basename 相同也不能复用 schema cache，防止错误包借用先前合法解析结果。"""
+
     first_root = tmp_path / "first" / "custom-root"
     second_root = tmp_path / "second" / "custom-root"
     schema_ref = "custom-root.sample.schemas"

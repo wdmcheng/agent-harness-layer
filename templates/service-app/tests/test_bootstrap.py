@@ -1,4 +1,4 @@
-"""复制模板 bootstrap 的供应链和本机配置提示测试。"""
+"""复制模板 bootstrap 的供应链约束与本机配置提示测试。"""
 
 from __future__ import annotations
 
@@ -53,6 +53,7 @@ def test_bootstrap_missing_env_prints_actionable_hint_and_keeps_local_defaults(
     calls: list[tuple[list[str], Path]] = []
 
     def fake_run(command: list[str], *, cwd: Path, check: bool) -> subprocess.CompletedProcess[str]:
+        """记录外部 uv 调用而不执行进程，验证 bootstrap 仅同步可信来源。"""
         calls.append((command, cwd))
         return subprocess.CompletedProcess(command, 0)
 

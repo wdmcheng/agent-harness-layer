@@ -51,6 +51,8 @@ class ContextAssemblyResult(HarnessDTO):
 
 @dataclass
 class _WorkingFragment:
+    """组装期间的可变片段工作项，保留原始顺序并记录预算裁剪决策。"""
+
     index: int
     fragment: ContextFragment
     retained_tokens: int
@@ -59,10 +61,14 @@ class _WorkingFragment:
 
     @property
     def original_tokens(self) -> int:
+        """返回输入片段的原始 token 估算值，供 trace 解释裁剪前后的差异。"""
+
         return self.fragment.token_estimate
 
     @property
     def retained_content(self) -> str:
+        """根据当前保留 token 估算生成展示内容，不改变原始 fragment。"""
+
         if self.retained_tokens <= 0:
             return ""
         if self.retained_tokens >= self.original_tokens:
@@ -71,9 +77,15 @@ class _WorkingFragment:
 
 
 class ContextAssembler:
-    """按 token budget 组装上下文并写入持久化 trace。"""
+    """按 token 预算组装上下文并写入可解释的持久化 trace。
+
+    裁剪顺序是产品行为而非偶然实现细节：优先清理历史，再压缩检索或工具输出，最后才
+    丢弃其他低优先级片段。每一步都会留下逐片段 trace，便于诊断模型为何看不到内容。
+    """
 
     def __init__(self, repository: ContextAssemblyRepository) -> None:
+        """绑定组装摘要仓储，使输出引用和裁剪事实可与调用 run 一同审计。"""
+
         self._repository = repository
 
     async def assemble(
@@ -85,7 +97,11 @@ class ContextAssembler:
         token_budget: int,
         output_ref: str,
     ) -> ContextAssemblyResult:
-        """组装上下文并把输入 refs、trust 和截断摘要写入 repository。"""
+        """组装上下文并把输入引用、信任分布和裁剪摘要写入仓储。
+
+        输入 fragment 保持只读：结果中的 retained fragment 是副本，调用方可安全复用
+        原始列表；输出文本只拼接实际保留内容，trace 则完整覆盖被丢弃和被截断片段。
+        """
 
         working = [
             _WorkingFragment(
@@ -143,11 +159,13 @@ class ContextAssembler:
 
 
 def _apply_budget(working: list[_WorkingFragment], token_budget: int) -> None:
-    """按项目契约执行预算降级：先 history，再 retrieval/tool，最后低优先级片段。"""
+    """按项目契约执行预算降级：先历史，再检索/工具，最后低优先级片段。"""
 
     if token_budget < 0:
+        # 负数预算没有“反向保留”语义，统一收敛为零以保证循环可终止。
         token_budget = 0
     while _used_tokens(working) > token_budget:
+        # 顺序不可调整：它决定会话历史、外部证据和普通上下文之间的稳定优先级。
         if _drop_next_history(working):
             continue
         if _truncate_next_retrieval_or_tool(working, token_budget):
@@ -158,6 +176,8 @@ def _apply_budget(working: list[_WorkingFragment], token_budget: int) -> None:
 
 
 def _drop_next_history(working: list[_WorkingFragment]) -> bool:
+    """丢弃最早保留的历史片段，为更高价值的当前上下文腾出预算。"""
+
     candidates = [
         item for item in working if item.fragment.kind == "history" and item.retained_tokens > 0
     ]
@@ -174,6 +194,8 @@ def _truncate_next_retrieval_or_tool(
     working: list[_WorkingFragment],
     token_budget: int,
 ) -> bool:
+    """缩短最大的检索或工具片段，但至少保留一个 token 以维持可解释的来源痕迹。"""
+
     candidates = [
         item
         for item in working
@@ -182,6 +204,7 @@ def _truncate_next_retrieval_or_tool(
     if not candidates:
         return False
     excess = max(_used_tokens(working) - token_budget, 1)
+    # 先压缩最长且最晚进入的候选，减少小片段被反复切割造成的不可预测结果。
     target = max(candidates, key=lambda item: (item.retained_tokens, -item.index))
     target.retained_tokens = max(1, target.retained_tokens - excess)
     target.status = "truncated"
@@ -190,6 +213,8 @@ def _truncate_next_retrieval_or_tool(
 
 
 def _drop_lowest_priority_fragment(working: list[_WorkingFragment]) -> bool:
+    """在前两类可降级内容耗尽后，丢弃优先级最低且最早出现的剩余片段。"""
+
     candidates = [item for item in working if item.retained_tokens > 0]
     if not candidates:
         return False
@@ -201,10 +226,14 @@ def _drop_lowest_priority_fragment(working: list[_WorkingFragment]) -> bool:
 
 
 def _used_tokens(working: list[_WorkingFragment]) -> int:
+    """计算当前所有仍保留片段的 token 估算总和，作为预算循环的唯一度量。"""
+
     return sum(item.retained_tokens for item in working)
 
 
 def _truncate_content(content: str, retained_tokens: int, original_tokens: int) -> str:
+    """按 token 保留比例近似裁剪字符内容；真实 tokenization 由上游估算边界负责。"""
+
     if original_tokens <= 0:
         return ""
     ratio = retained_tokens / original_tokens
@@ -213,6 +242,8 @@ def _truncate_content(content: str, retained_tokens: int, original_tokens: int) 
 
 
 def _trace_fragment(item: _WorkingFragment) -> ContextFragmentTrace:
+    """将内部工作项投影为公开 trace，保留来源、信任、预算前后值和降级原因。"""
+
     return ContextFragmentTrace(
         source_ref=item.fragment.source_ref,
         kind=item.fragment.kind,
@@ -226,6 +257,8 @@ def _trace_fragment(item: _WorkingFragment) -> ContextFragmentTrace:
 
 
 def _assembly_decision(traces: list[ContextFragmentTrace]) -> str | None:
+    """从逐片段 trace 汇总最严重的降级结果，供调用方快速展示而不丢失明细。"""
+
     if any(trace.status == "dropped" for trace in traces):
         return "trimmed"
     if any(trace.status == "truncated" for trace in traces):

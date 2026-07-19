@@ -25,6 +25,8 @@ from agent_harness.storage.repositories import RunCreate, SessionCreate
 
 
 def _dsn(path: Path) -> str:
+    """生成独立 SQLite 异步连接串，保证运行时存储合同不共享本地数据库。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 

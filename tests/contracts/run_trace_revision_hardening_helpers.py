@@ -25,16 +25,22 @@ CHECK_TARGETS = (
 
 
 def sqlite_dsn(path: Path) -> str:
+    """生成每个 fixture 专属的异步 SQLite DSN，保持 revision 回退试验之间完全隔离。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
 def migration_config(dsn: str, *, x_args: list[str] | None = None) -> Config:
+    """创建可注入 Alembic 运行参数的配置，供硬化迁移的精确升级与降级断言使用。"""
+
     config = alembic_config(dsn)
     config.cmd_opts = Namespace(x=x_args or [])
     return config
 
 
 def seed_legacy_event_rows(path: Path) -> None:
+    """写入同时含 run/non-run 事件的历史数据集，覆盖 0013a 必须兼容的真实旧形状。"""
+
     with sqlite3.connect(path) as connection:
         connection.execute("insert into tenants(id, display_name) values ('tenant-a', 'A')")
         connection.execute(
@@ -135,6 +141,8 @@ def simulate_legacy_sqlite_0013(path: Path) -> None:
 
 
 def sqlite_snapshot(path: Path) -> tuple[object, ...]:
+    """提取 schema、关键事件、run 与 revision 的轻量快照，用于比较迁移副作用是否超出预期。"""
+
     with sqlite3.connect(path) as connection:
         schema = tuple(
             connection.execute(

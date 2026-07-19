@@ -78,6 +78,8 @@ def load_secret_file_env(
 
 
 def _env_field_path(env_key: str) -> str:
+    """把双下划线分层的环境变量名映射为设置错误的点分字段路径。"""
+
     key = env_key.removeprefix(ENV_PREFIX)
     return ".".join(part.lower() for part in key.split("__") if part)
 
@@ -88,6 +90,12 @@ def _read_secret_file(
     secret_root: Path,
     field_path: str,
 ) -> str:
+    """以防符号链接与 TOCTOU 的方式读取受信根目录内的单个 UTF-8 secret 文件。
+
+    路径解析、无跟随打开、打开前后 inode/内容状态比较共同阻断替换攻击；读取失败
+    只返回结构化配置错误，绝不在异常中包含路径内容或 secret 字节。
+    """
+
     candidate = Path(raw_path)
     try:
         if not candidate.is_absolute() or ".." in candidate.parts:
@@ -147,6 +155,8 @@ def _same_file(
     *,
     include_content_state: bool = False,
 ) -> bool:
+    """比较 inode 身份；需要时再比较大小与纳秒时间戳以发现读取过程中的替换。"""
+
     if (left.st_dev, left.st_ino) != (right.st_dev, right.st_ino):
         return False
     if not include_content_state:
@@ -155,6 +165,8 @@ def _same_file(
 
 
 def _secret_file_error(field_path: str) -> SettingsLoadError:
+    """构造不泄露原始路径和内容的 secret 文件配置错误。"""
+
     return SettingsLoadError(
         [
             ErrorDetail(

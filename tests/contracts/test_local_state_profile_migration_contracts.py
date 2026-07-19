@@ -266,12 +266,16 @@ def test_profile_bundle_recovers_after_database_upgrade_and_file_failure(
     database = {"revision": "0012a_embedding_cache_tenant_scope"}
 
     def upgrade_database() -> dict[str, str]:
+        """模拟配置 profile 对数据库的成功升级，并返回 run 到 canonical trace 的映射。"""
+
         database["revision"] = "0013a_run_trace_event_hardening"
         return {"run-a": "trace-a"}
 
     original_replace = local_state_module._atomic_replace_jsonl  # pyright: ignore[reportPrivateUsage]
 
     def fail_file_replace(*_args: object, **_kwargs: object) -> None:
+        """在文件原子切换处注入一次中断，验证 journal 能保留可恢复状态。"""
+
         raise OSError("simulated interruption")
 
     monkeypatch.setattr(local_state_module, "_atomic_replace_jsonl", fail_file_replace)

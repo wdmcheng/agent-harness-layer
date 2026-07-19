@@ -26,7 +26,11 @@ _ZERO = Decimal("0")
 
 
 class _SharedBudgetLifecycleMixin:
-    """按同一 owner ledger lock/CAS 维护本职责内的预算事实。"""
+    """按同一 owner ledger lock/CAS 维护本职责内的预算事实。
+
+    生命周期转换与身份校验都以冻结 snapshot 为准；遇到已开始但结果未知的外部副作用
+    时宁可转人工复核，也不能释放额度、重放调用或允许 run 进入 terminal。
+    """
 
     _session: AsyncSession
 
@@ -76,6 +80,8 @@ class _SharedBudgetLifecycleMixin:
         return len(claims) + len(allocations)
 
     async def terminal_allowed(self, tenant_id: str, budget_owner_run_id: str) -> bool:
+        """仅当账本活跃且没有预留或待复核 claim/allocation 时允许终结 run。"""
+
         ledger = await self._session.get(
             ParentBudgetLedgerModel,
             (tenant_id, budget_owner_run_id),
@@ -103,6 +109,8 @@ class _SharedBudgetLifecycleMixin:
         return not pending_claim and not pending_allocation
 
     async def fence_terminal(self, tenant_id: str, budget_owner_run_id: str) -> None:
+        """在账本锁内再次确认终结条件，再把 ledger 不可逆地标记为 terminal。"""
+
         ledger = await self._lock_ledger(tenant_id, budget_owner_run_id)
         if not await self.terminal_allowed(tenant_id, budget_owner_run_id):
             raise BudgetReservationRejected(reason="ledger_needs_review")
@@ -111,7 +119,7 @@ class _SharedBudgetLifecycleMixin:
         await self._session.flush()
 
     async def fence_terminal_if_managed(self, tenant_id: str, budget_owner_run_id: str) -> bool:
-        """Legacy closed tree 没有 ledger；0016 writer 的 root 必须经过 shared guard。"""
+        """旧闭合树没有 ledger；受管理根 run 必须经过共享终结栅栏。"""
 
         ledger = await self._session.get(
             ParentBudgetLedgerModel,
@@ -129,6 +137,8 @@ class _SharedBudgetLifecycleMixin:
         *,
         allow_needs_review: bool = False,
     ) -> ParentBudgetLedgerModel:
+        """锁定并验证共享账本快照，只允许显式恢复路径读取待复核账本。"""
+
         query: Select[tuple[ParentBudgetLedgerModel]] = (
             select(ParentBudgetLedgerModel)
             .where(
@@ -149,6 +159,8 @@ class _SharedBudgetLifecycleMixin:
     def _validate_direct_identity(
         self, identity: OperationIdentity, ledger: ParentBudgetLedgerModel
     ) -> None:
+        """验证直属调用确实属于账本 owner，并与冻结快照中的路由事实一致。"""
+
         raw_owner = ledger.snapshot_json.get("owner")
         owner_agent_id = (
             cast(dict[str, object], raw_owner).get("agent_id")
@@ -166,6 +178,8 @@ class _SharedBudgetLifecycleMixin:
     def _validate_allocation_identity(
         self, identity: OperationIdentity, ledger: ParentBudgetLedgerModel
     ) -> None:
+        """验证子调用属于允许的委派目标，并使用同一冻结账本快照。"""
+
         if (
             identity.ownership_kind != "allocation"
             or not self._owner_allows_target(ledger, identity.agent_id)
@@ -204,6 +218,8 @@ class _SharedBudgetLifecycleMixin:
         token_reservation: int,
         cost_reservation: Decimal | None,
     ) -> None:
+        """只比较单次可信上界与树、目标硬限额，不读取或占用实时剩余额度。"""
+
         target_limits = self._target_limits(ledger, identity.agent_id)
         if target_limits is None:
             raise BudgetReservationRejected(reason="snapshot_invalid")
@@ -212,6 +228,7 @@ class _SharedBudgetLifecycleMixin:
         effective_target_cost_limit = (
             target_cost_limit if target_cost_limit is not None else cast(Decimal, ledger.cost_limit)
         )
+        # token 与成本任一上界超过冻结树或目标限制都直接拒绝，不能等待审批后再发现。
         if token_reservation > ledger.token_limit or token_reservation > target_token_limit:
             raise BudgetReservationRejected(reason="hard_limit_ineligible")
         if ledger.cost_enabled and (
@@ -225,6 +242,8 @@ class _SharedBudgetLifecycleMixin:
     def _target_limits(
         ledger: ParentBudgetLedgerModel, agent_id: str
     ) -> tuple[int, Decimal | None] | None:
+        """从冻结 agent 子快照提取严格可解析的单次 token/cost 上限。"""
+
         raw_agents = ledger.snapshot_json.get("agents", {})
         if not isinstance(raw_agents, dict):
             return None
@@ -252,6 +271,8 @@ class _SharedBudgetLifecycleMixin:
 
     @staticmethod
     def _owner_allows_target(ledger: ParentBudgetLedgerModel, agent_id: str) -> bool:
+        """确认子调用目标在 owner 冻结的无重复、非空委派目标列表中。"""
+
         raw_owner = ledger.snapshot_json.get("owner")
         if not isinstance(raw_owner, dict):
             return False
@@ -267,6 +288,8 @@ class _SharedBudgetLifecycleMixin:
     def _identity_matches_snapshot(
         self, identity: OperationIdentity, ledger: ParentBudgetLedgerModel
     ) -> bool:
+        """验证 identity 的快照坐标、成本开关、目标限额与 provider 路由均未漂移。"""
+
         raw_agents = ledger.snapshot_json.get("agents", {})
         agents = cast(dict[str, object], raw_agents) if isinstance(raw_agents, dict) else {}
         sub_snapshot = agents.get(identity.agent_id)
@@ -275,6 +298,7 @@ class _SharedBudgetLifecycleMixin:
         typed_snapshot = cast(dict[str, object], sub_snapshot)
         raw_routes = typed_snapshot.get("routes", [])
         routes = cast(list[object], raw_routes) if isinstance(raw_routes, list) else []
+        # 路由匹配包含使用类型、provider、model 与价格来源，不能只按模型名放宽比较。
         route_matches = any(
             isinstance(route, dict)
             and cast(dict[str, object], route).get("usage_kind") == identity.usage_kind
@@ -294,6 +318,8 @@ class _SharedBudgetLifecycleMixin:
         )
 
     async def _allocation_impact_sums(self, delegation_id: str) -> tuple[int, Decimal]:
+        """聚合一个委派下已落库的额度影响，供父级限额与结算一致性检查使用。"""
+
         token_sum, cost_sum = (
             await self._session.execute(
                 select(
@@ -311,6 +337,8 @@ class _SharedBudgetLifecycleMixin:
         delegation_id: str,
         usage_call_id: str,
     ) -> DelegationBudgetAllocationModel:
+        """按完整租户、账本、委派和调用坐标锁定单条 allocation，拒绝不存在记录。"""
+
         allocation = await self._session.scalar(
             select(DelegationBudgetAllocationModel)
             .where(
@@ -329,6 +357,8 @@ class _SharedBudgetLifecycleMixin:
     async def _require_direct_locked(
         self, tenant_id: str, budget_owner_run_id: str, usage_call_id: str
     ) -> BudgetOperationClaimModel:
+        """按完整租户、账本和调用坐标锁定直属 claim，拒绝不存在或其他操作类型记录。"""
+
         claim = await self._session.scalar(
             select(BudgetOperationClaimModel)
             .where(

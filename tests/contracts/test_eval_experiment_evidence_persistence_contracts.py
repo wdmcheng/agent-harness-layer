@@ -56,6 +56,8 @@ async def test_derived_public_refs_are_bounded_before_terminal_persistence(
     candidate_count: int,
     ref_padding: int,
 ) -> None:
+    """大量派生证据引用在写入终态前必须收敛为本地真相引用，避免公开和 publisher 载荷膨胀。"""
+
     from agent_harness.evals import ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
@@ -68,6 +70,8 @@ async def test_derived_public_refs_are_bounded_before_terminal_persistence(
     candidate = cast(Any, request.candidate_harness_version)
 
     def refs(version: str, count: int) -> list[str]:
+        """生成可控数量与长度的 artifact 引用，用于覆盖计数和字节数两种边界裁剪。"""
+
         return [
             f"artifact://bounded/{version}/{index}/" + "x" * ref_padding for index in range(count)
         ]
@@ -136,6 +140,8 @@ async def test_failure_difference_refs_are_bounded_before_comparison_persistence
     ref_count: int,
     ref_padding: int,
 ) -> None:
+    """候选失败差异的证据引用也必须在比较持久化前被替换为稳定本地引用。"""
+
     from agent_harness.evals import ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
@@ -191,6 +197,8 @@ async def test_failure_difference_refs_are_bounded_before_comparison_persistence
 
 @pytest.mark.asyncio
 async def test_create_persists_draft_rejection_without_scoring_draft(tmp_path: Path) -> None:
+    """草稿评测用例应被记录为拒绝原因但永不进入 split 或 evaluator，防止未审核数据影响结论。"""
+
     from agent_harness.evals import ExperimentService
     from agent_harness.storage import EvalCaseCreate, SQLAlchemyStorage, run_migrations
 
@@ -239,6 +247,8 @@ async def test_create_persists_draft_rejection_without_scoring_draft(tmp_path: P
 async def test_invalid_partial_result_becomes_terminal_failure_without_live_claim(
     tmp_path: Path,
 ) -> None:
+    """无效局部评分结果需收敛为可重放的终态失败，并清除 live claim 以避免永久占用。"""
+
     from agent_harness.evals import ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 

@@ -37,6 +37,8 @@ class _ApprovalThenDelegationExecutor:
     """审批前不执行；审批后只建立 durable delegation claim。"""
 
     def __init__(self) -> None:
+        """初始化由测试运行时注入的持久化依赖占位。"""
+
         self.storage: SQLAlchemyStorage | None = None
         self.shared_budget: SharedBudgetRuntime | None = None
 
@@ -45,6 +47,8 @@ class _ApprovalThenDelegationExecutor:
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
+        """首次执行只请求审批，确保后续路径必须经过受控 resume seam。"""
+
         del request, context
         return AgentExecutionResult.waiting(
             AgentApprovalRequest(
@@ -63,6 +67,8 @@ class _ApprovalThenDelegationExecutor:
         context: AgentExecutionContext,
         grant: ApprovalGrant,
     ) -> AgentExecutionResult:
+        """在批准后建立可恢复 delegation claim，但不直接创建 child 或投递队列。"""
+
         del grant
         if self.storage is None or self.shared_budget is None:
             raise RuntimeError("test runtime dependencies are not bound")
@@ -146,19 +152,23 @@ async def test_approval_waits_for_delegation_then_closes_ordered_evidence(
     original_get = AgentRegistry.get
 
     def get_with_frozen_target(self: AgentRegistry, agent_id: str):
+        """为 basic agent 注入固定目标，模拟 root 创建时的冻结允许列表。"""
+
         descriptor = original_get(self, agent_id)
         if agent_id == "examples.basic":
             return descriptor.model_copy(update={"delegation_targets": ["examples.ticket_triage"]})
         return descriptor
 
     def resolve_executor(self: AgentRegistry, agent_id: str):
+        """只替换 basic agent 的执行器，其余 registry 解析保持真实行为。"""
+
         if agent_id == "examples.basic":
             return executor
         return original_resolve(self, agent_id)
 
     monkeypatch.setattr(AgentRegistry, "resolve_executor", resolve_executor)
-    # Phase 13.8A 要求 target 在 root 创建时进入 immutable tree snapshot；
-    # 本合同原先绕过 registry service 直写 delegation，因此显式补齐该前置事实。
+    # root 创建时必须把允许 target 冻结进 tree snapshot；本夹具原先绕过
+    # registry service 直接写 delegation，因此在此显式补齐这一前置事实。
     monkeypatch.setattr(AgentRegistry, "get", get_with_frozen_target)
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'approval-delegation.db'}"
     events_path = tmp_path / "approval-delegation-events.jsonl"
@@ -254,6 +264,8 @@ async def test_approval_waits_for_delegation_then_closes_ordered_evidence(
         recovery_attempts = 0
 
         async def fail_once(**kwargs: Any) -> Any:
+            """首次恢复故意中断，验证第二次只补齐既有 evidence 而不重放副作用。"""
+
             nonlocal recovery_attempts
             recovery_attempts += 1
             if recovery_attempts == 1:

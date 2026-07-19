@@ -16,30 +16,38 @@ from agent_harness.storage.eval_experiment_models import EvalDatasetSplitModel, 
 
 
 class ExperimentStorageConflict(RuntimeError):
-    """持久化幂等键或不可变 decision 与既有记录冲突。"""
+    """持久化幂等键或不可变决定与既有记录冲突。"""
 
     def __init__(self, code: str, message: str) -> None:
+        """保存供服务层映射的稳定错误码，不把已存在记录的敏感内容带入异常。"""
+
         super().__init__(message)
         self.code = code
 
 
 class ExperimentStorageNotFound(LookupError):
-    """请求 tenant 不可见的 split/experiment 关联。"""
+    """请求租户不可见的 split/experiment 关联。"""
 
     def __init__(self, code: str, message: str) -> None:
+        """保存统一错误码，使不存在与跨租户不可见遵循相同的公开边界。"""
+
         super().__init__(message)
         self.code = code
 
 
 class ExperimentStorageConcurrentConflict(RuntimeError):
-    """唯一约束并发 loser；application service 可在新 UoW 回读 winner。"""
+    """唯一约束并发竞争失败者；服务层可在新工作单元回读获胜记录。"""
 
     def __init__(self, code: str, message: str) -> None:
+        """保存可重试或回读路径使用的稳定错误码，而不暴露底层约束名称。"""
+
         super().__init__(message)
         self.code = code
 
 
 def _empty_provider_statuses() -> list[dict[str, object]]:
+    """提供独立的默认 provider 状态列表，避免 DTO 实例之间共享可变对象。"""
+
     return []
 
 
@@ -78,6 +86,8 @@ class EvalExperimentRecord(EvalExperimentCreate):
 
 
 def _experiment_record(model: EvalExperimentModel) -> EvalExperimentRecord:
+    """将 ORM 模型投影为 tenant-scoped DTO，隔离调用方与会话绑定的持久化对象。"""
+
     return EvalExperimentRecord(
         experiment_id=model.id,
         tenant_id=model.tenant_id,
@@ -107,19 +117,31 @@ def _experiment_record(model: EvalExperimentModel) -> EvalExperimentRecord:
 
 
 class EvalExperimentRepository:
-    """tenant-scoped experiment create/read/result update。"""
+    """tenant-scoped experiment 创建、读取、执行 claim 与结果更新仓储。
+
+    所有更新都将 tenant、状态和 execution claim 作为数据库筛选条件，使过期 worker
+    不能在外部 evaluator 已有不确定结果时接管或覆盖另一个 worker 的耐久事实。
+    """
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定调用方工作单元的会话；提交与回滚始终由外层统一控制。"""
+
         self._session = session
 
     async def create(self, data: EvalExperimentCreate) -> EvalExperimentRecord:
+        """创建或幂等复用实验记录；调用方不需要关心本次是否首次写入。"""
+
         record, _created = await self.create_with_status(data)
         return record
 
     async def create_with_status(
         self, data: EvalExperimentCreate
     ) -> tuple[EvalExperimentRecord, bool]:
-        """创建 experiment，并把幂等 replay 与本次新建显式区分。"""
+        """创建实验，并把幂等重放与本次新建显式区分。
+
+        先读取同一租户的幂等键，随后验证 split 对租户、agent 和 dataset 的可见性；唯一
+        约束竞争失败者不在当前事务猜测获胜记录，而是交给服务层在新工作单元回读。
+        """
 
         result = await self._session.scalars(
             select(EvalExperimentModel).where(
@@ -129,6 +151,7 @@ class EvalExperimentRepository:
         )
         existing = result.first()
         if existing is not None:
+            # 同一幂等键只能复用完全相同的不可变请求，字段漂移必须拒绝而非覆盖。
             if not _experiment_matches(existing, data):
                 raise ExperimentStorageConflict(
                     "eval.experiment.idempotency_conflict",
@@ -191,6 +214,8 @@ class EvalExperimentRepository:
         return None if model is None else _experiment_record(model)
 
     async def get(self, tenant_id: str, experiment_id: str) -> EvalExperimentRecord | None:
+        """读取指定租户可见的实验；跨租户记录与不存在记录均返回 ``None``。"""
+
         model = await self._session.get(EvalExperimentModel, experiment_id)
         if model is None or model.tenant_id != tenant_id:
             return None
@@ -230,6 +255,8 @@ class EvalExperimentRepository:
         claim_id: str,
         expires_at: datetime,
     ) -> bool:
+        """仅在当前 worker 仍持有未过期 claim 时续租，防止旧 worker 复活。"""
+
         renewed_id = await self._session.scalar(
             update(EvalExperimentModel)
             .where(
@@ -344,6 +371,12 @@ class EvalExperimentRepository:
         provider_statuses: list[dict[str, object]],
         execution_claim_id: str,
     ) -> EvalExperimentRecord:
+        """由当前未过期 claim 原子写入本地评估结果，并释放执行所有权。
+
+        一旦 claim、状态或租期不匹配即不写入，随后通过统一冲突路径区分不存在与已被
+        其他 worker 接管或收敛的实验。
+        """
+
         updated_id = await self._session.scalar(
             update(EvalExperimentModel)
             .where(
@@ -403,6 +436,8 @@ class EvalExperimentRepository:
         return await self._refreshed_record(experiment_id)
 
     async def _raise_result_update_conflict(self, tenant_id: str, experiment_id: str) -> None:
+        """把条件更新失败映射为租户不可见或 execution fencing 冲突。"""
+
         model = await self._session.get(EvalExperimentModel, experiment_id)
         if model is None or model.tenant_id != tenant_id:
             raise ExperimentStorageNotFound(
@@ -414,6 +449,8 @@ class EvalExperimentRepository:
         )
 
     async def _refreshed_record(self, experiment_id: str) -> EvalExperimentRecord:
+        """刷新同一会话中的更新模型并转换为 DTO，确保返回数据库最终写入值。"""
+
         model = await self._session.get(EvalExperimentModel, experiment_id)
         if model is None:
             raise AssertionError("updated experiment disappeared in the same transaction")
@@ -422,6 +459,8 @@ class EvalExperimentRepository:
 
 
 def _experiment_matches(model: EvalExperimentModel, data: EvalExperimentCreate) -> bool:
+    """比较幂等键保护的所有不可变请求字段，不比较执行过程产生的可变结果。"""
+
     return (
         model.request_hash == data.request_hash
         and model.agent_id == data.agent_id

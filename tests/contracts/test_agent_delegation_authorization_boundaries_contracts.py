@@ -111,6 +111,8 @@ async def test_registry_budget_reload_cannot_change_frozen_target_reservation(
 
 @pytest.mark.asyncio
 async def test_cross_tenant_parent_denies_before_claim(tmp_path: Path) -> None:
+    """验证调用者不拥有 parent 的租户时，在 claim、运行与事件副作用前即被拒绝。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(tmp_path)
     try:
         with pytest.raises(DelegationError) as captured:
@@ -176,6 +178,8 @@ async def test_parent_ownership_denies_before_delegation_side_effects(
 async def test_committed_claim_recovery_launches_one_child_without_re_reserving(
     tmp_path: Path,
 ) -> None:
+    """验证已提交但尚未拉起 child 的 claim 恢复只补建一次，不重复预约容量或预算。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(tmp_path)
     request = _request(parent_run_id)
     identity = _identity()

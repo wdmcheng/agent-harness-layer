@@ -25,6 +25,11 @@ from agent_harness.tools import hash_tool_arguments
 )
 @pytest.mark.asyncio
 async def test_postgresql_approval_arbitration_and_unique_tool_claim(tmp_path: Path) -> None:
+    """验证 PostgreSQL 用租约 fencing 与唯一约束收敛并发审批和执行 claim。
+
+    用例覆盖过期租约接管、旧持有者拒绝写入及重复工具 claim，防止竞争
+    请求把同一审批决策或同一工具调用执行多次。
+    """
     dsn = os.environ["AGENT_HARNESS_TEST_POSTGRES_DSN"]
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

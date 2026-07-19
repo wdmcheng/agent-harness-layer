@@ -35,14 +35,20 @@ class _AllowReadonlyPolicy:
     """真实 PostgreSQL CLI adapter 合同只替换 policy 决策，不替换 reader。"""
 
     def __init__(self) -> None:
+        """初始化记录访问动作的列表，使 CLI 流测试能验证内部可见性授权。"""
+
         self.actions: list[str] = []
 
     async def require_allowed_readonly(self, check: Any) -> object:
+        """记录策略检查动作并允许读取，避免将 reader 合同耦合到真实策略 provider。"""
+
         self.actions.append(check.action)
         return object()
 
 
 async def _seed_run(storage: SQLAlchemyStorage, suffix: str) -> tuple[str, str, str]:
+    """创建具有唯一 tenant、run 和 trace 的真实 PostgreSQL 运行基线。"""
+
     tenant_id = f"sse-reader-{suffix}-{uuid4()}"
     trace_id = f"trace-{suffix}-{uuid4()}"
     async with storage.uow() as uow:
@@ -71,6 +77,8 @@ def _event(
     visibility: str,
     terminal: bool = False,
 ) -> CanonicalEvent:
+    """构造待写入 PostgreSQL sink 的最小 run-scoped event，仅开放可见性与终态。"""
+
     return CanonicalEvent(
         event_id=event_id,
         tenant_id=tenant_id,
@@ -93,6 +101,8 @@ async def _seed_sparse_high_water(
     run_id: str,
     trace_id: str,
 ) -> None:
+    """直接植入接近最大序号的持久化事件和容量游标，覆盖 terminal 保留槽边界。"""
+
     sparse = CanonicalEvent(
         event_id=f"sparse-{run_id}",
         tenant_id=tenant_id,
@@ -129,6 +139,8 @@ async def _seed_sparse_high_water(
 
 @pytest.mark.asyncio
 async def test_postgresql_reader_visibility_membership_resume_and_terminal() -> None:
+    """验证 PostgreSQL reader 的可见性过滤、游标续读、成员查询和 terminal 查询。"""
+
     async with isolated_database("sse_reader_page") as dsn:
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -189,6 +201,8 @@ async def test_postgresql_reader_visibility_membership_resume_and_terminal() -> 
 
 @pytest.mark.asyncio
 async def test_cli_stream_uses_real_postgresql_reader_and_canonical_ndjson() -> None:
+    """验证 CLI 流入口使用真实 PostgreSQL reader，并输出 canonical NDJSON 事件字节。"""
+
     async with isolated_database("sse_cli_reader") as dsn:
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -267,6 +281,8 @@ async def test_cli_stream_uses_real_postgresql_reader_and_canonical_ndjson() -> 
 
 @pytest.mark.asyncio
 async def test_postgresql_reader_fails_closed_on_public_direct_write_oversized_row() -> None:
+    """验证历史直接写入的超大公开行使 reader 关闭式失败，而非跳过该证据。"""
+
     async with isolated_database("sse_reader_oversized") as dsn:
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -312,6 +328,8 @@ async def test_postgresql_reader_fails_closed_on_public_direct_write_oversized_r
 
 @pytest.mark.asyncio
 async def test_postgresql_sparse_seq_max_is_reserved_for_terminal_without_partial_write() -> None:
+    """验证最高序号只保留给 terminal，普通事件失败不留下部分写入或游标漂移。"""
+
     async with isolated_database("sse_capacity_max") as dsn:
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)

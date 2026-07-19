@@ -27,6 +27,8 @@ from agent_harness.storage import (
 
 
 class ExperimentAcceptanceRequest(HarnessDTO):
+    """人工验收实验候选版本的稳定请求，限制为可审计且不含本地敏感数据的字段。"""
+
     request_id: str
     decision: Literal["accepted", "rejected"]
     reason: str = Field(min_length=1)
@@ -36,6 +38,8 @@ class ExperimentAcceptanceRequest(HarnessDTO):
     @field_validator("reason")
     @classmethod
     def validate_reason(cls, value: str) -> str:
+        """规范化人工理由，并拒绝空白、脱敏标记或疑似秘密文本。"""
+
         normalized = value.strip()
         if not normalized:
             raise ValueError("acceptance reason must not be blank")
@@ -46,6 +50,8 @@ class ExperimentAcceptanceRequest(HarnessDTO):
     @field_validator("followup_issue_ref")
     @classmethod
     def validate_followup_ref(cls, value: str | None) -> str | None:
+        """校验可选后续事项为逻辑引用，而非本地绝对路径或秘密形态。"""
+
         if value is None:
             return None
         normalized = value.strip()
@@ -62,6 +68,8 @@ class ExperimentAcceptanceRequest(HarnessDTO):
 
     @model_validator(mode="after")
     def validate_version(self) -> ExperimentAcceptanceRequest:
+        """将接受决策与唯一候选版本绑定，拒绝决策则不得伪造生产版本。"""
+
         if self.decision == "accepted" and self.accepted_harness_version is None:
             raise ValueError("accepted decision requires accepted_harness_version")
         if self.decision == "rejected" and self.accepted_harness_version is not None:
@@ -70,6 +78,8 @@ class ExperimentAcceptanceRequest(HarnessDTO):
 
 
 class ExperimentAcceptanceResult(HarnessDTO):
+    """持久化验收决定的公开结果，包含审计和证据引用但不携带原始实验明细。"""
+
     request_id: str
     experiment_id: str
     decision_id: str
@@ -84,13 +94,21 @@ class ExperimentAcceptanceResult(HarnessDTO):
 
 
 class _ConcurrentAcceptanceReplay(RuntimeError):
+    """私有控制流信号：并发竞争者已写入同一不可变验收决定。"""
+
     def __init__(self, record: HarnessAcceptanceRecord) -> None:
+        """携带已获胜的耐久记录，使外层按正常重放或冲突规则统一处理。"""
+
         super().__init__("concurrent acceptance already committed")
         self.record = record
 
 
 class AcceptanceService:
-    """comparison 只给建议；本服务才允许人工写唯一 production binding。"""
+    """comparison 只给建议；本服务才允许人工写唯一生产绑定。
+
+    该服务是实验比较、策略判断、审计日志与 acceptance record 的汇合点。任何接受决定
+    都必须同时通过候选版本、推荐结论和授权检查，且一个实验只允许一份不可变决定。
+    """
 
     def __init__(
         self,
@@ -99,6 +117,8 @@ class AcceptanceService:
         experiments: ExperimentService,
         policy: PolicyEngine,
     ) -> None:
+        """绑定存储、实验查询和策略入口；事务边界只在 ``decide`` 内创建。"""
+
         self.storage = storage
         self.experiments = experiments
         self.policy = policy
@@ -110,6 +130,12 @@ class AcceptanceService:
         experiment_id: str,
         request: ExperimentAcceptanceRequest,
     ) -> ExperimentAcceptanceResult:
+        """原子写入人工验收决定，或对同一语义请求返回已有决定。
+
+        接受候选前先验证比较门槛，再执行策略授权；随后在同一工作单元中创建审计和
+        acceptance record，使任何竞争失败者都不会留下孤立审计记录或覆盖获胜决定。
+        """
+
         decision_hash = _decision_hash(actor, request)
         existing = await self._existing(actor.tenant_id, experiment_id)
         if existing is not None:
@@ -121,6 +147,7 @@ class AcceptanceService:
             request_id=request.request_id,
         )
         if request.decision == "accepted":
+            # 人工不能接受比较对象之外的版本，也不能绕过比较服务的保守推荐门槛。
             if request.accepted_harness_version != comparison.candidate_harness_version:
                 raise EvalExperimentError(
                     "eval.experiment.accepted_version_mismatch",
@@ -156,6 +183,7 @@ class AcceptanceService:
                 status_code=403,
             )
         if policy.decision == GuardrailDecisionStatus.REQUIRE_APPROVAL.value:
+            # 此入口没有嵌套审批 continuation，不能把待审批决定误写成正式绑定。
             raise EvalExperimentError(
                 "eval.experiment.approval_required",
                 "policy requires a separate approval; nested approval was not created",
@@ -231,6 +259,7 @@ class AcceptanceService:
                             # 回滚 savepoint，避免 loser audit 成为孤立记录。
                             raise _ConcurrentAcceptanceReplay(record)
                 except _ConcurrentAcceptanceReplay as replay:
+                    # savepoint 已回滚 loser audit；只返回获胜记录的正常重放或冲突结果。
                     return _replay_or_conflict(replay.record, decision_hash, request.request_id)
                 await uow.commit()
         except ExperimentStorageConflict as exc:
@@ -252,12 +281,17 @@ class AcceptanceService:
         return _acceptance_result(record, request_id=request.request_id)
 
     async def _existing(self, tenant_id: str, experiment_id: str) -> HarnessAcceptanceRecord | None:
+        """读取某实验已提交的唯一验收记录，用于请求前短路和竞争后的获胜者回读。"""
+
         async with self.storage.uow() as uow:
             return await uow.harness_acceptance_records.get_for_experiment(tenant_id, experiment_id)
 
 
 def _decision_hash(actor: IdentityContext, request: ExperimentAcceptanceRequest) -> str:
+    """计算不包含传输 request id、但包含评审者身份的不可变决定摘要。"""
+
     payload = request.to_payload()
+    # 同一决定允许不同请求标识重放；换评审者或改变任何决定字段都必须产生冲突。
     payload.pop("request_id", None)
     payload["reviewer_id"] = actor.user_id
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()
@@ -269,6 +303,8 @@ def _replay_or_conflict(
     decision_hash: str,
     request_id: str,
 ) -> ExperimentAcceptanceResult:
+    """同一决定摘要返回耐久结果，不同摘要则拒绝覆盖实验唯一验收事实。"""
+
     if record.decision_request_hash != decision_hash:
         raise EvalExperimentError(
             "eval.experiment.decision_conflict",
@@ -281,6 +317,8 @@ def _replay_or_conflict(
 def _acceptance_result(
     record: HarnessAcceptanceRecord, *, request_id: str
 ) -> ExperimentAcceptanceResult:
+    """把耐久验收记录投影为公开 DTO，并仅用本次请求标识包装重放响应。"""
+
     return ExperimentAcceptanceResult(
         request_id=request_id,
         experiment_id=record.experiment_id,

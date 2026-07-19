@@ -116,29 +116,41 @@ async def test_local_direct_sink_rejects_untyped_scope_without_side_effect(
 
 
 def test_event_bus_coordinates_each_event_loop_without_cross_loop_lock_binding() -> None:
-    """同一 service EventBus 经 DBOS loop 和 worker loop 连续竞争时都可发布。"""
+    """验证同一 EventBus 跨独立事件循环连续竞争时不因锁绑定旧 loop 而失效。"""
 
     class YieldingSink:
+        """通过主动让出事件循环的内存 sink，模拟不同 loop 下的异步写入时序。"""
+
         def __init__(self) -> None:
+            """初始化空事件列表，作为本场景唯一的可观察持久化介质。"""
+
             self.events: list[CanonicalEvent] = []
 
         async def write(self, event: CanonicalEvent) -> CanonicalEvent:
+            """让出一次调度后追加事件，暴露 EventBus 锁是否错误绑定当前 loop。"""
+
             await asyncio.sleep(0)
             self.events.append(event)
             return event
 
         async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
+            """按 run 与游标返回已记录事件，满足 EventSink 最小读取协议。"""
+
             return [
                 event for event in self.events if event.run_id == run_id and event.seq > after_seq
             ]
 
         async def latest_seq(self, run_id: str) -> int:
+            """计算指定 run 已追加的最大序号，空流按零处理。"""
+
             return max(
                 (event.seq for event in self.events if event.run_id == run_id),
                 default=0,
             )
 
         async def has_terminal(self, run_id: str) -> bool:
+            """判断 run 是否已有 terminal event，满足 EventBus 的终态防重检查。"""
+
             return any(event.run_id == run_id and event.terminal for event in self.events)
 
     sink = YieldingSink()
@@ -148,6 +160,8 @@ def test_event_bus_coordinates_each_event_loop_without_cross_loop_lock_binding()
     )
 
     async def burst(prefix: str) -> None:
+        """在一个独立 loop 内并发发布两条事件，复用跨 loop 协调断言。"""
+
         await asyncio.gather(
             *(
                 bus.publish(
@@ -168,6 +182,8 @@ def test_event_bus_coordinates_each_event_loop_without_cross_loop_lock_binding()
 
 
 def test_canonical_event_type_catalog_contains_product_spec_events() -> None:
+    """验证 canonical 类型目录覆盖产品约定的全部事件，防止新增类别在 adapter 间漂移。"""
+
     # Product-Spec 的事件 catalog 是 adapter 互通的枚举契约。这里锁完整清单，
     # 防止只测 happy path 的 run/guardrail 事件时漏掉 eval 或 compaction 事件。
     expected = {
@@ -217,6 +233,8 @@ def test_canonical_event_type_catalog_contains_product_spec_events() -> None:
 
 @pytest.mark.asyncio
 async def test_event_bus_assigns_seq_and_rejects_second_terminal(tmp_path: Path) -> None:
+    """验证 EventBus 统一分配序号，并在公开 terminal 后拒绝第二个终态事件。"""
+
     # EventBus 是 runtime 的写入 seam：调用方不手动分配 seq，也不能绕过 terminal 规则。
     # 这里用 local jsonl sink 证明断线续读语义；不声明它已经支持多进程并发队列。
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")

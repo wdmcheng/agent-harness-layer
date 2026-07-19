@@ -1,4 +1,4 @@
-"""增加 usage settlement、ordered outbox 与 run event capacity。"""
+"""增加用量结算、顺序 outbox 与运行事件容量的不可逆迁移边界。"""
 
 from __future__ import annotations
 
@@ -48,6 +48,7 @@ class _CapacityBackfill:
         outstanding: int,
         terminal_reservation: int,
     ) -> None:
+        """保存单个运行的容量高水位和预留数，供 upgrade 在建表后原子回填。"""
         self.run_id = run_id
         self.tenant_id = tenant_id
         self.highest_seq = highest_seq
@@ -56,6 +57,11 @@ class _CapacityBackfill:
 
 
 def upgrade() -> None:
+    """创建容量和 outbox 表，并从既有事件、审批、工具状态构造安全回填。
+
+    任何事件归属、终态顺序或容量计算矛盾都会在建表后、写入前失败，避免把
+    旧数据解释为看似有效但无法保证 terminal fence 的新状态。
+    """
     connection = op.get_bind()
     backfill = _preflight_capacity_backfill(connection)
     op.create_table(
@@ -158,6 +164,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """仅在操作者显式确认且两张证据表为空时允许删除新增结构。
+
+    运行事件和用量 outbox 是审计证据，不能把常规 downgrade 当成数据删除
+    通道；精确参数检查可避免命令中混入其他 flag 时误触发不可逆动作。
+    """
     _require_exact_empty_evidence_opt_in()
     connection = op.get_bind()
     evidence_tables = ("run_evidence_outbox", "run_event_capacity")
@@ -173,6 +184,11 @@ def downgrade() -> None:
 
 
 def _preflight_capacity_backfill(connection: sa.Connection) -> list[_CapacityBackfill]:
+    """验证旧事件流可映射为新容量模型，并生成不写库的回填计划。
+
+    高水位必须按物理 stream 计算，审批和工具的进行中状态会占用预留容量；
+    此处拒绝任何无法满足单终态、顺序和整数容量上界的数据，而不猜测修复值。
+    """
     invalid = connection.execute(
         sa.text(
             "select count(*) from canonical_events ce "
@@ -238,6 +254,7 @@ def _preflight_capacity_backfill(connection: sa.Connection) -> list[_CapacityBac
 
 
 def _active_approval_counts(connection: sa.Connection) -> dict[str, int]:
+    """统计旧审批恢复状态占用的事件容量，并拒绝未知或矛盾的状态组合。"""
     counts: dict[str, int] = {}
     rows = connection.execute(
         sa.text(
@@ -264,6 +281,7 @@ def _active_approval_counts(connection: sa.Connection) -> dict[str, int]:
 
 
 def _active_tool_counts(connection: sa.Connection) -> dict[str, int]:
+    """统计仍在执行的工具调用预留的事件容量，完成或失败调用不再占位。"""
     counts: dict[str, int] = {}
     rows = connection.execute(
         sa.text(
@@ -282,10 +300,12 @@ def _active_tool_counts(connection: sa.Connection) -> dict[str, int]:
 
 
 def _table_count(connection: sa.Connection, table: str) -> int:
+    """读取迁移目标表行数，仅供 downgrade 的空表安全门禁使用。"""
     return int(connection.execute(sa.text(f"select count(*) from {table}")).scalar_one())
 
 
 def _require_exact_empty_evidence_opt_in() -> None:
+    """要求 downgrade 参数严格等于空证据确认标记，拒绝宽松或组合式授权。"""
     arguments = context.get_x_argument(as_dictionary=False)
     if arguments != [_OPT_IN]:
         raise RuntimeError("0014 downgrade refused: explicit opt-in is required")

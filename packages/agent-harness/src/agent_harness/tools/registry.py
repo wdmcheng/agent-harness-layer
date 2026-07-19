@@ -49,6 +49,12 @@ class ToolRegistry:
         enforce_agent_tool_allowlist: bool = False,
         storage: SQLAlchemyStorage | None = None,
     ) -> None:
+        """注册工具及其安全协作者，保留可选持久化 seam 给审批后执行路径。
+
+        allowlist 只有在显式启用时才限制工具发现和调用，避免历史 local profile 因
+        空配置失去工具；真正的授权仍由 policy engine 在每次调用时判定。
+        """
+
         self._tools = {tool.name: tool for tool in tools}
         self._policy = policy
         self._audit = audit
@@ -78,6 +84,13 @@ class ToolRegistry:
         *,
         context: ToolRuntimeContext,
     ) -> ToolCallResult:
+        """执行一次未批准工具调用，并统一处理校验、策略、脱敏、审计与大结果外置。
+
+        各个拒绝分支也写审计记录，保证调用尝试可追溯。工具 handler 的预检、策略
+        与异常映射均发生在实际副作用前；已是 ``ToolCallResult`` 的适配器结果仍会
+        经过脱敏，防止 provider 绕过公共输出边界。
+        """
+
         invocation_id = str(uuid4())
         result_source_ref = source_ref(request.tool_name, invocation_id, context.run_id)
         tool = self._tools.get(request.tool_name)
@@ -283,6 +296,8 @@ class ToolRegistry:
         invocation_id: str,
         status: str,
     ) -> None:
+        """在审计服务存在时记录最小化调用元数据；审计关闭不阻塞工具主流程。"""
+
         if self._audit is None:
             return
         await self._audit.record(
@@ -303,6 +318,8 @@ class ToolRegistry:
         )
 
     def _is_agent_tool_allowed(self, tool_name: str) -> bool:
+        """按显式开关应用 agent allowlist，关闭时维持兼容的全量工具可见性。"""
+
         if not self._enforce_agent_tool_allowlist:
             return True
         return tool_name in self._agent_tool_allowlist

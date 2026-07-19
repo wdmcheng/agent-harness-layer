@@ -150,6 +150,8 @@ async def test_next_controlled_publish_recovers_failed_pending_clear(tmp_path: P
     )
 
     async def publish() -> CanonicalEvent:
+        """发布固定大载荷事件，复用同一 event ID 触发幂等恢复路径。"""
+
         return await bus.publish(
             tenant_id="tenant",
             run_id="run",

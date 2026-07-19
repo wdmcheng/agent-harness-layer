@@ -1,4 +1,4 @@
-"""把 approved file case 交给真实 registry/runtime/approval seam。"""
+"""把已批准文件案例交给真实 registry、运行时与审批服务接缝。"""
 
 from __future__ import annotations
 
@@ -22,6 +22,11 @@ class ExampleEvalAdapter:
         storage: SQLAlchemyStorage,
         identity: IdentityContext,
     ) -> None:
+        """保存评测所需运行时依赖；身份固定由调用方注入，不能从 case 伪造。
+
+        这样每个案例仍经过正式的运行、审批、存储与审计边界，而评测适配器只
+        负责投影声明用于比较的字段，不承担业务授权或状态补偿职责。
+        """
         self._orchestrator = orchestrator
         self._approvals = approval_service
         self._storage = storage
@@ -115,6 +120,7 @@ class ExampleEvalAdapter:
 
 
 def _payload(case: dict[str, Any]) -> dict[str, Any]:
+    """读取 approved case 的对象型 payload，并拒绝缺失或非对象的旧夹具。"""
     payload = case.get("payload")
     if not isinstance(payload, dict):
         raise ValueError("approved example case requires object payload")
@@ -122,4 +128,5 @@ def _payload(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def _has_ref(output: dict[str, Any], *names: str) -> bool:
+    """判断任一指定引用字段是否含有非空字符串，供评测投影记录证据存在性。"""
     return any(isinstance(output.get(name), str) and bool(output[name]) for name in names)

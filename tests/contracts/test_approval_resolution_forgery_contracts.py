@@ -42,7 +42,11 @@ from tests.contracts.test_approval_execution_contracts import (
 
 @pytest.mark.asyncio
 async def test_approve_and_deny_repository_updates_have_one_winner(tmp_path: Path) -> None:
+    """审批和拒绝竞争同一记录时 repository 必须只允许一个状态转换胜出，后续操作走恢复语义。"""
+
     def passthrough(arguments: dict[str, Any]) -> dict[str, Any]:
+        """返回原参数的无副作用工具替身，使本用例只验证审批状态竞争。"""
+
         return arguments
 
     (
@@ -113,9 +117,13 @@ async def test_approve_and_deny_repository_updates_have_one_winner(tmp_path: Pat
 
 @pytest.mark.asyncio
 async def test_forged_grants_and_denial_never_call_handler(tmp_path: Path) -> None:
+    """任一 grant 绑定字段被伪造或审批被拒绝时，工具 handler 都不得获得执行机会。"""
+
     calls = 0
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """计数并返回参数；计数必须保持零，作为权限验证先于副作用的强断言。"""
+
         nonlocal calls
         calls += 1
         return arguments
@@ -212,9 +220,13 @@ async def test_forged_grants_and_denial_never_call_handler(tmp_path: Path) -> No
 async def test_existing_executing_claim_keeps_public_waiting_and_needs_review(
     tmp_path: Path,
 ) -> None:
+    """发现既有执行中工具 claim 时，公开审批保持等待并转人工复核，不能贸然再次执行。"""
+
     calls = 0
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """若状态保护失效会递增计数；正确路径应在 handler 前阻断，始终保持零次调用。"""
+
         nonlocal calls
         calls += 1
         return arguments

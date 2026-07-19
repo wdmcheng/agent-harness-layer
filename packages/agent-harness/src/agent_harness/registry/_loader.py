@@ -32,17 +32,23 @@ class RegistryLoadError(HarnessError):
 
 
 class _AgentModelConfig(HarnessDTO):
+    """配置文件中模型选择的最小结构；仅在加载时存在，不作为公开 registry 描述符。"""
+
     provider: str
     default_model: str
     fallback_models: list[str] = Field(default_factory=list)
 
 
 class _AgentBudgetConfig(HarnessDTO):
+    """配置文件中单次 agent 预算上限的最小结构，供公开 descriptor 安全投影。"""
+
     max_tokens_per_run: int
     max_cost_usd_per_run: float | None
 
 
 class _AgentConfig(HarnessDTO):
+    """从单个 agent YAML 解析的内部完整配置，包含公开描述符和本地导入坐标。"""
+
     agent_id: str
     version: str
     name: str
@@ -58,6 +64,12 @@ class _AgentConfig(HarnessDTO):
 
 
 def load_descriptor(config_path: Path, *, root: Path) -> tuple[AgentDescriptor, str]:
+    """读取并校验 agent YAML，返回脱敏公开描述符与私有 executor 引用。
+
+    描述符只承载 API/CLI 可以安全显示的字段；executor 引用在返回前单独校验，但不被
+    放进公开 DTO，防止本地模块结构或可调用对象进入外部边界。
+    """
+
     raw = _read_yaml_mapping(config_path)
     try:
         config = _AgentConfig.model_validate(raw)
@@ -91,6 +103,8 @@ def load_descriptor(config_path: Path, *, root: Path) -> tuple[AgentDescriptor, 
 
 
 def _validate_executor_reference(reference: str, config_path: Path) -> None:
+    """校验 executor 使用受限的 ``module:attribute`` 形态且不能借路径片段逃出包根。"""
+
     try:
         module_ref, attribute = reference.split(":", maxsplit=1)
     except ValueError as exc:
@@ -108,6 +122,8 @@ def _validate_executor_reference(reference: str, config_path: Path) -> None:
 
 
 def resolve_executor_target(reference: str, config_path: Path) -> tuple[Path, str]:
+    """在 agent 包根内解析已校验 executor 引用，并要求目标模块是普通存在的 Python 文件。"""
+
     module_ref, attribute = reference.split(":", maxsplit=1)
     package_root = config_path.parent.resolve()
     module_parts = module_ref.removesuffix(".py").replace("/", ".").split(".")
@@ -120,6 +136,12 @@ def resolve_executor_target(reference: str, config_path: Path) -> tuple[Path, st
 
 
 def load_executor(agent_id: str, module_path: Path, attribute: str) -> AgentExecutor:
+    """隔离导入 executor 模块并验证其实现异步 ``run`` 与 ``resume`` 协议。
+
+    使用路径摘要作为临时模块名，避免不同 agent 包里同名模块污染 ``sys.modules``；
+    导入失败统一变为 registry 错误，调用方不需要处理任意 import 异常细节。
+    """
+
     module_key = sha256(str(module_path).encode()).hexdigest()[:16]
     module_name = f"_agent_harness_executor_{module_key}"
     spec = importlib.util.spec_from_file_location(module_name, module_path)
@@ -247,6 +269,8 @@ def agent_import_context(root: Path) -> Generator[None]:
 
 
 def _executor_error(path: Path, message: str) -> RegistryLoadError:
+    """构造 executor 字段的稳定加载错误，并给维护者保留最小修复坐标。"""
+
     return RegistryLoadError(
         [
             ErrorDetail(
@@ -260,6 +284,8 @@ def _executor_error(path: Path, message: str) -> RegistryLoadError:
 
 
 def _schema_error(path: Path, field_path: str, message: str) -> RegistryLoadError:
+    """构造 schema 引用的稳定加载错误，不向外暴露导入过程的内部对象。"""
+
     return RegistryLoadError(
         [
             ErrorDetail(
@@ -273,6 +299,8 @@ def _schema_error(path: Path, field_path: str, message: str) -> RegistryLoadErro
 
 
 def _read_yaml_mapping(path: Path) -> dict[str, Any]:
+    """读取配置根映射并把 YAML 语法或结构错误收敛为可展示的 registry 错误。"""
+
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except YAMLError as exc:
@@ -299,6 +327,8 @@ def _read_yaml_mapping(path: Path) -> dict[str, Any]:
 
 
 def _validation_errors(exc: ValidationError, config_path: Path) -> list[ErrorDetail]:
+    """把 Pydantic 字段错误转换为稳定、可定位的配置诊断列表。"""
+
     errors: list[ErrorDetail] = []
     for item in exc.errors():
         loc = item.get("loc", ())

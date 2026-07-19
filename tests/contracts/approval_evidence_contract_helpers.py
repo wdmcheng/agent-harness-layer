@@ -16,6 +16,8 @@ def fail_once_on_event(
     failed = False
 
     async def write(event: CanonicalEvent) -> CanonicalEvent:
+        """对目标事件仅注入一次写前或写后故障，其他事件始终透传原 sink。"""
+
         nonlocal failed
         should_fail = not failed and event.event_type == event_type
         if should_fail and mode == "before":

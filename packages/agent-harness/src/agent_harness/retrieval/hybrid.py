@@ -10,6 +10,8 @@ from agent_harness.retrieval.provider import RetrievalResult
 
 
 class RRFContribution(TypedDict):
+    """单个 provider 结果集对最终 RRF 分数的可审计贡献。"""
+
     provider: str
     set: str
     rank: int
@@ -18,6 +20,8 @@ class RRFContribution(TypedDict):
 
 @dataclass
 class _RRFState:
+    """同一 document/chunk 在融合过程中的基准结果、累计分数和来源贡献。"""
+
     base: RetrievalResult
     score: float = 0.0
     contributions: list[RRFContribution] = field(default_factory=lambda: [])
@@ -70,4 +74,6 @@ def merge_rrf(
 
 
 def _first_rank(state: _RRFState) -> int:
+    """返回该结果在所有输入集中的最佳原始排名，用作相同 RRF 分数的稳定 tie-break。"""
+
     return min(item["rank"] for item in state.contributions)

@@ -40,6 +40,12 @@ SECRET_VALUE_PATTERNS = (
 
 
 def redact_secrets(value: Any) -> Any:
+    """递归脱敏结构化 payload 和自由文本中的常见凭证，保留非秘密 token 计数。
+
+    返回新容器而非原地修改，调用方可安全复用输入对象；未知标量保持原样，
+    以免审计和错误证据因过度转换丢失可诊断信息。
+    """
+
     if isinstance(value, Mapping):
         redacted: dict[str, Any] = {}
         mapping = cast(Mapping[object, object], value)

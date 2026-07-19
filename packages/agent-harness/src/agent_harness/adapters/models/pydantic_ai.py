@@ -16,6 +16,8 @@ from agent_harness.models.providers import ModelDecision, ModelRequest, ModelRes
 
 
 class _AgentRunResult(Protocol):
+    """隔离 Pydantic AI result 所需的最小表面，防止 SDK 类型进入核心模型层。"""
+
     output: object
 
     def usage(self) -> object:
@@ -24,6 +26,8 @@ class _AgentRunResult(Protocol):
 
 
 class _PydanticAgent(Protocol):
+    """隔离同步 Agent 调用面，便于测试替身与可选依赖延迟加载。"""
+
     def run_sync(self, prompt: str) -> _AgentRunResult:
         """执行 Pydantic AI Agent 并返回 result。"""
         ...
@@ -43,10 +47,14 @@ class PydanticAIModelProvider:
         instructions: str | None = None,
         agent_factory: AgentFactory | None = None,
     ) -> None:
+        """保存可选 instructions 与工厂 seam；默认工厂只在真实调用时导入 SDK。"""
+
         self._instructions = instructions
         self._agent_factory = agent_factory or self._default_agent_factory
 
     def _default_agent_factory(self, model: str) -> _PydanticAgent:
+        """按路由模型创建 SDK Agent，并仅在配置存在时传入静态 instructions。"""
+
         from pydantic_ai import Agent
 
         if self._instructions is None:

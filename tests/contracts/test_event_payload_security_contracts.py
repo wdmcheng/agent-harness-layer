@@ -24,6 +24,8 @@ from app.api.sse import format_sse_event
 
 @pytest.mark.asyncio
 async def test_large_payload_is_written_to_artifact_ref(tmp_path: Path) -> None:
+    """验证超限 payload 只在事件中留下摘要，并以 artifact 引用保存完整证据。"""
+
     # 大 payload 不能塞进事件正文；事件只保存摘要、payload_ref 和 checksum。
     # artifact store 保留脱敏后的完整证据，后续 eval/debug 可以按 ref 取回。
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
@@ -53,6 +55,8 @@ async def test_large_payload_is_written_to_artifact_ref(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_guardrail_payload_redacts_secret_metadata(tmp_path: Path) -> None:
+    """验证 guardrail 事件在持久化前会递归脱敏摘要与决策元数据。"""
+
     # guardrail/context assembly 事件只允许摘要和来源元数据，secret-like 字段必须脱敏。
     # 这里直接通过 helper + EventBus 持久化，证明写入证据前就已经 redaction。
     source = SourceRef(kind="user", uri="prompt://local", label="local prompt")
@@ -102,6 +106,8 @@ async def test_guardrail_payload_redacts_secret_metadata(tmp_path: Path) -> None
 
 @pytest.mark.asyncio
 async def test_artifact_payload_is_redacted_before_disk_write(tmp_path: Path) -> None:
+    """验证大 payload 即使转存为长期 artifact，也不会把密钥原文写入磁盘。"""
+
     # 大 payload 会进入 artifact，而 artifact 是长期证据文件。这里直接读回磁盘内容，
     # 证明 secret 不只是从事件摘要中消失，也没有落到 artifact 本体。
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
@@ -138,6 +144,8 @@ async def test_artifact_payload_is_redacted_before_disk_write(tmp_path: Path) ->
 
 @pytest.mark.asyncio
 async def test_otel_mapping_and_sse_format_are_provider_neutral(tmp_path: Path) -> None:
+    """验证 OTel 与 SSE 都只消费规范事件，而不泄露底层 provider 实现细节。"""
+
     # OTel facade 和 SSE adapter 都消费 CanonicalEvent JSON，不允许暴露 provider SDK、
     # ORM model 或内部 Python 对象。真实 exporter 和 FastAPI route 在后续能力中接入。
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")

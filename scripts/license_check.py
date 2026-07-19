@@ -17,6 +17,8 @@ VENDORED_DIR_NAMES = {"third_party", "third-party", "vendor", "vendored"}
 
 
 def _issue(message: str) -> str:
+    """为所有合规诊断加上稳定脚本前缀，便于 CI 日志过滤。"""
+
     return f"license-check: {message}"
 
 
@@ -66,6 +68,8 @@ def check_vendored_source() -> list[str]:
 
 
 def main() -> int:
+    """运行许可证、NOTICE 与 vendored 源码目录检查，并以非零状态阻断质量门禁。"""
+
     issues = [*check_license_file(), *check_notice_file(), *check_vendored_source()]
     if issues:
         for issue in issues:

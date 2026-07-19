@@ -41,6 +41,8 @@ class FailingScoreProvider(ProviderTelemetryAdapter):
     provider_name = "score-provider"
 
     async def send(self, record: Any) -> TelemetryStatus:
+        """返回含敏感片段的受控失败，验证 ScoreSink 仅保留本地证据且对外诊断会脱敏。"""
+
         raise RuntimeError(
             "provider failed Authorization: Bearer score-secret-12345; "
             "Cookie: sessionid=score-cookie-12345"
@@ -51,10 +53,14 @@ class RecordingEvalPolicyProvider:
     """记录 EVL-002 policy check，并按测试指定决策返回。"""
 
     def __init__(self, decision: str = "allow") -> None:
+        """保存预置策略决定和收到的 check，供 API/审批用例验证 policy 输入与调用次数。"""
+
         self.decision = decision
         self.checks: list[PolicyCheck] = []
 
     async def evaluate(self, check: PolicyCheck) -> PolicyEvaluation:
+        """记录 check 并返回匹配 actor/action/resource 的决定，隔离真实策略后端。"""
+
         self.checks.append(check)
         return PolicyEvaluation(
             decision=self.decision,

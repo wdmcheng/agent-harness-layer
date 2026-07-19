@@ -29,10 +29,14 @@ OPT_IN = "allow_empty_evidence_downgrade=true"
 
 
 async def _upgrade(dsn: str, revision: str = REVISION_0014) -> None:
+    """在线程中运行 Alembic 升级，避免阻塞异步 PostgreSQL 合同场景。"""
+
     await asyncio.to_thread(run_migrations, dsn, revision)
 
 
 async def _downgrade(dsn: str, x_args: list[str]) -> None:
+    """以显式 Alembic ``-x`` 参数执行回退，供 opt-in 安全门禁场景复用。"""
+
     config = alembic_config(dsn)
     config.cmd_opts = Namespace(x=x_args)
     await asyncio.to_thread(command.downgrade, config, REVISION_0013A)
@@ -45,6 +49,8 @@ async def _seed_run(
     status: str,
     trace_id: str,
 ) -> None:
+    """直接写入 0013A 兼容的 tenant/session/run/trace 基线，供 0014 回填验证。"""
+
     tenant_id = f"tenant-{run_id}"
     session_id = f"session-{run_id}"
     await connection.execute(
@@ -93,6 +99,8 @@ async def _seed_event(
     seq: int,
     terminal: bool = False,
 ) -> None:
+    """写入升级前 canonical event 行，控制 terminal 与序号以断言容量回填结果。"""
+
     await connection.execute(
         text(
             "insert into canonical_events("
@@ -116,6 +124,8 @@ async def _seed_event(
 
 @pytest.mark.asyncio
 async def test_0014_postgresql_upgrade_backfills_terminal_idle_and_active_capacity() -> None:
+    """验证 0014 升级为终态、空闲和活动 run 回填不同的容量与预约快照。"""
+
     async with isolated_database("usage_migration_backfill") as dsn:
         await _upgrade(dsn, REVISION_0013A)
         engine = create_async_engine(dsn)
@@ -168,6 +178,8 @@ async def test_0014_postgresql_upgrade_backfills_terminal_idle_and_active_capaci
 
 @pytest.mark.asyncio
 async def test_0014_postgresql_unknown_state_fails_before_schema_mutation() -> None:
+    """验证未知审批状态使升级在 schema 变更前失败，保留原 revision 和源数据。"""
+
     async with isolated_database("usage_migration_unknown") as dsn:
         await _upgrade(dsn, REVISION_0013A)
         engine = create_async_engine(dsn)
@@ -220,6 +232,8 @@ async def test_0014_postgresql_unknown_state_fails_before_schema_mutation() -> N
 )
 @pytest.mark.asyncio
 async def test_0014_postgresql_downgrade_requires_exact_opt_in(x_args: list[str]) -> None:
+    """验证 downgrade 仅接受单个精确 opt-in，大小写、重复或附带参数都被拒绝。"""
+
     async with isolated_database("usage_migration_opt_in") as dsn:
         await _upgrade(dsn)
         with pytest.raises(RuntimeError, match="explicit opt-in"):
@@ -235,6 +249,8 @@ async def test_0014_postgresql_downgrade_requires_exact_opt_in(x_args: list[str]
 
 @pytest.mark.asyncio
 async def test_0014_postgresql_empty_database_downgrades_with_exact_opt_in() -> None:
+    """验证空数据库在精确 opt-in 下可以安全回退并删除 outbox 表。"""
+
     async with isolated_database("usage_migration_empty") as dsn:
         await _upgrade(dsn)
         await _downgrade(dsn, [OPT_IN])
@@ -254,6 +270,8 @@ async def test_0014_postgresql_empty_database_downgrades_with_exact_opt_in() -> 
 @pytest.mark.parametrize("state", ["started", "result_persisted", "published"])
 @pytest.mark.asyncio
 async def test_0014_postgresql_any_outbox_state_blocks_downgrade(state: str) -> None:
+    """验证任一 durable outbox 状态存在时都阻止回退，避免删除仍需恢复的证据。"""
+
     async with isolated_database("usage_migration_outbox") as dsn:
         await _upgrade(dsn)
         engine = create_async_engine(dsn)

@@ -217,6 +217,8 @@ def run(
     import asyncio
 
     async def _run():
+        """在单一事件循环中执行运行、输入护栏和可能的审批挂起流程。"""
+
         preflight_trace = await orchestrator.prepare_trace(
             agent_id=agent_id,
             idempotency_key=idempotency_key,
@@ -324,6 +326,8 @@ def list_agents(
     policy = cli_shared.policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
 
     async def _check_visibility() -> None:
+        """在同步 Typer 命令中桥接异步策略检查，避免直接绕过授权门面。"""
+
         await policy.require_allowed(
             PolicyCheck(
                 actor=settings.identity.default,

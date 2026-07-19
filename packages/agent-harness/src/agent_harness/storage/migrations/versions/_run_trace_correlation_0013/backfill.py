@@ -30,6 +30,13 @@ _RUN_RELATIONS = (
 
 
 def build_backfill_plan(connection: sa.Connection) -> dict[str, Any]:
+    """在不写库的前提下汇总谱系 trace，并验证所有可回填证据互不矛盾。
+
+    一个根 run 谱系只能拥有一个 trace；旧数据缺失 trace 时才以稳定 UUID5 补齐。
+    任何孤儿关系、跨租户边、循环或冲突候选都会在此阶段失败，确保后续迁移不会
+    留下半完成的关联关系。
+    """
+
     run_rows = connection.execute(
         sa.text(
             "select id, tenant_id, parent_run_id, execution_context_json "
@@ -203,6 +210,13 @@ def _preflight_canonical_events(
 
 
 def apply_backfill(connection: sa.Connection, plan: dict[str, Any]) -> None:
+    """将已通过预检的 trace 计划写入所有 run-scoped 表及嵌套事件载荷。
+
+    调用方必须先使用同一连接生成 ``plan``；本函数假定其输入已验证，因此只做
+    确定性更新。canonical event 的普通 telemetry context 也随所属 run 更新，
+    而非 run-scoped 的合成 stream 则保留原有 trace。
+    """
+
     runs = plan["runs"]
     roots = plan["roots"]
     trace_by_root = plan["trace_by_root"]
@@ -344,6 +358,8 @@ def _complete_canonical_event_envelope(
 
 
 def _resolve_root(run_id: str, runs: dict[str, dict[str, Any]]) -> str:
+    """沿 parent_run_id 向上定位谱系根，同时拒绝循环、孤儿和跨租户父边。"""
+
     current = run_id
     seen: set[str] = set()
     while True:
@@ -384,6 +400,8 @@ def _validated_run_key(
 
 
 def _add_candidate(values: set[str], raw: object) -> None:
+    """接受格式合法的非空 trace 候选；非法值立即终止回填预检。"""
+
     if raw is None:
         return
     if not isinstance(raw, str) or _TRACE_PATTERN.fullmatch(raw) is None:
@@ -392,6 +410,8 @@ def _add_candidate(values: set[str], raw: object) -> None:
 
 
 def _json_object(raw: object, *, allow_none: bool = False) -> dict[str, Any]:
+    """解析持久化 JSON 对象，禁止数组、标量和损坏文本混入迁移计划。"""
+
     if raw is None and allow_none:
         return {}
     if isinstance(raw, str):
@@ -405,5 +425,7 @@ def _json_object(raw: object, *, allow_none: bool = False) -> dict[str, Any]:
 
 
 def _invalid_backfill(reason: str) -> NoReturn:
+    """隐藏底层载荷细节后终止预检，避免迁移错误日志泄露历史证据内容。"""
+
     del reason
     raise RuntimeError("0013 canonical trace backfill preflight failed")

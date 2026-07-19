@@ -19,6 +19,8 @@ from agent_harness.storage.run_trace_gate import (
 
 
 def _empty_provider_status_payloads() -> list[dict[str, object]]:
+    """提供独立的默认 provider 状态列表，避免不同评测 DTO 共享可变容器。"""
+
     return []
 
 
@@ -98,6 +100,8 @@ class EvalScoreRecord(EvalScoreCreate):
 
 
 def _case_record(model: EvalCaseModel) -> EvalCaseRecord:
+    """把 case ORM 行投影为公开 DTO，并为历史空字段提供兼容默认值。"""
+
     return EvalCaseRecord(
         case_id=model.id,
         tenant_id=model.tenant_id,
@@ -119,6 +123,8 @@ def _case_record(model: EvalCaseModel) -> EvalCaseRecord:
 
 
 def _run_record(model: EvalRunModel) -> EvalRunRecord:
+    """把 eval run ORM 行投影为 DTO，优先使用新版摘要字段并兼容旧 score 字段。"""
+
     return EvalRunRecord(
         eval_run_id=model.id,
         tenant_id=model.tenant_id,
@@ -135,6 +141,8 @@ def _run_record(model: EvalRunModel) -> EvalRunRecord:
 
 
 def _score_record(model: EvalScoreModel) -> EvalScoreRecord:
+    """把单条 score ORM 行投影为 DTO，隔离调用方与当前会话绑定的持久化对象。"""
+
     return EvalScoreRecord(
         score_id=model.id,
         tenant_id=model.tenant_id,
@@ -154,9 +162,15 @@ def _score_record(model: EvalScoreModel) -> EvalScoreRecord:
 
 
 class EvalCaseRepository:
-    """draft/approved eval case repository。"""
+    """草稿与已审核评测 case 仓储。
+
+    自动检测仅能创建草稿，只有 ``approve`` 能写入审核身份和原因；case 与 run 关联时
+    会通过标准 trace 投影函数冻结规范 trace，避免调用方自行拼装关联坐标。
+    """
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定外层工作单元会话；本仓储不自行提交事务。"""
+
         self._session = session
 
     async def create(self, data: EvalCaseCreate) -> EvalCaseRecord:
@@ -191,6 +205,8 @@ class EvalCaseRepository:
         return _case_record(model)
 
     async def get(self, case_id: str) -> EvalCaseRecord | None:
+        """按主键读取 case；租户授权由调用该低层仓储的服务边界负责。"""
+
         model = await self._session.get(EvalCaseModel, case_id)
         return None if model is None else _case_record(model)
 
@@ -246,14 +262,19 @@ class EvalCaseRepository:
 
 
 class EvalRunRepository:
-    """eval run summary repository。"""
+    """评测运行摘要仓储，负责将 run 关联为规范 trace 并保存聚合评分证据。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定外层工作单元会话；所有耐久化提交由服务层统一协调。"""
+
         self._session = session
 
     async def create(self, data: EvalRunCreate) -> EvalRunRecord:
+        """创建评测运行摘要，并在关联普通 run 时读取其唯一规范 trace。"""
+
         trace_id = None
         if data.run_id is not None:
+            # 不接受调用方临时 trace，评测证据必须与已耐久 run 的规范关联一致。
             trace_id = await canonical_trace_for_run(
                 self._session,
                 tenant_id=data.tenant_id,
@@ -278,6 +299,8 @@ class EvalRunRepository:
         return _run_record(model)
 
     async def get(self, eval_run_id: str) -> EvalRunRecord | None:
+        """按主键读取评测运行摘要；租户授权由上层服务在调用前后收敛。"""
+
         model = await self._session.get(EvalRunModel, eval_run_id)
         return None if model is None else _run_record(model)
 
@@ -288,6 +311,8 @@ class EvalRunRepository:
         score_summary: dict[str, object],
         provider_statuses: list[dict[str, object]],
     ) -> EvalRunRecord:
+        """更新运行级评分汇总和 provider 状态，保持旧摘要字段与新字段同步。"""
+
         model = await self._session.get(EvalRunModel, eval_run_id)
         if model is None:
             raise LookupError(f"eval run not found: {eval_run_id}")
@@ -299,12 +324,16 @@ class EvalRunRepository:
 
 
 class EvalScoreRepository:
-    """eval score evidence repository。"""
+    """评测分数证据仓储，逐条写入可关联到 case、run 与规范 trace 的指标记录。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定外层工作单元会话，避免单条 score 写入脱离同批评测事务。"""
+
         self._session = session
 
     async def create(self, data: EvalScoreCreate) -> EvalScoreRecord:
+        """创建单条指标证据；若关联普通 run，则校验并投影其规范 trace。"""
+
         trace_id = data.trace_id
         if data.run_id is not None:
             trace_id = await project_canonical_run_trace(
@@ -334,6 +363,8 @@ class EvalScoreRepository:
         return _score_record(model)
 
     async def list_for_run(self, eval_run_id: str) -> list[EvalScoreRecord]:
+        """按创建时间返回某评测运行的全部分数证据，供上层完成聚合和审计。"""
+
         result = await self._session.scalars(
             select(EvalScoreModel)
             .where(EvalScoreModel.eval_run_id == eval_run_id)

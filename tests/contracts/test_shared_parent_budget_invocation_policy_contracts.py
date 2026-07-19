@@ -124,6 +124,11 @@ async def test_approved_continuation_rechecks_current_parent_balance(tmp_path: P
 
 @pytest.mark.asyncio
 async def test_model_claim_outbox_and_settlement_share_atomic_owner(tmp_path: Path) -> None:
+    """验证模型 claim、用量证据和结算在同一父账本所有者下原子收敛。
+
+    这防止 provider 调用完成后只留下 outbox、只更新账本或遗失 claim 状态，
+    从而使重试与预算审计面对互相矛盾的事实。
+    """
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'model.sqlite3'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage(dsn)

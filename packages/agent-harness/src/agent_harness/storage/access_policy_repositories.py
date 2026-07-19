@@ -1,4 +1,4 @@
-"""认证凭据与数据库策略规则的 repository。"""
+"""认证凭据与数据库策略规则仓储，隔离 ORM 模型和明文凭据边界。"""
 
 from __future__ import annotations
 
@@ -49,6 +49,7 @@ class PolicyRuleRecord(PolicyRuleCreate):
 
 
 def _api_key_record(model: ApiKeyModel) -> ApiKeyRecord:
+    """将 API key ORM 模型投影为仅含 hash 的 DTO，永不恢复或暴露明文 token。"""
     return ApiKeyRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -62,6 +63,7 @@ def _api_key_record(model: ApiKeyModel) -> ApiKeyRecord:
 
 
 def _policy_rule_record(model: PolicyRuleModel) -> PolicyRuleRecord:
+    """将策略规则 ORM 模型投影为 DTO，供 Provider 在 session 外安全读取。"""
     return PolicyRuleRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -76,6 +78,7 @@ class ApiKeyRepository:
     """API key verifier 使用的 token hash 查询 repository。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定当前工作单元的 session；创建和删除的提交时机由上层统一控制。"""
         self._session = session
 
     async def create(self, data: ApiKeyCreate) -> ApiKeyRecord:
@@ -96,6 +99,7 @@ class ApiKeyRepository:
         return _api_key_record(model)
 
     async def get_by_hash(self, token_hash: str) -> ApiKeyRecord | None:
+        """按精确 hash 查询凭据，不接受明文 token 或模糊匹配，避免认证旁路。"""
         result = await self._session.scalars(
             select(ApiKeyModel).where(ApiKeyModel.token_hash == token_hash)
         )
@@ -118,6 +122,7 @@ class PolicyRuleRepository:
     """DB-backed PolicyProvider 使用的规则 repository。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定当前工作单元 session，使策略写入能与其他配置更新原子提交。"""
         self._session = session
 
     async def create(self, data: PolicyRuleCreate) -> PolicyRuleRecord:
@@ -136,6 +141,7 @@ class PolicyRuleRepository:
         return _policy_rule_record(model)
 
     async def list_for_tenant(self, tenant_id: str) -> list[PolicyRuleRecord]:
+        """列出租户内全部策略规则；不跨租户聚合，排序语义由 Provider 明确定义。"""
         result = await self._session.scalars(
             select(PolicyRuleModel).where(PolicyRuleModel.tenant_id == tenant_id)
         )

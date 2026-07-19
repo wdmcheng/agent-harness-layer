@@ -1,4 +1,4 @@
-"""Approved dataset 的 eval runner。"""
+"""已批准数据集的评测执行器，明确排除草稿并保存评分证据。"""
 
 from __future__ import annotations
 
@@ -33,13 +33,16 @@ class EvalRunResult(HarnessDTO):
 class ApprovedCaseExecutor(Protocol):
     """可选 adapter：把 approved file case 交给真实 agent seam。"""
 
-    async def execute(self, case: dict[str, Any]) -> dict[str, Any]: ...
+    async def execute(self, case: dict[str, Any]) -> dict[str, Any]:
+        """通过真实 Agent 接缝执行一个已批准案例，并返回可比较的输出投影。"""
+        ...
 
 
 class EvalRunner:
     """只消费 approved case，draft 永远不参与评分。"""
 
     def __init__(self, *, service: Any | None = None, score_sink: ScoreSink) -> None:
+        """装配可选仓储服务和必需评分接收器，兼容 API 与纯文件评测入口。"""
         self._service = service
         self._score_sink = score_sink
 
@@ -230,6 +233,11 @@ class EvalRunner:
 
 
 def _score_case(case: dict[str, Any]) -> dict[str, Any]:
+    """按 fixture 的 expected/output 做确定性精确匹配评分。
+
+    缺少 expected 表示案例只验证可执行性，按通过处理；这不是通用语义评分器，
+    更复杂指标必须通过独立 metric 版本接入，避免在基础 runner 中改变历史分数。
+    """
     raw_payload = case.get("payload")
     payload = cast(dict[str, Any], raw_payload) if isinstance(raw_payload, dict) else case
     expected = payload.get("expected")
@@ -243,6 +251,7 @@ def _score_case(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def _score_summary(scores: list[dict[str, Any]]) -> dict[str, Any]:
+    """汇总案例数量、通过失败数和平均分；空集合明确返回零均分。"""
     total = len(scores)
     passed = sum(1 for score in scores if score["value"] == 1.0)
     return {
@@ -254,10 +263,12 @@ def _score_summary(scores: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _optional_str(value: object) -> str | None:
+    """将可选外部标识规范化为字符串，保留空值以避免生成伪造引用。"""
     return None if value is None else str(value)
 
 
 def _case_with_output(case: dict[str, Any], output: dict[str, Any]) -> dict[str, Any]:
+    """复制案例并写入执行输出，绝不原地修改已批准文件解析出的原始 fixture。"""
     copied = dict(case)
     raw_payload = copied.get("payload")
     if isinstance(raw_payload, dict):

@@ -51,6 +51,8 @@ from tests.contracts.test_agent_delegation_service_contracts import (
 
 @pytest.mark.asyncio
 async def test_mixed_usage_rows_keep_known_token_sum_but_require_review(tmp_path: Path) -> None:
+    """子运行混有已知与未知用量时可保留已知 token 求和，但预算结论必须转人工复核。"""
+
     storage, service, _runtime, parent_run_id, _sink = await _build_service(
         tmp_path,
         mode="service",
@@ -188,6 +190,8 @@ async def test_pending_usage_row_blocks_delegation_settlement(
 async def test_exceeded_child_fences_new_delegation_from_shared_tree(
     tmp_path: Path,
 ) -> None:
+    """任一子运行超过预算后，整棵共享树必须围栏新的委派，并向父摘要传播 exceeded 状态。"""
+
     storage, service, runtime, parent_run_id, _sink = await _build_service(
         tmp_path,
         mode="service",
@@ -229,6 +233,8 @@ async def test_exceeded_child_fences_new_delegation_from_shared_tree(
 
 @pytest.mark.asyncio
 async def test_terminal_parent_rejects_before_delegation_business_state(tmp_path: Path) -> None:
+    """父运行已终态时拒绝委派须先于 child、claim、outbox 和容量变化，确保零业务副作用。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(tmp_path)
     try:
         async with storage.uow() as uow:
@@ -269,6 +275,8 @@ async def test_terminal_parent_rejects_before_delegation_business_state(tmp_path
 
 @pytest.mark.asyncio
 async def test_service_mode_defers_terminal_aggregation_to_worker_recovery(tmp_path: Path) -> None:
+    """服务模式提交时只冻结不完整摘要；worker 恢复后才一次性聚合 child 用量并稳定重放结果。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(
         tmp_path,
         trustworthy_usage=True,

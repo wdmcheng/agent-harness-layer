@@ -31,6 +31,8 @@ def _import_roots(path: Path) -> set[str]:
 
 
 def _python_files(root: Path) -> list[Path]:
+    """列出模板扫描范围内的 Python 文件，并排除解释器生成的缓存目录。"""
+
     return [path for path in root.rglob("*.py") if "__pycache__" not in path.parts]
 
 
@@ -117,10 +119,14 @@ def test_template_typer_cli_exposes_only_app_specific_serve(monkeypatch: Any) ->
     application = object()
 
     def fake_create_app(**kwargs: Any) -> object:
+        """记录 CLI 传给 app 工厂的参数，避免测试实际启动服务组件。"""
+
         calls["create_app"] = kwargs
         return application
 
     def fake_run(target: object, **kwargs: Any) -> None:
+        """记录 uvicorn 目标与网络参数，验证模板 CLI 只负责服务启动编排。"""
+
         calls["uvicorn_target"] = target
         calls["uvicorn"] = kwargs
 

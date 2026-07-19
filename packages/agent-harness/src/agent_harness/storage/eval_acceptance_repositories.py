@@ -1,4 +1,4 @@
-"""Harness 人工验收 decision DTO 与 repository。"""
+"""Harness 人工验收决定 DTO 与仓储，确保每个实验只有一条不可变审阅结论。"""
 
 from __future__ import annotations
 
@@ -41,6 +41,7 @@ class HarnessAcceptanceCreate(HarnessDTO):
 
     @model_validator(mode="after")
     def validate_binding(self) -> HarnessAcceptanceCreate:
+        """校验接受与拒绝决定的生产绑定字段互斥，防止拒绝结果误发布版本。"""
         if self.decision == "accepted" and (
             self.accepted_harness_version is None or self.production_binding is None
         ):
@@ -64,9 +65,15 @@ class HarnessAcceptanceRepository:
     """同一 experiment 的 decision 只允许一次，完全相同请求可重放。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定当前工作单元 session；决定创建与实验状态更新由外层统一提交。"""
         self._session = session
 
     async def create(self, data: HarnessAcceptanceCreate) -> HarnessAcceptanceRecord:
+        """创建唯一人工决定；完全相同请求重放，任何差异都报告不可变冲突。
+
+        先在租户范围内读取既有决定，再依赖数据库唯一约束处理并发竞争；并发
+        写入失败不会被自动覆盖，调用方必须重新读取获胜的人工审阅事实。
+        """
         result = await self._session.scalars(
             select(HarnessAcceptanceModel).where(
                 HarnessAcceptanceModel.tenant_id == data.tenant_id,
@@ -114,6 +121,7 @@ class HarnessAcceptanceRepository:
     async def get_for_experiment(
         self, tenant_id: str, experiment_id: str
     ) -> HarnessAcceptanceRecord | None:
+        """读取租户内实验的唯一验收决定；未审阅实验返回空值而非伪造默认结论。"""
         result = await self._session.scalars(
             select(HarnessAcceptanceModel).where(
                 HarnessAcceptanceModel.tenant_id == tenant_id,
@@ -125,6 +133,7 @@ class HarnessAcceptanceRepository:
 
 
 def _acceptance_record(model: HarnessAcceptanceModel) -> HarnessAcceptanceRecord:
+    """将 ORM 决定投影为 DTO，使调用者无需依赖 session 也能读取审计证据。"""
     return HarnessAcceptanceRecord(
         acceptance_id=model.id,
         tenant_id=model.tenant_id,
@@ -145,6 +154,7 @@ def _acceptance_record(model: HarnessAcceptanceModel) -> HarnessAcceptanceRecord
 
 
 def _acceptance_matches(model: HarnessAcceptanceModel, data: HarnessAcceptanceCreate) -> bool:
+    """比较定义幂等性的不可变人工决策字段，不把生成时间等派生字段纳入比较。"""
     return (
         model.decision_request_hash == data.decision_request_hash
         and model.reviewer_id == data.reviewer_id

@@ -11,6 +11,11 @@ from app.main import create_app
 
 
 def test_eval_experiment_openapi_is_exact_and_stable(tmp_path: Path) -> None:
+    """固定评测实验 API 的安全、响应码和 DTO 必填字段，阻止文档静默漂移。
+
+    这里校验的是公开协议，而非框架生成细节；新增字段或状态必须先经过
+    明确的契约演进，避免客户端依据过期 OpenAPI 发送或解析请求。
+    """
     app = create_app(
         orchestrator=cast(RunOrchestrator, object()),
         event_sink=LocalJsonlEventSink(tmp_path / "openapi-events.jsonl"),

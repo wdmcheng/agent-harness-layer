@@ -39,9 +39,13 @@ async def test_public_resolve_retry_reconciles_pending_evidence_before_returning
     mode: str,
     failure_point: str,
 ) -> None:
+    """公开重试先补齐中断的审批证据，再稳定返回 in-progress，不能重放 handler 或终态。"""
+
     calls = 0
 
     def handler(arguments: dict[str, object]) -> dict[str, object]:
+        """记录真实工具副作用次数，检验不同决策和故障窗口均不会因 HTTP 重试重复执行。"""
+
         nonlocal calls
         calls += 1
         return arguments
@@ -126,9 +130,13 @@ async def test_public_resolve_retry_reconciles_pending_evidence_before_returning
 async def test_expired_raw_claim_is_taken_over_and_fenced_by_public_retry(
     tmp_path: Path,
 ) -> None:
+    """过期的原始 resolution lease 可由公开重试接管，旧 lease 之后必须被 fencing 拒绝。"""
+
     calls = 0
 
     def handler(arguments: dict[str, object]) -> dict[str, object]:
+        """记录接管后唯一允许的一次业务执行，防止恢复逻辑仅靠状态判断掩盖重放。"""
+
         nonlocal calls
         calls += 1
         return arguments
@@ -190,9 +198,13 @@ async def test_expired_raw_claim_is_taken_over_and_fenced_by_public_retry(
 async def test_unexpired_raw_claim_is_not_taken_over_by_concurrent_public_retry(
     tmp_path: Path,
 ) -> None:
+    """未过期 lease 是活跃所有权，外部重试只能得到稳定冲突，不能篡夺或启动工具。"""
+
     calls = 0
 
     def handler(arguments: dict[str, object]) -> dict[str, object]:
+        """一旦被调用即暴露错误接管；正确分支必须始终保持零次执行。"""
+
         nonlocal calls
         calls += 1
         return arguments

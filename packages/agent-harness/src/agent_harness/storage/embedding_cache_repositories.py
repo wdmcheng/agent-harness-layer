@@ -32,6 +32,8 @@ class EmbeddingCacheRecord(EmbeddingCacheCreate):
 
 
 def _embedding_cache_record(model: EmbeddingCacheModel) -> EmbeddingCacheRecord:
+    """将 ORM 行转换为仓储边界 DTO，避免调用方依赖可变持久化对象。"""
+
     return EmbeddingCacheRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -47,6 +49,8 @@ class EmbeddingCacheRepository:
     """EmbeddingProvider 专用的 tenant-scoped cache repository。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定当前 UoW 会话，使命中证据与调用结算能够同事务提交。"""
+
         self._session = session
 
     async def get(

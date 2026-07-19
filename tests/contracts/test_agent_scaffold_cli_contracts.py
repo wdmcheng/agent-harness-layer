@@ -34,10 +34,14 @@ class _RegistryCaseExecutor:
     """把人工批准的 file case 交给生成 executor，而不是复用 expected。"""
 
     def __init__(self, registry: AgentRegistry, agent_id: str) -> None:
+        """解析并保存生成 agent 的真实 executor，使 eval 用例验证运行能力而非硬编码 expected。"""
+
         self._executor = registry.resolve_executor(agent_id)
         self._agent_id = agent_id
 
     async def execute(self, case: dict[str, Any]) -> dict[str, Any]:
+        """将批准用例的输入送入生成 executor，返回其输出以连接手工 eval gate 与运行时 seam。"""
+
         payload = cast(dict[str, Any], case["payload"])
         input_payload = cast(dict[str, Any], payload["input"])
         result = await self._executor.run(
@@ -54,12 +58,16 @@ class _RegistryCaseExecutor:
 
 
 def _agents_root(tmp_path: Path) -> Path:
+    """创建每个 scaffold 用例独占的 agents 根目录，避免生成包和注册表缓存跨测试污染。"""
+
     agents_dir = tmp_path / "agents"
     agents_dir.mkdir()
     return agents_dir
 
 
 def _sqlite_dsn(path: Path) -> str:
+    """生成 scaffold 运行时合同使用的异步 SQLite DSN，使 generated agent 有可验证的持久化环境。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 

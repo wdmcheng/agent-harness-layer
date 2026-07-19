@@ -25,16 +25,22 @@ PROFILES = SERVICE_APP / "configs" / "profiles"
 
 
 def _dsn(path: Path) -> str:
+    """将临时 SQLite 文件转换为示例 runtime 组件使用的异步 DSN。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
 def _downgrade_config(dsn: str) -> Config:
+    """构造允许空证据回退的 Alembic 配置，供可逆性边界测试使用。"""
+
     config = alembic_config(dsn)
     config.cmd_opts = Namespace(x=["allow_empty_evidence_downgrade=true"])
     return config
 
 
 def _components(tmp_path: Path, *, name: str) -> tuple[RuntimeComponents, Path]:
+    """为迁移场景创建独立 runtime 与数据库，避免真实组件共享状态。"""
+
     db_path = tmp_path / f"{name}.db"
     run_migrations(_dsn(db_path))
     components = build_runtime_components(

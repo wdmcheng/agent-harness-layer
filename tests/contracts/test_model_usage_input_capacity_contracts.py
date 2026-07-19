@@ -50,6 +50,8 @@ from tests.contracts.test_model_usage_repository_contracts import (
 async def test_usage_claim_rejects_empty_call_id_without_capacity_side_effect(
     tmp_path: Path,
 ) -> None:
+    """空 usage_call_id 必须在 claim 创建前拒绝，不能消耗 event 容量或写出半条 outbox。"""
+
     dsn = sqlite_dsn(tmp_path / "usage-empty-call-id.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -96,6 +98,8 @@ async def test_usage_claim_rejects_empty_call_id_without_capacity_side_effect(
 
 @pytest.mark.asyncio
 async def test_sparse_high_sequence_rejects_operation_before_side_effect(tmp_path: Path) -> None:
+    """序列高水位接近上限时预约必须先失败，不能让后续用量操作留下任何副作用。"""
+
     path = tmp_path / "capacity-limit.db"
     dsn = sqlite_dsn(path)
     run_migrations(dsn)
@@ -138,6 +142,8 @@ async def test_sparse_high_sequence_rejects_operation_before_side_effect(tmp_pat
 
 @pytest.mark.asyncio
 async def test_sqlite_capacity_cas_allows_only_one_concurrent_reservation(tmp_path: Path) -> None:
+    """SQLite 容量 CAS 在最后可用槽位上只允许一个事务预约，竞争者必须收到明确容量错误。"""
+
     path = tmp_path / "capacity-concurrency.db"
     dsn = sqlite_dsn(path)
     run_migrations(dsn)
@@ -169,6 +175,8 @@ async def test_sqlite_capacity_cas_allows_only_one_concurrent_reservation(tmp_pa
             await uow.commit()
 
         async def reserve_once() -> int | Exception:
+            """在独立 UoW 中执行一次容量预约，将异常保留给并发断言而非吞掉。"""
+
             try:
                 async with storage.uow() as uow:
                     reserved = await uow.event_capacity.reserve(

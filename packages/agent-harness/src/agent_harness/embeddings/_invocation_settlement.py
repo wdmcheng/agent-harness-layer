@@ -57,7 +57,10 @@ class _EmbeddingSettlementMixin(_EmbeddingReplayMixin):
         *,
         tenant_id: str,
         usage_call_id: str,
-    ) -> ModelUsageEvidence | None: ...
+    ) -> ModelUsageEvidence | None:
+        """读取已持久化的 started 证据；实现方不得由当前请求重新构造它。"""
+
+        ...
 
     def _evidence(
         self,
@@ -68,10 +71,16 @@ class _EmbeddingSettlementMixin(_EmbeddingReplayMixin):
         cache_hit: bool,
         latency_ms: int,
         decision: dict[str, object],
-    ) -> ModelUsageEvidence: ...
+    ) -> ModelUsageEvidence:
+        """按当前调用上下文构造可脱敏持久化的 embedding 用量证据。"""
+
+        ...
 
     @staticmethod
-    def _final_event_id(tenant_id: str, usage_call_id: str) -> str: ...
+    def _final_event_id(tenant_id: str, usage_call_id: str) -> str:
+        """返回幂等终态事件标识，供 outbox 与事件总线共享。"""
+
+        ...
 
     async def _start_settlement(
         self,
@@ -83,6 +92,12 @@ class _EmbeddingSettlementMixin(_EmbeddingReplayMixin):
         cached: EmbeddingResponse | None,
         expect_replay: bool = False,
     ) -> _EmbeddingSettlement:
+        """在 provider/cache 副作用前原子建立用量 outbox 与共享预算预约。
+
+        cache 命中保留完整 evidence 生命周期但预约零影响；共享账本、claim 和 outbox
+        必须在同一 UoW 成功后才允许调用方开始外部 provider。
+        """
+
         trusted_tokens = len(request.input.encode("utf-8"))
         cache_digest = hashlib.sha256(
             f"{self._provider.provider}\0{self._provider.model}\0{request.input}".encode()
@@ -100,6 +115,7 @@ class _EmbeddingSettlementMixin(_EmbeddingReplayMixin):
             ownership: BudgetOperationOwnership | None = None
             safe_to_start = False
             if self._shared_budget is not None:
+                # 快照、价格和 claim 身份从同一账本视图派生，不能混用当前配置。
                 resolved = await uow.shared_budget.resolve_operation_ownership(
                     tenant_id=context.tenant_id, run_id=context.run_id
                 )
@@ -307,6 +323,8 @@ class _EmbeddingSettlementMixin(_EmbeddingReplayMixin):
         usage_call_id: str,
         ownership: BudgetOperationOwnership | None,
     ) -> None:
+        """在实际 provider 调用前标记共享预算副作用已开始，阻止不安全重放。"""
+
         if ownership is None:
             return
         async with self._storage.uow() as uow:
@@ -353,6 +371,8 @@ class _EmbeddingSettlementMixin(_EmbeddingReplayMixin):
         *,
         claim: UsageSettlementClaim,
     ) -> EmbeddingResponse:
+        """从可信已结算结果恢复响应；缺失响应只允许映射为已知 provider 失败。"""
+
         raw = result.get("response")
         if isinstance(raw, dict):
             return EmbeddingResponse.model_validate(raw)
@@ -397,11 +417,14 @@ class _EmbeddingSettlementMixin(_EmbeddingReplayMixin):
         ownership: BudgetOperationOwnership | None,
         response: EmbeddingResponse | None,
     ) -> None:
+        """先在单一 UoW 中持久化结果并结算预算，再投递终态证据事件。"""
+
         result = {
             "evidence": evidence.to_payload(),
             "outcome": outcome,
             **({"response": response.to_payload()} if response is not None else {}),
         }
+        # outbox 结果与账本结算必须原子提交；事件发布失败可由后续恢复安全补投。
         async with self._storage.uow() as uow:
             await uow.evidence_outbox.persist_result(
                 tenant_id=evidence.tenant_id,
@@ -449,6 +472,8 @@ class _EmbeddingSettlementMixin(_EmbeddingReplayMixin):
         outcome: str,
         error_code: str | None,
     ) -> None:
+        """发布终态 evidence，并在同一提交中更新容量账本和 outbox 发布状态。"""
+
         final = await UsageEvidenceLifecycle(
             event_bus=self._event_bus,
             evidence=evidence,
@@ -475,6 +500,8 @@ class _EmbeddingSettlementMixin(_EmbeddingReplayMixin):
 
 
 def _zero_cost(trusted_cost: Decimal | None) -> Decimal | None:
+    """保留成本功能是否启用：无成本上限为 ``None``，命中缓存才归零。"""
+
     return None if trusted_cost is None else Decimal("0")
 
 

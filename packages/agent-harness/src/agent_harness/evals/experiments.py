@@ -1,4 +1,4 @@
-"""同一 split 上 baseline/candidate experiment 的 local-first 应用服务。"""
+"""同一冻结切分上的基线与候选评测应用服务，优先持久化本地证据。"""
 
 from __future__ import annotations
 
@@ -36,6 +36,7 @@ class ExperimentService:
         comparison_builder: ExperimentComparisonBuilder | None = None,
         execution_claim_ttl_seconds: float = 30.0,
     ) -> None:
+        """装配存储与执行协调器，将租约、重放和比较细节收敛到专用组件。"""
         self.storage = storage
         self.execution = ExperimentExecutionCoordinator(
             storage=storage,
@@ -114,6 +115,7 @@ class ExperimentService:
         )
 
     async def run(self, request: ExperimentRequest) -> ExperimentResult:
+        """执行或恢复一个实验，并只返回业务结果而非创建状态包装。"""
         return (await self.execution.run_with_status(request)).result
 
     async def run_with_status(
@@ -123,6 +125,7 @@ class ExperimentService:
         request_hash_override: str | None = None,
         split_create: EvalDatasetSplitCreate | None = None,
     ) -> ExperimentCreateOutcome:
+        """执行实验并保留创建/重放状态，供 HTTP 幂等语义选择正确响应码。"""
         return await self.execution.run_with_status(
             request,
             request_hash_override=request_hash_override,
@@ -130,6 +133,7 @@ class ExperimentService:
         )
 
     async def get(self, *, tenant_id: str, experiment_id: str, request_id: str) -> ExperimentResult:
+        """读取租户可见的实验和其冻结切分，不触发 evaluator 或 Provider 重跑。"""
         async with self.storage.uow() as uow:
             record = await uow.eval_experiments.get(tenant_id, experiment_id)
         if record is None:
@@ -144,6 +148,11 @@ class ExperimentService:
     async def compare(
         self, *, tenant_id: str, experiment_id: str, request_id: str
     ) -> ExperimentComparison:
+        """读取已持久化 comparison，并拒绝缺少候选版本或未完成比较的实验。
+
+        request ID 是读取关联元数据，不参与比较算法；这里不会因为 API 查询而重算
+        指标，确保人工验收始终基于最初执行留下的固定证据。
+        """
         result = await self.get(
             tenant_id=tenant_id,
             experiment_id=experiment_id,
@@ -165,6 +174,7 @@ class ExperimentService:
         return result.comparison
 
     async def _get_split(self, tenant_id: str, split_id: str) -> EvalDatasetSplitRecord:
+        """读取实验绑定的冻结切分，缺失或跨租户时统一返回领域可见性错误。"""
         async with self.storage.uow() as uow:
             split = await uow.eval_dataset_splits.get(tenant_id, split_id)
         if split is None:

@@ -1,4 +1,4 @@
-"""Behavior tag 与 dataset split 的公共 DTO。"""
+"""行为标签与数据集切分的公共 DTO，保证实验输入可验证且可重复。"""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ class BehaviorTag(StrEnum):
 
 
 def _empty_behavior_tags() -> list[BehaviorTag]:
+    """为每个策略实例创建独立的空标签列表，避免可变默认值跨请求共享。"""
     return []
 
 
@@ -43,6 +44,7 @@ class RegressionPolicy(HarnessDTO):
     @field_validator("case_ids", "critical_case_ids")
     @classmethod
     def reject_duplicate_case_ids(cls, value: list[str]) -> list[str]:
+        """拒绝同一字段的重复 case 引用，并排序以固定持久化与比较顺序。"""
         if len(value) != len(set(value)):
             raise PydanticCustomError(
                 "eval.split.regression_refs_duplicate",
@@ -53,10 +55,12 @@ class RegressionPolicy(HarnessDTO):
     @field_validator("critical_tags")
     @classmethod
     def normalize_critical_tags(cls, value: list[BehaviorTag]) -> list[BehaviorTag]:
+        """去重并稳定排序关键标签，使策略等价输入产生相同的规范形态。"""
         return sorted(set(value), key=str)
 
     @model_validator(mode="after")
     def reject_cross_field_duplicates(self) -> RegressionPolicy:
+        """禁止普通回归集合和关键回归集合重复引用同一 case，避免统计双计。"""
         if set(self.case_ids).intersection(self.critical_case_ids):
             raise PydanticCustomError(
                 "eval.split.regression_refs_duplicate",
@@ -82,6 +86,7 @@ class DatasetSplitRequest(HarnessDTO):
     @field_validator("tags", mode="before")
     @classmethod
     def parse_tags(cls, value: object) -> object:
+        """把 API 字符串转换为封闭行为标签，并在错误中列出可接受值。"""
         if not isinstance(value, list):
             return value
         allowed = ", ".join(tag.value for tag in BehaviorTag)
@@ -100,11 +105,13 @@ class DatasetSplitRequest(HarnessDTO):
     @field_validator("tags")
     @classmethod
     def normalize_tags(cls, value: list[BehaviorTag]) -> list[BehaviorTag]:
+        """去重并排序请求标签，让确定性切分不受调用方列表顺序影响。"""
         return sorted(set(value), key=str)
 
     @field_validator("holdout_ratio")
     @classmethod
     def validate_ratios(cls, value: float, info: ValidationInfo) -> float:
+        """校验优化集和留出集比例严格相加为一，拒绝存在隐性未分配数据的计划。"""
         optimization_ratio = info.data.get("optimization_ratio")
         if isinstance(optimization_ratio, float) and abs(optimization_ratio + value - 1.0) > 1e-9:
             raise PydanticCustomError(

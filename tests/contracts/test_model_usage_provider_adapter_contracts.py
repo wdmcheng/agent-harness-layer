@@ -1,4 +1,4 @@
-"""Model provider adapter usage 归一化与失败封闭合同测试。"""
+"""模型供应商适配器的用量归一化、脱敏与失败封闭合同测试。"""
 
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ from agent_harness.storage import RunCreate, SessionCreate, SQLAlchemyStorage, r
 
 
 async def _usage_run(storage: SQLAlchemyStorage) -> str:
+    """在独立租户、会话和运行中创建可持久化用量证据的最小上下文。"""
+
     async with storage.uow() as uow:
         await uow.tenants.ensure("tenant-a")
         await uow.sessions.ensure(
@@ -47,17 +49,27 @@ async def test_pydantic_ai_timeout_is_closed_as_provider_failure_evidence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """供应商超时必须归一为公开失败码，同时不把密钥或提示词写入事件。"""
+
     from agent_harness.adapters.models import pydantic_ai
     from agent_harness.adapters.models.pydantic_ai import PydanticAIModelProvider
 
     class UnusedAgent:
+        """若超时 seam 未优先执行就失败，防止测试走到真实供应商调用。"""
+
         def run_sync(self, prompt: str) -> Any:
+            """拒绝任何意外调用，并携带提示词以便定位接线错误。"""
+
             raise AssertionError(f"patched timeout seam should run first: {prompt}")
 
     def timeout_with_secret(*_: object, **__: object) -> Any:
+        """制造含敏感片段的超时异常，验证适配器的脱敏边界。"""
+
         raise TimeoutError("Authorization=Bearer timeout-secret; raw prompt")
 
     def agent_factory(_: str) -> UnusedAgent:
+        """返回永不应被使用的代理替身。"""
+
         return UnusedAgent()
 
     monkeypatch.setattr(pydantic_ai, "_run_sync_with_timeout", timeout_with_secret)
@@ -68,6 +80,8 @@ async def test_pydantic_ai_timeout_is_closed_as_provider_failure_evidence(
     sink = LocalJsonlEventSink(tmp_path / "timeout-events.jsonl")
 
     async def resolve_trace(**_: object) -> str:
+        """为事件总线提供稳定追踪标识，避免测试依赖外部上下文。"""
+
         return "trace-a"
 
     try:
@@ -100,6 +114,7 @@ async def test_pydantic_ai_timeout_is_closed_as_provider_failure_evidence(
                 usage_call_id="usage-timeout",
             )
 
+        # 除公开错误码外，持久化事件中不能留下供应商异常或用户输入的原文。
         events = await sink.read(run_id=run_id)
         assert exc_info.value.code == "model.provider_failed"
         assert events[-1].payload is not None
@@ -116,24 +131,38 @@ async def test_pydantic_ai_timeout_is_closed_as_provider_failure_evidence(
 
 @pytest.mark.asyncio
 async def test_pydantic_ai_success_is_normalized_before_usage_persistence(tmp_path: Path) -> None:
+    """成功响应需在写入事件前抽取统一 token 字段，并隔离响应正文与提示词。"""
+
     from agent_harness.adapters.models.pydantic_ai import PydanticAIModelProvider
 
     class Result:
+        """模拟供应商响应：业务正文与用量对象通过不同属性暴露。"""
+
         output = "provider raw output private"
 
         class Usage:
+            """模拟供应商提供的输入、输出 token 计数。"""
+
             input_tokens = 7
             output_tokens = 4
 
         def usage(self) -> Usage:
+            """返回供应商原生用量对象，供适配器归一化。"""
+
             return self.Usage()
 
     class Agent:
+        """只接受预期私密提示词的同步供应商代理替身。"""
+
         def run_sync(self, prompt: str) -> Result:
+            """验证提示词抵达适配器后返回预设响应。"""
+
             assert prompt == "private provider prompt"
             return Result()
 
     def agent_factory(_: str) -> Agent:
+        """构造无网络依赖的供应商代理。"""
+
         return Agent()
 
     database = tmp_path / "pydantic-success.db"
@@ -143,6 +172,8 @@ async def test_pydantic_ai_success_is_normalized_before_usage_persistence(tmp_pa
     sink = LocalJsonlEventSink(tmp_path / "pydantic-success.jsonl")
 
     async def resolve_trace(**_: object) -> str:
+        """固定事件追踪标识，以聚焦适配器输出而非上下文解析。"""
+
         return "trace-a"
 
     try:
@@ -172,6 +203,7 @@ async def test_pydantic_ai_success_is_normalized_before_usage_persistence(tmp_pa
             usage_call_id="usage-pydantic-success",
         )
 
+        # 调用结果可返回给业务层，但审计事件只能保留归一化后的计量信息。
         events = await sink.read(run_id=run_id)
         assert response.output_text == "provider raw output private"
         assert events[-1].payload is not None
@@ -189,17 +221,27 @@ async def test_pydantic_ai_success_is_normalized_before_usage_persistence(tmp_pa
 
 @pytest.mark.asyncio
 async def test_pydantic_ai_missing_usage_preserves_unknown_tokens_as_null(tmp_path: Path) -> None:
+    """供应商未返回用量时保留未知值，不能用估算值伪装成已确认计量。"""
+
     from agent_harness.adapters.models.pydantic_ai import PydanticAIModelProvider
 
     class Result:
+        """不提供 usage seam 的供应商成功响应。"""
+
         output = "two words"
 
     class Agent:
+        """返回无用量字段的响应，覆盖适配器的缺失信息分支。"""
+
         def run_sync(self, prompt: str) -> Result:
+            """验证请求照常送达供应商，同时不伪造计量对象。"""
+
             assert prompt == "private provider prompt"
             return Result()
 
     def agent_factory(_: str) -> Agent:
+        """构造本地代理替身，避免该合同测试产生外部调用。"""
+
         return Agent()
 
     database = tmp_path / "pydantic-missing-usage.db"
@@ -209,6 +251,8 @@ async def test_pydantic_ai_missing_usage_preserves_unknown_tokens_as_null(tmp_pa
     sink = LocalJsonlEventSink(tmp_path / "pydantic-missing-usage.jsonl")
 
     async def resolve_trace(**_: object) -> str:
+        """返回稳定 trace，保证事件可按当前运行读取。"""
+
         return "trace-a"
 
     try:
@@ -239,6 +283,7 @@ async def test_pydantic_ai_missing_usage_preserves_unknown_tokens_as_null(tmp_pa
             usage_call_id="usage-pydantic-missing",
         )
 
+        # 业务侧 token 字典为空，审计载荷则明确以 null 表示供应商未知而非零消耗。
         events = await sink.read(run_id=run_id)
         assert response.token_usage == {}
         assert events[-1].payload is not None

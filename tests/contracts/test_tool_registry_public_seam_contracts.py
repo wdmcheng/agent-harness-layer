@@ -60,9 +60,13 @@ async def test_tool_registry_public_seam_enforces_errors_policy_and_output_metad
     run_id = await seed_persisted_run(storage, trace_id="trace-tool")
 
     def echo(arguments: dict[str, Any]) -> dict[str, Any]:
+        """回显受 schema 约束的文本，作为允许工具的最小可验证输出。"""
+
         return {"text": arguments["text"]}
 
     def blocked(arguments: dict[str, Any]) -> dict[str, str]:
+        """若被错误执行会返回占位结果；预期由策略层在此之前阻断。"""
+
         _ = arguments
         return {"text": "blocked"}
 

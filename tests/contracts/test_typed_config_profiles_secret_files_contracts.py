@@ -23,6 +23,8 @@ from tests.contracts.test_typed_config_contracts import (
 
 
 def test_local_and_service_profiles_load_typed_settings() -> None:
+    """本地与服务 profile 必须映射为预期的类型化基础设施边界，读取本身不启动外部依赖。"""
+
     # service profile 当前只校验部署边界形状，不启动 PostgreSQL、Redis 或 provider。
     local = load_settings(profile="local", profiles_dir=PROFILES)
     service = load_settings(profile="service", profiles_dir=PROFILES)
@@ -42,6 +44,8 @@ def test_local_and_service_profiles_load_typed_settings() -> None:
 
 
 def test_agent_yaml_and_env_file_override_profile_values(tmp_path: Path) -> None:
+    """环境文件可覆盖 profile，agent YAML 只能进入 agent 子配置，二者不能互相污染。"""
+
     profile_path = tmp_path / "local.yaml"
     profile_path.write_text(
         """
@@ -102,6 +106,8 @@ delegation_edges:
 
 
 def test_empty_env_value_keeps_optional_setting_unconfigured(tmp_path: Path) -> None:
+    """可选配置的空环境值应保持未配置语义，而不是被错误解析为有效空字符串。"""
+
     profile_path = tmp_path / "local.yaml"
     profile_path.write_text(
         """
@@ -223,6 +229,8 @@ def test_budget_fingerprint_key_file_preserves_content_except_one_line_ending(
 def test_budget_fingerprint_key_missing_fails_at_typed_settings_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """预算指纹密钥缺失必须在 settings 解析时失败，不能拖延到运行时才造成不稳定身份。"""
+
     monkeypatch.delenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY", raising=False)
     monkeypatch.delenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE", raising=False)
 
@@ -238,6 +246,8 @@ def test_budget_fingerprint_direct_and_file_conflict_uses_cfg001_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """同一密钥的 direct env 与文件输入冲突需返回稳定错误码，并完全脱敏两侧候选值。"""
+
     trusted_root = tmp_path / "secrets"
     trusted_root.mkdir()
     secret_path = trusted_root / "budget-fingerprint"
@@ -275,6 +285,8 @@ def test_direct_and_secret_file_conflict_fails_before_reading_secret(
     monkeypatch.setenv("AGENT_HARNESS_STORAGE__DSN", direct_fixture)
 
     def fail_if_opened(_path: object, _flags: int) -> int:
+        """若冲突检测错误地尝试读取文件就立即失败，证明优先级判断没有暴露 secret 内容。"""
+
         raise AssertionError("direct/file 冲突必须在读取 secret 前失败")
 
     monkeypatch.setattr(secret_files_module.os, "open", fail_if_opened)

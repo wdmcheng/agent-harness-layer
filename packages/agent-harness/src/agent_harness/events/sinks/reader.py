@@ -10,6 +10,8 @@ from agent_harness.events.types import CanonicalEvent
 
 
 def _empty_event_page() -> list[CanonicalEvent]:
+    """为 accumulator 创建独立事件容器，避免 dataclass 实例共享页面状态。"""
+
     return []
 
 
@@ -32,6 +34,8 @@ class EventPageAccumulator:
     byte_count: int = field(default=0, init=False)
 
     def __post_init__(self) -> None:
+        """在开始逐行读取前校验边界，避免后续读取路径出现不可判定的分页行为。"""
+
         validate_page_limits(max_events=self.max_events, max_bytes=self.max_bytes)
 
     def append(self, event: CanonicalEvent) -> bool:

@@ -26,6 +26,8 @@ from agent_harness.storage.run_trace_gate import StorageRunTraceResolver
 
 
 def _dsn(path: Path) -> str:
+    """生成 SQLite 异步 DSN，以同一 adapter seam 覆盖基础事件回环。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
@@ -114,6 +116,8 @@ async def test_postgresql_event_sink_contract_round_trips_full_envelope(tmp_path
 )
 @pytest.mark.asyncio
 async def test_postgresql_event_sink_serializes_cross_instance_sequences() -> None:
+    """验证多个 PG sink 实例分配连续序号，且多个终态竞争只允许一个成功。"""
+
     async with isolated_database("event_sink_sequences") as dsn:
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -205,6 +209,8 @@ async def test_postgresql_service_telemetry_persists_non_run_without_fake_lineag
             await uow.commit()
 
         async def publish(tenant_id: str, ordinal: int) -> None:
+            """从独立 facade 写入一条 non-run telemetry，用于并发隔离断言。"""
+
             facade = TelemetryFacade(local_sink=PostgreSQLEventSink(storage))
             result = await facade.publish_record(
                 TelemetryRecord(

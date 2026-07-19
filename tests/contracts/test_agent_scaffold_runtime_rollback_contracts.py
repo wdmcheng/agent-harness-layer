@@ -86,6 +86,8 @@ from tests.contracts.test_agent_scaffold_cli_contracts import (
 async def test_generated_agent_runs_through_orchestrator_and_manual_eval_gate(
     tmp_path: Path,
 ) -> None:
+    """新生成 agent 必须经真实 orchestrator 可运行，并能通过人工批准后的 eval 数据集闭环。"""
+
     agents_dir = _agents_root(tmp_path)
     created = scaffold_agent_package("support.triage", agents_dir=agents_dir)
     registry = AgentRegistry.load_from_directory(agents_dir)
@@ -170,6 +172,8 @@ async def test_generated_agent_runs_through_orchestrator_and_manual_eval_gate(
 async def test_executor_rollback_preflight_blocks_without_mutating_generated_agent(
     tmp_path: Path,
 ) -> None:
+    """executor 回滚预检在缺少兼容目标或隔离审计时必须阻断且不改生成包，满足条件后才允许迁移。"""
+
     agents_dir = _agents_root(tmp_path)
     created = scaffold_agent_package("support.triage", agents_dir=agents_dir)
     before = {

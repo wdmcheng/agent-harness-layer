@@ -15,6 +15,8 @@ from tests.contracts.run_trace_revision_hardening_helpers import CHECK_TARGETS
 
 @asynccontextmanager
 async def postgres_database(prefix: str) -> AsyncGenerator[tuple[str, AsyncEngine]]:
+    """创建并最终强制删除带随机后缀的 PostgreSQL 数据库，隔离 DDL 硬化实验及其连接。"""
+
     base_url = make_url(os.environ["AGENT_HARNESS_TEST_POSTGRES_DSN"])
     database_name = f"{prefix}_{uuid4().hex}"
     admin_url = base_url.set(database="postgres")
@@ -37,6 +39,8 @@ async def postgres_database(prefix: str) -> AsyncGenerator[tuple[str, AsyncEngin
 
 
 async def simulate_legacy_postgresql_0013(engine: AsyncEngine) -> None:
+    """将当前数据库改造为旧 revision 的约束和列形状，模拟生产升级前的真实兼容输入。"""
+
     async with engine.begin() as connection:
         for constraint in (
             "fk_canonical_events_run_owner",
@@ -69,6 +73,8 @@ async def simulate_legacy_postgresql_0013(engine: AsyncEngine) -> None:
 
 
 async def seed_legacy_postgresql_rows(engine: AsyncEngine) -> None:
+    """向旧 PostgreSQL schema 写入 run/non-run 事件和审计行，验证硬化升级的保留语义。"""
+
     async with engine.begin() as connection:
         await connection.execute(
             sa.text("insert into tenants(id, display_name) values ('tenant-a', 'A')")
@@ -133,6 +139,8 @@ async def seed_legacy_postgresql_rows(engine: AsyncEngine) -> None:
 
 
 async def postgres_side_effect_snapshot(engine: AsyncEngine) -> tuple[str, int, int]:
+    """读取 revision、run 与事件计数的最小副作用快照，用于断言预检失败没有改动数据。"""
+
     async with engine.connect() as connection:
         revision = (
             await connection.execute(sa.text("select version_num from alembic_version"))

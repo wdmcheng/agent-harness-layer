@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 
 
 def _digest(value: object) -> str:
+    """以稳定 JSON 编码生成快照/配置摘要，禁止 NaN 造成跨进程哈希漂移。"""
+
     return hashlib.sha256(
         json.dumps(
             value,
@@ -40,6 +42,12 @@ class SharedBudgetRuntime:
         embedding_price_source_ref: str = "catalog:local:mock-small",
         embedding_price_source_version: str = "catalog-v1",
     ) -> None:
+        """冻结启动时的设置、registry、价格目录和仅进程内可见的指纹密钥。
+
+        调用方传入的 model 配置仅作为 root snapshot 的来源，后续 child 运行应读取
+        已持久化的冻结子快照，而不是重新查询可能已经改变的当前配置。
+        """
+
         self._settings = settings
         self._registry = registry
         self._model_config = model_config or ModelRouterConfig(
@@ -58,6 +66,13 @@ class SharedBudgetRuntime:
         self._fingerprint_key = settings.budget.fingerprint_key.get_secret_value().encode("utf-8")
 
     def ledger_create(self, *, tenant_id: str, run_id: str, agent_id: str) -> LedgerCreate:
+        """为 root run 构造包含可 delegation target、预算上限和价格路由的冻结账本。
+
+        每个 target 的额度取 owner 与 target 的交集，路由版本和价格以规范摘要绑定
+        到 snapshot id；这样 run 创建后的 registry 或计费目录更新不会改变其预算
+        重放和结算依据。
+        """
+
         owner = self._registry.get(agent_id)
         allowed_ids = [agent_id, *owner.delegation_targets]
         descriptors = {item_id: self._registry.get(item_id) for item_id in allowed_ids}
@@ -428,6 +443,8 @@ class SharedBudgetRuntime:
 
     @staticmethod
     def _price(value: object) -> Decimal | None:
+        """把快照 JSON 中的可选价格还原为有限非负 Decimal，损坏值一律 fail-closed。"""
+
         if value is None:
             return None
         try:

@@ -29,6 +29,8 @@ from app.main import create_app
 async def test_guardrail_approval_run_response_and_default_events_do_not_expose_resume_token(
     tmp_path: Path,
 ) -> None:
+    """验证 guardrail 触发审批后，公开运行与默认事件响应不会泄露恢复凭据。"""
+
     from agent_harness.approvals import ApprovalService
     from agent_harness.audit import AuditService
     from agent_harness.auth import StaticTokenVerifier
@@ -103,6 +105,8 @@ async def test_guardrail_approval_run_response_and_default_events_do_not_expose_
 
 @pytest.mark.asyncio
 async def test_policy_api_shape_and_default_dangerous_actions(tmp_path: Path) -> None:
+    """验证策略 API 的稳定响应形状、脱敏失败包络与默认高危动作集合。"""
+
     from agent_harness.audit import AuditService
     from agent_harness.auth import StaticTokenVerifier
     from agent_harness.policy import PolicyCheck, PolicyEngine, YamlPolicyProvider
@@ -191,6 +195,8 @@ async def test_policy_api_shape_and_default_dangerous_actions(tmp_path: Path) ->
 
 @pytest.mark.asyncio
 async def test_policy_engine_guardrail_approval_and_audit_flow(tmp_path: Path) -> None:
+    """验证策略判定、输入防护、审批恢复与审计证据贯穿同一持久化流程。"""
+
     from agent_harness.approvals import ApprovalService, ApprovalStateConflict
     from agent_harness.audit import AuditService
     from agent_harness.policy import InputGuardrail, PolicyCheck, PolicyEngine, YamlPolicyProvider

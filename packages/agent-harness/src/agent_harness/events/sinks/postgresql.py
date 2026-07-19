@@ -48,6 +48,8 @@ class PostgreSQLEventSink:
     manages_event_capacity = True
 
     def __init__(self, storage: SQLAlchemyStorage) -> None:
+        """绑定存储适配器；每次写入仍自行打开短事务以持有 run 级锁。"""
+
         self._storage = storage
 
     async def write(
@@ -56,6 +58,13 @@ class PostgreSQLEventSink:
         *,
         after_claim: Callable[[], None] | None = None,
     ) -> CanonicalEvent:
+        """原子写入事件、推进容量高水位，并在重放时返回既有 envelope。
+
+        该方法以数据库事务覆盖 event-id 去重、run/stream 串行化、容量消费、
+        事件插入和可选 artifact materialize。任何校验或回调失败都会回滚，
+        从而避免把可见事件与容量账本或 artifact 留在不同提交状态。
+        """
+
         validate_event_scope(event)
         validate_terminal_visibility(event)
         canonical_event_bytes(event)
@@ -330,6 +339,8 @@ class PostgreSQLEventSink:
         return await self.write(event, after_claim=after_claim)
 
     async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
+        """读取指定真实 run 在游标后的全部事件，保持数据库序号排序。"""
+
         async with AsyncSession(self._storage.engine) as session:
             rows = await session.scalars(
                 select(CanonicalEventModel)
@@ -350,6 +361,8 @@ class PostgreSQLEventSink:
         max_events: int = DEFAULT_EVENT_PAGE_SIZE,
         max_bytes: int = MAX_EVENT_PAGE_BYTES,
     ) -> list[CanonicalEvent]:
+        """按可见性和事件/字节上限读取一页，避免未授权行影响分页结果。"""
+
         validate_page_limits(max_events=max_events, max_bytes=max_bytes)
         predicates = [
             CanonicalEventModel.run_id == run_id,
@@ -383,6 +396,8 @@ class PostgreSQLEventSink:
         seq: int,
         include_internal: bool = False,
     ) -> bool:
+        """判断指定正序号是否位于当前调用者可见的事件流中。"""
+
         if seq <= 0:
             return False
         page = await self.read_page(
@@ -399,6 +414,8 @@ class PostgreSQLEventSink:
         run_id: str,
         include_internal: bool = False,
     ) -> CanonicalEvent | None:
+        """返回指定 run 的可见终态事件，未找到时保持 ``None``。"""
+
         predicates = [
             CanonicalEventModel.run_id == run_id,
             CanonicalEventModel.terminal.is_(True),
@@ -410,6 +427,8 @@ class PostgreSQLEventSink:
             return self._event_from_row(row) if row is not None else None
 
     async def latest_seq(self, run_id: str) -> int:
+        """查询指定 run 的最大已持久化序号，空结果返回零。"""
+
         async with self._storage.engine.connect() as connection:
             result = await connection.execute(
                 select(func.max(CanonicalEventModel.seq)).where(
@@ -419,6 +438,8 @@ class PostgreSQLEventSink:
             return int(result.scalar_one() or 0)
 
     async def has_terminal(self, run_id: str) -> bool:
+        """判断指定 run 是否已经提交终态，供上层恢复和写入门禁使用。"""
+
         async with self._storage.engine.connect() as connection:
             result = await connection.execute(
                 select(CanonicalEventModel.id).where(
@@ -430,6 +451,12 @@ class PostgreSQLEventSink:
 
     @staticmethod
     def _event_from_row(model: CanonicalEventModel) -> CanonicalEvent:
+        """将数据库行恢复为 CanonicalEvent，并拒绝不完整的 non-run 旧记录。
+
+        新行必须携带完整 envelope；仅为兼容迁移前真实 run 的旧行才从旧列重建，
+        且绝不猜测缺失的 correlation、scope 或其他受信字段。
+        """
+
         if model.envelope_json is not None:
             event = CanonicalEvent.model_validate(model.envelope_json)
             validate_persisted_event_bytes(event)

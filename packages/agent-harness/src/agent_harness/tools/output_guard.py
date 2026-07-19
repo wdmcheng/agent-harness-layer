@@ -86,5 +86,7 @@ def write_stream_artifact(
 
 
 def _detected_patterns(value: Any) -> list[str]:
+    """仅记录命中的注入信号标签，不回传原始工具输出或匹配到的敏感片段。"""
+
     text = json.dumps(value, ensure_ascii=False).lower()
     return [pattern for pattern in PROMPT_INJECTION_PATTERNS if pattern in text]

@@ -1,4 +1,4 @@
-"""真实 PostgreSQL shared-budget topology 与 cost-disabled 探针。"""
+"""真实 PostgreSQL 共享预算拓扑与停用成本计量探针。"""
 
 from __future__ import annotations
 
@@ -42,6 +42,7 @@ def storage_dsn() -> str:
 
 
 def queue_dsn() -> str:
+    """保留队列连接配置的显式缺失检查，防止脚本在错误环境静默运行。"""
     value = os.environ.get("AGENT_HARNESS_QUEUE__DSN", "").strip()
     if not value:
         raise RuntimeError("AGENT_HARNESS_QUEUE__DSN is required")
@@ -114,6 +115,11 @@ def _cost_disabled_identity(
     token_bound: int,
     delegation_id: str | None = None,
 ) -> OperationIdentity:
+    """构造成本停用场景的稳定操作身份，供直连与分配结算复用。
+
+    token 上界仍是强制约束，而 cost 字段必须保持 ``None``；这样探针能验证
+    存储层不会在成本停用的 catalog 下接受或累计伪造的金额。
+    """
     return OperationIdentity.from_semantic_request(
         tenant_id=tenant_id,
         fingerprint_key=b"service-smoke-cost-disabled-proof",
@@ -192,6 +198,11 @@ async def assert_budget_topology() -> dict[str, object]:
             bound: int,
             actual: int,
         ) -> None:
+            """对指定 root 执行 claim、started 与 settle，形成独立的结算基线。
+
+            每次操作都在单独 UoW 中提交，使后续 root 隔离和聚合断言读取的是
+            真正持久化的 ledger 状态，而非同一事务内的暂态对象。
+            """
             identity = _cost_disabled_identity(
                 tenant_id=tenant_id,
                 snapshot_id=snapshot_id,

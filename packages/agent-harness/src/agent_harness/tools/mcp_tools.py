@@ -32,6 +32,12 @@ class MCPTool:
         artifact_store: FileArtifactStore,
         inline_result_bytes: int = 8192,
     ) -> None:
+        """固定远端工具的身份、授权结果与大结果落盘边界。
+
+        allowlist 在装配时计算为布尔值，避免一次调用期间因配置读取差异
+        改变授权结论；结果大小阈值则交给 ``guarded_tool_payload`` 统一处理。
+        """
+
         self.name = f"mcp.{server_name}.{name}"
         self.action = "mcp.connect"
         self.resource = f"mcp:{server_name}:{name}"
@@ -48,6 +54,13 @@ class MCPTool:
         *,
         context: ToolRuntimeContext,
     ) -> ToolCallResult:
+        """调用远端 MCP 工具，并产出可审计、可截断的本地调用结果。
+
+        拒绝的工具不会触网；允许的调用为每次请求生成独立 invocation ID，
+        以便关联 artifact、事件证据和上游 trace。非字典响应会保留在
+        ``content`` 字段中，避免因供应商返回形状差异丢失原始结果。
+        """
+
         invocation_id = str(uuid4())
         source_ref = f"tool://{request.tool_name}/{context.run_id or 'adhoc'}/{invocation_id}"
         if not self._allowed:

@@ -21,6 +21,8 @@ from agent_harness.runtime.queue import (
 
 
 def _redis_dsn() -> str:
+    """读取真实 Redis 测试连接；未配置时跳过，避免 fake 替代存储语义证据。"""
+
     dsn = os.getenv("REDIS_TEST_DSN")
     if not dsn:
         pytest.skip("REDIS_TEST_DSN 未配置；fake 结果不能替代真实 Redis 证据")
@@ -29,6 +31,8 @@ def _redis_dsn() -> str:
 
 @pytest.mark.asyncio
 async def test_redis_dedupe_reclaim_fenced_ack_and_unknown_version() -> None:
+    """验证真实 Streams 的去重、回收 fencing、确认权与未知版本隔离语义。"""
+
     dsn = _redis_dsn()
     namespace = f"agent-harness:test:{uuid4().hex}"
     queue = RedisRunQueue.from_dsn(dsn, namespace=namespace, group="workers")
@@ -84,6 +88,8 @@ async def test_redis_dedupe_reclaim_fenced_ack_and_unknown_version() -> None:
 
 @pytest.mark.asyncio
 async def test_redis_atomic_dedupe_conflict_and_distinct_approval_operations() -> None:
+    """验证并发同操作共享首条消息，而不同审批 lease 维持独立队列操作。"""
+
     dsn = _redis_dsn()
     namespace = f"agent-harness:test:{uuid4().hex}"
     queue = RedisRunQueue.from_dsn(dsn, namespace=namespace, group="workers")
@@ -146,6 +152,8 @@ async def test_pickup_never_returns_receipt_owned_by_concurrent_reclaimer(
         original_xreadgroup = client.xreadgroup
 
         async def xread_then_reclaim(*args: Any, **kwargs: Any) -> object:
+            """在读取后模拟竞争 worker 回收消息，暴露 receipt 所有权竞态。"""
+
             rows = await original_xreadgroup(*args, **kwargs)
             await client.xautoclaim(
                 queue.stream_name,

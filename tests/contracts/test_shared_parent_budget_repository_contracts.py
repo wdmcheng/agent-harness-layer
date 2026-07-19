@@ -39,10 +39,14 @@ from agent_harness.storage.shared_budget_models import (
 
 
 def sqlite_dsn(path: Path) -> str:
+    """将临时数据库路径转换为异步 SQLite DSN，使每个共享账本用例拥有独立持久化状态。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
 def identity(*, run_id: str, fingerprint: str = "request-a") -> OperationIdentity:
+    """构造 direct 用量的规范身份，固定安全、价格与快照字段以单独测试请求指纹差异。"""
+
     return OperationIdentity.from_semantic_request(
         tenant_id="tenant-a",
         fingerprint_key=b"test-only-budget-fingerprint-key",
@@ -75,6 +79,8 @@ def allocation_identity(
     fingerprint: str = "child-request-a",
     token_bound: int = 20,
 ) -> OperationIdentity:
+    """构造子运行预算分配身份，显式绑定根、子和委派 claim，防止跨树复用。"""
+
     return OperationIdentity.from_semantic_request(
         tenant_id="tenant-a",
         fingerprint_key=b"test-only-budget-fingerprint-key",
@@ -108,6 +114,8 @@ def delegation_identity(
     token_bound: int,
     cost_bound: Decimal | None,
 ) -> OperationIdentity:
+    """从委派请求生成不可变账本身份，并把规范化 target 路由目录摘要纳入身份边界。"""
+
     routes = [
         {
             "usage_kind": "model",
@@ -192,6 +200,8 @@ async def create_root(
     agent_b_token_limit: int = 100,
     agent_b_cost_limit: Decimal | None = None,
 ) -> str:
+    """创建带完整冻结目录和账本的根运行，为仓储合同提供可变预算参数下的可信基线。"""
+
     async with storage.uow() as uow:
         await uow.tenants.ensure("tenant-a")
         session = await uow.sessions.ensure(
@@ -310,6 +320,8 @@ async def create_delegation(
     cost_reservation: Decimal = Decimal("4.00"),
     parent_suffix: str | None = None,
 ) -> tuple[str, str]:
+    """在既有根账本下创建子运行、委派关系和预算预约，返回两者标识供后续并发断言。"""
+
     execution_suffix = suffix if parent_suffix is None else parent_suffix
     async with storage.uow() as uow:
         child = await uow.runs.create(

@@ -30,22 +30,34 @@ from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
 
 class _CountingModelProvider(FakeModelProvider):
+    """记录底层模型调用次数，以验证身份校验失败发生在外部副作用之前。"""
+
     def __init__(self) -> None:
+        """从零开始计数，避免继承的 fake provider 状态干扰本合同的副作用断言。"""
+
         self.calls = 0
 
     def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        """在委托基础 fake 前计数，使测试可区分“被拒绝”与“已调用后失败”。"""
+
         self.calls += 1
         return super().complete(request, model=model)
 
 
 class _CountingEmbeddingProvider:
+    """最小 embedding provider 替身，暴露可验证的调用次数和稳定响应。"""
+
     provider = "embedding-provider"
     model = "embedding-model"
 
     def __init__(self) -> None:
+        """初始化副作用计数器；其余 provider 元数据保持类级固定以减少噪声。"""
+
         self.calls = 0
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+        """返回可持久化的固定向量，用调用计数证明伪造身份未触达 provider。"""
+
         self.calls += 1
         return EmbeddingResponse(
             provider=self.provider,
@@ -63,6 +75,8 @@ class _CountingEmbeddingProvider:
 def _model_service(
     *, storage: SQLAlchemyStorage, event_path: Path, provider: _CountingModelProvider
 ) -> ModelInvocationService:
+    """构造未经 runtime 绑定的模型服务，专门用于验证其拒绝伪造上下文的职责。"""
+
     return ModelInvocationService(
         router=ModelRouter(
             config=ModelRouterConfig(default_model="fake-basic"),
@@ -76,6 +90,8 @@ def _model_service(
 def _embedding_service(
     *, storage: SQLAlchemyStorage, event_path: Path, provider: _CountingEmbeddingProvider
 ) -> EmbeddingInvocationService:
+    """构造未经 runtime 绑定的 embedding 服务，与模型路径共享同一身份边界验证方式。"""
+
     return EmbeddingInvocationService(
         provider=provider,
         storage=storage,

@@ -1,4 +1,4 @@
-"""以隔离 Compose project 验证真实 HTTP、Redis、DBOS、PostgreSQL 与审批恢复。"""
+"""以隔离 Compose project 验证 HTTP、Redis、DBOS、PostgreSQL 与审批恢复。"""
 
 from __future__ import annotations
 
@@ -60,14 +60,22 @@ GROUP = "agent-harness-workers"
 
 
 def _stream_length(env: dict[str, str]) -> int:
+    """读取本 service 队列 stream 的长度，避免调用方重复传递固定名称。"""
     return stream_length(env, STREAM)
 
 
 def _latest_message(env: dict[str, str]) -> tuple[str, dict[str, Any]]:
+    """读取本轮最新队列消息，忽略前置 crash-window 检查留下的历史消息。"""
     return latest_stream_message(env, STREAM)
 
 
 def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, object]:
+    """执行完整 service 冒烟链路，并返回跨组件可复核的脱敏证据。
+
+    链路按镜像、依赖、迁移、认证、预算崩溃窗口、消息重领、SSE、用量、
+    幂等重放与审批恢复的因果顺序推进。每一段先写入稳定边界名称，失败时
+    外层仅暴露该边界和隔离 project，避免敏感配置或 Provider 内容进入日志。
+    """
     base_url = f"http://127.0.0.1:{env['SERVICE_APP_API_PORT']}"
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "image-build"
     compose(env, "build", "migration")
@@ -212,6 +220,7 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
     )
 
     def crashed() -> bool:
+        """判断注入 owner 后崩溃的 worker 是否以约定退出码结束。"""
         result = run(
             ["docker", "inspect", "-f", "{{.State.Status}}|{{.State.ExitCode}}", worker_a],
             env=env,
@@ -347,6 +356,12 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
 
 
 def main() -> int:
+    """创建一次性隔离环境，运行 smoke，并在所有退出路径清除临时凭据与资源。
+
+    即使中途失败，也先尝试删除 bootstrap credential，再依据显式保留条件决定
+    是否保留 PostgreSQL volume；所有 token、DSN 与预算指纹文件均以受限权限
+    写入，finally 中必须删除，防止本地调试残留泄露到下一次运行。
+    """
     args = parse_args()
     prepare_core_wheel()
     project = os.environ.get("SERVICE_APP_COMPOSE_PROJECT") or f"agent-harness-{uuid4().hex[:10]}"

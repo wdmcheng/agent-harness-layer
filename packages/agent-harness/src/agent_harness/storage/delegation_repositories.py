@@ -51,6 +51,8 @@ class DelegationRepository(
     """调用方在 parent lock 内使用；PostgreSQL 额外锁 parent row。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定当前 UoW 会话，使 claim、settlement 与恢复读取共享同一事务视图。"""
+
         self._session = session
 
 

@@ -20,6 +20,8 @@ class UsageInvocationReplayError(RuntimeError):
     code = "usage.settlement_replay_blocked"
 
     def __init__(self, state: str) -> None:
+        """保留 durable settlement 状态，帮助恢复调用方停止重复 provider 副作用。"""
+
         super().__init__(f"usage call already has durable settlement: {state}")
         self.state = state
 
@@ -85,6 +87,8 @@ class ModelUsageEvidence(HarnessDTO):
     @field_validator("latency_ms")
     @classmethod
     def validate_required_latency(cls, value: int) -> int:
+        """保留已由整数校验器验证的延迟值，声明该指标在 usage evidence 中不可缺失。"""
+
         return value
 
     @field_validator("cost_usd", mode="before")
@@ -102,6 +106,8 @@ class ModelUsageEvidence(HarnessDTO):
 
     @model_validator(mode="after")
     def validate_cost_and_cache_semantics(self) -> ModelUsageEvidence:
+        """校验成本状态、估算价格来源与 cache hit 的“未知而非零”用量语义。"""
+
         if self.cost_status == "unavailable":
             if self.cost_usd is not None:
                 raise ValueError("unavailable cost requires cost_usd=null")

@@ -14,6 +14,12 @@ class _CheckParseError(ValueError):
 
 
 class _CheckToken(NamedTuple):
+    """受控 CHECK 语法中的单个词法单元。
+
+    ``kind`` 决定解析器如何解释 ``value``；保留原始值而不在词法阶段归一化，
+    让关键字大小写、标识符和字符串字面量能在各自正确的边界处理。
+    """
+
     kind: str
     value: str
 
@@ -45,6 +51,8 @@ _NON_RUN = ("string", "non_run")
 
 
 def _cast(node: _CheckNode, type_name: str, *, array: bool = False) -> _CheckNode:
+    """构造显式类型转换节点，保留 PostgreSQL 与 SQLite 反射差异。"""
+
     return ("cast", node, type_name, array)
 
 
@@ -137,6 +145,8 @@ def _tokenize_check_expression(expression: str) -> list[_CheckToken]:
     nesting = 0
 
     def append_token(token: _CheckToken) -> None:
+        """追加 token 并在词法阶段执行上限，避免不可信反射 SQL 耗尽资源。"""
+
         tokens.append(token)
         if len(tokens) > _MAX_CHECK_TOKENS:
             raise _CheckParseError("expression token limit exceeded")
@@ -162,6 +172,7 @@ def _tokenize_check_expression(expression: str) -> list[_CheckToken]:
             index += 1
             continue
         if character == "'":
+            # SQL 字符串用连续单引号转义；只有完整闭合后才交给语法层。
             index += 1
             value: list[str] = []
             while index < len(expression):
@@ -180,6 +191,7 @@ def _tokenize_check_expression(expression: str) -> list[_CheckToken]:
                 raise _CheckParseError("unterminated string")
             continue
         if character == '"':
+            # 双引号标识符也支持成对转义，防止把列名误拆为关键字。
             index += 1
             value = []
             while index < len(expression):
@@ -215,10 +227,18 @@ class _CheckExpressionParser:
     """把四个 CHECK 所需的有限 SQL 语法解析为可精确比较的 AST。"""
 
     def __init__(self, expression: str) -> None:
+        """将受限 SQL 预先词法化，并把读取游标定位在首个 token。"""
+
         self._tokens = _tokenize_check_expression(expression)
         self._position = 0
 
     def parse(self) -> _CheckNode:
+        """解析完整 CHECK 表达式并返回可跨方言比较的规范化 AST。
+
+        可选的 ``CHECK(...)`` 外壳由反射结果决定；尾随 token、递归过深和未支持的
+        语法均失败封闭，不能被当作等价约束接受。
+        """
+
         try:
             if self._accept_word("CHECK"):
                 self._expect_symbol("(")
@@ -233,18 +253,24 @@ class _CheckExpressionParser:
             raise _CheckParseError("expression nesting limit exceeded") from exc
 
     def _parse_or(self) -> _CheckNode:
+        """解析 OR 链，其子节点交由 AND 层保证运算优先级。"""
+
         children = [self._parse_and()]
         while self._accept_word("OR"):
             children.append(self._parse_and())
         return children[0] if len(children) == 1 else ("or", tuple(children))
 
     def _parse_and(self) -> _CheckNode:
+        """解析 AND 链，并将每个子项限制为基础表达式。"""
+
         children = [self._parse_primary()]
         while self._accept_word("AND"):
             children.append(self._parse_primary())
         return children[0] if len(children) == 1 else ("and", tuple(children))
 
     def _parse_primary(self) -> _CheckNode:
+        """优先识别谓词；失败后才回溯为括号分组，避免吞掉真实语法错误。"""
+
         checkpoint = self._position
         try:
             return self._parse_predicate()
@@ -257,6 +283,8 @@ class _CheckExpressionParser:
         raise _CheckParseError("expected predicate")
 
     def _parse_predicate(self) -> _CheckNode:
+        """解析允许的集合、比较和空值谓词，拒绝任意 SQL 运算符。"""
+
         left = self._parse_scalar()
         if self._accept_word("IN"):
             values = self._parse_string_list()
@@ -277,6 +305,8 @@ class _CheckExpressionParser:
         raise _CheckParseError("unsupported predicate")
 
     def _parse_string_list(self) -> tuple[_CheckNode, ...]:
+        """解析 ``IN`` 右侧列表，具体项仍走标量规则以统一类型转换处理。"""
+
         self._expect_symbol("(")
         values: list[_CheckNode] = []
         while True:
@@ -288,6 +318,8 @@ class _CheckExpressionParser:
         return tuple(values)
 
     def _parse_scalar(self) -> _CheckNode:
+        """解析字符串、列、数组或括号标量，并继续吸收尾随显式类型转换。"""
+
         token = self._current()
         if token.kind == "string":
             self._position += 1
@@ -314,6 +346,8 @@ class _CheckExpressionParser:
         return self._parse_casts(node)
 
     def _parse_casts(self, node: _CheckNode) -> _CheckNode:
+        """读取连续 ``::`` 转换，只放行迁移产生的已知 text 兼容形式。"""
+
         while self._accept_symbol("::"):
             if self._accept_word("CHARACTER"):
                 self._expect_word("VARYING")
@@ -330,9 +364,13 @@ class _CheckExpressionParser:
         return node
 
     def _current(self) -> _CheckToken:
+        """返回当前 token；调用方负责在成功匹配后推进游标。"""
+
         return self._tokens[self._position]
 
     def _accept_word(self, value: str) -> bool:
+        """大小写无关地消费一个关键字，匹配失败时保持游标不变。"""
+
         token = self._current()
         if token.kind == "word" and token.value.upper() == value:
             self._position += 1
@@ -340,10 +378,14 @@ class _CheckExpressionParser:
         return False
 
     def _expect_word(self, value: str) -> None:
+        """要求当前位置为指定关键字，否则终止受控语法解析。"""
+
         if not self._accept_word(value):
             raise _CheckParseError(f"expected {value}")
 
     def _accept_symbol(self, value: str) -> bool:
+        """消费精确的标点或运算符；不把相似符号视作等价。"""
+
         token = self._current()
         if token.kind == "symbol" and token.value == value:
             self._position += 1
@@ -351,6 +393,8 @@ class _CheckExpressionParser:
         return False
 
     def _expect_symbol(self, value: str) -> None:
+        """要求当前位置为指定符号，缺失时报告一致的解析错误。"""
+
         if not self._accept_symbol(value):
             raise _CheckParseError(f"expected {value}")
 

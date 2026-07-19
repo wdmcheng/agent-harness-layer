@@ -11,10 +11,14 @@ class SettingsLoadError(HarnessError):
     """配置加载失败，携带可展示给 CLI/API 的诊断。"""
 
     def __init__(self, errors: Sequence[ErrorDetail]) -> None:
+        """保留全部配置诊断，便于 CLI 一次反馈多个可修复字段。"""
+
         self.errors = list(errors)
         super().__init__(self.errors)
 
     def to_envelope(self) -> ApiErrorEnvelope:
+        """将加载失败投影为 API 约定的首条错误，不泄露原始配置内容。"""
+
         return ApiErrorEnvelope(error=self.errors[0])
 
 

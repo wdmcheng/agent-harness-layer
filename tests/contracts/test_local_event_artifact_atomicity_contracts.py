@@ -45,6 +45,8 @@ async def test_event_bus_claim_precedes_artifact_and_boundary_collision_fanout(
     fanout: list[str] = []
 
     async def publish_and_fanout(bus: EventBus, **kwargs: Any) -> CanonicalEvent:
+        """模拟 publish 成功后才发生的下游 fan-out，检验冲突路径不会越界通知。"""
+
         published = await bus.publish(**kwargs)
         fanout.append(published.event_id)
         return published
@@ -147,6 +149,8 @@ async def test_local_event_append_failure_compensates_new_artifact(
     original_open = Path.open
 
     def fail_event_open(path: Path, *args: Any, **kwargs: Any) -> Any:
+        """仅在目标 JSONL append 时注入打开失败，其余文件保持真实行为。"""
+
         if path == event_path and args and args[0] == "a":
             raise OSError("simulated event append open failure")
         return cast(IO[Any], original_open(path, *args, **kwargs))
@@ -193,28 +197,44 @@ async def test_local_partial_event_write_failure_restores_file_and_artifact(
     original_open = Path.open
 
     class PartialWriteFailure:
+        """包装真实文件对象并在半行写入后失败，模拟最危险的部分追加窗口。"""
+
         def __init__(self, file: IO[Any]) -> None:
+            """保存底层文件句柄，生命周期和 flush/fd 能力均委托给真实对象。"""
+
             self._file = file
 
         def __enter__(self) -> PartialWriteFailure:
+            """进入底层文件上下文并返回包装器，保持 ``with`` 调用形式不变。"""
+
             self._file.__enter__()
             return self
 
         def __exit__(self, *args: Any) -> Any:
+            """将退出语义完整转交底层文件，避免测试桩掩盖资源释放问题。"""
+
             return self._file.__exit__(*args)
 
         def write(self, value: str) -> None:
+            """先落半行并强制 flush，再抛出错误以验证回滚会恢复文件长度。"""
+
             self._file.write(value[: len(value) // 2])
             self._file.flush()
             raise OSError("simulated partial event append failure")
 
         def flush(self) -> None:
+            """保留底层 flush 行为，使被测写入路径仍经过真实持久化边界。"""
+
             self._file.flush()
 
         def fileno(self) -> int:
+            """暴露真实文件描述符，允许被测代码执行 fsync。"""
+
             return self._file.fileno()
 
     def fail_partial_event_write(path: Path, *args: Any, **kwargs: Any) -> Any:
+        """只包装目标 event append，其他打开操作仍返回原始文件对象。"""
+
         file = cast(IO[Any], original_open(path, *args, **kwargs))
         if path == event_path and args and args[0] == "a":
             return PartialWriteFailure(file)
@@ -262,6 +282,8 @@ async def test_local_event_fsync_failure_restores_file_and_artifact(
     )
 
     def fail_event_fsync(file: Any) -> None:
+        """在实际写入已完成后注入 fsync 失败，覆盖提交确认前的补偿分支。"""
+
         raise OSError("simulated event fsync failure")
 
     monkeypatch.setattr(sink, "_fsync_event_file", fail_event_fsync)
@@ -300,6 +322,8 @@ async def test_local_event_failure_never_deletes_preexisting_content_artifact(
     original_open = Path.open
 
     def fail_event_open(path: Path, *args: Any, **kwargs: Any) -> Any:
+        """复用 append 打开失败桩，验证补偿不会删除内容寻址的既有 artifact。"""
+
         if path == event_path and args and args[0] == "a":
             raise OSError("simulated event append open failure")
         return cast(IO[Any], original_open(path, *args, **kwargs))

@@ -21,6 +21,8 @@ from agent_harness.storage.evidence_repositories import (
 
 
 def sqlite_dsn(path: Path) -> str:
+    """返回与临时文件对应的异步 SQLite DSN，保证每个迁移测试独立。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
@@ -56,6 +58,8 @@ def usage_result(
 
 
 def _prepare_0013a(path: Path) -> None:
+    """将临时数据库迁移到用量 outbox 之前的已知结构，供升级场景植入旧数据。"""
+
     run_migrations(sqlite_dsn(path), "0013a_run_trace_event_hardening")
 
 
@@ -66,6 +70,8 @@ def _seed_0013a_run(
     status: str,
     trace_id: str,
 ) -> None:
+    """按旧结构写入一个运行、会话和 canonical trace 绑定记录。"""
+
     tenant_id = f"tenant-{run_id}"
     session_id = f"session-{run_id}"
     connection.execute(
@@ -97,6 +103,8 @@ def _seed_0013a_event(
     seq: int,
     terminal: bool = False,
 ) -> None:
+    """按旧结构写入运行事件，允许测试控制序号和是否为终态。"""
+
     tenant_id = f"tenant-{run_id}"
     event_type = "run.completed" if terminal else "run.started"
     connection.execute(
@@ -118,6 +126,8 @@ def _seed_0013a_event(
 
 
 def test_0014_migration_creates_outbox_and_capacity_tables(tmp_path: Path) -> None:
+    """升级后必须同时创建 outbox 与容量表，并将版本记录推进到目标 revision。"""
+
     path = tmp_path / "usage-migration.db"
     run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
 
@@ -152,6 +162,8 @@ def test_0014_usage_tables_bind_tenant_and_run_to_the_same_parent_row(tmp_path: 
 
 
 def test_operation_capacity_registry_is_typed_and_rejects_raw_business_input() -> None:
+    """容量预约只能通过枚举操作类型查询，不能接受未经验证的业务字符串。"""
+
     assert operation_event_capacity(EvidenceOperationKind.MODEL_USAGE) == 2
     assert operation_event_capacity(EvidenceOperationKind.APPROVAL_RESOLUTION) == 1
     with pytest.raises(ValueError, match="unknown event operation kind"):
@@ -159,11 +171,14 @@ def test_operation_capacity_registry_is_typed_and_rejects_raw_business_input() -
 
 
 def test_0014_upgrade_backfills_terminal_and_active_operation_capacity(tmp_path: Path) -> None:
+    """升级需为终态、空闲与活跃运行回填正确的序号和预留事件数量。"""
+
     path = tmp_path / "usage-backfill.db"
     _prepare_0013a(path)
     with sqlite3.connect(path) as connection:
         connection.execute("pragma foreign_keys=on")
         with connection:
+            # 三种运行状态覆盖终态无预留、空闲保留终态槽位、活跃操作已有预约。
             _seed_0013a_run(
                 connection,
                 run_id="terminal",
@@ -220,6 +235,8 @@ def test_0014_upgrade_backfills_terminal_and_active_operation_capacity(tmp_path:
 
 
 def test_0014_upgrade_uses_sparse_max_sequence_and_rejects_new_operation(tmp_path: Path) -> None:
+    """稀疏旧事件序列应取真实最大值，接近上限时新操作必须被容量门禁拒绝。"""
+
     path = tmp_path / "usage-sparse-upgrade.db"
     _prepare_0013a(path)
     with sqlite3.connect(path) as connection:
@@ -249,6 +266,8 @@ def test_0014_upgrade_uses_sparse_max_sequence_and_rejects_new_operation(tmp_pat
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
 
     async def verify() -> None:
+        """读取升级后的容量快照，并尝试预约以验证序号上限生效。"""
+
         try:
             async with storage.uow() as uow:
                 snapshot = await uow.event_capacity.snapshot("sparse")
@@ -272,6 +291,8 @@ def test_0014_upgrade_rejects_unknown_active_state_before_ddl(
     tmp_path: Path,
     invalid_state: str,
 ) -> None:
+    """旧库含未知活跃操作状态时，升级必须在创建新表前失败封闭。"""
+
     path = tmp_path / f"usage-invalid-{invalid_state}.db"
     _prepare_0013a(path)
     with sqlite3.connect(path) as connection:
@@ -292,6 +313,7 @@ def test_0014_upgrade_rejects_unknown_active_state_before_ddl(
                 (invalid_state,),
             )
 
+    # 失败后既不能推进 alembic revision，也不能留下半创建的容量表。
     with pytest.raises(RuntimeError, match="approval operation state is unknown"):
         run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
 
@@ -315,6 +337,8 @@ def test_0014_upgrade_rejects_unknown_active_state_before_ddl(
     ],
 )
 def test_0014_downgrade_requires_exact_opt_in(tmp_path: Path, x_args: list[str]) -> None:
+    """降级只接受唯一精确的显式开关，大小写、重复或夹带其他参数均不得放行。"""
+
     path = tmp_path / f"usage-downgrade-{len(x_args)}-{hash(tuple(x_args))}.db"
     run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
     with pytest.raises(RuntimeError, match="explicit opt-in"):
@@ -329,6 +353,8 @@ def test_0014_downgrade_requires_exact_opt_in(tmp_path: Path, x_args: list[str])
 
 
 def test_0014_empty_database_downgrades_with_exact_opt_in(tmp_path: Path) -> None:
+    """空库提供正确显式开关时可安全降级，并完整移除新增用量表。"""
+
     path = tmp_path / "usage-empty-downgrade.db"
     run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
     command.downgrade(
@@ -350,6 +376,8 @@ def test_0014_empty_database_downgrades_with_exact_opt_in(tmp_path: Path) -> Non
 
 @pytest.mark.parametrize("state", ["started", "result_persisted", "published"])
 def test_0014_any_outbox_state_blocks_downgrade(tmp_path: Path, state: str) -> None:
+    """任意 outbox 生命周期状态存在时都必须阻止降级，防止丢失未完成或已发布证据。"""
+
     path = tmp_path / f"usage-outbox-{state}.db"
     run_migrations(sqlite_dsn(path), "0014_run_evidence_outbox")
     with sqlite3.connect(path) as connection:

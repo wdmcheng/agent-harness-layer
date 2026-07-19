@@ -13,11 +13,15 @@ from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
 
 def sqlite_dsn(path: Path) -> str:
+    """为上下文与 embedding 合同创建隔离异步 SQLite DSN，避免缓存结果跨用例复用。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
 @pytest.mark.asyncio
 async def test_context_assembly_and_embedding_cache_are_persisted(tmp_path: Path) -> None:
+    """上下文截断决策与本地 embedding 缓存必须持久化，使后续调用可复现保留内容与缓存命中。"""
+
     from agent_harness.context import ContextAssembler, ContextFragment
     from agent_harness.embeddings import EmbeddingRequest, LocalEmbeddingProvider
 
@@ -86,6 +90,8 @@ async def test_context_assembly_and_embedding_cache_are_persisted(tmp_path: Path
 
 @pytest.mark.asyncio
 async def test_openai_compatible_embedding_adapter_posts_and_reuses_cache(tmp_path: Path) -> None:
+    """OpenAI 兼容 adapter 只在首次 miss 发起受控 HTTP 请求，重试复用缓存且不暴露向量正文。"""
+
     from agent_harness.adapters.models.openai_compatible_embeddings import (
         OpenAICompatibleEmbeddingProvider,
     )
@@ -94,6 +100,8 @@ async def test_openai_compatible_embedding_adapter_posts_and_reuses_cache(tmp_pa
     calls: list[dict[str, Any]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        """记录 adapter 发出的 HTTP 形状并返回固定向量，隔离网络与真实 API key。"""
+
         calls.append(
             {
                 "url": str(request.url),
@@ -142,6 +150,11 @@ async def test_openai_compatible_embedding_adapter_posts_and_reuses_cache(tmp_pa
 async def test_storage_embedding_cache_survives_provider_composition_uow_boundaries(
     tmp_path: Path,
 ) -> None:
+    """StorageEmbeddingCache 跨独立 UoW 仍应保持命中。
+
+    避免 provider composition 退化为进程内缓存。
+    """
+
     from agent_harness.embeddings import (
         EmbeddingRequest,
         LocalEmbeddingProvider,

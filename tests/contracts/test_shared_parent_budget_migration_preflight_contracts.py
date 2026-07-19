@@ -6,6 +6,8 @@ from tests.contracts.test_shared_parent_budget_migration_contracts import *
 
 
 def test_0016_fresh_upgrade_and_empty_downgrade(tmp_path: Path) -> None:
+    """无历史证据的全新数据库可安全升级并在明确确认后回退，证明迁移的空库可逆性。"""
+
     path = tmp_path / "fresh.sqlite3"
     run_migrations(sqlite_dsn(path))
     assert get_current_revision(sqlite_dsn(path)) == "0016_shared_parent_budget_ledger"
@@ -28,6 +30,8 @@ def test_0016_fresh_upgrade_and_empty_downgrade(tmp_path: Path) -> None:
 
 
 def test_0016_rejects_active_legacy_tree_before_ddl(tmp_path: Path) -> None:
+    """活动旧运行缺少不可变预算快照时不能猜测迁移结果，必须在任何 DDL 前停止。"""
+
     path = tmp_path / "active-legacy.sqlite3"
     run_migrations(sqlite_dsn(path), "0015_agent_delegation")
     with sqlite3.connect(path) as connection:
@@ -59,6 +63,8 @@ def test_0016_rejects_active_legacy_tree_before_ddl(tmp_path: Path) -> None:
 
 
 def test_0016_preserves_strictly_closed_legacy_tree_without_ledger(tmp_path: Path) -> None:
+    """完全闭合的旧树可跨越迁移且不追写账本，保留其既有终态与历史事实。"""
+
     path = tmp_path / "closed-legacy.sqlite3"
     run_migrations(sqlite_dsn(path), "0015_agent_delegation")
     with sqlite3.connect(path) as connection:
@@ -137,6 +143,8 @@ def test_0016_rejects_completed_legacy_delegation_without_child_before_ddl(
 
 
 def test_0016_downgrade_refuses_any_shared_budget_evidence(tmp_path: Path) -> None:
+    """一旦新账本已存证据，降级即使携带确认开关也必须拒绝，防止不可逆数据丢失。"""
+
     path = tmp_path / "evidence.sqlite3"
     run_migrations(sqlite_dsn(path))
     with sqlite3.connect(path) as connection:

@@ -7,6 +7,8 @@ from tests.contracts.test_shared_parent_budget_invocation_contracts import *
 
 @pytest.mark.asyncio
 async def test_model_replay_rejects_started_claim_with_published_outbox(tmp_path: Path) -> None:
+    """验证已发布 outbox 与回退为 started 的模型 claim 冲突时拒绝重复 provider 调用。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'model-replay-conflict.sqlite3'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage(dsn)
@@ -46,6 +48,8 @@ async def test_model_replay_rejects_started_claim_with_published_outbox(tmp_path
 async def test_direct_embedding_replay_rejects_started_claim_with_published_outbox(
     tmp_path: Path,
 ) -> None:
+    """验证直接 embedding 的 claim/outbox 矛盾会失败关闭，而非重放写入证据。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'embedding-replay-conflict.sqlite3'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage(dsn)
@@ -91,6 +95,8 @@ async def test_direct_embedding_replay_rejects_started_claim_with_published_outb
 async def test_allocated_embedding_replay_rejects_started_claim_with_published_outbox(
     tmp_path: Path,
 ) -> None:
+    """验证 delegated child 的 allocation 记录与已发布 outbox 不一致时同样拒绝重放。"""
+
     storage, delegation_service, _runtime, parent_run_id, sink = await build_delegation_service(
         tmp_path,
         mode="service",

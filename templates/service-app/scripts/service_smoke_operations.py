@@ -1,4 +1,4 @@
-"""Service smoke 的 approval、worker 与故障注入场景操作。"""
+"""Service smoke 的审批、worker、持久化证据与故障注入场景操作。"""
 
 from __future__ import annotations
 
@@ -115,6 +115,7 @@ def remove_approval_event_write_failure(env: dict[str, str]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """解析 service smoke 入口支持的迁移专用开关，不混入运行时配置。"""
     parser = argparse.ArgumentParser(description="验证真实 service Compose 边界")
     parser.add_argument("--migrate-only", action="store_true")
     return parser.parse_args()
@@ -149,6 +150,11 @@ def assert_stale_receipt(
 
 
 def inspect_run(env: dict[str, str], run_id: str) -> dict[str, Any]:
+    """调用隔离管理容器读取运行证据，并映射为稳定、脱敏的诊断错误。
+
+    只有子进程成功退出时才返回完整证据；失败时错误类型和错误码会过滤为安全
+    字符，供外层记录 smoke 边界，原始数据库或连接详情不应向上传播。
+    """
     result = compose_result(
         env,
         "run",

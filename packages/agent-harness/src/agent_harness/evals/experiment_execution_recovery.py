@@ -1,4 +1,4 @@
-"""Eval experiment execution claim 的续租、fencing 与恢复辅助。"""
+"""评测实验执行 claim 的续租、栅栏与不确定结果恢复辅助。"""
 
 from __future__ import annotations
 
@@ -40,6 +40,11 @@ class ExperimentExecutionRecoveryMixin:
         split: EvalDatasetSplitRecord,
         version: HarnessVersionManifest,
     ) -> ExperimentEvaluationResult:
+        """调用评测器并立即校验其结果与请求、切分和版本清单完全一致。
+
+        校验位于结果持久化之前，避免 Provider 返回了不同版本、错误切分或缺少
+        指标的结果时仍被后续比较误认为可信实验事实。
+        """
         result = await self.evaluator.evaluate(
             tenant_id=request.tenant_id,
             agent_id=request.agent_id,
@@ -59,6 +64,7 @@ class ExperimentExecutionRecoveryMixin:
         return result
 
     async def _get_split(self, tenant_id: str, split_id: str) -> EvalDatasetSplitRecord:
+        """读取租户可见的持久化切分；缺失时映射为稳定的领域 404 错误。"""
         async with self.storage.uow() as uow:
             split = await uow.eval_dataset_splits.get(tenant_id, split_id)
         if split is None:
@@ -70,12 +76,14 @@ class ExperimentExecutionRecoveryMixin:
         return split
 
     async def _idempotency_winner(self, request: ExperimentRequest) -> EvalExperimentRecord | None:
+        """按租户和幂等键读取唯一实验记录，用于恢复后返回既有结果。"""
         async with self.storage.uow() as uow:
             return await uow.eval_experiments.get_by_idempotency_key(
                 request.tenant_id, request.idempotency_key
             )
 
     def _claim_expiry(self) -> datetime:
+        """计算下一次 claim 到期时间；统一使用 UTC 避免多时区 worker 产生歧义。"""
         return datetime.now(tz=UTC) + timedelta(seconds=self.claim_ttl_seconds)
 
     async def _renew_claim_until_terminal(
@@ -86,6 +94,11 @@ class ExperimentExecutionRecoveryMixin:
         claim_id: str,
         claim_lost: asyncio.Event,
     ) -> None:
+        """在执行期间定期续租，并在任何无法证明所有权的情形下标记 claim 丢失。
+
+        续租失败不能被视为可重试的普通日志：终态写入必须停止，因为可能已有
+        其他 worker 接管同一实验。取消则向上传播，让调用方按正常收口顺序处理。
+        """
         interval = max(0.5, self.claim_ttl_seconds / 3)
         try:
             while True:
@@ -127,6 +140,7 @@ class ExperimentExecutionRecoveryMixin:
         claim_id: str,
         created: bool,
     ) -> ExperimentCreateOutcome:
+        """将不确定执行标记为需人工复核，并返回幂等获胜记录而非猜测结果。"""
         await self._mark_needs_review(
             tenant_id=request.tenant_id,
             experiment_id=record.experiment_id,
@@ -151,6 +165,7 @@ class ExperimentExecutionRecoveryMixin:
         experiment_id: str,
         claim_id: str,
     ) -> None:
+        """在持有匹配 claim 时原子标记实验为需复核；丢失所有权时不写任何状态。"""
         async with self.storage.uow() as uow:
             marked = await uow.eval_experiments.mark_execution_needs_review(
                 tenant_id=tenant_id,

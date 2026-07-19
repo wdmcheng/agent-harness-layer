@@ -23,10 +23,14 @@ class RecordingArtifactStore(FileArtifactStore):
     """区分获胜 claim 与被拒 collision 是否真正 materialize。"""
 
     def __init__(self, root: Path) -> None:
+        """初始化真实文件制品存储和 materialize 计数，便于区分 replay 与首次获胜写入。"""
+
         super().__init__(root)
         self.calls = 0
 
     def write_json(self, payload: dict[str, Any]) -> Any:
+        """记录真实落盘次数后委托父类，证明 event-id 竞争失败者不会提前创建制品。"""
+
         self.calls += 1
         return super().write_json(payload)
 
@@ -35,10 +39,14 @@ class FailingArtifactStore(FileArtifactStore):
     """PG 事务内 artifact 失败夹具。"""
 
     def write_json(self, payload: dict[str, Any]) -> Any:
+        """在任何文件写入前注入故障，验证数据库 claim 不会在 artifact 未 materialize 时提交。"""
+
         raise OSError("simulated postgres artifact failure")
 
 
 class ArtifactPublishArgs(TypedDict):
+    """跨 bus 并发发布大载荷时保持一致的受保护事件字段，便于构造同 ID 冲突。"""
+
     tenant_id: str
     run_id: str
     event_type: CanonicalEventType
@@ -126,6 +134,8 @@ async def test_postgresql_event_claim_is_atomic_before_artifact_and_fanout(
         )
 
         async def publish_boundary(**updates: Any) -> CanonicalEvent:
+            """以固定 event-id 发布可控边界信封，验证重复调用只能接受完全相同的持久化语义。"""
+
             values: dict[str, Any] = {
                 "tenant_id": tenant_a,
                 "run_id": run_a.id,
@@ -201,6 +211,8 @@ async def test_postgresql_event_claim_is_atomic_before_artifact_and_fanout(
             bus: EventBus,
             kwargs: ArtifactPublishArgs,
         ) -> CanonicalEvent:
+            """发布成功后才记录 fan-out，确保竞争失败者既无制品副作用也不会触发下游通知。"""
+
             published = await bus.publish(**kwargs)
             fanout.append(published.run_id)
             return published

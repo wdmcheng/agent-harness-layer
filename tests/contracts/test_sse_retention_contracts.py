@@ -12,10 +12,14 @@ from agent_harness.events import CanonicalEvent, CanonicalEventType, LocalJsonlE
 
 
 async def _trace(**_: object) -> str:
+    """为本地 sink 提供稳定 trace，避免夹具依赖真实 runtime composition。"""
+
     return "trace-a"
 
 
 def _event(seq: int, *, terminal: bool = False) -> CanonicalEvent:
+    """构造只含 SSE 游标语义所需字段的公开事件夹具。"""
+
     return CanonicalEvent(
         event_id=f"retention-contract-{seq}-{'terminal' if terminal else 'ordinary'}",
         tenant_id="tenant-a",
@@ -47,7 +51,7 @@ async def test_past_visible_cursor_survives_local_reader_recreation(tmp_path: Pa
     assert await reopened.contains_seq(run_id="run-a", seq=terminal.seq) is True
 
 
-def test_p0_has_no_canonical_event_cleanup_ttl_or_retention_surface() -> None:
+def test_canonical_event_has_no_cleanup_ttl_or_retention_surface() -> None:
     """若未来加入 event 过期行为，本合同迫使其先进入独立 change。"""
 
     root = Path(__file__).parents[2]

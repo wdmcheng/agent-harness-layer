@@ -36,25 +36,52 @@ class DelegationRecoveryMixin:
 
         async def _publish_claimed(
             self, *, delegation: DelegationRecord, identity: IdentityContext
-        ) -> None: ...
+        ) -> None:
+            """发布或验证 claim 事件的有序 outbox 证据。"""
+
+            ...
+
         async def _publish_pre_child_failed(
             self, *, delegation: DelegationRecord, identity: IdentityContext
-        ) -> None: ...
+        ) -> None:
+            """发布 child 创建前失败的终态证据。"""
+
+            ...
+
         async def _publish_child_created(
             self, *, delegation: DelegationRecord, identity: IdentityContext
-        ) -> None: ...
-        async def _resume_parent_terminal_if_ready(self, delegation: DelegationRecord) -> None: ...
+        ) -> None:
+            """发布或验证 child 已绑定到 delegation 的有序事件。"""
+
+            ...
+
+        async def _resume_parent_terminal_if_ready(self, delegation: DelegationRecord) -> None:
+            """在 child 创建前失败后，按 durable 状态推进父 run 的终态。"""
+
+            ...
+
         async def _recover_or_launch_child(
             self,
             *,
             delegation: DelegationRecord,
             request: DelegationRequest,
             identity: IdentityContext,
-        ) -> DelegationRecord: ...
-        async def reconcile_child(self, child_run_id: str) -> DelegationExecutionResult: ...
+        ) -> DelegationRecord:
+            """恢复或幂等启动 child，返回已持久化关联的 delegation。"""
+
+            ...
+
+        async def reconcile_child(self, child_run_id: str) -> DelegationExecutionResult:
+            """根据 durable evidence 收敛指定 child 的父级摘要。"""
+
+            ...
 
     async def recover_pending_for_parent(self, *, parent_run_id: str) -> int:
-        """不重跑授权/预算 claim，推进已提交 delegation 的 pending evidence。"""
+        """不重跑授权或预算 claim，推进父 run 下已提交 delegation 的待恢复证据。
+
+        先在一个只读工作单元中取得 parent、session 与候选项，随后逐项恢复；
+        这样单个候选项的外部副作用失败不会让前面的读取事务长期占锁。
+        """
 
         try:
             async with self._storage.uow() as uow:
@@ -85,7 +112,12 @@ class DelegationRecoveryMixin:
         parent_session: SessionRecord,
         delegation: DelegationRecord,
     ) -> None:
-        """durable claim 是恢复授权；只重放确定性 event/child/aggregation 步骤。"""
+        """将 durable claim 作为恢复授权，只重放确定性的事件、child 与聚合步骤。
+
+        恢复前重新校验序列化身份、请求哈希、parent/session 绑定和 trace，避免
+        损坏记录借恢复通道越过初次授权。通过后只使用 repository 重放结果，
+        不再调用策略引擎或重新预约预算。
+        """
 
         if delegation.budget_intent != "inherit_parent":
             raise DelegationError("delegation.execution_failed")

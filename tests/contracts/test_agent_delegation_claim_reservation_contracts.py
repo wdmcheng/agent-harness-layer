@@ -51,6 +51,8 @@ from agent_harness.storage.shared_budget_models import ParentBudgetLedgerModel
 
 
 def test_0015_migration_creates_delegation_evidence_tables(tmp_path: Path) -> None:
+    """迁移必须创建委派关系、预约和聚合表，并将数据库置于当前 revision 供后续合同依赖。"""
+
     path = tmp_path / "delegation-migration.db"
     run_migrations(sqlite_dsn(path))
 
@@ -204,6 +206,8 @@ async def test_delegation_budget_and_capacity_priority_matrix(
 
 @pytest.mark.asyncio
 async def test_same_key_replays_one_claim_budget_and_event_reservation(tmp_path: Path) -> None:
+    """相同委派幂等键应重放同一 claim、预算预约及 ordered outbox，不得新增任何持久化份额。"""
+
     path = tmp_path / "delegation-replay.db"
     run_migrations(sqlite_dsn(path))
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
@@ -280,6 +284,8 @@ async def test_ordered_delegation_outbox_rejects_skipped_predecessor(tmp_path: P
 async def test_new_claim_rejects_when_worst_case_exceeds_parent_remaining_budget(
     tmp_path: Path,
 ) -> None:
+    """第二个最坏情况委派超出根剩余预算时必须保持 claim、outbox 和容量快照完全不变。"""
+
     path = tmp_path / "delegation-effective-budget.db"
     run_migrations(sqlite_dsn(path))
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
@@ -325,6 +331,8 @@ async def test_new_claim_rejects_when_worst_case_exceeds_parent_remaining_budget
 async def test_finite_parent_cost_uses_owner_ceiling_for_null_target_ceiling(
     tmp_path: Path,
 ) -> None:
+    """目标成本上限为空并不表示无限；有限 parent 成本上限仍是 delegation 预约的可信上界。"""
+
     path = tmp_path / "delegation-unbounded-cost.db"
     run_migrations(sqlite_dsn(path))
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))

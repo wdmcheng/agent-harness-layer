@@ -39,6 +39,8 @@ from tests.contracts.test_eval_experiment_recovery_contracts import (
 
 @pytest.mark.asyncio
 async def test_overlapping_conflicting_create_rolls_back_loser_split(tmp_path: Path) -> None:
+    """相同幂等键但不同请求并发创建时，失败者不得遗留 split 或实验记录，胜者可正常完成。"""
+
     from agent_harness.evals import EvalExperimentError, ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
@@ -82,6 +84,8 @@ async def test_overlapping_conflicting_create_rolls_back_loser_split(tmp_path: P
 async def test_cancelled_worker_becomes_needs_review_without_automatic_replay(
     tmp_path: Path,
 ) -> None:
+    """运行中的评估 worker 被取消后必须转人工复核，后续同键请求不能偷偷恢复 evaluator。"""
+
     from agent_harness.evals import ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
@@ -135,6 +139,8 @@ async def test_cancelled_worker_becomes_needs_review_without_automatic_replay(
 async def test_expired_running_claim_becomes_needs_review_after_restart(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """进程在执行 claim 后硬退出且 lease 过期时，只能标记需复核，不能重放评分副作用。"""
+
     from agent_harness.evals import ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
@@ -156,6 +162,8 @@ async def test_expired_running_claim_becomes_needs_review_after_restart(
     )
 
     async def simulate_hard_exit(**_kwargs: Any):
+        """在 claim 已提交、评估尚未开始时模拟进程退出，保留真实重启恢复窗口。"""
+
         raise SystemExit("simulated process exit after claim commit")
 
     monkeypatch.setattr(cast(Any, service.execution), "_execute_claimed", simulate_hard_exit)
@@ -186,6 +194,8 @@ async def test_expired_running_claim_becomes_needs_review_after_restart(
 async def test_legacy_created_replay_becomes_needs_review_without_evaluator(
     tmp_path: Path,
 ) -> None:
+    """遗留 created 记录没有执行 claim 时重放必须保持需复核，不能把历史状态误当可安全执行。"""
+
     from agent_harness.evals import ExperimentRequest, ExperimentService
     from agent_harness.storage import (
         EvalDatasetSplitCreate,

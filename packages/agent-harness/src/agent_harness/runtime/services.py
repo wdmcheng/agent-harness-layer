@@ -48,6 +48,8 @@ class ToolRegistryFactory:
         artifact_store: FileArtifactStore,
         workspace_root: Path,
     ) -> None:
+        """冻结 composition 提供的共享依赖与解析后的 workspace 根目录。"""
+
         self._settings = settings
         self._storage = storage
         self._policy = policy
@@ -99,11 +101,16 @@ def build_agent_execution_services(
     registry: AgentRegistry,
     workspace_root: Path | None = None,
 ) -> Mapping[str, object]:
-    """构造 executor 私有依赖映射；映射本身不会进入 DTO/checkpoint。"""
+    """构造 executor 私有依赖映射，不让进程对象穿透 DTO 或 checkpoint。
+
+    该 composition 统一选择本地/服务检索实现，复用同一 EventBus、审计、
+    artifact、共享预算与工具策略。返回值仅供已受 registry 控制的 executor
+    使用；调用方不得把其中的 provider、存储或闭包序列化到公开边界。
+    """
 
     if settings.model.provider != "fake":
         raise ValueError(
-            "P0 example execution requires the fake model provider; "
+            "example execution requires the fake model provider; "
             "configure a provider adapter before selecting another provider"
         )
     retrieval = (

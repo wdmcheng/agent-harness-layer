@@ -195,6 +195,8 @@ async def test_model_sequence_state_invalid_precedes_unbounded_cost_without_side
         )
 
         async def plan_without_cost_bound(**_: object) -> Any:
+            """注入缺少可信成本上界的计划，固定 sequence 校验优先于预算拒绝。"""
+
             return unbounded_plan
 
         monkeypatch.setattr(service, "_plan", plan_without_cost_bound)

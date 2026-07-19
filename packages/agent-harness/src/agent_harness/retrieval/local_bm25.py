@@ -24,6 +24,12 @@ class LocalSQLiteBM25RetrievalProvider:
     provider = "local-bm25"
 
     def __init__(self, *, dsn: str) -> None:
+        """解析并固定本地 SQLite 文件路径，拒绝内存库和非 SQLite DSN。
+
+        文档表与 FTS 索引必须共享可复用的文件数据库；若接受临时内存连接，索引
+        会在一次请求结束后消失，并与 local/offline profile 的持久检索承诺相悖。
+        """
+
         sqlite_path = sqlite_database_path(normalize_async_dsn(dsn))
         if sqlite_path is None:
             raise ValueError("LocalSQLiteBM25RetrievalProvider requires a file SQLite DSN")
@@ -185,6 +191,12 @@ class LocalSQLiteBM25RetrievalProvider:
 
 
 async def _ensure_fts5(connection: aiosqlite.Connection) -> None:
+    """创建或修复 FTS5 索引，使其覆盖租户、集合、文档与 chunk 的隔离键。
+
+    旧开发数据库可能只有内容列，重建时从 ``retrieval_chunks`` 真相表完整回填；
+    不能只新增列或保留旧索引，否则 MATCH 结果会发生跨租户或跨文档错配。
+    """
+
     try:
         await _create_fts5(connection)
         columns = {
@@ -212,6 +224,8 @@ async def _ensure_fts5(connection: aiosqlite.Connection) -> None:
 
 
 async def _create_fts5(connection: aiosqlite.Connection) -> None:
+    """以 Unicode 分词器创建与真相表键一致的 FTS5 虚拟表。"""
+
     await connection.execute(
         """
         create virtual table if not exists retrieval_chunks_fts using fts5(
@@ -227,11 +241,19 @@ async def _create_fts5(connection: aiosqlite.Connection) -> None:
 
 
 def _fts5_match_query(query: str) -> str:
+    """将自然语言查询拆为被逐项引号保护的 FTS5 精确 token 查询。
+
+    只保留字母、数字和 Unicode 文字 token，并转义内嵌引号，避免用户输入被解释成
+    FTS5 运算符或破坏 MATCH 表达式结构。
+    """
+
     terms = re.findall(r"[\w\u0080-\uffff]+", query.lower())
     return " ".join('"' + term.replace('"', '""') + '"' for term in terms)
 
 
 def _row_to_result(row: aiosqlite.Row, *, rank: int) -> RetrievalResult:
+    """合并持久化元数据和 BM25 分数，转换为 provider 无关的检索结果 DTO。"""
+
     rank_metadata = _load_json(row["rank_metadata_json"])
     provider_metadata = _load_json(row["provider_metadata_json"])
     metadata: dict[str, object] = {
@@ -255,6 +277,8 @@ def _row_to_result(row: aiosqlite.Row, *, rank: int) -> RetrievalResult:
 
 
 def _load_json(value: object) -> dict[str, object]:
+    """容错读取可选元数据对象；非对象值不影响检索主结果而按空元数据处理。"""
+
     if not isinstance(value, str) or not value:
         return {}
     loaded = json.loads(value)

@@ -206,6 +206,8 @@ async def test_final_event_ack_loss_replays_without_duplicate_or_leaked_reservat
         original_append = local_sink._append_event_unlocked  # pyright: ignore[reportPrivateUsage]
 
         def fail_once_before_write(event: Any) -> None:
+            """仅在首次 final event 落盘前注入失败，模拟证据尚未写入的故障。"""
+
             nonlocal failed
             if event.event_id == final_event_id and not failed:
                 failed = True
@@ -221,6 +223,8 @@ async def test_final_event_ack_loss_replays_without_duplicate_or_leaked_reservat
             *,
             event_id: str,
         ) -> None:
+            """仅在首次 final event 已落盘后丢失确认，模拟 outbox ack 失败窗口。"""
+
             nonlocal failed
             if event_id == final_event_id and not failed:
                 failed = True

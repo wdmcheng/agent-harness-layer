@@ -1,4 +1,4 @@
-"""Embedding durable usage 的身份校验与精确重放。"""
+"""嵌入耐久用量的身份校验与精确重放，隔离当前缓存与首次执行快照。"""
 
 from __future__ import annotations
 
@@ -21,13 +21,19 @@ from agent_harness.storage.shared_budget import (
 
 @dataclass(frozen=True)
 class _EmbeddingSettlement:
+    """重放前读取到的用量结算 claim、预算所有权和是否可安全启动标记。"""
+
     usage: UsageSettlementClaim
     ownership: BudgetOperationOwnership | None
     safe_to_start: bool = False
 
 
 class _IdentityRuntime(Protocol):
-    def operation_identity(self, **values: Any) -> OperationIdentity: ...
+    """重放时构造和验证共享预算身份所需的最小运行时协议。"""
+
+    def operation_identity(self, **values: Any) -> OperationIdentity:
+        """按首次快照参数重建期望操作身份，用于检测重放输入漂移。"""
+        ...
 
     def embedding_price_config(
         self,
@@ -36,7 +42,9 @@ class _IdentityRuntime(Protocol):
         agent_id: str,
         provider: str,
         model: str,
-    ) -> tuple[Decimal | None, str, str]: ...
+    ) -> tuple[Decimal | None, str, str]:
+        """解析嵌入定价配置；协议与模型调用路径保持相同的来源版本形状。"""
+        ...
 
 
 class _EmbeddingReplayMixin:
@@ -46,10 +54,13 @@ class _EmbeddingReplayMixin:
     _shared_budget: _IdentityRuntime | None
 
     @staticmethod
-    def _final_event_id(tenant_id: str, usage_call_id: str) -> str: ...
+    def _final_event_id(tenant_id: str, usage_call_id: str) -> str:
+        """由宿主服务提供稳定 final event ID，使 replay 查询同一条用量证据。"""
+        ...
 
     @staticmethod
     def _semantic_request(request: EmbeddingRequest) -> dict[str, object]:
+        """提取参与身份指纹的最小语义输入，排除运行时可变字段。"""
         return {"input": request.input}
 
     async def _replay_settlement_before_current_snapshot(

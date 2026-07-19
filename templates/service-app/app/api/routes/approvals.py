@@ -1,4 +1,4 @@
-"""HITL approval API 路由。"""
+"""HITL 审批 API：受策略保护地读取、决议并恢复等待中的运行。"""
 
 from __future__ import annotations
 
@@ -214,6 +214,7 @@ async def _check_resolve_permission(
     approval_id: str,
     decision: str,
 ) -> None:
+    """对审批决议执行带上下文的策略检查，确保决定类型也参与授权判断。"""
     engine = policy or PolicyEngine(provider=YamlPolicyProvider.default())
     await engine.require_allowed(
         PolicyCheck(
@@ -232,6 +233,11 @@ async def _check_read_permission(
     run_id: str,
     approval_id: str | None = None,
 ) -> None:
+    """对列表或单条审批读取执行最小资源范围的策略检查。
+
+    没有 approval ID 时资源限定到运行的审批集合；有 ID 时进一步收紧到单条
+    记录，避免列表授权被意外复用于详情读取。
+    """
     engine = policy or PolicyEngine(provider=YamlPolicyProvider.default())
     resource = f"run:{run_id}:approval:{approval_id}" if approval_id else f"run:{run_id}:approvals"
     await engine.require_allowed(
@@ -245,6 +251,11 @@ async def _check_read_permission(
 
 
 def _public_approval(record: ApprovalRecord) -> ApprovalPublicRecord:
+    """将持久化审批投影为公共响应，排除 continuation 参数和内部授权细节。
+
+    ``result`` 只对已经终结的审批状态公开，等待状态不能伪装为已有执行结果；
+    时间统一序列化为 ISO 格式，保持 HTTP 与 CLI 读取的一致性。
+    """
     return ApprovalPublicRecord(
         approval_id=record.approval_id,
         tenant_id=record.tenant_id,
@@ -264,6 +275,7 @@ def _public_approval(record: ApprovalRecord) -> ApprovalPublicRecord:
 
 
 def _public_run(run: RunResult | None, *, request_id: str) -> RunCreateResponse | None:
+    """将可选运行结果收敛为审批响应需要的最小摘要，保留同一 request ID。"""
     if run is None:
         return None
     return RunCreateResponse(

@@ -58,6 +58,8 @@ async def test_allocation_and_delegation_terminal_share_owner_first_lock_order(
             terminal_waiting_for_owner = asyncio.Event()
 
             async def allocate_while_holding_owner() -> str:
+                """先持有 owner ledger 锁再分配，构造与终态操作的锁序交错窗口。"""
+
                 async with storage.uow() as uow:
                     repository = cast(Any, uow.shared_budget)
                     await repository._lock_ledger("tenant-a", root)
@@ -82,6 +84,8 @@ async def test_allocation_and_delegation_terminal_share_owner_first_lock_order(
                 return "allocated"
 
             async def terminate_after_allocation_holds_owner() -> str:
+                """等待分配方持锁后执行结算或释放，验证不会反向等待导致死锁。"""
+
                 await asyncio.wait_for(owner_locked.wait(), timeout=5)
                 try:
                     async with storage.uow() as uow:
@@ -89,6 +93,8 @@ async def test_allocation_and_delegation_terminal_share_owner_first_lock_order(
                         original_lock = repository._lock_ledger
 
                         async def observed_owner_lock(*args: Any, **kwargs: Any) -> Any:
+                            """记录终态路径开始等待 owner 锁的时刻，以开放分配协程。"""
+
                             terminal_waiting_for_owner.set()
                             return await original_lock(*args, **kwargs)
 

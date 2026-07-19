@@ -17,6 +17,8 @@ from tests.contracts.test_eval_experiment_comparison_contracts import (
 
 
 def test_harness_version_is_complete_secret_safe_and_canonical() -> None:
+    """harness 版本必须由完整、规范化且脱敏的输入决定，顺序变化不能产生不同版本。"""
+
     from agent_harness.evals import EvalExperimentError, HarnessVersionBuilder
 
     builder = HarnessVersionBuilder()
@@ -55,6 +57,8 @@ def test_harness_version_is_complete_secret_safe_and_canonical() -> None:
     [object(), {"nested": object()}],
 )
 def test_harness_version_rejects_provider_objects_and_unsafe_refs(unsafe_value: object) -> None:
+    """版本输入拒绝不可序列化 provider 对象和本地路径证据，确保版本可复现且不泄漏环境信息。"""
+
     from agent_harness.evals import EvalExperimentError, HarnessVersionBuilder
 
     sources = _harness_sources()
@@ -71,6 +75,8 @@ def test_harness_version_rejects_provider_objects_and_unsafe_refs(unsafe_value: 
 
 
 def test_comparison_reports_tags_holdout_failures_and_closed_recommendation() -> None:
+    """比较结果应同时表达目标标签、holdout、回归与已修复失败，才能给出可审计的接受建议。"""
+
     from agent_harness.evals import ExperimentComparisonBuilder, RegressionPolicy
 
     baseline = _evaluation(
@@ -133,6 +139,8 @@ def test_comparison_reports_tags_holdout_failures_and_closed_recommendation() ->
 
 
 def test_comparison_rejects_regressions_and_requires_local_evidence() -> None:
+    """明显回归必须拒绝；缺少本地证据、标签或指标对齐时只能转人工复核，不能乐观推荐。"""
+
     from agent_harness.evals import BehaviorTag, ExperimentComparisonBuilder, RegressionPolicy
 
     baseline_scores = {
@@ -219,6 +227,8 @@ def test_comparison_rejects_regressions_and_requires_local_evidence() -> None:
 
 
 def test_large_failure_diff_is_truncated_to_local_evidence_ref() -> None:
+    """大量失败详情只内联有限摘要，其余放入本地证据引用，保持公开比较结果可传输。"""
+
     from agent_harness.evals import ExperimentComparisonBuilder, RegressionPolicy
 
     baseline_scores = {

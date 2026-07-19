@@ -20,6 +20,8 @@ class ArgumentValidationError:
     """JSON Schema 子集校验失败的进程内结果。"""
 
     def __init__(self, message: str, *, field_path: str | None, hint: str | None = None) -> None:
+        """保存输入校验失败的公开诊断；此对象不抛异常，供 Registry 统一映射。"""
+
         self.message = message
         self.field_path = field_path
         self.hint = hint

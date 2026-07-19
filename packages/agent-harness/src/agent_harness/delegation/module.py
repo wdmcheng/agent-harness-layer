@@ -26,6 +26,8 @@ class AgentDelegationModule:
     name = "agent.delegate"
 
     def __init__(self, service: DelegationService) -> None:
+        """保存 application service；绑定后的业务调用只能经受控 facade 到达它。"""
+
         self._service = service
 
     async def recover_pending_for_parent(self, *, parent_run_id: str) -> int:
@@ -43,6 +45,12 @@ class AgentDelegationModule:
         request_id: str | None,
         trace_id: str,
     ) -> BoundAgentDelegationModule:
+        """将 runtime 已验证的 parent 身份、trace 与请求上下文封装为一次性调用面。
+
+        业务 payload 不接收这些可信字段，避免 executor 伪造跨租户 parent、source
+        agent 或 trace；identity 使用深拷贝，防止调用方在绑定后修改权限集合。
+        """
+
         if identity.tenant_id != tenant_id:
             raise ValueError("delegation execution identity does not match bound tenant")
         return BoundAgentDelegationModule(
@@ -70,6 +78,8 @@ class BoundAgentDelegationModule:
         request_id: str | None,
         trace_id: str,
     ) -> None:
+        """保存 immutable runtime 绑定值；仅 target、child input 与幂等键来自业务侧。"""
+
         self._service = service
         self._identity = identity
         self._tenant_id = tenant_id
@@ -82,6 +92,12 @@ class BoundAgentDelegationModule:
         self,
         request: AgentDelegateInput,
     ) -> DelegationExecutionResult:
+        """将受限业务输入与可信绑定上下文合成为 delegation 请求并交给 service。
+
+        trace 缺失即失败，不能由业务输入补写；这样可确保 child relation、事件和预算
+        identity 共享 parent 的 canonical trace 范围。
+        """
+
         if not self._trace_id:
             raise ValueError("delegation execution requires a canonical trace")
         return await self._service.delegate(

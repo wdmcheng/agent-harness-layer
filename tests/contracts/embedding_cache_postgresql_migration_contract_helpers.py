@@ -151,16 +151,22 @@ async def isolated_database(prefix: str) -> AsyncGenerator[str]:
 
 
 def _config(dsn: str, *, x_args: list[str] | None = None) -> Config:
+    """为指定隔离库创建 Alembic 配置，并透传显式迁移开关。"""
+
     config = alembic_config(dsn)
     config.cmd_opts = Namespace(x=x_args or [])
     return config
 
 
 async def upgrade(dsn: str, revision: str) -> None:
+    """在线程中执行同步迁移入口，避免测试事件循环被 Alembic 阻塞。"""
+
     await asyncio.to_thread(run_migrations, dsn, revision)
 
 
 async def downgrade(dsn: str, *, x_args: list[str] | None = None) -> None:
+    """降回 0012 基线，并允许调用方显式传入受控的 downgrade 开关。"""
+
     await asyncio.to_thread(command.downgrade, _config(dsn, x_args=x_args), REVISION_0012)
 
 

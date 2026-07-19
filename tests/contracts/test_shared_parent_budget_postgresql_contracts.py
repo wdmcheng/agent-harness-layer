@@ -63,6 +63,8 @@ def direct_claim(
     token_bound: int,
     cost_bound: Decimal,
 ) -> DirectBudgetClaim:
+    """从确定性身份和冻结上界构造直接预算 claim，供行锁竞争场景复用。"""
+
     operation = (
         identity(run_id=root_id, fingerprint=fingerprint)
         .model_copy(

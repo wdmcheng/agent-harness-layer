@@ -28,14 +28,20 @@ class RecordingUsageTelemetryProvider:
     provider_name = "recording-usage"
 
     def __init__(self) -> None:
+        """初始化 telemetry 记录列表，供断言 started/final 扇出顺序。"""
+
         self.records: list[TelemetryRecord] = []
 
     async def send(self, record: TelemetryRecord) -> TelemetryStatus:
+        """保存已经脱敏的 telemetry 记录并模拟 provider 成功发送。"""
+
         self.records.append(record)
         return TelemetryStatus(provider=self.provider_name, status="sent")
 
 
 async def _usage_run(storage: SQLAlchemyStorage) -> str:
+    """创建固定租户、会话与 trace 的最小 run，供模型 usage 场景复用。"""
+
     async with storage.uow() as uow:
         await uow.tenants.ensure("tenant-a")
         await uow.sessions.ensure(
@@ -60,6 +66,8 @@ async def _usage_run(storage: SQLAlchemyStorage) -> str:
 
 @pytest.mark.asyncio
 async def test_model_invocation_reserves_and_settles_durable_usage(tmp_path: Path) -> None:
+    """验证正常模型调用预留并结算 usage，事件、outbox、容量和 telemetry 均收敛。"""
+
     database = tmp_path / "usage.db"
     dsn = f"sqlite+aiosqlite:///{database}"
     run_migrations(dsn)
@@ -68,6 +76,8 @@ async def test_model_invocation_reserves_and_settles_durable_usage(tmp_path: Pat
     telemetry_provider = RecordingUsageTelemetryProvider()
 
     async def resolve_trace(**_: object) -> str:
+        """为本地 sink 返回稳定 trace，隔离调用测试与 trace 查询实现。"""
+
         return "trace-a"
 
     try:
@@ -129,10 +139,16 @@ async def test_model_invocation_reserves_and_settles_durable_usage(tmp_path: Pat
 async def test_model_invocation_policy_rejection_has_zero_provider_side_effect(
     tmp_path: Path,
 ) -> None:
+    """验证路由策略要求审批时持久化拒绝 evidence，但 provider 调用次数保持为零。"""
+
     class SpyProvider(FakeModelProvider):
+        """记录 provider 调用次数的 fake 实现，用于证明拒绝发生在外部副作用之前。"""
+
         calls = 0
 
         def complete(self, request: ModelRequest, *, model: str):
+            """记录一次实际调用后委托基类，若误触发即可由断言暴露。"""
+
             self.calls += 1
             return super().complete(request, model=model)
 
@@ -143,6 +159,8 @@ async def test_model_invocation_policy_rejection_has_zero_provider_side_effect(
     sink = LocalJsonlEventSink(tmp_path / "policy-events.jsonl")
 
     async def resolve_trace(**_: object) -> str:
+        """为策略拒绝事件提供固定 trace。"""
+
         return "trace-a"
 
     provider = SpyProvider()
@@ -193,11 +211,19 @@ async def test_model_invocation_policy_rejection_has_zero_provider_side_effect(
 async def test_model_fallback_calls_only_selected_model_and_records_actual_route(
     tmp_path: Path,
 ) -> None:
+    """验证 fallback 只调用最终选中的模型，并在 usage evidence 记录实际路由决策。"""
+
     class FallbackSpyProvider(FakeModelProvider):
+        """记录被调用模型名的 fake provider，用于区分候选探测与实际调用。"""
+
         def __init__(self) -> None:
+            """初始化模型调用顺序记录。"""
+
             self.called_models: list[str] = []
 
         def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+            """记录实际模型后返回基类响应，保持服务完整结算路径可运行。"""
+
             self.called_models.append(model)
             return super().complete(request, model=model)
 
@@ -209,6 +235,8 @@ async def test_model_fallback_calls_only_selected_model_and_records_actual_route
     provider = FallbackSpyProvider()
 
     async def resolve_trace(**_: object) -> str:
+        """为 fallback 事件提供固定 trace。"""
+
         return "trace-a"
 
     try:
@@ -274,10 +302,16 @@ async def test_model_invocation_preserves_verified_reported_or_estimated_cost(
     price_source_ref: str | None,
     price_source_version: str | None,
 ) -> None:
+    """验证已验证的 reported/estimated 成本及估算价格来源完整进入 usage evidence。"""
+
     from agent_harness.models import ModelDecision
 
     class CostProvider(FakeModelProvider):
+        """返回参数化成本状态和价格来源的 fake provider。"""
+
         def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+            """构造带真实 token、成本和价格证据的 provider-neutral 响应。"""
+
             return ModelResponse(
                 provider="cost",
                 model=model,
@@ -301,6 +335,8 @@ async def test_model_invocation_preserves_verified_reported_or_estimated_cost(
     sink = LocalJsonlEventSink(tmp_path / f"cost-{cost_status}.jsonl")
 
     async def resolve_trace(**_: object) -> str:
+        """为成本参数化场景提供固定 trace。"""
+
         return "trace-a"
 
     try:
@@ -338,10 +374,16 @@ async def test_model_invocation_preserves_verified_reported_or_estimated_cost(
 
 @pytest.mark.asyncio
 async def test_provider_decision_is_redacted_before_durable_outbox(tmp_path: Path) -> None:
+    """验证 provider 决策中的认证和密码形态在 outbox 与事件持久化前被统一脱敏。"""
+
     from agent_harness.models import ModelDecision
 
     class LeakingDecisionProvider(FakeModelProvider):
+        """在决策理由中故意携带敏感形态的 fake provider，用于验证脱敏边界。"""
+
         def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+            """返回带泄露式决策理由的响应，供服务层在落库前进行脱敏。"""
+
             return ModelResponse(
                 provider="leaking",
                 model=model,
@@ -361,6 +403,8 @@ async def test_provider_decision_is_redacted_before_durable_outbox(tmp_path: Pat
     sink = LocalJsonlEventSink(tmp_path / "decision-redaction.jsonl")
 
     async def resolve_trace(**_: object) -> str:
+        """为决策脱敏事件提供固定 trace。"""
+
         return "trace-a"
 
     try:

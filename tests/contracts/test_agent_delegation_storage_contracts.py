@@ -29,6 +29,8 @@ from agent_harness.storage.shared_budget import LedgerCreate, OperationIdentity
 
 
 def sqlite_dsn(path: Path) -> str:
+    """生成委派仓储合同独占的异步 SQLite DSN，避免预算预约与 migration 状态相互污染。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
@@ -40,6 +42,8 @@ async def _create_parent(
     target_token_limit: int = 60,
     target_cost_limit: Decimal | None = Decimal("4.00"),
 ) -> str:
+    """创建带冻结树目录和 shared ledger 的根运行，使各仓储测试可独立配置 token/cost 上界。"""
+
     async with storage.uow() as uow:
         await uow.tenants.ensure("tenant-a")
         session = await uow.sessions.ensure(
@@ -150,6 +154,8 @@ async def _create_child_relation(
 
 
 def _claim(parent_run_id: str, **updates: object) -> DelegationClaimCreate:
+    """从完整合法基线构造 delegation claim，并允许单个测试覆盖可信上界或受保护字段变化。"""
+
     trusted_token_override = updates.pop("_trusted_token_bound", None)
     trusted_cost_override = updates.pop("_trusted_cost_bound", ...)
     cost_enabled_override = updates.pop("_cost_enabled", None)

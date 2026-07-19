@@ -172,11 +172,17 @@ async def test_mcp_sdk_adapter_supports_sse_transport(monkeypatch: pytest.Monkey
     initialized: list[bool] = []
 
     class FakeClientSession:
+        """替代官方 SDK session，仅保留 adapter 在 SSE 初始化阶段依赖的交互面。"""
+
         def __init__(self, read_stream: object, write_stream: object) -> None:
+            """断言 adapter 将 SSE context 提供的双向流原样交给 SDK session。"""
+
             assert read_stream == "read"
             assert write_stream == "write"
 
         async def __aenter__(self) -> FakeClientSession:
+            """模拟可成功进入的 SDK 会话，避免测试依赖真实网络连接。"""
+
             return self
 
         async def __aexit__(
@@ -185,19 +191,29 @@ async def test_mcp_sdk_adapter_supports_sse_transport(monkeypatch: pytest.Monkey
             exc: BaseException | None,
             traceback: object,
         ) -> None:
+            """提供空退出路径，确保 adapter 能按 async context manager 协议清理会话。"""
+
             return None
 
         async def initialize(self) -> None:
+            """记录初始化动作，证明 adapter 不会只建立流而遗漏 SDK 握手。"""
+
             initialized.append(True)
 
     class FakeMCPModule(types.ModuleType):
+        """以模块替身暴露 ClientSession，隔离官方 MCP 包的安装与版本差异。"""
+
         ClientSession = FakeClientSession
 
     class FakeSSEModule(types.ModuleType):
+        """以模块替身承载 SSE 工厂，验证动态导入的 adapter 边界而非第三方实现。"""
+
         sse_client: Any = None
 
     @asynccontextmanager
     async def fake_sse_client(url: str):
+        """记录目标 URL 并提供稳定的读写流，作为网络 transport 的确定性替身。"""
+
         calls.append(url)
         yield "read", "write"
 

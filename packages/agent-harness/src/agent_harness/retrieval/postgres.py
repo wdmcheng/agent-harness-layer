@@ -23,9 +23,17 @@ class PostgreSQLRetrievalProvider:
     provider = "postgres-native-fts"
 
     def __init__(self, *, dsn: str) -> None:
+        """规范化 async PostgreSQL DSN；每次操作临时建 engine，避免跨请求连接泄漏。"""
+
         self._dsn = normalize_async_dsn(dsn)
 
     async def index(self, request: RetrievalIndexRequest) -> None:
+        """在单个 PostgreSQL 事务内 upsert 文档与 chunk，保持 collection/tenant 隔离键。
+
+        chunk 的 conflict key 包含 document 与 chunk id；重建索引不会生成重复行，且
+        engine 无论成功失败都会释放，避免 service worker 反复调用耗尽连接。
+        """
+
         engine = create_async_engine(self._dsn)
         try:
             async with engine.begin() as connection:
@@ -111,6 +119,8 @@ class PostgreSQLRetrievalProvider:
             await engine.dispose()
 
     async def query(self, request: RetrievalQueryRequest) -> RetrievalResponse:
+        """使用 ``plainto_tsquery`` 执行租户与集合范围内的全文查询并返回稳定排名。"""
+
         engine = create_async_engine(self._dsn)
         try:
             async with engine.connect() as connection:

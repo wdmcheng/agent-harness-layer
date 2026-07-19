@@ -58,6 +58,8 @@ class _DelegationPublicationMixin:
         delegation: DelegationRecord,
         identity: IdentityContext,
     ) -> None:
+        """补投或首次发布 delegation 已获准的第一条内部证据。"""
+
         await self._publish(
             delegation=delegation,
             identity=identity,
@@ -72,6 +74,8 @@ class _DelegationPublicationMixin:
         delegation: DelegationRecord,
         identity: IdentityContext,
     ) -> None:
+        """发布 child 已创建证据，并从 durable delegation 读取 child 标识。"""
+
         await self._publish(
             delegation=delegation,
             identity=identity,
@@ -86,6 +90,8 @@ class _DelegationPublicationMixin:
         delegation: DelegationRecord,
         summary: DelegationSummary,
     ) -> None:
+        """发布 completed 或 failed 的唯一最终 delegation 证据。"""
+
         identity = IdentityContext.model_validate(delegation.identity)
         event_type = (
             CanonicalEventType.DELEGATION_COMPLETED
@@ -114,6 +120,8 @@ class _DelegationPublicationMixin:
         delegation: DelegationRecord,
         identity: IdentityContext,
     ) -> None:
+        """在 child 尚未创建时发布封闭失败证据，不伪造 child summary。"""
+
         await self._publish(
             delegation=delegation,
             identity=identity,
@@ -182,6 +190,13 @@ class _DelegationPublicationMixin:
         event_type: CanonicalEventType,
         payload: dict[str, Any],
     ) -> None:
+        """按稳定事件标识补投一条 delegation evidence 并确认 outbox。
+
+        先从 outbox 读取既有结果，再由 sink 对完整 envelope 做幂等校验；随后
+        才将 outbox 标记为已发布。这个顺序让崩溃恢复只需重放证据，不会重建
+        child、重算 summary 或越过尚未完成的 parent terminal guard。
+        """
+
         event_id = f"delegation:{delegation.id}:{phase}"
         published_result: dict[str, object] | None = None
         try:

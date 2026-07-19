@@ -34,6 +34,12 @@ class OpenAICompatibleEmbeddingProvider:
         timeout_seconds: float = 30,
         client: httpx.AsyncClient | None = None,
     ) -> None:
+        """固定 provider 身份、模型与连接策略，并允许测试注入受控 HTTP client。
+
+        base URL 会在此处规范化，后续请求只拼接协议路径；调用者持有的 client
+        不由 adapter 关闭，避免破坏共享连接池的生命周期。
+        """
+
         self.provider = provider
         self.model = model
         self._cache = cache
@@ -100,6 +106,12 @@ class OpenAICompatibleEmbeddingProvider:
         )
 
     async def _post_embedding(self, input_text: str) -> dict[str, Any]:
+        """发送最小 OpenAI-compatible 请求，并在 HTTP 成功后交还原始对象。
+
+        自建 client 仅覆盖单次调用并自动释放；注入 client 则保留给装配层管理，
+        响应字段验证仍由下游解析函数统一完成。
+        """
+
         headers: dict[str, str] = {}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"

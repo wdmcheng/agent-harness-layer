@@ -24,6 +24,8 @@ class ExperimentResultPersistence:
     """集中处理 claim-fenced 终态与 terminal 后的 provider 摘要追加。"""
 
     def __init__(self, storage: SQLAlchemyStorage) -> None:
+        """保存存储 seam；每次写入自行使用短 UoW，避免 evaluator 长事务持锁。"""
+
         self.storage = storage
 
     async def update_record(
@@ -38,6 +40,12 @@ class ExperimentResultPersistence:
         provider_statuses: list[dict[str, object]],
         claim_id: str,
     ) -> EvalExperimentRecord:
+        """以执行 claim 围栏写入可信实验终态及其受限 evidence 摘要。
+
+        repository 负责验证 claim 仍属于当前执行者；本协作者只投影已验证的评分、
+        comparison 和引用，不能在这里重新执行 evaluator 或重算 recommendation。
+        """
+
         async with self.storage.uow() as uow:
             updated = await uow.eval_experiments.update_results(
                 tenant_id=request.tenant_id,
@@ -69,6 +77,12 @@ class ExperimentResultPersistence:
         error: Exception,
         claim_id: str,
     ) -> ExperimentResult:
+        """把失败收敛为可审计终态，同时保留已取得的局部评测证据。
+
+        仅暴露受限错误码和固定摘要，不序列化异常文本；异常可能含 provider 响应或
+        输入内容。已有 baseline/candidate 结果仍写入，使人工复核可定位失败边界。
+        """
+
         error_code = getattr(error, "code", "eval.experiment.evaluation_failed")
         if not isinstance(error_code, str) or not re.fullmatch(
             r"[a-z][a-z0-9_.-]{0,127}", error_code
@@ -114,6 +128,8 @@ class ExperimentResultPersistence:
         comparison: ExperimentComparison | None,
         provider_statuses: list[dict[str, object]],
     ) -> EvalExperimentRecord:
+        """在可信终态后以状态 CAS 追加 provider 摘要，拒绝陈旧写者倒退状态。"""
+
         async with self.storage.uow() as uow:
             updated = await uow.eval_experiments.update_provider_results(
                 tenant_id=request.tenant_id,

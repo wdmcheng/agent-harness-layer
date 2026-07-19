@@ -53,6 +53,11 @@ from tests.contracts.test_auth_policy_hitl_approval_contracts import (
 async def test_approval_api_rejects_cross_tenant_visibility_and_resolution(
     tmp_path: Path,
 ) -> None:
+    """验证审批 API 区分跨租户隐藏与同租户权限拒绝两类安全边界。
+
+    跨租户主体不能借列表、详情或决策接口探测资源；同租户但无策略权限的
+    主体则必须收到显式拒绝，避免把资源隔离与授权判断混为同一种结果。
+    """
     from agent_harness.approvals import ApprovalService
     from agent_harness.audit import AuditService
     from agent_harness.auth import StaticTokenVerifier

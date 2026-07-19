@@ -15,6 +15,8 @@ class EvalExperimentError(RuntimeError):
         field_path: str | None = None,
         hint: str | None = None,
     ) -> None:
+        """保存可公开映射的状态码与字段诊断，不把底层异常对象带出边界。"""
+
         super().__init__(message)
         self.code = code
         self.status_code = status_code

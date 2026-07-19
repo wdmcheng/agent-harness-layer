@@ -72,6 +72,8 @@ class ApprovalResolutionRepositoryConflict(RuntimeError):
     """条件 resolution update 已输给另一个 resolver。"""
 
     def __init__(self, code: str, message: str) -> None:
+        """保留机器可判定的冲突码，使 service 能区分状态竞争与普通存储故障。"""
+
         super().__init__(message)
         self.code = code
 

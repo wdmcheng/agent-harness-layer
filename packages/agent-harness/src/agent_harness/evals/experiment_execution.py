@@ -57,6 +57,8 @@ class ExperimentExecutionCoordinator(ExperimentExecutionRecoveryMixin):
         comparison_builder: ExperimentComparisonBuilder,
         claim_ttl_seconds: float,
     ) -> None:
+        """装配 evaluator、发布器与持久化协作者，并将执行租约下限限制为一秒。"""
+
         self.storage = storage
         self.evaluator = evaluator
         self.publishers = publishers
@@ -71,7 +73,12 @@ class ExperimentExecutionCoordinator(ExperimentExecutionRecoveryMixin):
         request_hash_override: str | None = None,
         split_create: EvalDatasetSplitCreate | None = None,
     ) -> ExperimentCreateOutcome:
-        """在一个事务内创建 split、experiment 和首个 execution claim。"""
+        """创建或重放实验，并且只让持有唯一数据库 claim 的请求启动评测。
+
+        split、experiment 和首个 execution claim 在同一事务内建立。已终态记录
+        直接投影；运行中或未取得 claim 的记录会被原子标记为 ``needs_review``，
+        因为新请求无法证明既有外部评测副作用是否完成。
+        """
 
         hash_value = request_hash_override or request_hash(request)
         for attempt in range(2):
@@ -145,6 +152,13 @@ class ExperimentExecutionCoordinator(ExperimentExecutionRecoveryMixin):
         request: ExperimentRequest,
         record: EvalExperimentRecord,
     ) -> ExperimentCreateOutcome:
+        """在持有数据库 fencing claim 时运行评测，并以心跳守护唯一执行权。
+
+        claim 丢失或终态写入围栏冲突时收敛为人工复核，而不是由当前 worker 覆写
+        新 owner 的结果。异常发生在 evaluator 之后也必须保留 running 风险，不可
+        自动回退为可重跑状态。
+        """
+
         split = await self._get_split(request.tenant_id, record.split_id)
         if record.status not in {"created", "running"}:
             return ExperimentCreateOutcome(
@@ -199,6 +213,12 @@ class ExperimentExecutionCoordinator(ExperimentExecutionRecoveryMixin):
         claim_id: str,
         created: bool,
     ) -> ExperimentCreateOutcome:
+        """在持有 execution claim 时续租，并把失权和围栏冲突收敛为人工复核。
+
+        心跳存活期间才允许下游写终态；一旦失去 claim，当前 worker 不能覆盖
+        新 owner 的结果，必须保留不确定状态而非自动重跑评测副作用。
+        """
+
         claim_lost = asyncio.Event()
         heartbeat = asyncio.create_task(
             self._renew_claim_until_terminal(
@@ -264,6 +284,12 @@ class ExperimentExecutionCoordinator(ExperimentExecutionRecoveryMixin):
         heartbeat: asyncio.Task[None],
         claim_lost: asyncio.Event,
     ) -> ExperimentCreateOutcome:
+        """运行基线/候选评测，验证部分失败证据并先持久化本地终态。
+
+        evaluator 异常会先转为受限失败记录；成功结果的比较和证据先落入可信
+        存储，随后才调用允许降级的外部发布器，避免其故障阻断可审计结论。
+        """
+
         baseline: ExperimentEvaluationResult | None = None
         candidate: ExperimentEvaluationResult | None = None
         comparison: ExperimentComparison | None = None

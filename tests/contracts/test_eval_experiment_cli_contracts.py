@@ -15,7 +15,11 @@ from agent_harness.cli import app
 
 
 class CliBoundaryCaseRefsEvaluator(SplitAwareEvaluator):
+    """为 CLI 结果构造超长 case evidence refs，验证输出会压缩到稳定 truth 引用。"""
+
     async def evaluate(self, **kwargs: Any):
+        """复用 split evaluator 后按 baseline/candidate 改写指标和大量证据引用。"""
+
         result = await super().evaluate(**kwargs)
         item = result.case_results[0]
         baseline = result.harness_version_id == self.baseline_id
@@ -27,6 +31,8 @@ class CliBoundaryCaseRefsEvaluator(SplitAwareEvaluator):
 
 
 def _manifest(seed: str):
+    """根据种子构造可比较的 harness version，避免各 CLI 场景重复写输入源。"""
+
     from agent_harness.evals import HarnessInputSource, HarnessVersionBuilder
 
     return HarnessVersionBuilder().build(
@@ -42,9 +48,13 @@ def _manifest(seed: str):
 
 
 def _seed_approved_cases(*, storage: Any, baseline_id: str, candidate_id: str) -> None:
+    """向真实 storage 写入三条已审批用例及两个版本的历史分数。"""
+
     from agent_harness.storage import EvalCaseCreate
 
     async def seed() -> None:
+        """在单一 UoW 中创建并批准夹具用例，确保 CLI 可见 approved-only 数据集。"""
+
         async with storage.uow() as uow:
             await uow.tenants.ensure("default")
             for index in range(3):
@@ -78,12 +88,16 @@ def _seed_approved_cases(*, storage: Any, baseline_id: str, candidate_id: str) -
 
 
 def _invoke(runner: CliRunner, args: list[str]) -> dict[str, Any]:
+    """调用 Typer 应用并将成功 stdout 解析为 JSON，失败由测试显式断言。"""
+
     result = runner.invoke(app, args)
     assert result.exit_code == 0, result.output
     return json.loads(result.stdout)
 
 
 def test_eval_experiment_cli_create_show_compare_accept_and_errors(tmp_path: Path) -> None:
+    """验证 CLI create/show/compare/accept 与 HTTP 等价，且错误输出保持脱敏和稳定。"""
+
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
     db_path = tmp_path / "eval-experiment-cli.db"
@@ -287,6 +301,8 @@ def test_eval_runner_no_approved_cases_semantics_remain_stable(tmp_path: Path) -
 
 
 def test_cli_reads_compressed_failure_difference_refs(tmp_path: Path) -> None:
+    """验证 CLI 读取实验差异时只暴露压缩后的 truth 引用，不展开每个 case 的长列表。"""
+
     from agent_harness.evals import ExperimentCreateRequest, ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
@@ -311,6 +327,8 @@ def test_cli_reads_compressed_failure_difference_refs(tmp_path: Path) -> None:
     }
 
     async def create_boundary_experiment() -> str:
+        """通过真实 ExperimentService 创建带大量 evidence refs 的结果并释放 storage。"""
+
         request = ExperimentCreateRequest.model_validate(
             {
                 **body,

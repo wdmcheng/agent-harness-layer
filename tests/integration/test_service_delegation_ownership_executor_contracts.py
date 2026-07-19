@@ -165,6 +165,11 @@ async def test_service_bound_executor_competes_budget_and_replays_trusted_identi
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """验证绑定执行器传递可信身份，并与并发委派竞争同一父级预算。
+
+    该集成用例同时固定幂等重放、子运行身份继承、Redis 投递和预算拒绝，
+    防止 service seam 因多进程装配而绕开直接委派路径的所有权约束。
+    """
     redis_dsn = os.environ["REDIS_TEST_DSN"]
     monkeypatch.setenv("AGENT_HARNESS_QUEUE__DSN", redis_dsn)
     profiles = _service_profiles(tmp_path, source_token_limit=2048)

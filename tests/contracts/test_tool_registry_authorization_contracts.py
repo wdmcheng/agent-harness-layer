@@ -136,6 +136,8 @@ async def test_tool_registry_enforces_agent_tool_allowlist(tmp_path: Path) -> No
     artifacts = FileArtifactStore(tmp_path / "artifacts")
 
     def ok(arguments: dict[str, Any]) -> dict[str, str]:
+        """提供无副作用的允许工具处理器，隔离 allowlist 判定本身。"""
+
         _ = arguments
         return {"ok": "true"}
 
@@ -210,6 +212,8 @@ async def test_tool_registry_empty_agent_allowlist_denies_every_tool(tmp_path: P
     artifacts = FileArtifactStore(tmp_path / "artifacts")
 
     def ok(arguments: dict[str, Any]) -> dict[str, str]:
+        """提供无副作用工具处理器，确认空 allowlist 在调用前就拒绝执行。"""
+
         _ = arguments
         return {"ok": "true"}
 

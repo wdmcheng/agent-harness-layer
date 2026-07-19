@@ -34,11 +34,15 @@ SQLALCHEMY_SESSION_NAMES = {
 
 
 def _load_pyproject(path: Path) -> dict[str, object]:
+    """以二进制 TOML 模式读取项目元数据，调用方负责解释缺失字段。"""
+
     with path.open("rb") as file:
         return cast(dict[str, object], tomllib.load(file))
 
 
 def _as_mapping(value: object) -> Mapping[str, object] | None:
+    """仅接受真实字典为 mapping，避免配置类型错误在边界检查中引发属性异常。"""
+
     if not isinstance(value, dict):
         return None
     return cast(Mapping[str, object], value)
@@ -223,6 +227,8 @@ def check_sqlalchemy_session_boundaries() -> list[str]:
 
 
 def main() -> int:
+    """汇总依赖、导入和 session 边界问题，并返回适合 CI 门禁的退出码。"""
+
     issues = [
         *check_core_dependencies(),
         *check_template_dependency(),

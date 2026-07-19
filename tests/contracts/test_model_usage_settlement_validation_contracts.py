@@ -51,6 +51,8 @@ from tests.contracts.test_model_usage_repository_contracts import (
 
 @pytest.mark.asyncio
 async def test_usage_settlement_and_capacity_share_one_uow(tmp_path: Path) -> None:
+    """验证用量证据发布与事件容量结算在同一 UoW 内保持一致。"""
+
     path = tmp_path / "usage-uow.db"
     dsn = sqlite_dsn(path)
     run_migrations(dsn)
@@ -123,6 +125,8 @@ async def test_usage_settlement_and_capacity_share_one_uow(tmp_path: Path) -> No
 
 @pytest.mark.asyncio
 async def test_usage_result_is_write_once_and_needs_review_cannot_be_closed(tmp_path: Path) -> None:
+    """验证结果可安全重放但不可改写，人工复核状态也不能被正常结算绕过。"""
+
     dsn = sqlite_dsn(tmp_path / "usage-write-once.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -274,6 +278,8 @@ async def test_usage_repository_rejects_invalid_evidence_without_settlement_side
 async def test_usage_claim_rejects_cross_tenant_run_without_capacity_side_effect(
     tmp_path: Path,
 ) -> None:
+    """验证跨租户 usage claim 在预留容量与创建 outbox 前即失败关闭。"""
+
     dsn = sqlite_dsn(tmp_path / "usage-tenant-run.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

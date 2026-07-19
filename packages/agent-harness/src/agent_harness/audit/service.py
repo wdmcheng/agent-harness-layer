@@ -14,6 +14,8 @@ class AuditService:
     """审计日志的唯一业务入口，确保 tenant 与 payload redaction 一致。"""
 
     def __init__(self, storage: SQLAlchemyStorage) -> None:
+        """绑定审计专用 UoW 入口，使审计服务不直接依赖具体 repository 实现。"""
+
         self._storage = storage
 
     async def record(

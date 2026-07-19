@@ -54,6 +54,8 @@ async def test_child_final_cannot_cross_terminal_intent_freeze(
         self: CheckpointRepository,
         data: CheckpointCreate,
     ) -> CheckpointRecord:
+        """在 checkpoint 写入前暂停终态冻结，让 child final 与 parent 意图提交形成可控竞态。"""
+
         checkpoint_entered.set()
         await allow_checkpoint.wait()
         return await original_create(self, data)
@@ -82,6 +84,8 @@ async def test_child_final_cannot_cross_terminal_intent_freeze(
                 request: AgentExecutionRequest,
                 context: AgentExecutionContext,
             ) -> AgentExecutionResult:
+                """在公开 executor 内创建冻结账本和 pending delegation，再返回 parent 终态意图。"""
+
                 self.parent_run_id = request.run_id
                 async with storage.uow() as uow:
                     routes: list[dict[str, object]] = [
@@ -201,6 +205,8 @@ async def test_child_final_cannot_cross_terminal_intent_freeze(
                 context: AgentExecutionContext,
                 grant: ApprovalGrant,
             ) -> AgentExecutionResult:
+                """明确该竞态合同不涉及审批恢复；若被调用说明 orchestrator 路由出现了意外偏差。"""
+
                 raise AssertionError("本合同不应进入 approval resume")
 
         executor = DelegatingExecutor()
@@ -224,6 +230,11 @@ async def test_child_final_cannot_cross_terminal_intent_freeze(
             parent_run_id = executor.parent_run_id
 
             async def settle_last_child() -> None:
+                """在锁住 parent 后标记最后 delegation 证据已发布。
+
+                模拟 child final 试图穿过冻结窗口。
+                """
+
                 async with storage.uow() as uow:
                     locked = await uow.runs.get_for_update(parent_run_id)
                     assert locked is not None

@@ -21,6 +21,8 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
+    """以 SQL 文本模式配置 Alembic，供不具备数据库连接的审核或部署步骤使用。"""
+
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -33,12 +35,16 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
+    """在调用方提供的同步连接与事务中运行迁移，便于测试和外部连接复用。"""
+
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
 
 
 async def run_async_migrations() -> None:
+    """创建无连接池的异步 engine，运行迁移后立即释放连接与 engine 资源。"""
+
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -50,6 +56,8 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
+    """优先复用 Alembic 注入连接，否则创建异步连接执行在线迁移。"""
+
     connectable = config.attributes.get("connection")
     if connectable is not None:
         do_run_migrations(connectable)

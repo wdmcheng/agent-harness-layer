@@ -22,9 +22,13 @@ from app.workers.runtime_worker import consume_one
 async def test_service_approve_retry_reconciles_resolution_evidence_without_replay(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """首次补发审批证据失败后，重试只能收敛持久化状态，不能重复执行业务 handler。"""
+
     calls = 0
 
     def handler(arguments: dict[str, object]) -> dict[str, object]:
+        """记录业务副作用次数，作为“补证据不重放 continuation”的可观察边界。"""
+
         nonlocal calls
         calls += 1
         return arguments
@@ -106,6 +110,8 @@ async def test_worker_acks_recovery_pending_approval_without_replaying_handler(
     calls = 0
 
     def handler(arguments: dict[str, object]) -> dict[str, object]:
+        """记录 continuation 的真实执行次数，证明 worker 恢复不会重放已完成的业务动作。"""
+
         nonlocal calls
         calls += 1
         return arguments
@@ -124,9 +130,13 @@ async def test_worker_acks_recovery_pending_approval_without_replaying_handler(
     )
 
     class DeterministicFailedDBOS:
+        """模拟 DBOS 已返回确定失败、但前一次 continuation 已写入恢复状态的运行环境。"""
+
         calls = 0
 
         async def execute(self, operation: object) -> DBOSOperationOutcome:
+            """第一次注入落库后的证据故障，后续调用保持同一确定失败结果以触发恢复分支。"""
+
             self.calls += 1
             if self.calls > 1:
                 return DBOSOperationOutcome(
@@ -151,9 +161,13 @@ async def test_worker_acks_recovery_pending_approval_without_replaying_handler(
             raise AssertionError("failure injection did not interrupt continuation")
 
     class DelegationService:
+        """提供最小委派 seam，明确本合同只验证本地审批恢复而非子运行协调。"""
+
         calls = 0
 
         async def reconcile_child_if_delegated(self, _run_id: str) -> bool:
+            """记录 worker 是否检查过委派关系，并稳定声明当前运行并非委派子运行。"""
+
             self.calls += 1
             return False
 
@@ -170,6 +184,8 @@ async def test_worker_acks_recovery_pending_approval_without_replaying_handler(
         terminal_failures = 0
 
         async def fail_terminal_twice(event: CanonicalEvent) -> CanonicalEvent:
+            """仅拦截前两次终态事件写入，构造可恢复但不会掩盖重复执行的故障窗口。"""
+
             nonlocal terminal_failures
             if event.event_type == CanonicalEventType.RUN_COMPLETED and terminal_failures < 2:
                 terminal_failures += 1

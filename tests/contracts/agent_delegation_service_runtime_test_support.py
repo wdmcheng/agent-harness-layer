@@ -42,7 +42,11 @@ from agent_harness.storage.shared_budget_models import ParentBudgetLedgerModel
 
 
 class _ParentDetailOrchestrator:
+    """只返回 parent run detail 的编排器替身，供摘要读取合同复用。"""
+
     async def get_run_detail(self, run_id: str, **_: object) -> RunDetailResult:
+        """返回固定运行中 parent，隔离测试与真实 run 查询实现。"""
+
         return RunDetailResult(
             run_id=run_id,
             agent_id="agent-source",
@@ -63,6 +67,8 @@ class _InlineChildRuntime:
         launch_error: bool = False,
         child_status: RunStatus = RunStatus.COMPLETED,
     ) -> None:
+        """固定 child 创建、使用结算及失败开关，便于覆盖 service 恢复分支。"""
+
         self.storage = storage
         self.usage_service = usage_service
         self.launch_error = launch_error
@@ -70,6 +76,12 @@ class _InlineChildRuntime:
         self.calls = 0
 
     async def start_run(self, **kwargs: Any) -> RunResult:
+        """在真实 storage 中创建 child、可选结算 usage，并持久化预设终态。
+
+        该桩刻意保留 UoW 与 trace 关联，确保 delegation 合同观察到的不是
+        纯内存假象，同时通过 ``launch_error`` 覆盖创建前失败窗口。
+        """
+
         self.calls += 1
         if self.launch_error:
             raise RuntimeError("deterministic child creation failure")
@@ -128,9 +140,13 @@ class _InlineChildRuntime:
         return RunResult(run_id=run.id, status=self.child_status)
 
     async def resume_run(self, resume_token: str, **kwargs: Any) -> Any:
+        """拒绝 parent resume；此夹具仅允许 delegation service 创建 child。"""
+
         raise AssertionError(f"unexpected parent resume: {resume_token}")
 
     async def submit_run(self, **kwargs: Any) -> RunResult:
+        """复用 start_run 实现，满足不同 orchestrator 调用入口的同一 child 语义。"""
+
         return await self.start_run(**kwargs)
 
 
@@ -158,6 +174,12 @@ async def _build_service(
     str,
     EventSink,
 ]:
+    """组装具有真实迁移、冻结预算快照和可控 child runtime 的 delegation 场景。
+
+    参数分别覆盖目标授权、成本开关、可信 usage 与 child 终态；其余 identity、
+    trace 和目录版本保持固定，避免下游合同测试重复搭建脆弱环境。
+    """
+
     frozen_targets = source_targets if source_targets is not None else ["agent-target"]
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'delegation-service.db'}"
     run_migrations(dsn)
@@ -395,6 +417,8 @@ async def _build_service(
 
 
 class _UsageProvider:
+    """返回可配置 usage 的模型提供方替身，用于 child 聚合可信度分支。"""
+
     provider_id = "fake"
 
     def __init__(
@@ -406,6 +430,8 @@ class _UsageProvider:
         cost_usd: float | None = 0.25,
         cost_status: Literal["reported", "estimated", "unavailable"] = "reported",
     ) -> None:
+        """保存各项 provider 结果字段，允许测试精确构造未知或估算用量。"""
+
         self.input_tokens = input_tokens
         self.output_tokens = output_tokens
         self.latency_ms = latency_ms
@@ -413,6 +439,8 @@ class _UsageProvider:
         self.cost_status: Literal["reported", "estimated", "unavailable"] = cost_status
 
     def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        """返回固定文本与可配置 usage，不触网也不依赖模型路由实现。"""
+
         return ModelResponse(
             provider=self.provider_id,
             model=model,

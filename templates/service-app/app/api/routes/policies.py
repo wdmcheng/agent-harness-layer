@@ -1,4 +1,4 @@
-"""PolicyEngine API 路由。"""
+"""策略引擎 API：暴露可审计的决策摘要而不泄露内部 Provider 实现。"""
 
 from __future__ import annotations
 
@@ -74,6 +74,7 @@ async def check_policy(
 
 
 def _matched_rules(decision: PolicyEvaluation) -> list[str]:
+    """从扩展元数据中提取字符串规则 ID，兼容缺失或旧版本的非列表字段。"""
     raw = decision.metadata.get("matched_rules", [])
     if not isinstance(raw, list):
         return []
@@ -81,6 +82,7 @@ def _matched_rules(decision: PolicyEvaluation) -> list[str]:
 
 
 def _audit_ref(decision: PolicyEvaluation) -> str:
+    """读取策略决策的必需审计引用；缺失时拒绝生成不可追溯的成功响应。"""
     raw = decision.metadata.get("audit_ref")
     if not isinstance(raw, str) or not raw:
         raise RuntimeError("PolicyEngine did not return audit_ref")

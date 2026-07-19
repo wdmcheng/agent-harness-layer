@@ -1,4 +1,4 @@
-"""Service smoke 的隔离 credential bootstrap 与持久化状态读取入口。"""
+"""Service smoke 的隔离凭据引导、持久化状态读取与栅栏检查入口。"""
 
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ def storage_dsn() -> str:
 
 
 def queue_dsn() -> str:
+    """读取 service 队列连接地址，并在缺失时显式阻止管理脚本继续执行。"""
     value = os.environ.get("AGENT_HARNESS_QUEUE__DSN", "").strip()
     if not value:
         raise RuntimeError("AGENT_HARNESS_QUEUE__DSN is required")
@@ -42,6 +43,11 @@ def queue_dsn() -> str:
 
 
 async def bootstrap() -> dict[str, object]:
+    """为本轮 smoke 创建最小权限的临时租户凭据，并返回可审计的标识。
+
+    token 只以哈希形式写入数据库；凭据具备验证链路所需的管理员和审阅权限，
+    但名字带有 ephemeral 语义，调用方必须在 Compose teardown 前执行删除。
+    """
     token = os.environ.get("SERVICE_APP_BOOTSTRAP_TOKEN", "")
     tenant_id = os.environ.get("SERVICE_APP_BOOTSTRAP_TENANT", "")
     if not token or not tenant_id:
@@ -83,6 +89,11 @@ async def cleanup_credential() -> dict[str, object]:
 
 
 async def inspect_run(run_id: str) -> dict[str, object]:
+    """汇总运行、队列、预算、审批与事件证据，供 smoke 跨存储核对。
+
+    ORM 实体必须在 UoW 中投影为普通字典，避免关闭 session 后的延迟加载；
+    该函数只读，不补偿或修复发现的不一致状态，以免验证本身污染证据。
+    """
     storage = SQLAlchemyStorage.from_dsn(storage_dsn())
     try:
         async with storage.uow() as uow:
@@ -259,6 +270,7 @@ async def assert_stale_receipt(
 
 
 def parse_args() -> argparse.Namespace:
+    """解析互斥的 service 管理子命令及其最小定位参数。"""
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("bootstrap")
@@ -277,6 +289,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """执行所选管理操作，并仅输出脱敏 JSON 成功或失败证据。
+
+    异常分支保留数据库稳定错误类别而不回显 SQL、参数、令牌或连接信息，使
+    smoke 能分类失败原因，同时不把运行环境的敏感内容写入 CI 日志。
+    """
     args = parse_args()
     try:
         if args.command == "bootstrap":

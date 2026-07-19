@@ -23,6 +23,8 @@ from app.api.routes.runs import get_run_with_orchestrator
 
 
 def _identity(tenant_id: str = "tenant-a") -> IdentityContext:
+    """构造带 delegation 权限的固定调用身份，便于各合同断言聚焦可信字段。"""
+
     return IdentityContext(
         tenant_id=tenant_id,
         user_id="user-a",
@@ -34,7 +36,11 @@ def _identity(tenant_id: str = "tenant-a") -> IdentityContext:
 
 
 class _RecordingService:
+    """记录 module 下沉的请求与身份，不模拟真实 delegation 副作用。"""
+
     def __init__(self) -> None:
+        """初始化为空记录，便于拒绝路径断言 service 从未被调用。"""
+
         self.request: DelegationRequest | None = None
         self.identity: IdentityContext | None = None
 
@@ -44,6 +50,8 @@ class _RecordingService:
         *,
         identity: IdentityContext,
     ) -> DelegationExecutionResult:
+        """保存受 module 绑定后的可信输入，并返回最小已 claim 结果。"""
+
         self.request = request
         self.identity = identity
         return DelegationExecutionResult(
@@ -57,6 +65,8 @@ class _RecordingService:
 
 @pytest.mark.asyncio
 async def test_runtime_binds_parent_source_and_request_before_business_payload() -> None:
+    """验证执行上下文先注入 parent/source/request，再交给业务 payload 组装。"""
+
     recorder = _RecordingService()
     context = build_execution_context(
         identity=_identity(),
@@ -95,6 +105,8 @@ async def test_runtime_binds_parent_source_and_request_before_business_payload()
     ["tenant_id", "parent_run_id", "source_agent_id", "request_id", "trace_id"],
 )
 def test_business_payload_cannot_forge_trusted_context(forged_field: str) -> None:
+    """验证业务输入不能携带任何由 runtime 持有的可信关联字段。"""
+
     payload: dict[str, object] = {
         "target_agent_id": "agent-target",
         "child_input": {},
@@ -108,6 +120,8 @@ def test_business_payload_cannot_forge_trusted_context(forged_field: str) -> Non
 
 @pytest.mark.asyncio
 async def test_bound_module_rejects_business_identity_override() -> None:
+    """验证已经绑定的 module 不接受调用方额外传入的伪造身份。"""
+
     recorder = _RecordingService()
     trusted_identity = _identity()
     module = AgentDelegationModule(cast(DelegationService, recorder)).bind_execution(
@@ -140,10 +154,16 @@ async def test_bound_module_rejects_business_identity_override() -> None:
 
 
 class _DetailOrchestrator:
+    """按是否存在 parent relation 返回最小 run detail 的路由桩。"""
+
     def __init__(self, *, parent_run_id: str | None) -> None:
+        """固定该桩返回的 parent relation，用于验证 API detail 分支。"""
+
         self.parent_run_id = parent_run_id
 
     async def get_run_detail(self, run_id: str, **_: object) -> RunDetailResult:
+        """返回不触及存储的稳定 detail，以隔离 route 的摘要拼装责任。"""
+
         return RunDetailResult(
             run_id=run_id,
             agent_id="agent-target" if self.parent_run_id else "agent-source",
@@ -154,7 +174,11 @@ class _DetailOrchestrator:
 
 
 class _SummaryService:
+    """提供持久化 parent 摘要的只读桩，不承担 child 查询或聚合计算。"""
+
     async def get_parent_summary(self, **_: object) -> DelegationSummary:
+        """返回包含 child、用量和 trace 引用的最小 durable summary。"""
+
         return DelegationSummary(
             parent_run_id="parent-a",
             children=[
@@ -177,6 +201,8 @@ class _SummaryService:
 
 @pytest.mark.asyncio
 async def test_run_detail_exposes_parent_relation_and_durable_summary() -> None:
+    """验证 parent detail 附带 durable summary，而 child 仅暴露其 parent 关联。"""
+
     parent = await get_run_with_orchestrator(
         "parent-a",
         orchestrator=cast(Any, _DetailOrchestrator(parent_run_id=None)),

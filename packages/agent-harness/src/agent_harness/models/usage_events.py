@@ -18,6 +18,12 @@ class UsageEvidenceLifecycle:
         evidence: ModelUsageEvidence,
         usage_call_id: str,
     ) -> None:
+        """保存本次调用的受信 evidence 与稳定关联标识。
+
+        `usage_call_id` 在 provider 副作用前由 composition 生成；这里仅验证
+        其非空并复用它生成 event id，避免重试时产生第二组 started/final 事件。
+        """
+
         if not usage_call_id:
             raise ValueError("usage call id must not be empty")
         self._event_bus = event_bus
@@ -26,6 +32,8 @@ class UsageEvidenceLifecycle:
 
     @property
     def correlation(self) -> dict[str, str]:
+        """返回写入 CanonicalEvent payload 的最小调用关联对象。"""
+
         return {"usage_call_id": self.usage_call_id}
 
     async def publish_started(self) -> CanonicalEvent:
@@ -77,6 +85,8 @@ class UsageEvidenceLifecycle:
         )
 
     def _event_id(self, phase: str) -> str:
+        """按调用身份和生命周期标识构造可重放的稳定事件标识。"""
+
         return f"usage:{self._evidence.tenant_id}:{self.usage_call_id}:{phase}"
 
 

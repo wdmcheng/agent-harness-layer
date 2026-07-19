@@ -17,6 +17,12 @@ EventRecordScope = Literal["run", "non_run"]
 
 
 class CanonicalEventType(StrEnum):
+    """跨存储、流式传输与审计层共用的封闭事件类型集合。
+
+    枚举值属于持久化和外部契约，新增或替换时需要同时评估事件阅读器、
+    trace 关联以及客户端兼容性，不能把业务自由文本直接写入该字段。
+    """
+
     RUN_QUEUED = "run.queued"
     RUN_STARTED = "run.started"
     RUN_RESUMED = "run.resumed"
@@ -128,6 +134,8 @@ class CanonicalEvent(HarnessDTO):
         """在 Pydantic 将 NaN 转成 null 前拒绝不确定的 JSON 数值。"""
 
         def walk(item: object) -> None:
+            """递归检查 JSON 容器；只接受可稳定序列化的有限浮点数。"""
+
             if isinstance(item, float) and not math.isfinite(item):
                 raise ValueError("canonical event payload numbers must be finite")
             if isinstance(item, dict):

@@ -51,6 +51,8 @@ from tests.contracts.test_agent_delegation_storage_contracts import (
     ],
 )
 def test_0015_downgrade_requires_exact_opt_in(tmp_path: Path, x_args: list[str]) -> None:
+    """受控降级只接受唯一且精确的显式开关，模糊、重复或夹带参数都不得绕过保护。"""
+
     path = tmp_path / f"delegation-downgrade-{len(x_args)}-{hash(tuple(x_args))}.db"
     run_migrations(sqlite_dsn(path))
 
@@ -66,6 +68,8 @@ def test_0015_downgrade_requires_exact_opt_in(tmp_path: Path, x_args: list[str])
 
 
 def test_0015_empty_database_downgrades_with_exact_opt_in(tmp_path: Path) -> None:
+    """没有任何委派证据的空库在明确确认后允许降级，验证可恢复性并限定安全前提。"""
+
     path = tmp_path / "delegation-empty-downgrade.db"
     run_migrations(sqlite_dsn(path))
 
@@ -83,10 +87,14 @@ def test_0015_empty_database_downgrades_with_exact_opt_in(tmp_path: Path) -> Non
 
 
 def test_0015_any_claim_blocks_exact_opt_in_downgrade(tmp_path: Path) -> None:
+    """只要已存在委派 claim，即使传入确认开关也禁止降级，防止删失耐久业务事实。"""
+
     path = tmp_path / "delegation-non-empty-downgrade.db"
     run_migrations(sqlite_dsn(path))
 
     async def seed() -> None:
+        """创建最小持久化 claim，作为降级保护门禁必须检测到的真实证据。"""
+
         storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
         try:
             parent_run_id = await _create_parent(storage)
@@ -120,6 +128,8 @@ def test_0015_run_relation_alone_blocks_exact_opt_in_downgrade(tmp_path: Path) -
     run_migrations(sqlite_dsn(path))
 
     async def seed() -> tuple[str, str]:
+        """只建立父子运行关系而不写新表，用于证明旧关系同样属于不可降级证据。"""
+
         storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
         try:
             parent_run_id = await _create_parent(storage)

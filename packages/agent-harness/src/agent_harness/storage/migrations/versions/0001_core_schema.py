@@ -15,6 +15,8 @@ depends_on = None
 
 
 def timestamp_columns() -> Sequence[sa.Column[Any]]:
+    """返回各核心表复用的创建/更新时间列，统一数据库生成时间的语义。"""
+
     return (
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
@@ -26,6 +28,8 @@ def timestamp_columns() -> Sequence[sa.Column[Any]]:
 
 
 def upgrade() -> None:
+    """创建最小多租户核心 schema 及其查询索引，作为后续迁移的外键基础。"""
+
     op.create_table(
         "tenants",
         sa.Column("id", sa.String(length=64), primary_key=True),
@@ -181,6 +185,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """按外键依赖的反向顺序删除核心表；仅用于空数据库重建等受控场景。"""
+
     for table in [
         "audit_logs",
         "policy_rules",

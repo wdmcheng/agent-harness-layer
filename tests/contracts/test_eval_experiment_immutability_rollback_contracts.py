@@ -41,6 +41,8 @@ from tests.contracts.test_eval_experiment_storage_contracts import (
 async def test_eval_experiment_result_update_and_acceptance_decision_are_immutable(
     tmp_path: Path,
 ) -> None:
+    """验证终态实验结果与接受决定只能重放，不得被新请求覆写或跨租户读取。"""
+
     from agent_harness.storage import (
         ExperimentStorageConflict,
         ExperimentStorageNotFound,
@@ -167,6 +169,8 @@ async def test_eval_experiment_result_update_and_acceptance_decision_are_immutab
 
 @pytest.mark.asyncio
 async def test_eval_experiment_unit_of_work_rolls_back_without_commit(tmp_path: Path) -> None:
+    """验证未显式提交的评测 split 写入会在 UoW 退出时回滚。"""
+
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
     dsn = sqlite_dsn(tmp_path / "eval-experiment-rollback.db")
@@ -184,6 +188,8 @@ async def test_eval_experiment_unit_of_work_rolls_back_without_commit(tmp_path: 
 
 
 def test_acceptance_dto_rejects_impossible_production_bindings() -> None:
+    """验证接受和拒绝决定各自只能携带语义一致的生产版本绑定。"""
+
     with pytest.raises(ValidationError):
         HarnessAcceptanceCreate(
             tenant_id="tenant-a",

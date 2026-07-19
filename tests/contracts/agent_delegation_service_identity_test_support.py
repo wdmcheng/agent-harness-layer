@@ -34,6 +34,8 @@ def _descriptor(
     max_tokens: int = 100,
     max_cost_usd: float | None = 10.0,
 ) -> AgentDescriptor:
+    """构造可 delegation 的最小 agent descriptor，控制目标和预算以复用授权场景。"""
+
     return AgentDescriptor(
         agent_id=agent_id,
         version="1",
@@ -58,6 +60,8 @@ def _descriptor(
 
 
 def _identity(*, permissions: list[str] | None = None) -> IdentityContext:
+    """构造固定 tenant/session 身份，并允许测试收窄或清空 delegation 权限。"""
+
     return IdentityContext(
         tenant_id="tenant-a",
         user_id="user-a",
@@ -69,7 +73,11 @@ def _identity(*, permissions: list[str] | None = None) -> IdentityContext:
 
 
 class _Policy:
+    """仅按 actor 权限允许 delegation 的确定性策略替身。"""
+
     async def evaluate(self, check: PolicyCheck) -> PolicyEvaluation:
+        """将 ``agent.delegate`` 权限映射为 allow/deny，保留完整审计关联字段。"""
+
         decision = (
             GuardrailDecisionStatus.ALLOW.value
             if "agent.delegate" in check.actor.permissions
@@ -91,6 +99,8 @@ class _SharedBudgetRuntimeFixture:
     _fingerprint_key_version = "delegation-contract-v1"
 
     def operation_identity(self, **values: Any) -> OperationIdentity:
+        """以固定测试 fingerprint 密钥构造通用操作身份，保证重放断言可复现。"""
+
         return OperationIdentity.from_semantic_request(
             fingerprint_key=self._fingerprint_key,
             fingerprint_key_version=self._fingerprint_key_version,
@@ -112,6 +122,8 @@ class _SharedBudgetRuntimeFixture:
         trusted_token_bound: int,
         trusted_cost_bound: Decimal | None,
     ) -> OperationIdentity:
+        """从冻结目标 routes 重建 delegation 身份，验证目录 hash 与额度绑定。"""
+
         agents = cast(dict[str, object], snapshot["agents"])
         target = cast(dict[str, object], agents[target_agent_id])
         routes = cast(list[object], target["routes"])
@@ -154,6 +166,8 @@ class _SharedBudgetRuntimeFixture:
         idempotency_key: str,
         persisted_identity: OperationIdentity,
     ) -> OperationIdentity:
+        """基于首次持久化身份重建重放请求，避免从当前配置重新取授权快照。"""
+
         assert persisted_identity.target_route_catalog_digest is not None
         return OperationIdentity.from_delegation_request(
             tenant_id=tenant_id,
@@ -186,6 +200,8 @@ def delegation_claim(
     token_bound: int = 100,
     cost_bound: Decimal | None = Decimal("10"),
 ) -> DelegationClaimCreate:
+    """构造包含冻结预算身份的 delegation claim DTO，供仓储和恢复合同共享。"""
+
     delegation_id = delegation_relation_id(
         tenant_id=identity.tenant_id,
         parent_run_id=parent_run_id,

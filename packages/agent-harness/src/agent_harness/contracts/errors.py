@@ -27,11 +27,15 @@ class HarnessError(Exception):
     """携带一个或多个公共错误详情的基础异常。"""
 
     def __init__(self, errors: Sequence[ErrorDetail]) -> None:
+        """保存结构化细节并生成兼容普通异常处理链的摘要消息。"""
+
         self.error_details = list(errors)
         message = "; ".join(error.message for error in self.error_details)
         super().__init__(message)
 
     def to_envelope(self) -> ApiErrorEnvelope:
+        """投影为 API 公共封套；无细节异常仍返回稳定的兜底错误。"""
+
         first = (
             self.error_details[0]
             if self.error_details

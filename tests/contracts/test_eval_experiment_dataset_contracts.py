@@ -21,6 +21,8 @@ def _case(
     payload: dict[str, Any] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> EvalCaseRecord:
+    """构造可按标签、租户、状态和证据元数据变化的已持久化 case 夹具。"""
+
     case_metadata = dict(metadata or {})
     if tags is not None:
         case_metadata["behavior_tags"] = tags
@@ -37,6 +39,8 @@ def _case(
 
 
 def _request(**updates: Any):
+    """构造有效的确定性多标签切分请求，并允许单个测试覆盖特定字段。"""
+
     from agent_harness.evals import DatasetSplitRequest
 
     values: dict[str, Any] = {
@@ -52,6 +56,8 @@ def _request(**updates: Any):
 
 
 def test_split_is_deterministic_disjoint_and_tracks_tag_distribution() -> None:
+    """相同 case 集合无论输入顺序如何，切分必须稳定、互斥且保留标签分布。"""
+
     from agent_harness.evals import BehaviorTag, DatasetSplitService, RegressionPolicy
 
     cases = [
@@ -72,6 +78,7 @@ def test_split_is_deterministic_disjoint_and_tracks_tag_distribution() -> None:
         )
     )
 
+    # 反转输入顺序模拟仓储返回无序记录，服务不得让其影响冻结 split 身份。
     first = DatasetSplitService().build(request, cases)
     second = DatasetSplitService().build(request, list(reversed(cases)))
 
@@ -94,6 +101,8 @@ def test_split_is_deterministic_disjoint_and_tracks_tag_distribution() -> None:
 
 
 def test_approved_cases_can_be_queried_filtered_and_counted_by_behavior_tag() -> None:
+    """行为标签查询仅暴露同条件的已批准 case 摘要，不返回原始 payload。"""
+
     from agent_harness.evals import BehaviorTag, BehaviorTagQuery, DatasetSplitService
 
     result = DatasetSplitService().query_approved(
@@ -126,6 +135,8 @@ def test_approved_cases_can_be_queried_filtered_and_counted_by_behavior_tag() ->
 
 
 def test_split_filters_drafts_and_unrequested_tags_without_scoring_them() -> None:
+    """草稿和未请求标签的 case 必须在评分前剔除，并留下可解释拒绝计数。"""
+
     from agent_harness.evals import DatasetSplitService
 
     result = DatasetSplitService().build(
@@ -161,6 +172,8 @@ def test_split_rejects_secret_or_untagged_approved_cases(
     case: EvalCaseRecord,
     error_code: str,
 ) -> None:
+    """已批准 case 若含敏感形态或缺少标签，切分必须失败且错误文本不泄露内容。"""
+
     from agent_harness.evals import DatasetSplitError, DatasetSplitService
 
     with pytest.raises(DatasetSplitError) as captured:
@@ -178,6 +191,8 @@ def test_split_rejects_secret_or_untagged_approved_cases(
 
 
 def test_split_hides_cross_tenant_case_and_rejects_invalid_regression_ref() -> None:
+    """跨租户 case 与无效回归引用都按不可见处理，避免枚举其他租户身份。"""
+
     from agent_harness.evals import DatasetSplitError, DatasetSplitService, RegressionPolicy
 
     cross_tenant = _case("private-case", tags=["tool_selection"], tenant_id="other")
@@ -222,6 +237,8 @@ def test_split_hides_cross_tenant_case_and_rejects_invalid_regression_ref() -> N
 
 
 def test_split_request_rejects_unknown_tags_invalid_ratios_and_duplicate_regression_refs() -> None:
+    """请求模型应在服务执行前拒绝未知标签、错误比例和重复回归引用。"""
+
     from agent_harness.evals import RegressionPolicy
 
     with pytest.raises(ValidationError) as captured:
@@ -253,6 +270,8 @@ def test_split_request_rejects_unknown_tags_invalid_ratios_and_duplicate_regress
 
 
 def test_split_requires_nonempty_optimization_and_holdout() -> None:
+    """可评分数据不足以同时形成优化与留出集时必须显式失败。"""
+
     from agent_harness.evals import DatasetSplitError, DatasetSplitService
 
     with pytest.raises(DatasetSplitError) as captured:
@@ -265,6 +284,8 @@ def test_split_requires_nonempty_optimization_and_holdout() -> None:
 
 
 def test_split_preserves_multilabel_coverage_when_a_valid_partition_exists() -> None:
+    """存在有效分区时，每个请求标签都应同时出现在优化和留出集合。"""
+
     from agent_harness.evals import DatasetSplitService
 
     request = _request(
@@ -289,6 +310,8 @@ def test_split_preserves_multilabel_coverage_when_a_valid_partition_exists() -> 
 
 
 def test_split_backtracks_when_multitag_first_choice_would_block_valid_partition() -> None:
+    """贪心首选会破坏多标签覆盖时，搜索必须回溯到唯一有效的确定性分区。"""
+
     from agent_harness.evals import DatasetSplitService
 
     request = _request(
@@ -320,6 +343,8 @@ def test_split_backtracks_when_multitag_first_choice_would_block_valid_partition
     ],
 )
 def test_split_rejects_secret_or_absolute_local_evidence_refs(unsafe_ref: str) -> None:
+    """冻结 split 不能接受绝对本机路径、文件 URI、密钥形态或已脱敏占位符。"""
+
     from agent_harness.evals import DatasetSplitError, DatasetSplitService
 
     request = _request(evidence_refs=[unsafe_ref])
@@ -337,6 +362,8 @@ def test_split_rejects_secret_or_absolute_local_evidence_refs(unsafe_ref: str) -
 
 
 def test_invalid_critical_regression_ref_reports_its_actual_field() -> None:
+    """关键回归引用无效时，错误字段路径必须指向实际输入位置便于修复。"""
+
     from agent_harness.evals import DatasetSplitError, DatasetSplitService, RegressionPolicy
 
     with pytest.raises(DatasetSplitError) as captured:
@@ -353,6 +380,8 @@ def test_invalid_critical_regression_ref_reports_its_actual_field() -> None:
 
 
 def test_regression_policy_roundtrips_with_stable_comparison_semantics() -> None:
+    """回归策略序列化再解析后必须保留关键标签和阈值语义。"""
+
     from agent_harness.evals import DatasetSplitRequest
 
     request = _request(
@@ -371,6 +400,8 @@ def test_regression_policy_roundtrips_with_stable_comparison_semantics() -> None
 
 
 def test_split_search_handles_large_tagged_dataset_deterministically() -> None:
+    """大规模多标签数据集也应在固定比例下快速得出稳定且一致的切分结果。"""
+
     from agent_harness.evals import DatasetSplitService
 
     tags = [
@@ -380,6 +411,7 @@ def test_split_search_handles_large_tagged_dataset_deterministically() -> None:
         "policy_approval",
         "context_trust_boundary",
     ]
+    # 环形标签组合覆盖多标签交叉情形，用于防止搜索优化退化为输入顺序依赖。
     cases = [
         _case(
             f"case-{index:03d}",

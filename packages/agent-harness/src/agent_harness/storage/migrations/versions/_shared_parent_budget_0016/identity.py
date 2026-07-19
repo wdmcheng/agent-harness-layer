@@ -31,6 +31,12 @@ def _identity_valid(
     snapshot: Mapping[str, object],
     cost_enabled: bool,
 ) -> bool:
+    """校验旧 direct/allocation 操作身份与冻结快照、预约和 usage 证据完全一致。
+
+    迁移只接受能由 durable relation 证明的身份；任何哈希、路由、价格、预算或缓存
+    语义偏差都会返回 ``False``，让 preflight 在 DDL 前 fail-closed。
+    """
+
     identity_hash = identity.get("identity_hash")
     payload = dict(identity)
     payload.pop("identity_hash", None)
@@ -265,6 +271,8 @@ def _usage_link_valid(
     side_effect_state: object,
     result: object,
 ) -> bool:
+    """确认旧预算 detail 与唯一 usage outbox 行的状态、类型和结果可互相证明。"""
+
     if not isinstance(usage_call_id, str) or usage_kind not in {"model", "embedding"}:
         return False
     rows = list(
@@ -287,6 +295,8 @@ def _usage_link_valid(
 
 
 def _normalize_detail_values(raw: Mapping[object, object], *, allocation: bool) -> dict[str, Any]:
+    """将回填 detail 的字段和值规范化，并在写入新账本前拒绝不完整状态组合。"""
+
     detail: dict[str, Any] = {str(key): value for key, value in raw.items()}
     if not isinstance(detail.get("id"), str) or not detail["id"]:
         raise RuntimeError("0016 backfill detail id is invalid")

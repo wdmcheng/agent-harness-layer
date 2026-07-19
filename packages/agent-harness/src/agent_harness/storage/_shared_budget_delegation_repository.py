@@ -260,6 +260,12 @@ class _SharedBudgetDelegationMixin:
         token_reservation: int,
         cost_reservation: Decimal | None,
     ) -> bool:
+        """核对 delegation 身份是否完全来源于冻结树快照与首次可信额度。
+
+        这里不接受运行时 registry 或当前路由配置，避免重放、恢复时被后来
+        的配置变化放宽授权边界。
+        """
+
         raw_agents = ledger.snapshot_json.get("agents")
         agents = cast(dict[str, object], raw_agents) if isinstance(raw_agents, dict) else {}
         raw_target = agents.get(relation.target_agent_id)
@@ -287,6 +293,8 @@ class _SharedBudgetDelegationMixin:
         )
 
     async def mark_delegation_started(self, *, delegation_id: str) -> ClaimRecord | None:
+        """在 child/queue 外部副作用启动前锁定 claim，并保证重复标记可重放。"""
+
         claim = await self._session.scalar(
             select(BudgetOperationClaimModel)
             .where(BudgetOperationClaimModel.delegation_id == delegation_id)

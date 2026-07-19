@@ -147,6 +147,8 @@ def _claim(
     requested_cost_reservation: float | None = 10.0,
     trusted_token_bound: int = 60,
 ) -> DelegationClaimCreate:
+    """构造与 frozen tree 和路由目录摘要一致的 PG delegation claim 夹具。"""
+
     delegation_id = delegation_relation_id(
         tenant_id=f"tenant-{suffix}",
         parent_run_id=parent_run_id,

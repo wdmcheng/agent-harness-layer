@@ -21,6 +21,8 @@ from agent_harness.policy import (
 async def test_run_read_authorization_never_repairs_missing_terminal_evidence(
     tmp_path: Path,
 ) -> None:
+    """读取授权只能检查 ownership，不能借只读入口修补被截断的终态事件或改写存储。"""
+
     orchestrator, storage, events_path = await build_orchestrator(tmp_path)
     try:
         created = await orchestrator.start_run(
@@ -44,6 +46,8 @@ async def test_run_read_authorization_never_repairs_missing_terminal_evidence(
 
 @pytest.mark.asyncio
 async def test_run_read_authorization_hides_cross_tenant_run(tmp_path: Path) -> None:
+    """跨租户读取应表现为不存在，避免通过授权端点枚举其他租户的运行标识。"""
+
     orchestrator, storage, _ = await build_orchestrator(tmp_path)
     try:
         created = await orchestrator.start_run(
@@ -63,8 +67,14 @@ async def test_run_read_authorization_hides_cross_tenant_run(tmp_path: Path) -> 
 
 @pytest.mark.asyncio
 async def test_internal_read_policy_uses_same_provider_without_audit_write() -> None:
+    """内部事件读取复用同一策略 provider，但作为只读检查不能产生 audit evidence。"""
+
     class RejectAudit:
+        """若只读授权错误写入审计即立即失败的替身，保护查询路径的无副作用约束。"""
+
         async def record(self, **_kwargs: Any) -> object:
+            """拒绝所有审计写入，避免测试仅凭最终状态遗漏中途的写副作用。"""
+
             pytest.fail("read-only policy must not create audit evidence")
 
     identity = IdentityContext.local_default()

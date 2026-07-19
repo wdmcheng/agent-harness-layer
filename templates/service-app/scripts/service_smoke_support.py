@@ -1,4 +1,4 @@
-"""Service smoke 的 Compose、进程与隔离 wheel 辅助函数。"""
+"""Service smoke 的 Compose、进程、证据与隔离 wheel 辅助函数。"""
 
 from __future__ import annotations
 
@@ -15,6 +15,11 @@ COMPOSE_FILE = APP_ROOT / "docker-compose.yml"
 
 
 def last_json_line(output: str) -> dict[str, Any]:
+    """从混合日志末尾提取最后一行 JSON 证据，忽略前置诊断输出。
+
+    管理脚本可能打印 Compose 或迁移日志；仅接受以对象开头的行，避免把普通
+    文本错误误解析成成功证据。没有 JSON 时由调用者按当前 smoke 边界失败。
+    """
     for line in reversed(output.splitlines()):
         if line.lstrip().startswith("{"):
             return cast(dict[str, Any], json.loads(line))
@@ -35,6 +40,7 @@ def run(
     env: dict[str, str],
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
+    """在模板根目录和本轮隔离环境中执行子进程，默认保留 stdout/stderr 供诊断。"""
     return subprocess.run(
         command,
         cwd=APP_ROOT,
@@ -46,6 +52,11 @@ def run(
 
 
 def _compose_command(env: dict[str, str], *args: str) -> list[str]:
+    """构造绑定随机 project 和 service profile 的 Docker Compose 命令。
+
+    project 名只从当前 smoke 环境读取，防止清理或检查误作用于开发机上其他
+    Compose 栈；调用方只能追加具体子命令，不能改变隔离根参数。
+    """
     return [
         "docker",
         "compose",
@@ -184,15 +195,18 @@ def postgres_counts(env: dict[str, str]) -> tuple[int, int]:
 
 
 def redis_json(env: dict[str, str], *args: str) -> object:
+    """通过容器内 redis-cli 读取 JSON，保持 smoke 不依赖宿主 Redis 客户端。"""
     output = compose(env, "exec", "-T", "redis", "redis-cli", "--json", *args)
     return json.loads(output)
 
 
 def stream_length(env: dict[str, str], stream: str) -> int:
+    """返回指定 Redis stream 的长度，用于认证零副作用和入队断言。"""
     return int(compose(env, "exec", "-T", "redis", "redis-cli", "XLEN", stream))
 
 
 def first_stream_message(env: dict[str, str], stream: str) -> tuple[str, dict[str, Any]]:
+    """读取最早一条 stream 消息并还原其 payload，供首条投递合同验证。"""
     rows = cast(list[list[object]], redis_json(env, "XRANGE", stream, "-", "+", "COUNT", "1"))
     message_id = cast(str, rows[0][0])
     fields = cast(list[str], rows[0][1])

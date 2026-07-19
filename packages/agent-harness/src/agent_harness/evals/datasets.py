@@ -60,6 +60,13 @@ class DatasetSplitService:
         request: DatasetSplitRequest,
         cases: list[EvalCaseRecord],
     ) -> DatasetSplitPlan:
+        """校验批准 case 的安全与归属后，生成确定性优化、留出和回归集合。
+
+        任一跨租户、未批准、含密钥的 case 都不能被“过滤后继续”掩盖：前两类避免
+        泄露可见性，后一类防止不安全样本进入评测。回归集先固定，余下 case 再按
+        多标签策略切分，确保同一请求可复现并能解释每个拒绝计数。
+        """
+
         requested_tags = set(request.tags)
         rejected: dict[str, int] = {}
         eligible: list[EvalCaseRecord] = []
@@ -182,6 +189,8 @@ class DatasetSplitService:
 
 
 def _behavior_tags(case: EvalCaseRecord) -> list[BehaviorTag]:
+    """从权威 metadata 读取并规范化行为标签，拒绝缺失、空或未知枚举值。"""
+
     raw_tags = case.metadata.get("behavior_tags")
     if not isinstance(raw_tags, list) or not raw_tags:
         raise DatasetSplitError(
@@ -205,6 +214,8 @@ def _behavior_tags(case: EvalCaseRecord) -> list[BehaviorTag]:
 
 
 def _contains_secret(case: EvalCaseRecord) -> bool:
+    """检测 payload 或 metadata 中的明文密钥及既有脱敏标记，作为评测准入门禁。"""
+
     payload = {"payload": case.payload, "metadata": case.metadata}
     if _contains_redaction_marker(payload):
         return True
@@ -212,6 +223,8 @@ def _contains_secret(case: EvalCaseRecord) -> bool:
 
 
 def _contains_redaction_marker(value: object) -> bool:
+    """递归识别嵌套值中的脱敏占位符，避免已清洗样本被误作原始可评测证据。"""
+
     if isinstance(value, Mapping):
         mapping = cast(Mapping[object, object], value)
         return any(_contains_redaction_marker(item) for item in mapping.values())
@@ -241,4 +254,6 @@ def _safe_evidence_refs(refs: list[str]) -> list[str]:
 
 
 def _increment(values: dict[str, int], key: str) -> None:
+    """累计稳定的拒绝原因计数，供调用方解释 split 筛选结果。"""
+
     values[key] = values.get(key, 0) + 1

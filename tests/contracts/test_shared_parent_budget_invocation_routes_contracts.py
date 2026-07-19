@@ -9,10 +9,14 @@ class CountingEmbeddingProvider(LocalEmbeddingProvider):
     """记录 cache miss 写路径次数，证明拒绝发生在 provider 副作用前。"""
 
     def __init__(self, *, cache: StorageEmbeddingCache) -> None:
+        """复用真实本地 cache 实现，同时初始化 provider 调用计数。"""
+
         super().__init__(cache=cache)
         self.calls = 0
 
     async def embed_cache_miss(self, request: EmbeddingRequest) -> Any:
+        """记录 cache miss 后委托父类，便于断言预算拒绝没有触达 provider 写路径。"""
+
         self.calls += 1
         return await super().embed_cache_miss(request)
 

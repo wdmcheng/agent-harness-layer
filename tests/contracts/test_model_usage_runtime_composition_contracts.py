@@ -35,6 +35,8 @@ PROFILES = ROOT / "templates" / "service-app" / "configs" / "profiles"
 
 
 def _dsn(path: Path) -> str:
+    """为每个临时数据库路径生成隔离的异步 SQLite DSN。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
@@ -46,10 +48,16 @@ def _event_payload(event: CanonicalEvent) -> dict[str, Any]:
 
 
 class _CountingModelProvider(FakeModelProvider):
+    """记录真实模型调用次数的 fake provider，验证运行恢复不重复外部副作用。"""
+
     def __init__(self) -> None:
+        """初始化调用计数。"""
+
         self.calls = 0
 
     def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        """累加一次实际调用后复用基础 fake 的确定性响应。"""
+
         self.calls += 1
         return super().complete(request, model=model)
 
@@ -60,25 +68,37 @@ class _FailFinalOnceSink:
     manages_event_capacity = False
 
     def __init__(self, delegate: LocalJsonlEventSink) -> None:
+        """包装本地 sink，并准备只注入一次最终用量写入故障。"""
+
         self._delegate = delegate
         self._failed = False
 
     def bind_run_trace_resolver(self, resolver: Any) -> None:
+        """将 trace 解析器透传给真实 sink，保持事件身份校验不被替身绕过。"""
+
         self._delegate.bind_run_trace_resolver(resolver)
 
     async def write(self, event: CanonicalEvent) -> CanonicalEvent:
+        """首次用量终态写入失败，后续写入委托给底层 sink 供恢复路径补投。"""
+
         if event.event_type is CanonicalEventType.MODEL_USAGE_UPDATED and not self._failed:
             self._failed = True
             raise OSError("injected usage final write failure")
         return await self._delegate.write(event)
 
     async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
+        """透传分页读取，供运行编排器检查已补投证据。"""
+
         return await self._delegate.read(run_id=run_id, after_seq=after_seq)
 
     async def latest_seq(self, run_id: str) -> int:
+        """透传最大序号读取，维持事件容量协议。"""
+
         return await self._delegate.latest_seq(run_id)
 
     async def has_terminal(self, run_id: str) -> bool:
+        """透传运行终态判断，避免故障替身干扰运行生命周期。"""
+
         return await self._delegate.has_terminal(run_id)
 
 
@@ -178,6 +198,8 @@ async def test_queued_execute_recovers_run_usage_before_executor_without_provide
     provider = _CountingModelProvider()
 
     async def _resolve_trace(**_: object) -> str:
+        """为单一队列恢复夹具返回固定 trace 标识。"""
+
         return "trace-queued-recovery"
 
     model = ModelInvocationService(
@@ -193,7 +215,11 @@ async def test_queued_execute_recovers_run_usage_before_executor_without_provide
     )
 
     class _RecoveryObservingExecutor:
+        """在 executor 开始前检查已补投的用量终态，防止恢复顺序倒置。"""
+
         def __init__(self) -> None:
+            """初始化恢复观测标记。"""
+
             self.saw_recovered_usage = False
 
         async def run(
@@ -201,6 +227,8 @@ async def test_queued_execute_recovers_run_usage_before_executor_without_provide
             request: AgentExecutionRequest,
             context: AgentExecutionContext,
         ) -> AgentExecutionResult:
+            """读取事件并断言用量恢复完成，然后返回普通完成结果。"""
+
             events = await sink.read(run_id=request.run_id)
             self.saw_recovered_usage = any(
                 event.event_type is CanonicalEventType.MODEL_USAGE_UPDATED for event in events
@@ -216,6 +244,8 @@ async def test_queued_execute_recovers_run_usage_before_executor_without_provide
             context: AgentExecutionContext,
             grant: object,
         ) -> AgentExecutionResult:
+            """该夹具不支持 continuation；若被调用说明测试进入了错误恢复分支。"""
+
             del request, context, grant
             return AgentExecutionResult.failed("queued recovery fixture has no continuation")
 

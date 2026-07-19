@@ -17,6 +17,8 @@ from agent_harness.storage import (
 
 
 def split_create() -> EvalDatasetSplitCreate:
+    """构造可落库的确定性 split 请求，供 repository 合同复用。"""
+
     return EvalDatasetSplitCreate(
         split_id="split-1",
         tenant_id="tenant-a",
@@ -43,6 +45,8 @@ def split_create() -> EvalDatasetSplitCreate:
 
 
 def experiment_create(*, request_hash: str = "a" * 64) -> EvalExperimentCreate:
+    """构造绑定上述 split 的实验创建记录，并允许测试替换请求哈希。"""
+
     return EvalExperimentCreate(
         tenant_id="tenant-a",
         idempotency_key="experiment-key",
@@ -59,6 +63,8 @@ def experiment_create(*, request_hash: str = "a" * 64) -> EvalExperimentCreate:
 
 
 def acceptance_create(*, request_hash: str = "b" * 64) -> HarnessAcceptanceCreate:
+    """构造语义完整的接受决定，供重放、冲突与不可变性测试复用。"""
+
     return HarnessAcceptanceCreate(
         tenant_id="tenant-a",
         experiment_id="experiment-1",

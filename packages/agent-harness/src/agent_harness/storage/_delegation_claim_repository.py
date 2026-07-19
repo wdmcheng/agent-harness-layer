@@ -62,9 +62,19 @@ from agent_harness.storage.shared_budget_repositories import SharedBudgetReposit
 
 
 class DelegationClaimRepositoryMixin:
+    """在一个 UoW 内创建或精确重放 delegation、预算预约和有序事件组。"""
+
     _session: AsyncSession
 
     async def claim_and_reserve(self, data: DelegationClaimCreate) -> DelegationClaimResult:
+        """原子取得 delegation 幂等键，并在首次 claim 时预约预算与三段事件容量。
+
+        锁顺序固定为共享账本再 parent run，避免 direct usage 与 delegation 在
+        PostgreSQL 上形成反向等待。首次写入同时建立 legacy reservation 兼容投影、
+        shared-budget claim 和 claimed/child/final 有序 outbox；任一步失败由外层 UoW
+        回滚，重试只能走严格身份匹配的 replay。
+        """
+
         existing = await self._get_model_by_key(
             tenant_id=data.tenant_id,
             parent_run_id=data.parent_run_id,
@@ -301,6 +311,13 @@ class DelegationClaimRepositoryMixin:
         expected_identity: OperationIdentity | None,
         validate_request_hash: bool,
     ) -> DelegationClaimResult:
+        """锁定已有 delegation 并验证请求、预算身份、预约与有序 outbox 可精确重放。
+
+        immutable identity 冲突优先于后续完整性错误返回，便于调用方区分同 key 的
+        不同业务请求。受管理账本存在却缺顶层 claim 时视为损坏，绝不退回旧预约
+        语义继续执行。
+        """
+
         locked = await self._session.scalar(
             select(AgentDelegationModel)
             .where(AgentDelegationModel.id == model.id)
@@ -471,6 +488,8 @@ class DelegationClaimRepositoryMixin:
         parent_run_id: str,
         idempotency_key: str,
     ) -> AgentDelegationModel | None:
+        """按 tenant、父 run 和调用方幂等键查找 delegation，不跨作用域复用记录。"""
+
         return await self._session.scalar(
             select(AgentDelegationModel).where(
                 AgentDelegationModel.tenant_id == tenant_id,

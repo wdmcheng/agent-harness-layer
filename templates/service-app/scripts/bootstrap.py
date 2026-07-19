@@ -1,4 +1,4 @@
-"""为仓库内或独立复制的 service-app 选择可信核心包来源。"""
+"""为仓库内或独立复制的 service-app 选择可追溯的核心包来源。"""
 
 from __future__ import annotations
 
@@ -50,6 +50,7 @@ def _print_env_hint() -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """解析 bootstrap 所用 uv 可执行文件，便于受控环境注入固定工具路径。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--uv", default="uv", help="uv executable used for add/sync")
     return parser.parse_args()

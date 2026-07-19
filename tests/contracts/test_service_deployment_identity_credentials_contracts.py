@@ -27,6 +27,8 @@ from tests.contracts.test_service_deployment_compose_contracts import (
 
 @pytest.mark.asyncio
 async def test_api_key_identity_session_id_fits_persistent_session_contract(tmp_path: Path) -> None:
+    """验证 API key 验证出的会话标识可直接落入持久 session 的长度约束。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'api-key.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -55,6 +57,8 @@ async def test_api_key_identity_session_id_fits_persistent_session_contract(tmp_
 
 @pytest.mark.asyncio
 async def test_ephemeral_api_key_can_be_deleted_by_hash(tmp_path: Path) -> None:
+    """验证临时 API key 可按哈希幂等删除，删除后不能再恢复出身份。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'api-key-cleanup.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

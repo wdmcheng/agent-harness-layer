@@ -27,6 +27,8 @@ from agent_harness.storage.models import RunEventCapacityModel
 async def test_local_seq_max_non_terminal_is_state_invalid_and_has_no_partial_write(
     tmp_path: Path,
 ) -> None:
+    """验证非终态占用最大序号被判为损坏状态，且 JSONL 与账本都不发生部分写入。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'seq-max-invalid.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -60,6 +62,8 @@ async def test_local_seq_max_non_terminal_is_state_invalid_and_has_no_partial_wr
 
 @pytest.mark.asyncio
 async def test_local_terminal_consumes_reserved_seq_max_as_last_event(tmp_path: Path) -> None:
+    """验证合法终态可消费保留的最大序号，并释放终态预约。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'terminal-max.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -98,6 +102,8 @@ async def test_local_terminal_consumes_reserved_seq_max_as_last_event(tmp_path: 
 async def test_local_invalid_high_water_shape_is_not_reported_as_exhaustion(
     tmp_path: Path,
 ) -> None:
+    """验证账本高水位形状非法时返回状态错误，而不会误报为正常容量耗尽。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'invalid-high-water.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

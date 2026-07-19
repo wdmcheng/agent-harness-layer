@@ -22,6 +22,11 @@ def _profile_with_agent_allowlist(
     db_path: Path | None = None,
     extra: str = "",
 ) -> Path:
+    """复制本地 profile 并按用例注入工具白名单与隔离状态路径。
+
+    测试通过真实 CLI 配置装配能力，而不是绕过配置层直接构造运行时，借此
+    固定空白名单默认拒绝和 MCP 白名单透传的对外语义。
+    """
     profiles_dir = tmp_path / "profiles"
     profiles_dir.mkdir()
     profile_text = (PROFILES / "local.yaml").read_text(encoding="utf-8")

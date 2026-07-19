@@ -1,4 +1,4 @@
-"""RAG assistant 的输入与输出 schema。"""
+"""RAG Assistant 的输入与输出 schema，显式保留来源信任边界。"""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ class RagDocument(HarnessDTO):
 
 
 def _empty_documents() -> list[RagDocument]:
+    """为每次输入创建独立的空文档列表，避免 fixture 在请求之间共享可变状态。"""
     return []
 
 

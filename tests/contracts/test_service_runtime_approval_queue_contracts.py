@@ -56,6 +56,8 @@ from tests.contracts.test_service_runtime_storage_contracts import (
 async def test_matching_service_approve_takes_over_expired_execution_owner(
     tmp_path: Path,
 ) -> None:
+    """验证相同审批请求可接管过期 worker owner，并保留可审计的 lease 交接证据。"""
+
     dsn = _dsn(tmp_path / "approval-takeover.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -187,6 +189,8 @@ async def test_matching_service_approve_takes_over_expired_execution_owner(
 
 @pytest.mark.asyncio
 async def test_service_approve_only_queues_and_keeps_public_waiting(tmp_path: Path) -> None:
+    """验证 service approve 仅入队，公开审批状态保持 waiting 直至 worker 执行。"""
+
     dsn = _dsn(tmp_path / "service-approve.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

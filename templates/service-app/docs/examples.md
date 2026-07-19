@@ -1,4 +1,4 @@
-# 四个 P0 示例 Agent
+# 四个示例 Agent
 
 四个示例都使用 `AgentRegistry -> RunOrchestrator -> AgentExecutor` 公开链路；local profile 使用 fake model、SQLite、local JSONL，不需要真实 API key。它们是扩展点样例，不是完整产品，也不实现 eval experiment、harness comparison 或自动优化。
 

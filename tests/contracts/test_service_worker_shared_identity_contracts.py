@@ -60,9 +60,13 @@ async def test_service_submit_and_worker_execute_share_run_and_identity(tmp_path
     """service API只排队；worker从持久化 context执行同一 run。"""
 
     class RecordingExecutor(FakeContractExecutor):
+        """记录 worker 接收到的请求和身份上下文，验证跨进程传递没有丢失。"""
+
         calls: list[tuple[AgentExecutionRequest, AgentExecutionContext]]
 
         def __init__(self) -> None:
+            """初始化空调用记录，避免父类夹具状态影响本合同的精确断言。"""
+
             self.calls = []
 
         async def run(
@@ -70,6 +74,8 @@ async def test_service_submit_and_worker_execute_share_run_and_identity(tmp_path
             request: AgentExecutionRequest,
             context: AgentExecutionContext,
         ) -> AgentExecutionResult:
+            """保存 worker 输入后返回确定性完成结果，不引入外部执行副作用。"""
+
             self.calls.append((request, context))
             return AgentExecutionResult.completed({"source_ref": request.input["source_ref"]})
 

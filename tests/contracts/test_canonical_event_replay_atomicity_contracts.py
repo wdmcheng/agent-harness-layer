@@ -112,6 +112,8 @@ async def test_event_bus_replay_matrix_delegates_to_atomic_local_claim(tmp_path:
     )
 
     async def publish(**updates: Any) -> CanonicalEvent:
+        """以固定事件标识发布可覆写字段，集中构造重放边界测试输入。"""
+
         values: dict[str, Any] = {
             "tenant_id": "tenant-a",
             "run_id": "run-a",

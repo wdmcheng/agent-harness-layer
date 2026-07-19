@@ -36,6 +36,11 @@ from tests.contracts.test_auth_policy_hitl_approval_contracts import (
 
 @pytest.mark.asyncio
 async def test_failed_runtime_resume_keeps_approval_waiting(tmp_path: Path) -> None:
+    """验证运行已取消时的批准失败不会抢先消耗等待中的审批记录。
+
+    这样故障恢复或人工排障仍能观察到原审批请求，而不会因下游运行状态
+    转换失败而留下“已批准但未恢复”的错误事实。
+    """
     from agent_harness.approvals import ApprovalService
     from agent_harness.audit import AuditService
 

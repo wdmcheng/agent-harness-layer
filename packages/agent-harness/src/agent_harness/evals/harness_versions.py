@@ -41,6 +41,8 @@ class HarnessInputManifest(HarnessDTO):
 
     @model_validator(mode="after")
     def validate_safe_metadata(self) -> HarnessInputManifest:
+        """拒绝摘要和证据引用中的密钥形态，防止 manifest 成为敏感信息旁路。"""
+
         if self.diff_summary is not None:
             _reject_secret(self.diff_summary, field_path="diff_summary")
         if self.evidence_ref is not None:
@@ -56,6 +58,8 @@ class HarnessVersionManifest(HarnessDTO):
 
     @model_validator(mode="after")
     def validate_version_id(self) -> HarnessVersionManifest:
+        """验证输入类别完备且版本哈希可由规范化内容重算得到。"""
+
         provided = set(self.inputs)
         required = set(REQUIRED_HARNESS_INPUTS)
         if provided != required:
@@ -70,6 +74,12 @@ class HarnessVersionBuilder:
     """规范化 mapping/list 后计算 checksum，拒绝 secret 与 SDK object。"""
 
     def build(self, sources: Mapping[str, HarnessInputSource]) -> HarnessVersionManifest:
+        """将全部行为输入规范化、脱敏检查并生成内容寻址的版本清单。
+
+        输入类别采用封闭集合，缺失或额外类别都会失败；这使 candidate 与 baseline
+        比较始终基于同一完整行为面，而不是依赖调用方的约定。
+        """
+
         provided = set(sources)
         required = set(REQUIRED_HARNESS_INPUTS)
         if provided != required:
@@ -86,6 +96,7 @@ class HarnessVersionBuilder:
         inputs: dict[str, HarnessInputManifest] = {}
         for category in REQUIRED_HARNESS_INPUTS:
             source = sources[category]
+            # checksum 只针对规范化值计算，原始输入绝不能进入 manifest 或审计载荷。
             normalized = _normalize_input(source.value, field_path=f"inputs.{category}.value")
             _reject_secret(normalized, field_path=f"inputs.{category}.value")
             if source.diff_summary is not None:
@@ -110,6 +121,12 @@ class HarnessVersionBuilder:
 
 
 def _normalize_input(value: object, *, field_path: str) -> object:
+    """把允许的 JSON 数据转成稳定表示，拒绝 SDK 对象、非字符串键与非有限浮点数。
+
+    映射按键排序、序列按规范化 JSON 排序，确保等价配置即使来自不同构造顺序也能
+    产生相同 checksum；列表顺序不承担实验行为语义是该设计的前提。
+    """
+
     if value is None or isinstance(value, (bool, int, str)):
         return value
     if isinstance(value, float):
@@ -132,6 +149,8 @@ def _normalize_input(value: object, *, field_path: str) -> object:
 
 
 def _canonical_json(value: object) -> bytes:
+    """编码可哈希的最小 JSON 字节串，固定键序和分隔符以消除格式差异。"""
+
     try:
         return json.dumps(
             value,
@@ -145,6 +164,8 @@ def _canonical_json(value: object) -> bytes:
 
 
 def _unserializable(field_path: str) -> EvalExperimentError:
+    """构造统一的不可序列化领域错误，保留精确字段路径供调用方修正。"""
+
     return EvalExperimentError(
         "eval.harness.input_unserializable",
         "harness input must be provider-neutral JSON data",
@@ -154,6 +175,8 @@ def _unserializable(field_path: str) -> EvalExperimentError:
 
 
 def _reject_secret(value: object, *, field_path: str) -> None:
+    """检测已脱敏标记或会被 redactor 改写的值，并在落盘前拒绝。"""
+
     if _contains_redaction_marker(value) or redact_secrets(value) != value:
         raise EvalExperimentError(
             "eval.harness.input_secret",
@@ -164,6 +187,8 @@ def _reject_secret(value: object, *, field_path: str) -> None:
 
 
 def _contains_redaction_marker(value: object) -> bool:
+    """递归识别既有脱敏占位符，避免把不完整证据当成可比较的真实输入。"""
+
     if isinstance(value, Mapping):
         mapping = cast(Mapping[object, object], value)
         return any(_contains_redaction_marker(item) for item in mapping.values())
@@ -174,6 +199,8 @@ def _contains_redaction_marker(value: object) -> bool:
 
 
 def _validate_evidence_ref(ref: str, *, field_path: str) -> None:
+    """仅允许相对、无密钥的证据引用，禁止把本机路径写入可共享 manifest。"""
+
     if (
         Path(ref).is_absolute()
         or PureWindowsPath(ref).is_absolute()
@@ -190,6 +217,8 @@ def _validate_evidence_ref(ref: str, *, field_path: str) -> None:
 
 
 def _manifest_version_id(inputs: Mapping[str, HarnessInputManifest]) -> str:
+    """按固定类别顺序汇总输入元数据，计算跨进程稳定的内容寻址版本号。"""
+
     version_payload = {
         category: inputs[category].to_payload() for category in REQUIRED_HARNESS_INPUTS
     }

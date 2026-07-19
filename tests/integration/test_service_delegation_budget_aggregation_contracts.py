@@ -134,6 +134,11 @@ async def test_local_and_service_parent_aggregation_values_match(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """验证本地与服务部署在同一委派结果下生成相同的父级汇总。
+
+    用例通过真实 PostgreSQL、Redis worker 与本地运行时对照令牌、成本、
+    延迟和子运行状态，防止存储实现差异改变调用方可见的聚合语义。
+    """
     redis_dsn = os.environ["REDIS_TEST_DSN"]
     monkeypatch.setenv("AGENT_HARNESS_QUEUE__DSN", redis_dsn)
     profiles = _service_profiles(tmp_path)

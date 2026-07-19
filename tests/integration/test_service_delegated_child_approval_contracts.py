@@ -36,6 +36,8 @@ pytestmark = pytest.mark.skipif(
 
 
 def _service_profiles(tmp_path: Path) -> Path:
+    """复制 service 模板并只打开父到子委派边，避免污染仓库内的示例配置。"""
+
     source = Path(__file__).resolve().parents[2] / "templates" / "service-app"
     target = tmp_path / "service-app"
     shutil.copytree(source, target)
@@ -51,11 +53,15 @@ def _service_profiles(tmp_path: Path) -> Path:
 
 
 class _DelegatingParentExecutor:
+    """父运行执行器替身：只委派一个子运行，用来隔离审批后的聚合路径。"""
+
     async def run(
         self,
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
+        """通过公开委派服务创建固定 idempotency key 的子运行，并返回其标识供父运行收敛。"""
+
         module = cast(Any, context.require_service("agent.delegate"))
         result = await module.delegate(
             AgentDelegateInput(
@@ -68,7 +74,11 @@ class _DelegatingParentExecutor:
 
 
 class _ApprovalChildExecutor:
+    """子运行执行器替身：首次稳定等待审批，恢复时可按参数完成或确定性失败。"""
+
     def __init__(self, *, fail_resume: bool) -> None:
+        """保存恢复分支开关，使同一集成流程覆盖成功和失败终态聚合。"""
+
         self.fail_resume = fail_resume
 
     async def run(
@@ -76,6 +86,8 @@ class _ApprovalChildExecutor:
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
+        """始终返回审批等待态，确保后续 worker 消费的是 continuation 而非普通执行请求。"""
+
         del request, context
         return AgentExecutionResult.waiting(
             AgentApprovalRequest(
@@ -94,6 +106,8 @@ class _ApprovalChildExecutor:
         context: AgentExecutionContext,
         grant: ApprovalGrant,
     ) -> AgentExecutionResult:
+        """模拟已获授权的 continuation：失败分支必须仍把子运行及预算聚合为需人工复核。"""
+
         del request, context, grant
         if self.fail_resume:
             raise RuntimeError("deterministic delegated child approval failure")
@@ -136,6 +150,8 @@ async def test_service_child_approval_terminal_reconciles_before_ack(
     child_executor = _ApprovalChildExecutor(fail_resume=fail_resume)
 
     def resolve_executor(self: AgentRegistry, agent_id: str) -> Any:
+        """仅替换本合同涉及的两个 executor，其余 agent 继续复用真实 registry 解析规则。"""
+
         if agent_id == "examples.basic":
             return parent_executor
         if agent_id == "examples.ticket_triage":

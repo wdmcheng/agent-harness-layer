@@ -39,6 +39,8 @@ from tests.contracts.test_agent_delegation_service_contracts import (
 
 @pytest.mark.asyncio
 async def test_local_delegate_replays_one_child_and_holds_unknown_budget(tmp_path: Path) -> None:
+    """本地委派相同请求只能复用一个 child；用量未知时账本保持阻断，父运行不能提前终态。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(tmp_path)
     try:
         first = await service.delegate(_request(parent_run_id), identity=_identity())
@@ -109,6 +111,8 @@ async def test_local_delegate_replays_one_child_and_holds_unknown_budget(tmp_pat
 
 @pytest.mark.asyncio
 async def test_trustworthy_child_usage_releases_budget_and_final_event(tmp_path: Path) -> None:
+    """子运行提供可信完整用量后，预约应被结算并发布一次最终委派证据。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(
         tmp_path,
         trustworthy_usage=True,
@@ -191,6 +195,8 @@ async def test_cost_disabled_parent_keeps_target_cost_out_of_budget_accounting(
 async def test_inherit_parent_rejects_when_direct_usage_leaves_insufficient_budget(
     tmp_path: Path,
 ) -> None:
+    """父运行已有 direct 用量消耗大部分预算时，inherit-parent 委派必须在创建 child 前被拒绝。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(
         tmp_path,
         mode="service",
@@ -233,6 +239,8 @@ async def test_inherit_parent_rejects_when_direct_usage_leaves_insufficient_budg
 async def test_finite_parent_cost_uses_owner_ceiling_when_target_ceiling_is_null(
     tmp_path: Path,
 ) -> None:
+    """子 agent 未设成本上限时仍必须继承有限 owner 成本上限，防止空配置绕开根账本。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(
         tmp_path,
         mode="service",

@@ -34,16 +34,26 @@ def _identity_text(key: str) -> sa.ColumnElement[str]:
 
 
 def _required_identity_equal(key: str, value: object) -> sa.ColumnElement[bool]:
+    """构造 JSON 身份字段“存在且等于同列/常量”的跨方言约束片段。"""
+
     field = _identity_text(key)
     return sa.and_(field.is_not(None), field == value)
 
 
 def _required_identity_text(key: str) -> sa.ColumnElement[bool]:
+    """构造 JSON 中必填非空文本字段的约束，防止空字符串绕过身份绑定。"""
+
     field = _identity_text(key)
     return sa.and_(field.is_not(None), sa.func.length(field) > 0)
 
 
 def _claim_identity_json_shape() -> sa.ColumnElement[bool]:
+    """定义预算操作 claim 的身份 JSON 与关系列必须一致的数据库约束。
+
+    direct 与 delegation 两种操作拥有不同的必填字段组合；把约束放在数据库层，
+    可防止绕过应用服务的导入、恢复或并发写入制造不可重放的预算记录。
+    """
+
     operation_kind = sa.column("operation_kind", sa.String())
     usage_kind = sa.column("usage_kind", sa.String())
     schema_version = sa.column("identity_schema_version", sa.String())
@@ -80,6 +90,8 @@ def _claim_identity_json_shape() -> sa.ColumnElement[bool]:
 
 
 def _allocation_identity_json_shape() -> sa.ColumnElement[bool]:
+    """定义 delegation 子用量 allocation 的身份 JSON 形状与列绑定约束。"""
+
     return sa.and_(
         _required_identity_equal("ownership_kind", "allocation"),
         _required_identity_equal("usage_kind", sa.column("usage_kind", sa.String())),
@@ -99,6 +111,13 @@ def _allocation_identity_json_shape() -> sa.ColumnElement[bool]:
 
 
 def upgrade() -> None:
+    """创建共享父级预算账本、操作 claim 与 delegation allocation，并回填旧证据。
+
+    先完成 legacy 预检再执行 DDL 和回填，保证无法解释的历史数据在 schema 变化前
+    fail-closed。三张表共同保存预算上限、外部副作用阶段和不可变身份，不能只建
+    其中任一张，否则恢复路径会失去原子性依据。
+    """
+
     connection = op.get_bind()
     backfill_plans = _legacy_preflight(connection)
     op.create_table(
@@ -336,6 +355,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """仅在显式确认且所有账本证据为空时移除共享预算 schema。
+
+    历史 claim、allocation 或 ledger 任一存在都意味着数据无法无损降级；因此即使
+    调用者提供 opt-in，也必须拒绝删除，避免把可审计预算事实静默丢弃。
+    """
+
     arguments = context.get_x_argument(as_dictionary=False)
     if arguments != [_OPT_IN]:
         raise RuntimeError("0016 downgrade requires explicit opt-in")

@@ -140,12 +140,16 @@ class ContextAssemblyRecord(ContextAssemblyCreate):
 
 
 def _tenant_record(model: TenantModel) -> TenantRecord:
+    """把租户 ORM 行投影为最小公开 DTO，不将会话绑定对象泄露到运行时。"""
+
     return TenantRecord(id=model.id, display_name=model.display_name)
 
 
 # mapping helper 故意写得直白。它们不花哨，但 schema 名、JSON column 和公开
 # DTO 字段最容易在这里漂移。
 def _session_record(model: SessionModel) -> SessionRecord:
+    """把 session ORM 行投影为 DTO，保持 JSON 元数据原样供身份边界复用。"""
+
     return SessionRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -156,6 +160,8 @@ def _session_record(model: SessionModel) -> SessionRecord:
 
 
 def _checkpoint_record(model: CheckpointModel) -> CheckpointRecord:
+    """把 checkpoint ORM 行投影为 DTO，使恢复层只依赖稳定字段而非 ORM 行状态。"""
+
     return CheckpointRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -168,6 +174,8 @@ def _checkpoint_record(model: CheckpointModel) -> CheckpointRecord:
 
 
 def _context_assembly_record(model: ContextAssemblyModel) -> ContextAssemblyRecord:
+    """把 context assembly ORM 行投影为可审计摘要，不让组装服务持有持久化对象。"""
+
     return ContextAssemblyRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -181,9 +189,11 @@ def _context_assembly_record(model: ContextAssemblyModel) -> ContextAssemblyReco
 
 
 class TenantRepository:
-    """租户表 repository，负责按需创建 default tenant。"""
+    """租户表仓储，负责按需创建本地默认租户或返回已有租户。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定外层工作单元会话；创建后的提交由调用方和关联记录统一协调。"""
+
         self._session = session
 
     async def ensure(self, tenant_id: str, display_name: str | None = None) -> TenantRecord:
@@ -198,12 +208,16 @@ class TenantRepository:
 
 
 class SessionRepository:
-    """session 表 repository，封装 local identity 的 session 复用。"""
+    """session 表仓储，封装 local identity 的 session 复用与创建。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定外层工作单元会话，不在仓储内独立提交 session 写入。"""
+
         self._session = session
 
     async def get(self, session_id: str) -> SessionRecord | None:
+        """按稳定 session id 查询记录；不存在时返回 ``None`` 供调用方决定是否创建。"""
+
         model = await self._session.get(SessionModel, session_id)
         return None if model is None else _session_record(model)
 
@@ -222,6 +236,8 @@ class SessionRepository:
         return _session_record(model)
 
     async def ensure(self, data: SessionCreate) -> SessionRecord:
+        """优先复用调用方提供的稳定 session id；缺失或未找到时创建新记录。"""
+
         if data.session_id is not None:
             # IdentityContext 会给 local/default run 提供稳定 session id。复用它可以
             # 让 CLI/API run 归组，同时不把 ORM session 概念暴露到 storage 外。
@@ -232,9 +248,11 @@ class SessionRepository:
 
 
 class CheckpointRepository:
-    """checkpoint 表 repository，提供 latest 和 resume token 查询。"""
+    """checkpoint 表仓储，提供最新恢复点和 resume token 查询。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定外层工作单元会话，使 checkpoint 与 run 状态可在同一事务内写入。"""
+
         self._session = session
 
     async def create(self, data: CheckpointCreate) -> CheckpointRecord:
@@ -253,6 +271,8 @@ class CheckpointRepository:
         return _checkpoint_record(model)
 
     async def get_latest(self, run_id: str) -> CheckpointRecord | None:
+        """按 sequence 倒序读取指定 run 的最新耐久 checkpoint。"""
+
         # resume 以最高 checkpoint sequence 作为持久化真相源。后续 worker 开始
         # 给长流程打 checkpoint 后，这个排序语义会变成关键边界。
         result = await self._session.scalars(
@@ -265,6 +285,8 @@ class CheckpointRepository:
         return None if model is None else _checkpoint_record(model)
 
     async def get_by_resume_token(self, resume_token: str) -> CheckpointRecord | None:
+        """按不可预测的 resume token 查询恢复点；授权与 token 消费语义由上层控制。"""
+
         result = await self._session.scalars(
             select(CheckpointModel).where(CheckpointModel.resume_token == resume_token)
         )
@@ -273,9 +295,11 @@ class CheckpointRepository:
 
 
 class ContextAssemblyRepository:
-    """ContextAssembler 专用 repository，避免业务代码直接写 ORM model。"""
+    """ContextAssembler 专用仓储，避免业务代码直接写 ORM model。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定外层工作单元会话，确保组装摘要和关联 run 能原子提交。"""
+
         self._session = session
 
     async def create(self, data: ContextAssemblyCreate) -> ContextAssemblyRecord:
@@ -296,6 +320,8 @@ class ContextAssemblyRepository:
         return _context_assembly_record(model)
 
     async def get(self, assembly_id: str) -> ContextAssemblyRecord | None:
+        """按主键读取组装摘要；不存在时返回 ``None``，不把 ORM 行暴露给上层。"""
+
         model = await self._session.get(ContextAssemblyModel, assembly_id)
         return None if model is None else _context_assembly_record(model)
 

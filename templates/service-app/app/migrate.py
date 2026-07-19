@@ -1,4 +1,4 @@
-"""service profile 的类型化 migration composition 入口。"""
+"""Service profile 的类型化迁移组合入口，先验证配置再产生数据库副作用。"""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ def run(
 
 
 def parse_args() -> argparse.Namespace:
+    """解析迁移命令参数；显式 DSN 仅用于受控运维和测试场景。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="service")
     parser.add_argument("--profiles-dir", type=Path)
@@ -31,6 +32,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """运行迁移 CLI，并把配置装载错误转换为逐行可读的非零退出。"""
     args = parse_args()
     try:
         run(

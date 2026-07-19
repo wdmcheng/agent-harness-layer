@@ -18,6 +18,8 @@ from agent_harness.local_state import (
 
 
 def _entry(path: Path, *, kind: str = "events") -> dict[str, Any]:
+    """构造与 inventory 路径绑定的合法 journal 条目，供各篡改场景基线复用。"""
+
     return {
         "path": str(path.resolve()),
         "backup": str(path.with_name(f"{path.name}.pre-0013.bak").resolve()),
@@ -32,6 +34,8 @@ def _outside_inventory(
     external_target: Path,
     external_source: Path,
 ) -> None:
+    """将 rollback 指向 inventory 之外的文件，验证恢复不会越界覆盖外部数据。"""
+
     del inventory_path
     external_source.write_text("OVERWRITTEN", encoding="utf-8")
     item = _entry(external_target)
@@ -45,6 +49,8 @@ def _forged_backup(
     _external_target: Path,
     external_source: Path,
 ) -> None:
+    """篡改 backup 引用为外部来源，验证 journal 校验先于任何还原写入。"""
+
     external_source.write_text("OVERWRITTEN", encoding="utf-8")
     journal["files"][0]["backup"] = str(external_source.resolve())
 
@@ -55,6 +61,8 @@ def _forged_rollback(
     _external_target: Path,
     external_source: Path,
 ) -> None:
+    """篡改 rollback 路径为外部文件，覆盖路径授权与内容完整性双重边界。"""
+
     del inventory_path
     external_source.write_text("OVERWRITTEN", encoding="utf-8")
     journal["files"][0]["rollback"] = str(external_source.resolve())
@@ -66,6 +74,8 @@ def _duplicate_path(
     _external_target: Path,
     _external_source: Path,
 ) -> None:
+    """重复同一 inventory 条目，验证恢复拒绝歧义的多次还原指令。"""
+
     journal["files"].append(dict(journal["files"][0]))
 
 
@@ -75,6 +85,8 @@ def _wrong_kind(
     _external_target: Path,
     _external_source: Path,
 ) -> None:
+    """将 events 条目伪装成 scores，验证 manifest 类型不允许被 journal 改写。"""
+
     journal["files"][0]["kind"] = "scores"
 
 
@@ -84,6 +96,8 @@ def _wrong_version(
     _external_target: Path,
     _external_source: Path,
 ) -> None:
+    """设置未知 journal 版本，验证恢复不对未识别格式做推断兼容。"""
+
     journal["version"] = 2
 
 
@@ -93,6 +107,8 @@ def _wrong_state(
     _external_target: Path,
     _external_source: Path,
 ) -> None:
+    """设置非法状态值，验证只有已定义的中断阶段可进入恢复逻辑。"""
+
     journal["state"] = "unknown"
 
 
@@ -102,6 +118,8 @@ def _wrong_mode(
     _external_target: Path,
     _external_source: Path,
 ) -> None:
+    """伪造迁移模式，验证 file-only inventory 不接受另一模式的 journal。"""
+
     journal["mode"] = "profile"
 
 
@@ -111,6 +129,8 @@ def _wrong_path_type(
     _external_target: Path,
     _external_source: Path,
 ) -> None:
+    """把路径替换为非字符串标量，验证格式错误不会落入路径解析或写入流程。"""
+
     journal["files"][0]["path"] = 7
 
 

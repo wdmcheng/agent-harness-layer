@@ -66,6 +66,8 @@ async def test_concurrent_missing_caller_trace_atomically_reuses_first_run(
     validated_tasks: set[asyncio.Task[Any]] = set()
 
     async def synchronized_validate(repository: RunRepository, data: Any) -> None:
+        """让两个候选在 trace 校验点汇合，确定性放大首次内部 trace 竞争窗口。"""
+
         task = asyncio.current_task()
         assert task is not None
         if task not in validated_tasks:
@@ -76,6 +78,8 @@ async def test_concurrent_missing_caller_trace_atomically_reuses_first_run(
     monkeypatch.setattr(RunRepository, "_validate_trace_claim", synchronized_validate)
 
     class CountingExecutor(FakeContractExecutor):
+        """记录真实 executor 调用次数，验证竞争 loser 不会产生第二次运行副作用。"""
+
         calls = 0
 
         async def run(
@@ -83,6 +87,8 @@ async def test_concurrent_missing_caller_trace_atomically_reuses_first_run(
             request: AgentExecutionRequest,
             context: AgentExecutionContext,
         ) -> AgentExecutionResult:
+            """递增计数后复用基础执行结果，保持正常 runtime 事件链路。"""
+
             self.calls += 1
             return await super().run(request, context)
 
@@ -167,6 +173,8 @@ async def test_same_explicit_trace_race_replays_run_after_initial_lookup(
     original_validate = RunRepository._validate_trace_claim  # pyright: ignore[reportPrivateUsage]
 
     async def pause_later_validation(repository: RunRepository, data: Any) -> None:
+        """只暂停后到任务的校验，模拟首次查询后才发生的同 key/trace 提交竞争。"""
+
         task = asyncio.current_task()
         if task is not None and task.get_name() == "same-trace-later":
             entered.set()
@@ -176,6 +184,8 @@ async def test_same_explicit_trace_race_replays_run_after_initial_lookup(
     monkeypatch.setattr(RunRepository, "_validate_trace_claim", pause_later_validation)
 
     class CountingExecutor(FakeContractExecutor):
+        """记录第二个竞态场景的执行次数，避免跨用例共享可变计数。"""
+
         calls = 0
 
         async def run(
@@ -183,6 +193,8 @@ async def test_same_explicit_trace_race_replays_run_after_initial_lookup(
             request: AgentExecutionRequest,
             context: AgentExecutionContext,
         ) -> AgentExecutionResult:
+            """记录调用并返回基础桩结果，证明晚到任务只重放而不执行。"""
+
             self.calls += 1
             return await super().run(request, context)
 
@@ -242,6 +254,8 @@ async def test_submission_coordination_skips_loser_guardrail_across_orchestrator
     guardrail_calls = 0
 
     class CountingExecutor(FakeContractExecutor):
+        """记录跨 orchestrator 提交的真实执行次数，验证共享协调锁的效果。"""
+
         calls = 0
 
         async def run(
@@ -249,6 +263,8 @@ async def test_submission_coordination_skips_loser_guardrail_across_orchestrator
             request: AgentExecutionRequest,
             context: AgentExecutionContext,
         ) -> AgentExecutionResult:
+            """累加调用次数后委托基础行为，使测试只观察协调而不伪造执行成功。"""
+
             self.calls += 1
             return await super().run(request, context)
 
@@ -264,6 +280,8 @@ async def test_submission_coordination_skips_loser_guardrail_across_orchestrator
     )
 
     async def submit(orchestrator: RunOrchestrator, *, pause_winner: bool) -> Any:
+        """在真实协调锁中执行 prepare、可控 guardrail 与 start，复用 winner/loser 场景。"""
+
         nonlocal guardrail_calls
         preflight = await orchestrator.prepare_trace(
             agent_id="fake-agent",

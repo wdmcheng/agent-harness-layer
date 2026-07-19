@@ -53,6 +53,12 @@ class ApprovalContinuationMixin:
         lease: ApprovalResolutionLease,
         comment: str | None,
     ) -> ApprovalResolveResult:
+        """尝试续跑已 claim 的审批；未知异常先标为 recovery_pending 再向上抛出。
+
+        状态冲突保持原样，让调用方返回稳定 409；其他异常可能发生在外部 executor
+        之后，必须保留 durable 恢复标记，不能把 lease 静默当作未执行。
+        """
+
         try:
             return await self._continue_claimed_approval(
                 actor=actor,
@@ -216,6 +222,12 @@ class ApprovalContinuationMixin:
         lease: ApprovalResolutionLease,
         comment: str | None,
     ) -> ApprovalResolveResult:
+        """以持久化 lease 构造 grant，续跑 run 并按有序 evidence 完成审批决议。
+
+        grant 全部字段取自审批记录，业务调用方不能自选。若 run 因 delegation 等待，
+        则先发布 resolution 再检查 child 收口边沿，避免事件流被提前关闭或遗漏恢复。
+        """
+
         approval = lease.approval
         grant = ApprovalGrant(
             approval_id=approval.approval_id,
@@ -426,6 +438,8 @@ class ApprovalContinuationMixin:
             )
 
     async def _mark_needs_review(self, approval: ApprovalRecord, lease_id: str) -> None:
+        """将无法证明结果的审批 lease 升级为人工复核，禁止自动再次执行工具。"""
+
         async with self._storage.uow() as uow:
             await uow.approvals.mark_needs_review(
                 approval_id=approval.approval_id,

@@ -12,6 +12,8 @@ from tests.contracts.auth_policy_hitl_contract_helpers import sqlite_dsn
 
 
 def test_0009_migration_creates_eval_experiment_schema(tmp_path: Path) -> None:
+    """验证全量升级后的评测实验表、关键列、外键与幂等索引齐全。"""
+
     from agent_harness.storage import get_current_revision, run_migrations
 
     db_path = tmp_path / "eval-experiment-schema.db"
@@ -83,6 +85,8 @@ def test_0009_migration_creates_eval_experiment_schema(tmp_path: Path) -> None:
 def test_0011_upgrades_existing_0009_experiment_without_rewriting_terminal_evidence(
     tmp_path: Path,
 ) -> None:
+    """验证历史终态证据升级时保持原样，未完成记录则进入人工复核状态。"""
+
     from agent_harness.storage import get_current_revision, run_migrations
     from agent_harness.storage.migrations.runner import alembic_config
 
@@ -174,6 +178,8 @@ def test_0011_upgrades_existing_0009_experiment_without_rewriting_terminal_evide
 def test_0009_downgrade_is_empty_only_and_preserves_nonempty_evidence(
     tmp_path: Path,
 ) -> None:
+    """验证降级仅允许空证据库执行，已有评测证据时必须拒绝破坏性回退。"""
+
     from agent_harness.storage import get_current_revision, run_migrations
     from agent_harness.storage.migrations.runner import alembic_config
 

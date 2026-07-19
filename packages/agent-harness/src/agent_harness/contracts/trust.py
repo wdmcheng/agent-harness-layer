@@ -11,6 +11,8 @@ from agent_harness.contracts.dto import HarnessDTO
 
 
 def _context_refs() -> list[ContextRef]:
+    """为每个 DTO 实例提供独立的空引用列表，避免可变默认值跨请求共享。"""
+
     return []
 
 
@@ -79,6 +81,8 @@ class GuardrailDecision(HarnessDTO):
 
     @classmethod
     def allow(cls, reason: str = "allowed", metadata: dict[str, Any] | None = None) -> Self:
+        """构造允许决策，并复制默认空元数据以保持可序列化结构一致。"""
+
         return cls(
             status=GuardrailDecisionStatus.ALLOW,
             reason=reason,
@@ -87,6 +91,8 @@ class GuardrailDecision(HarnessDTO):
 
     @classmethod
     def deny(cls, reason: str, metadata: dict[str, Any] | None = None) -> Self:
+        """构造拒绝决策；调用方提供的原因进入审计与 API 统一错误映射。"""
+
         return cls(
             status=GuardrailDecisionStatus.DENY,
             reason=reason,
@@ -95,6 +101,8 @@ class GuardrailDecision(HarnessDTO):
 
     @classmethod
     def require_approval(cls, reason: str, metadata: dict[str, Any] | None = None) -> Self:
+        """构造需要人工审批的中间决策，不将其误归类为直接拒绝。"""
+
         return cls(
             status=GuardrailDecisionStatus.REQUIRE_APPROVAL,
             reason=reason,

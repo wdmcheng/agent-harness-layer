@@ -18,9 +18,11 @@ from agent_harness.storage import SQLAlchemyStorage
 
 
 class PolicyDeniedError(RuntimeError):
-    """PolicyEngine 明确 deny 时给 API 层转换成 403。"""
+    """策略明确拒绝时交给 API 层转换为 403 的稳定异常。"""
 
     def __init__(self, message: str, *, code: str = "policy.denied") -> None:
+        """保留面向调用方的简短原因和稳定错误码，不携带规则私有细节。"""
+
         super().__init__(message)
         self.code = code
         self.status_code = 403
@@ -58,11 +60,18 @@ class PolicyEvaluation(HarnessDTO):
 class PolicyProvider(Protocol):
     """策略来源的最小协议；provider 只判断，不执行动作。"""
 
-    async def evaluate(self, check: PolicyCheck) -> PolicyEvaluation: ...
+    async def evaluate(self, check: PolicyCheck) -> PolicyEvaluation:
+        """根据稳定检查坐标返回允许、拒绝或要求审批的决策，不产生业务副作用。"""
+
+        ...
 
 
 class YamlPolicyProvider:
-    """Profile YAML 映射后的内存策略 provider。"""
+    """Profile YAML 映射后的内存策略来源。
+
+    该实现适合本地 profile 和没有租户规则时的保守兜底；它只保存动作集合，不把 YAML
+    文件路径或原始内容带入任何决策元数据。
+    """
 
     def __init__(
         self,
@@ -70,11 +79,15 @@ class YamlPolicyProvider:
         require_approval_actions: Iterable[str] = (),
         deny_actions: Iterable[str] = (),
     ) -> None:
+        """冻结需要审批与明确拒绝的动作集合，供每次检查以常数时间匹配。"""
+
         self._require_approval_actions = set(require_approval_actions)
         self._deny_actions = set(deny_actions)
 
     @classmethod
     def default(cls) -> YamlPolicyProvider:
+        """返回内置保守策略，把高影响动作转入审批而非直接放行。"""
+
         return cls(
             require_approval_actions={
                 "shell.execute",
@@ -102,6 +115,12 @@ class YamlPolicyProvider:
         fallback_require_approval_actions: Iterable[str] = (),
         fallback_deny_actions: Iterable[str] = (),
     ) -> YamlPolicyProvider:
+        """从可选 YAML 读取动作集合；缺失、空文档或非映射根节点时回退默认集合。
+
+        配置加载失败的兼容策略只适用于结构不匹配的可选 profile；YAML 语法或文件读取
+        异常仍交给调用方处理，不能悄悄将已损坏的安全配置当作空策略。
+        """
+
         if not path.exists():
             return cls(
                 require_approval_actions=fallback_require_approval_actions,
@@ -125,7 +144,11 @@ class YamlPolicyProvider:
         )
 
     async def evaluate(self, check: PolicyCheck) -> PolicyEvaluation:
-        """按 YAML 默认规则返回 allow、deny 或 require_approval。"""
+        """按拒绝、审批、身份权限的固定优先级返回决策。
+
+        明确拒绝始终压过审批和通配权限，审批要求压过身份权限；只有不命中前两者时，
+        才允许显式动作权限或 ``*`` 权限放行。
+        """
 
         if check.action in self._deny_actions:
             return _decision(
@@ -162,18 +185,27 @@ class YamlPolicyProvider:
 
 
 class DatabasePolicyProvider:
-    """从 policy_rules 表读取规则的 provider，供 service profile 替换 YAML。"""
+    """从 policy_rules 表读取租户规则的来源，供 service profile 替换 YAML。
+
+    租户规则只负责其显式命中的动作；未命中时仍回落到内置保守策略，避免空规则表意外
+    把本应进入审批的危险动作放行。
+    """
 
     def __init__(self, storage: SQLAlchemyStorage) -> None:
+        """保存 storage 边界；每次判断自行打开短事务读取当前租户规则。"""
+
         self._storage = storage
 
     async def evaluate(self, check: PolicyCheck) -> PolicyEvaluation:
+        """匹配当前租户的首条同动作规则，否则委托内置安全兜底策略。"""
+
         async with self._storage.uow() as uow:
             rules = await uow.policy_rules.list_for_tenant(check.actor.tenant_id)
         for rule in rules:
             if rule.action == check.action:
                 approval = None
                 if rule.decision == GuardrailDecisionStatus.REQUIRE_APPROVAL.value:
+                    # 审批摘要从耐久规则生成，避免调用方根据私有 payload 自行拼装。
                     approval = PolicyApprovalRequirement(
                         action=check.action,
                         resource=check.resource,
@@ -190,11 +222,12 @@ class DatabasePolicyProvider:
                         **rule.payload,
                     },
                 )
+        # 规则表无命中不等于默认允许；回退后仍遵循内置高影响动作保护。
         return await YamlPolicyProvider.default().evaluate(check)
 
 
 class PolicyEngine:
-    """统一封装 provider、审计和未来事件发布的策略入口。"""
+    """统一封装策略来源、审计和未来事件发布的业务入口。"""
 
     def __init__(
         self,
@@ -202,10 +235,14 @@ class PolicyEngine:
         provider: PolicyProvider,
         audit: AuditService | None = None,
     ) -> None:
+        """绑定一个只负责决策的来源，并可选地绑定独立审计服务。"""
+
         self._provider = provider
         self._audit = audit
 
     async def evaluate(self, check: PolicyCheck) -> PolicyEvaluation:
+        """执行策略判断，并在配置审计时把最终决策追加为耐久审计事实。"""
+
         result = await self._provider.evaluate(check)
         if self._audit is not None:
             audit_record = await self._audit.record(
@@ -214,12 +251,15 @@ class PolicyEngine:
                 resource=check.resource,
                 payload=result.to_payload(),
             )
+            # 不修改 provider 返回对象，复制后附加审计引用以保留其原始决策形态。
             return result.model_copy(
                 update={"metadata": {**result.metadata, "audit_ref": audit_record.id}}
             )
         return result
 
     async def require_allowed(self, check: PolicyCheck) -> PolicyEvaluation:
+        """拒绝明确 deny；审批要求保留给调用方创建 continuation 后续处理。"""
+
         result = await self.evaluate(check)
         if result.decision == GuardrailDecisionStatus.DENY.value:
             raise PolicyDeniedError(result.reason)
@@ -253,6 +293,8 @@ class InputGuardrail:
     )
 
     def __init__(self, *, policy: PolicyEngine, audit: AuditService | None = None) -> None:
+        """绑定策略和可选审计服务；规则命中后只通过公共策略入口决定后续动作。"""
+
         self._policy = policy
         self._audit = audit
 
@@ -263,6 +305,12 @@ class InputGuardrail:
         agent_id: str,
         input: dict[str, Any],
     ) -> PolicyEvaluation:
+        """检查输入中的已知高风险提示形态，并记录脱敏后的判断结果。
+
+        未命中时构造确定的 allow 结果而不虚构策略命中；命中时则把检测项与脱敏输入
+        交给 ``input.prompt_injection`` 策略，让部署配置决定拒绝还是要求人工审批。
+        """
+
         text = str(input).lower()
         detected = [pattern for pattern in self._PATTERNS if pattern in text]
         if not detected:
@@ -278,6 +326,7 @@ class InputGuardrail:
                 "input guardrail passed",
             )
         else:
+            # 原始输入可能含秘密，只将 redaction 后的内容作为策略上下文与审计事实。
             result = await self._policy.evaluate(
                 PolicyCheck(
                     actor=actor,
@@ -308,6 +357,8 @@ def _decision(
     approval: PolicyApprovalRequirement | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> PolicyEvaluation:
+    """从检查输入构造统一 DTO，并在跨边界前脱敏所有调用方元数据与上下文。"""
+
     return PolicyEvaluation(
         decision=decision,
         reason=reason,
@@ -320,6 +371,8 @@ def _decision(
 
 
 def _string_list(value: object, *, fallback: Iterable[str]) -> list[str]:
+    """仅接受 YAML 列表中的字符串项；其他形态完整回退，避免部分错误配置半生效。"""
+
     if not isinstance(value, list):
         return list(fallback)
     items = cast(list[object], value)

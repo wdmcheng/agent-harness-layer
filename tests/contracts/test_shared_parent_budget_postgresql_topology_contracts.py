@@ -59,6 +59,8 @@ async def test_postgresql_0016_rejects_invalid_parent_graph_before_ddl(
                 agent_id: str = "agent-a",
                 trace_id: str = "trace-a",
             ) -> None:
+                """绕过运行时服务插入旧拓扑数据，供迁移前置校验验证 fail-closed 行为。"""
+
                 await connection.execute(
                     text(
                         "insert into agent_runs(id,tenant_id,session_id,agent_id,status,trace_id,"
@@ -83,6 +85,8 @@ async def test_postgresql_0016_rejects_invalid_parent_graph_before_ddl(
                 source_agent_id: str,
                 target_agent_id: str,
             ) -> None:
+                """插入历史 delegation relation，刻意保留可构造的图结构异常场景。"""
+
                 await connection.execute(
                     text(
                         "insert into agent_delegations("

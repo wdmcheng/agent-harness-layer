@@ -41,4 +41,6 @@ def retrieval_results_to_context_fragments(
 
 
 def _estimate_tokens(content: str) -> int:
+    """在缺少 provider tokenization 时给出保守的最小字符估算，避免零预算片段。"""
+
     return max(1, len(content) // 4)

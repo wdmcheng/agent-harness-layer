@@ -19,12 +19,18 @@ from agent_harness.runtime.queue import (
 
 
 def _clock() -> tuple[Callable[[], float], Callable[[float], None]]:
+    """提供可手动推进的单调时钟，消除 queue reclaim 合同对真实时间的依赖。"""
+
     current = 0.0
 
     def now() -> float:
+        """读取当前受控时间，不修改时钟状态。"""
+
         return current
 
     def advance(seconds: float) -> None:
+        """将受控时间前移指定秒数，模拟 worker 闲置和 lease 过期。"""
+
         nonlocal current
         current += seconds
 
@@ -32,6 +38,8 @@ def _clock() -> tuple[Callable[[], float], Callable[[float], None]]:
 
 
 def test_execute_message_has_stable_identity_and_canonical_hash() -> None:
+    """验证 execute 消息的操作身份、幂等默认值和 canonical 序列化稳定。"""
+
     message = build_execute_message(
         request_id="req-1",
         tenant_id="tenant-1",
@@ -57,6 +65,8 @@ def test_execute_message_has_stable_identity_and_canonical_hash() -> None:
 
 
 def test_approval_message_uses_lease_scoped_operation_and_only_refs() -> None:
+    """验证 approval 消息以 lease 隔离重复决议，并且 payload 只含可安全引用字段。"""
+
     message = build_resume_approval_message(
         request_id="req-approval",
         tenant_id="tenant-1",
@@ -95,6 +105,8 @@ def test_approval_message_uses_lease_scoped_operation_and_only_refs() -> None:
 def test_invalid_message_fails_closed_with_field_path(
     payload: dict[str, object], path: str
 ) -> None:
+    """验证任意关键字段损坏都被 schema 关闭式拒绝，并可定位到字段路径。"""
+
     base: dict[str, object] = {
         "schema_version": 1,
         "kind": "execute_run",
@@ -113,6 +125,8 @@ def test_invalid_message_fails_closed_with_field_path(
 
 
 def test_unknown_serialized_version_has_stable_error() -> None:
+    """验证 queue decoder 对未知版本返回稳定异常，而不是尝试猜测兼容格式。"""
+
     queue = InMemoryRunQueue()
 
     with pytest.raises(UnsupportedQueueMessageError, match="schema_version"):
@@ -125,6 +139,8 @@ def test_unknown_serialized_version_has_stable_error() -> None:
 
 @pytest.mark.asyncio
 async def test_fake_reuses_first_message_and_rejects_protected_conflict() -> None:
+    """验证相同幂等键重放复用首次消息，受保护身份变化则报告冲突。"""
+
     queue = InMemoryRunQueue()
     first = build_execute_message(
         request_id="req-first",
@@ -148,6 +164,8 @@ async def test_fake_reuses_first_message_and_rejects_protected_conflict() -> Non
 
 @pytest.mark.asyncio
 async def test_fake_reclaim_fences_stale_ack_and_current_owner_can_ack() -> None:
+    """验证 reclaim 换发 receipt 后旧 worker 不能确认，当前 owner 才可收口消息。"""
+
     now, advance = _clock()
     queue = InMemoryRunQueue(clock=now)
     message = build_execute_message(
@@ -177,6 +195,8 @@ async def test_fake_reclaim_fences_stale_ack_and_current_owner_can_ack() -> None
 
 @pytest.mark.asyncio
 async def test_execute_and_multiple_approval_operations_are_independent() -> None:
+    """验证同一 run 的 execute 与不同 approval lease 操作拥有互不冲突的队列身份。"""
+
     queue = InMemoryRunQueue()
     messages = [
         build_execute_message(request_id="req-1", tenant_id="t", run_id="r"),

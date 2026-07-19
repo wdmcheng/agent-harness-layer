@@ -42,16 +42,22 @@ INVALID_RUN_RELATION_IDS = {
 
 
 def sqlite_dsn(path: Path) -> str:
+    """为隔离迁移数据库生成异步 SQLite DSN，避免共享测试文件导致 revision 串扰。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
 def migration_config(dsn: str, *, x_args: list[str] | None = None) -> Config:
+    """构造携带可控 Alembic ``-x`` 参数的迁移配置，供升级/降级保护测试复用。"""
+
     config = alembic_config(dsn)
     config.cmd_opts = Namespace(x=x_args or [])
     return config
 
 
 def seed_identity(connection: sqlite3.Connection, tenant_id: str) -> None:
+    """写入满足 run 外键前提的最小 tenant 与 session，不掺入与 trace 无关的业务数据。"""
+
     connection.execute(
         "insert into tenants(id, display_name) values (?, ?)",
         (tenant_id, tenant_id),
@@ -70,6 +76,8 @@ def seed_run(
     parent_run_id: str | None = None,
     trace_id: object = None,
 ) -> None:
+    """插入可选父关系和 trace 上下文的旧版 run 行，为迁移前后约束映射提供受控基线。"""
+
     context = {} if trace_id is None else {"trace_id": trace_id}
     connection.execute(
         """
@@ -83,6 +91,8 @@ def seed_run(
 
 
 def prepare_0012a(path: Path) -> None:
+    """将临时库升级到 run-trace 迁移之前的既定 revision，避免测试从最新 schema 失去意义。"""
+
     run_migrations(sqlite_dsn(path), "0012a_embedding_cache_tenant_scope")
 
 
@@ -93,6 +103,8 @@ def seed_invalid_run_relation(
     tenant_id: str,
     run_id: str,
 ) -> None:
+    """向指定关联表植入跨 run 的非法旧数据，检验迁移预检能逐表拒绝脏关系。"""
+
     statements = {
         "approvals": (
             "insert into approvals("

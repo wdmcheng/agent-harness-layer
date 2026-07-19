@@ -8,6 +8,8 @@ from tests.contracts.test_shared_parent_budget_repository_contracts import *
 
 @pytest.mark.asyncio
 async def test_direct_claim_replay_conflict_and_root_isolation(tmp_path: Path) -> None:
+    """验证直接 claim 可幂等重放、冲突请求被拒绝且不同根账本互不影响。"""
+
     dsn = sqlite_dsn(tmp_path / "shared-budget.sqlite3")
     run_migrations(dsn)
     storage = SQLAlchemyStorage(dsn)

@@ -18,16 +18,22 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_pyproject(path: Path) -> dict[str, object]:
+    """以二进制模式读取 TOML，并返回供合同断言使用的顶层对象。"""
+
     with path.open("rb") as file:
         return cast(dict[str, object], tomllib.load(file))
 
 
 def as_mapping(value: object) -> Mapping[str, object]:
+    """将已断言为字典的 TOML 节点收窄为只读映射，避免测试隐式接受错误形状。"""
+
     assert isinstance(value, dict)
     return cast(Mapping[str, object], value)
 
 
 def test_agent_harness_package_exposes_version() -> None:
+    """验证核心包提供稳定版本号，供构建、doctor 与模板依赖共同引用。"""
+
     # 版本是 build、doctor 和 template dependency 共用的最小 package seam。
     module = importlib.import_module("agent_harness")
 
@@ -36,6 +42,8 @@ def test_agent_harness_package_exposes_version() -> None:
 
 
 def test_workspace_members_are_declared() -> None:
+    """验证根 workspace 声明核心包与服务模板，保证 monorepo 解析边界完整。"""
+
     # workspace members 是 monorepo 解析边界；少一个成员会让 path dependency 证据失真。
     pyproject = load_pyproject(ROOT / "pyproject.toml")
     tool = as_mapping(pyproject["tool"])
@@ -49,12 +57,16 @@ def test_workspace_members_are_declared() -> None:
 
 
 def test_top_level_boundaries_exist() -> None:
+    """验证顶层目录保持既定架构分区，避免可交付物与核心代码混放。"""
+
     # 顶层目录存在性只锁架构分区，避免后续把 scripts/templates/examples 混进 core。
     for relative_path in ["packages", "templates", "examples", "docs", "scripts"]:
         assert (ROOT / relative_path).exists()
 
 
 def test_service_app_shell_layout_exists() -> None:
+    """验证模板服务应用提供开发者入口目录，但不将目录存在误当作功能完成。"""
+
     # shell layout 是 app developer 的入口契约；目录存在不代表 runtime/API 已实现。
     service_app = ROOT / "templates" / "service-app"
     required = [
@@ -79,6 +91,8 @@ def test_service_app_shell_layout_exists() -> None:
 
 
 def test_service_app_declares_core_dependency_without_member_only_workspace_source() -> None:
+    """验证可复制模板使用版本化核心依赖，而 workspace source 只留在根项目注入。"""
+
     # template 必须声明版本依赖；workspace source 只由根项目注入，复制产物不能
     # 保留 member-only workspace=true 而绕过 wheel-only smoke。
     pyproject = load_pyproject(ROOT / "templates" / "service-app" / "pyproject.toml")
@@ -105,6 +119,8 @@ def test_service_app_declares_core_dependency_without_member_only_workspace_sour
 
 
 def test_service_app_declares_installable_package_boundary() -> None:
+    """验证模板 wheel 仅打包 app 与 agents，避免配置和文档意外成为顶层包。"""
+
     pyproject = load_pyproject(ROOT / "templates" / "service-app" / "pyproject.toml")
     build_system = as_mapping(pyproject["build-system"])
     tool = as_mapping(pyproject["tool"])
@@ -120,6 +136,8 @@ def test_service_app_declares_installable_package_boundary() -> None:
 
 
 def test_local_profile_is_parseable_without_provider_keys() -> None:
+    """验证离线 local profile 不要求真实 provider key，保持最小 smoke 可运行。"""
+
     # local profile 是离线 smoke seam；它不能被未来 provider adapter 改成需要真实 key。
     profiles_dir = ROOT / "templates" / "service-app" / "configs" / "profiles"
     settings = load_settings(profile="local", profiles_dir=profiles_dir)

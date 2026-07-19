@@ -34,6 +34,8 @@ class ExperimentComparisonBuilder:
     """按标签、holdout 与关键 regression 计算三态 recommendation。"""
 
     def __init__(self, *, failure_inline_limit: int = 100) -> None:
+        """设置单个响应可内联的失败差异上限，至少保留一条可读诊断。"""
+
         self.failure_inline_limit = max(1, failure_inline_limit)
 
     def build(
@@ -47,6 +49,13 @@ class ExperimentComparisonBuilder:
         authoritative_case_tags: dict[str, list[str]],
         request_id: str | None = None,
     ) -> ExperimentComparison:
+        """比较基线与候选评测，生成可审计的接受、拒绝或人工复核建议。
+
+        结构、标签、指标版本或本地证据不完整时必须 fail-closed 为 ``needs_review``。
+        完整时才以目标标签提升、holdout 阈值、关键回归和新增失败共同决定结论；
+        过大的失败列表外置为带校验和的引用，防止 API 响应失控。
+        """
+
         baseline_by_id = _by_case_id(baseline.case_results)
         candidate_by_id = _by_case_id(candidate.case_results)
         common_ids = sorted(set(baseline_by_id).intersection(candidate_by_id))
@@ -236,10 +245,14 @@ class ExperimentComparisonBuilder:
 
 
 def _by_case_id(results: list[ExperimentCaseResult]) -> dict[str, ExperimentCaseResult]:
+    """按 case id 建索引；完整性检查由调用方负责识别重复项导致的覆盖。"""
+
     return {result.case_id: result for result in results}
 
 
 def _mean(values: list[float]) -> float:
+    """计算非空 score 集合的算术平均；调用方已在构造前保证至少有一个元素。"""
+
     return sum(values) / len(values)
 
 
@@ -250,6 +263,8 @@ def _failure_difference(
     tags: list[str],
     truth_ref: str,
 ) -> FailureDifference:
+    """构造单个 case 的分数变化及受限公开证据引用，不携带 case 原始内容。"""
+
     return FailureDifference(
         case_id=baseline.case_id,
         subset=baseline.subset,

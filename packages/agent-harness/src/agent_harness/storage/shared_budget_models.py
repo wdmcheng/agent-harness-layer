@@ -36,16 +36,26 @@ def _identity_text(key: str) -> ColumnElement[str]:
 
 
 def _required_identity_equal(key: str, value: object) -> ColumnElement[bool]:
+    """要求 identity JSON 的字段存在且等于对应关系列或常量。"""
+
     field = _identity_text(key)
     return and_(field.is_not(None), field == value)
 
 
 def _required_identity_text(key: str) -> ColumnElement[bool]:
+    """要求 identity JSON 的文本字段非空，防止空值伪造完整的可重放身份。"""
+
     field = _identity_text(key)
     return and_(field.is_not(None), func.length(field) > 0)
 
 
 def _claim_identity_json_shape() -> ColumnElement[bool]:
+    """定义顶层预算 claim 的 JSON 身份与关系列之间的不可变绑定。
+
+    direct 和 delegation 的身份字段组合不同，ORM metadata 必须与迁移约束完全同构；
+    否则新建数据库与升级数据库会对同一无效记录给出不同结果。
+    """
+
     operation_kind = column("operation_kind", String)
     usage_kind = column("usage_kind", String)
     schema_version = column("identity_schema_version", String)
@@ -82,6 +92,8 @@ def _claim_identity_json_shape() -> ColumnElement[bool]:
 
 
 def _allocation_identity_json_shape() -> ColumnElement[bool]:
+    """定义 child allocation 的身份 JSON 形状，禁止携带顶层 delegation 路由字段。"""
+
     return and_(
         _required_identity_equal("ownership_kind", "allocation"),
         _required_identity_equal("usage_kind", column("usage_kind", String)),

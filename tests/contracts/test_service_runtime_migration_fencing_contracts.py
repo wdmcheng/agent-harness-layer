@@ -52,6 +52,8 @@ from tests.contracts.test_service_runtime_storage_contracts import (
 def test_0012_adds_service_runtime_private_columns_and_terminal_index(
     tmp_path: Path,
 ) -> None:
+    """验证运行与审批队列私有字段已迁移，终态事件唯一索引也已建立。"""
+
     db_path = tmp_path / "service-runtime.db"
     run_migrations(_dsn(db_path))
 
@@ -101,6 +103,8 @@ def test_0012_adds_service_runtime_private_columns_and_terminal_index(
 async def test_run_repository_keeps_queue_state_private_and_fences_execution(
     tmp_path: Path,
 ) -> None:
+    """验证队列元数据不出现在公开 DTO，且执行 claim 必须匹配规范化操作标识。"""
+
     dsn = _dsn(tmp_path / "queued-run.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -184,6 +188,8 @@ async def test_run_repository_keeps_queue_state_private_and_fences_execution(
 
 @pytest.mark.asyncio
 async def test_service_approval_private_state_is_mutually_exclusive(tmp_path: Path) -> None:
+    """验证审批私有 lease、请求、消息与工作流字段必须成组匹配后才能取得执行权。"""
+
     dsn = _dsn(tmp_path / "approval-queue.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

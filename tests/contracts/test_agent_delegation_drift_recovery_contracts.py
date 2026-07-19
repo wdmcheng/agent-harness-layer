@@ -359,6 +359,8 @@ async def test_recovery_never_relaunches_started_unknown_delegation(tmp_path: Pa
 
 @pytest.mark.asyncio
 async def test_second_key_budget_denial_preserves_first_operation(tmp_path: Path) -> None:
+    """验证第二个幂等键预算不足不会损坏已成功的第一个 delegation operation。"""
+
     storage, service, runtime, parent_run_id, sink = await _build_service(tmp_path)
     try:
         first = await service.delegate(_request(parent_run_id), identity=_identity())

@@ -132,6 +132,8 @@ async def test_new_claim_fails_closed_on_corrupt_settled_reservation(
 async def test_terminal_parent_rejects_new_claim_without_reservation_or_outbox(
     tmp_path: Path,
 ) -> None:
+    """父运行已终态时必须在任何预算预约和证据 outbox 写入前拒绝新的委派请求。"""
+
     path = tmp_path / "delegation-terminal-parent.db"
     run_migrations(sqlite_dsn(path))
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
@@ -161,6 +163,8 @@ async def test_terminal_parent_rejects_new_claim_without_reservation_or_outbox(
 
 @pytest.mark.asyncio
 async def test_same_key_different_hash_conflicts_before_new_reservation(tmp_path: Path) -> None:
+    """相同幂等键携带不同语义载荷必须先报冲突，不能消耗额外预算或创建第二条关系。"""
+
     path = tmp_path / "delegation-conflict.db"
     run_migrations(sqlite_dsn(path))
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
@@ -192,6 +196,8 @@ async def test_same_key_different_hash_conflicts_before_new_reservation(tmp_path
 
 @pytest.mark.asyncio
 async def test_different_keys_reject_second_worst_case_budget(tmp_path: Path) -> None:
+    """不同幂等键仍共享父预算，第二个最坏情况预约必须在持久化前被拒绝。"""
+
     path = tmp_path / "delegation-budget.db"
     run_migrations(sqlite_dsn(path))
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
@@ -230,6 +236,8 @@ async def test_different_keys_reject_second_worst_case_budget(tmp_path: Path) ->
 async def test_sqlite_concurrent_same_and_different_keys_are_parent_serialized(
     tmp_path: Path,
 ) -> None:
+    """SQLite 下同父运行的请求须序列化：相同键重放同一 claim，不同键竞争同一预算。"""
+
     path = tmp_path / "delegation-concurrent-budget.db"
     run_migrations(sqlite_dsn(path))
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))
@@ -242,6 +250,8 @@ async def test_sqlite_concurrent_same_and_different_keys_are_parent_serialized(
             key: str,
             request_hash: str,
         ) -> DelegationClaimResult | Exception:
+            """在父运行幂等锁内执行一次 claim，并把竞争异常返回给汇总断言而非吞掉。"""
+
             try:
                 scope = f"delegation-parent:tenant-a:{parent_run_id}"
                 async with storage.idempotency_request_lock(scope):
@@ -293,6 +303,8 @@ async def test_sqlite_concurrent_same_and_different_keys_are_parent_serialized(
 
 @pytest.mark.asyncio
 async def test_capacity_exhaustion_rolls_back_claim_budget_and_outbox(tmp_path: Path) -> None:
+    """证据容量不足必须使 claim、预算预约和 outbox 同时回滚，不能留下半完成委派。"""
+
     path = tmp_path / "delegation-capacity.db"
     run_migrations(sqlite_dsn(path))
     storage = SQLAlchemyStorage.from_dsn(sqlite_dsn(path))

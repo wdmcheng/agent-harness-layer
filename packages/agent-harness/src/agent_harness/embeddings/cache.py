@@ -10,6 +10,8 @@ class StorageEmbeddingCache:
     """每次 cache 操作自开 UoW，避免 provider 持有已关闭 session。"""
 
     def __init__(self, storage: SQLAlchemyStorage) -> None:
+        """保存 storage seam；每次缓存操作独立提交，避免 provider 生命周期跨越 UoW。"""
+
         self._storage = storage
 
     async def get(
@@ -20,6 +22,8 @@ class StorageEmbeddingCache:
         model: str,
         input_hash: str,
     ) -> EmbeddingCacheRecord | None:
+        """读取并提交 cache hit 计数等访问副作用，供实际 embedding 调用使用。"""
+
         async with self._storage.uow() as uow:
             record = await uow.embedding_cache.get(
                 tenant_id=tenant_id,
@@ -69,6 +73,8 @@ class StorageEmbeddingCache:
             return record
 
     async def put(self, data: EmbeddingCacheCreate) -> EmbeddingCacheRecord:
+        """写入或更新 tenant-scoped embedding 缓存，并在返回前提交本次 UoW。"""
+
         async with self._storage.uow() as uow:
             record = await uow.embedding_cache.put(data)
             await uow.commit()

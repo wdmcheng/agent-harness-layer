@@ -93,14 +93,20 @@ async def test_event_bus_rejects_terminal_mismatch_before_sink_queries(
     """EventBus 必须在 seq 查询、artifact 与持久化前拒绝非法组合。"""
 
     class CountingSink(LocalJsonlEventSink):
+        """记录 EventBus 是否在终态门禁失败前触碰底层读取接口。"""
+
         latest_calls = 0
         terminal_calls = 0
 
         async def latest_seq(self, run_id: str) -> int:
+            """累计序号查询次数，再委托本地 JSONL 实现返回实际序号。"""
+
             self.latest_calls += 1
             return await super().latest_seq(run_id)
 
         async def has_terminal(self, run_id: str) -> bool:
+            """累计终态查询次数，再委托本地 JSONL 实现返回实际状态。"""
+
             self.terminal_calls += 1
             return await super().has_terminal(run_id)
 

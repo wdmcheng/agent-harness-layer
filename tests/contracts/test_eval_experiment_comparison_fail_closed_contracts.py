@@ -32,6 +32,8 @@ from tests.contracts.test_eval_experiment_comparison_contracts import (
 async def test_experiment_service_reuses_split_persists_local_first_and_degrades_provider(
     tmp_path: Path,
 ) -> None:
+    """验证实验重放复用 split 与本地结果，外部发布失败只降级而不丢失证据。"""
+
     from agent_harness.evals import ExperimentRequest, ExperimentService, HarnessVersionBuilder
     from agent_harness.storage import EvalDatasetSplitCreate, SQLAlchemyStorage, run_migrations
 
@@ -138,6 +140,8 @@ async def test_experiment_service_reuses_split_persists_local_first_and_degrades
 async def test_baseline_only_cross_tenant_and_partial_failure_are_fail_closed(
     tmp_path: Path,
 ) -> None:
+    """验证缺候选、跨租户读取和候选部分失败均保守收口，不输出误导性比较结论。"""
+
     from agent_harness.evals import (
         EvalExperimentError,
         ExperimentRequest,

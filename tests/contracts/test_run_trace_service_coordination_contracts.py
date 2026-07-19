@@ -37,6 +37,8 @@ async def test_service_run_adapter_skips_concurrent_replay_guardrail(tmp_path: P
     release = asyncio.Event()
 
     class CountingExecutor(FakeContractExecutor):
+        """记录真实执行次数的 executor 桩，用于验证并发提交不会重复运行。"""
+
         calls = 0
 
         async def run(
@@ -44,20 +46,30 @@ async def test_service_run_adapter_skips_concurrent_replay_guardrail(tmp_path: P
             request: AgentExecutionRequest,
             context: AgentExecutionContext,
         ) -> AgentExecutionResult:
+            """递增调用计数后沿用基础桩结果，保留真实 runtime 调用路径。"""
+
             self.calls += 1
             return await super().run(request, context)
 
     class AllowDecision:
+        """最小允许决策，避免测试依赖具体 guardrail provider。"""
+
         decision = "allow"
         reason = "allowed"
 
         def to_payload(self) -> dict[str, str]:
+            """输出事件写入所需的最小可序列化决策形状。"""
+
             return {"decision": self.decision}
 
     class CountingGuardrail:
+        """阻塞首次检查并记录次数，使并发提交窗口可被确定性观测。"""
+
         calls = 0
 
         async def check(self, **_kwargs: object) -> AllowDecision:
+            """通知首个提交已进入 guardrail 后等待释放，模拟慢速安全检查。"""
+
             self.calls += 1
             entered.set()
             await release.wait()
@@ -127,6 +139,8 @@ async def test_service_run_adapter_serializes_same_trace_across_distinct_keys(
     release = asyncio.Event()
 
     class CountingExecutor(FakeContractExecutor):
+        """记录执行次数的第二组独立 executor 桩，隔离跨测试状态。"""
+
         calls = 0
 
         async def run(
@@ -134,20 +148,30 @@ async def test_service_run_adapter_serializes_same_trace_across_distinct_keys(
             request: AgentExecutionRequest,
             context: AgentExecutionContext,
         ) -> AgentExecutionResult:
+            """记录调用后复用基础成功行为，用于断言同 trace 不会双执行。"""
+
             self.calls += 1
             return await super().run(request, context)
 
     class AllowDecision:
+        """为第二个并发场景提供固定 allow 决策。"""
+
         decision = "allow"
         reason = "allowed"
 
         def to_payload(self) -> dict[str, str]:
+            """提供 guardrail event 需要的稳定最小 payload。"""
+
             return {"decision": self.decision}
 
     class CountingGuardrail:
+        """控制第二个提交场景的 guardrail 阻塞点并记录进入次数。"""
+
         calls = 0
 
         async def check(self, **_kwargs: object) -> AllowDecision:
+            """等待测试显式释放，确保竞争者到达同一 trace 的协调锁边界。"""
+
             self.calls += 1
             entered.set()
             await release.wait()
@@ -167,6 +191,8 @@ async def test_service_run_adapter_serializes_same_trace_across_distinct_keys(
     identity = IdentityContext.local_default(session_id="same-trace-session")
 
     async def submit(orchestrator: RunOrchestrator, idempotency_key: str) -> Any:
+        """以指定幂等键提交同一显式 trace，供并发冲突场景复用。"""
+
         return await create_run_with_orchestrator(
             RunCreateRequest(
                 agent_id="fake-agent",

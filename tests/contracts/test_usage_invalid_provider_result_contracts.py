@@ -29,6 +29,8 @@ from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
 
 def _context(run_id: str) -> UsageEvidenceContext:
+    """构造带完整 tenant/run/request/trace 关联的 usage 结算上下文。"""
+
     return UsageEvidenceContext(
         tenant_id="tenant-a",
         run_id=run_id,
@@ -53,6 +55,8 @@ def test_model_response_rejects_invalid_usage_metrics(
     field_name: str,
     field_value: object,
 ) -> None:
+    """验证模型响应 DTO 在 provider 返回前拒绝负数、布尔和非有限 usage 指标。"""
+
     payload: dict[str, object] = {
         "provider": "provider-a",
         "model": "model-a",
@@ -76,6 +80,8 @@ def test_embedding_response_rejects_invalid_usage_metrics(
     latency_ms: object,
     cache_hit: object,
 ) -> None:
+    """验证 embedding 响应 DTO 对延迟与 cache 命中标志执行严格类型和范围校验。"""
+
     with pytest.raises(ValueError):
         EmbeddingResponse.model_validate(
             {
@@ -100,6 +106,8 @@ async def _assert_failed_settlement(
     run_id: str,
     error_code: str,
 ) -> None:
+    """断言 provider 已调用后的失败结算完整发布、脱敏并归还事件容量预约。"""
+
     events = await LocalJsonlEventSink(event_path).read(run_id=run_id)
     assert [item.event_type for item in events] == [
         CanonicalEventType.MODEL_REQUEST_STARTED,
@@ -124,11 +132,17 @@ async def _assert_failed_settlement(
 
 @pytest.mark.asyncio
 async def test_invalid_model_usage_return_closes_failed_settlement(tmp_path: Path) -> None:
+    """验证绕过 DTO 校验的非法模型 usage 仍被服务拦截并收口为失败证据。"""
+
     class InvalidUsageProvider:
+        """用 model_construct 模拟恶意 adapter 绕过正常 Pydantic 构造校验。"""
+
         provider_id = "invalid-model"
         calls = 0
 
         def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+            """返回负 token 的损坏响应，且保留私有 payload 以验证错误路径脱敏。"""
+
             self.calls += 1
             # model_construct 模拟恶意或损坏 adapter 绕过边界 DTO 校验。
             return ModelResponse.model_construct(
@@ -178,12 +192,18 @@ async def test_invalid_model_usage_return_closes_failed_settlement(tmp_path: Pat
 
 @pytest.mark.asyncio
 async def test_invalid_embedding_usage_return_closes_failed_settlement(tmp_path: Path) -> None:
+    """验证非法 embedding usage 同样落为失败结算，不遗留容量或敏感向量引用。"""
+
     class InvalidUsageProvider:
+        """返回绕过构造校验的负延迟 embedding 响应的 provider 替身。"""
+
         provider = "invalid-embedding"
         model = "embedding-a"
         calls = 0
 
         async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+            """构造含私有引用且负延迟的损坏响应，覆盖 provider 后置校验路径。"""
+
             self.calls += 1
             return EmbeddingResponse.model_construct(
                 provider=self.provider,

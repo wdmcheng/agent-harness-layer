@@ -121,6 +121,8 @@ class ToolExecutionError(RuntimeError):
         field_path: str | None = None,
         hint: str | None = None,
     ) -> None:
+        """保存 Registry 可序列化的错误字段，避免 handler 直接拼装响应 DTO。"""
+
         super().__init__(message)
         self.code = code
         self.message = message

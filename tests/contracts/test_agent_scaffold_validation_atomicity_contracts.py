@@ -47,6 +47,8 @@ from tests.contracts.test_agent_scaffold_cli_contracts import (
 
 
 def test_scaffold_cli_help_success_structure_and_existing_target(tmp_path: Path) -> None:
+    """验证 scaffold CLI 帮助、成功产物、registry 可见性及重复目标拒绝的一整条契约。"""
+
     help_result = runner.invoke(app, ["scaffold", "agent", "--help"])
     assert help_result.exit_code == 0
     assert "AGENT_ID" in help_result.stdout
@@ -137,6 +139,8 @@ def test_scaffold_cli_help_success_structure_and_existing_target(tmp_path: Path)
     ["", "/tmp/agent", "../escape", "support..triage", "Support", "bad-name", "a/b", ".a"],
 )
 def test_scaffold_invalid_ids_leave_filesystem_unchanged(tmp_path: Path, agent_id: str) -> None:
+    """验证所有非法 agent 标识关闭式失败，且不会在目标目录留下任意文件或目录。"""
+
     agents_dir = _agents_root(tmp_path)
     before = sorted(path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob("*"))
     result = runner.invoke(
@@ -150,6 +154,8 @@ def test_scaffold_invalid_ids_leave_filesystem_unchanged(tmp_path: Path, agent_i
 
 
 def test_scaffold_rejects_parent_symlink_escape(tmp_path: Path) -> None:
+    """验证父目录符号链接逃逸被拒绝，生成过程不会写入外部路径。"""
+
     agents_dir = _agents_root(tmp_path)
     external = tmp_path / "external"
     external.mkdir()
@@ -166,10 +172,14 @@ def test_staging_is_invisible_and_validation_failure_is_atomic(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """验证 staging 对 registry 不可见，且校验失败后完整清理暂存与锁文件。"""
+
     agents_dir = _agents_root(tmp_path)
     observed_staging = False
 
     def observe_then_validate(root: Path, target: Path, agent_id: str) -> None:
+        """在暂存校验时断言公开 agents 目录尚未暴露目标，再执行真实 registry 验证。"""
+
         nonlocal observed_staging
         if root != agents_dir:
             observed_staging = True
@@ -191,6 +201,8 @@ def test_staging_is_invisible_and_validation_failure_is_atomic(
     failing_agents.mkdir()
 
     def fail_validation(root: Path, target: Path, agent_id: str) -> None:
+        """注入确定性校验失败，验证发布前任意异常都不会泄露半成品。"""
+
         del root, target, agent_id
         raise ValueError("injected schema failure")
 
@@ -206,6 +218,8 @@ def test_default_discovery_uses_copied_service_app_root_and_unknown_root_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """验证复制出的 service 根目录可自动发现 agents，而未知工作目录要求显式路径。"""
+
     copied = tmp_path / "copied-service"
     agents_dir = copied / "agents"
     nested = copied / "docs" / "guide"
@@ -236,6 +250,8 @@ def test_default_discovery_uses_copied_service_app_root_and_unknown_root_fails(
 def test_explicit_custom_agents_dir_emits_importable_schema_refs(
     tmp_path: Path,
 ) -> None:
+    """验证自定义 agents 根目录生成的 schema 引用可被 Python import，路径不被硬编码。"""
+
     agents_dir = tmp_path / "custom-root"
     agents_dir.mkdir()
     scaffold_agent_package("support.triage", agents_dir=agents_dir)

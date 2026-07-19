@@ -25,6 +25,8 @@ from app.main import create_app
 
 
 def test_api_contract_documents_auth_policy_approval_endpoints() -> None:
+    """API 合约必须记录认证、策略与审批入口及已落地的 trace 约束，避免文档承诺滞后实现。"""
+
     contract = (ROOT / "API-Contract.md").read_text(encoding="utf-8")
 
     assert "### APR-001 列出 run approvals" in contract
@@ -47,6 +49,8 @@ def test_api_contract_documents_auth_policy_approval_endpoints() -> None:
 def test_openapi_exposes_auth_policy_hitl_paths_security_and_error_envelopes(
     tmp_path: Path,
 ) -> None:
+    """OpenAPI 应为所有受保护入口声明 Bearer 安全方案与统一错误封套，并精确投影公开 DTO。"""
+
     from agent_harness.auth import StaticTokenVerifier
 
     app = create_app(
@@ -140,6 +144,8 @@ def test_openapi_exposes_auth_policy_hitl_paths_security_and_error_envelopes(
 async def test_invalid_bearer_token_rejects_agents_and_run_without_side_effects(
     tmp_path: Path,
 ) -> None:
+    """无效 token 必须在列举 agent 和创建 run 前返回 401，不能留下运行、审批或审计副作用。"""
+
     from agent_harness.auth import StaticTokenVerifier
 
     db_path = tmp_path / "auth.db"
@@ -192,6 +198,8 @@ async def test_invalid_bearer_token_rejects_agents_and_run_without_side_effects(
 async def test_valid_token_without_run_create_permission_cannot_create_run(
     tmp_path: Path,
 ) -> None:
+    """身份有效不等于有创建权限；策略拒绝必须在 run/checkpoint/approval 持久化之前发生。"""
+
     from agent_harness.audit import AuditService
     from agent_harness.auth import StaticTokenVerifier
     from agent_harness.policy import PolicyEngine, YamlPolicyProvider
@@ -247,6 +255,8 @@ async def test_valid_token_without_run_create_permission_cannot_create_run(
 async def test_env_example_local_profile_uses_default_identity_without_authorization(
     tmp_path: Path,
 ) -> None:
+    """本地示例环境保留无授权的开发体验，但只限 local profile，不能改变 service 的认证边界。"""
+
     from app.main import create_app
 
     service_root = tmp_path / "service-app"
@@ -277,6 +287,8 @@ async def test_env_example_local_profile_uses_default_identity_without_authoriza
 async def test_invalid_resume_token_is_not_echoed_in_error_envelope(
     tmp_path: Path,
 ) -> None:
+    """无效恢复令牌即使随请求提交也不得出现在 404 错误封套，避免敏感 continuation 泄漏。"""
+
     from agent_harness.auth import StaticTokenVerifier
 
     db_path = tmp_path / "resume-redaction.db"

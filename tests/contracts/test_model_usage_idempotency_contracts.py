@@ -29,6 +29,8 @@ from agent_harness.storage import RunCreate, SessionCreate, SQLAlchemyStorage, r
 
 
 async def _seed_run(storage: SQLAlchemyStorage) -> str:
+    """创建拥有租户、会话和 trace 的最小运行，供用量结算落库。"""
+
     async with storage.uow() as uow:
         await uow.tenants.ensure("tenant-a")
         await uow.sessions.ensure(
@@ -52,6 +54,8 @@ async def _seed_run(storage: SQLAlchemyStorage) -> str:
 
 
 def _context(run_id: str) -> UsageEvidenceContext:
+    """构造与夹具运行一致的用量证据上下文，固定请求与追踪身份。"""
+
     return UsageEvidenceContext(
         tenant_id="tenant-a",
         run_id=run_id,
@@ -62,28 +66,42 @@ def _context(run_id: str) -> UsageEvidenceContext:
 
 
 async def _resolve_trace(**_: object) -> str:
+    """为本地事件总线返回稳定 trace，避免测试依赖运行时查询实现。"""
+
     return "trace-a"
 
 
 class CountingModelProvider(FakeModelProvider):
+    """记录 provider 调用次数的假模型，用于证明重复请求不会重放副作用。"""
+
     def __init__(self) -> None:
+        """初始化调用计数；其余响应语义复用基础 fake provider。"""
+
         self.calls = 0
 
     def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        """记录一次实际模型执行后返回确定性 fake 响应。"""
+
         self.calls += 1
         return super().complete(request, model=model)
 
 
 class CountingEmbeddingProvider:
+    """可选阻塞的 embedding provider 替身，用于观察并发预约与实际调用次数。"""
+
     provider = "counting-embedding"
     model = "embedding-model"
 
     def __init__(self, *, release: asyncio.Event | None = None) -> None:
+        """保存可选释放闸门，并初始化调用与开始信号。"""
+
         self.calls = 0
         self.started = asyncio.Event()
         self.release = release
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+        """标记真实 provider 路径已进入，必要时阻塞后返回固定 cache miss 响应。"""
+
         self.calls += 1
         self.started.set()
         if self.release is not None:
@@ -108,28 +126,41 @@ class FailFinalOnceSink:
     manages_event_capacity = False
 
     def __init__(self, delegate: LocalJsonlEventSink) -> None:
+        """包装真实本地 sink，仅对第一个用量终态写入注入故障。"""
+
         self.delegate = delegate
         self.failed = False
 
     async def write(self, event: CanonicalEvent) -> CanonicalEvent:
+        """首次目标事件失败，之后委托给真实 sink 以验证恢复补投。"""
+
         if event.event_type is CanonicalEventType.MODEL_USAGE_UPDATED and not self.failed:
             self.failed = True
             raise OSError("injected final write failure")
         return await self.delegate.write(event)
 
     async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
+        """转发读取协议，使替身可作为完整事件 sink 使用。"""
+
         return await self.delegate.read(run_id=run_id, after_seq=after_seq)
 
     async def latest_seq(self, run_id: str) -> int:
+        """转发最新序号查询，供容量与恢复逻辑保持真实行为。"""
+
         return await self.delegate.latest_seq(run_id)
 
     async def has_terminal(self, run_id: str) -> bool:
+        """转发运行终态查询，不让故障注入改变其他事件语义。"""
+
         return await self.delegate.has_terminal(run_id)
 
 
 async def _assert_settled_once(
     *, storage: SQLAlchemyStorage, sink: LocalJsonlEventSink, run_id: str
 ) -> None:
+    """断言一次调用最终只留下成对用量事件、已发布 outbox 与已释放容量。"""
+
+    # event、outbox 和容量快照共同证明恢复没有重复 provider 或遗留 reservation。
     events = await sink.read(run_id=run_id)
     assert [event.event_type.value for event in events] == [
         "model.request.started",

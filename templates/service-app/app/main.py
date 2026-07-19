@@ -114,6 +114,7 @@ def create_app(
     启动则从 profile 构造 RuntimeComponents，并由 lifespan 统一释放 storage engine。
     """
 
+    # 始终先加载设置以生成健康摘要；测试可替换运行组件，但仍复用同一配置语义。
     settings = load_settings(profile=profile, profiles_dir=profiles_dir)
     health_summary = health_summary_from_settings(settings)
     components: RuntimeComponents | None = None
@@ -138,6 +139,8 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+        """将真实运行组件的关闭责任集中在应用生命周期，测试注入组件无需被接管。"""
+
         try:
             yield
         finally:
@@ -153,6 +156,8 @@ def create_app(
     app.include_router(health_router)
 
     async def http_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        """将显式 HTTP 异常映射为统一错误信封，并保留未知路由的 404 语义。"""
+
         http_exc = cast(HTTPException, exc)
         code = "api.not_found" if http_exc.status_code == 404 else "api.http_error"
         return api_error_response(
@@ -163,6 +168,8 @@ def create_app(
         )
 
     async def lookup_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        """将领域查找失败收敛为不泄露底层存储细节的公开 404。"""
+
         return api_error_response(
             request_id=request_id_from(request),
             code="api.not_found",
@@ -174,6 +181,8 @@ def create_app(
         request: Request,
         exc: Exception,
     ) -> JSONResponse:
+        """将运行状态机拒绝映射为可重试判断所需的稳定 409 错误码。"""
+
         return api_error_response(
             request_id=request_id_from(request),
             code="run.invalid_transition",
@@ -182,6 +191,8 @@ def create_app(
         )
 
     async def run_enqueue_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        """隐藏队列后端异常，只向客户端声明运行暂时无法入队。"""
+
         return api_error_response(
             request_id=request_id_from(request),
             code="run.enqueue_unavailable",
@@ -190,6 +201,8 @@ def create_app(
         )
 
     async def run_trace_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        """透传受控 trace 错误码和状态码，避免转换时丢失冲突类型。"""
+
         trace_exc = cast(RunTraceError, exc)
         return api_error_response(
             request_id=request_id_from(request),
@@ -199,6 +212,8 @@ def create_app(
         )
 
     async def auth_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        """将认证失败输出为公开认证错误，不返回 token 校验细节。"""
+
         auth_exc = cast(AuthError, exc)
         return api_error_response(
             request_id=request_id_from(request),
@@ -208,6 +223,8 @@ def create_app(
         )
 
     async def policy_denied_handler(request: Request, exc: Exception) -> JSONResponse:
+        """将策略拒绝映射为其领域错误码，以便客户端区分认证与授权失败。"""
+
         policy_exc = cast(PolicyDeniedError, exc)
         return api_error_response(
             request_id=request_id_from(request),
@@ -217,6 +234,8 @@ def create_app(
         )
 
     async def approval_conflict_handler(request: Request, exc: Exception) -> JSONResponse:
+        """将审批状态竞争转为幂等调用可识别的稳定冲突响应。"""
+
         approval_exc = cast(ApprovalStateConflict, exc)
         return api_error_response(
             request_id=request_id_from(request),
@@ -226,6 +245,8 @@ def create_app(
         )
 
     async def approval_enqueue_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        """审批队列不可用时返回短暂故障，不暴露底层 broker 信息。"""
+
         return api_error_response(
             request_id=request_id_from(request),
             code="approval.enqueue_unavailable",
@@ -234,9 +255,12 @@ def create_app(
         )
 
     async def validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        """从首个请求校验错误提取安全字段路径，保持 API 错误载荷稳定。"""
+
         validation_exc = cast(RequestValidationError, exc)
         errors = cast(list[dict[str, Any]], validation_exc.errors())
         first_error: dict[str, Any] = errors[0] if errors else {}
+        # Pydantic 的 loc 可能是 list、tuple 或异常对象；仅接受序列以避免错误处理再报错。
         raw_location = first_error.get("loc", ())
         location = (
             cast(list[object] | tuple[object, ...], raw_location)
@@ -256,6 +280,8 @@ def create_app(
         )
 
     async def eval_experiment_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        """保留实验领域错误的状态、字段路径和修复提示，同时交由统一脱敏出口。"""
+
         eval_exc = cast(EvalExperimentError, exc)
         return api_error_response(
             request_id=request_id_from(request),
@@ -267,6 +293,8 @@ def create_app(
         )
 
     async def registry_load_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        """将注册表首个受控诊断映射为 404、409 或 422，不返回加载器堆栈。"""
+
         registry_exc = cast(RegistryLoadError, exc)
         error = registry_exc.error_details[0]
         status_code = 422
@@ -286,6 +314,8 @@ def create_app(
         return JSONResponse(status_code=status_code, content=envelope.to_payload())
 
     async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        """作为最后防线把未识别异常收敛为脱敏的 500 错误信封。"""
+
         # 兜底 handler 是 API error envelope 的最后防线。具体异常可以在上面
         # 细分状态码，但不能让内部 RuntimeError/ValueError 退回 FastAPI 默认 detail，
         # 更不能把尚未识别的 DSN、路径或 provider 异常文本放进公开响应。
@@ -296,6 +326,7 @@ def create_app(
             status_code=500,
         )
 
+    # 具体领域异常先注册，最终 ``Exception`` 只接收尚未被前述规则覆盖的错误。
     app.add_exception_handler(HTTPException, http_exception_handler)
     # Starlette 负责生成未知 route 的 404；同时注册基类才能让未定义
     # `/api/v1/tools` 等路径也保持统一 envelope，而不是退回默认 detail。
@@ -392,6 +423,7 @@ def create_app(
                 "500",
             },
         }
+        # FastAPI 会根据异常类型自动扩展响应码；仅对已有契约的操作做精确白名单收敛。
         for (path, method), allowed in allowed_response_statuses.items():
             operation = cast(dict[str, Any], paths[path][method])
             responses = cast(dict[str, Any], operation["responses"])

@@ -37,6 +37,8 @@ class AuditLogRecord(AuditLogCreate):
 
 
 def _audit_log_record(model: AuditLogModel) -> AuditLogRecord:
+    """将 ORM 审计行转换为 DTO，保留 scope 以区分 run 与非 run 证据。"""
+
     return AuditLogRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -53,6 +55,8 @@ class AuditLogRepository:
     """AuditService 使用的追加式审计 repository。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定当前 UoW session；审计追加与业务状态由调用方共同提交。"""
+
         self._session = session
 
     async def create(self, data: AuditLogCreate) -> AuditLogRecord:
@@ -90,6 +94,8 @@ class AuditLogRepository:
         return _audit_log_record(model)
 
     async def list_for_tenant(self, tenant_id: str) -> list[AuditLogRecord]:
+        """按创建顺序列出租户审计记录，不允许无 tenant 范围的全局读取。"""
+
         result = await self._session.scalars(
             select(AuditLogModel)
             .where(AuditLogModel.tenant_id == tenant_id)

@@ -34,7 +34,10 @@ class RunEnqueueUnavailable(RuntimeError):
 class PendingDelegationRecovery(Protocol):
     """runtime 只依赖的 delegation 恢复能力，避免形成 runtime/import 环。"""
 
-    async def recover_pending_for_parent(self, *, parent_run_id: str) -> int: ...
+    async def recover_pending_for_parent(self, *, parent_run_id: str) -> int:
+        """补投指定 parent 已提交但尚未发布的委派结果，返回恢复数量。"""
+
+        ...
 
 
 class OrchestratorState:
@@ -50,6 +53,8 @@ class OrchestratorState:
         executor_services: Mapping[str, object] | None = None,
         queue: RunQueue | None = None,
     ) -> None:
+        """保存运行组件并为生产 composition 补齐持久化 trace 解析器。"""
+
         self._storage = storage
         self._event_bus = event_bus
         if not event_bus.run_trace_resolver_configured:
@@ -202,6 +207,8 @@ class OrchestratorState:
         request_id: str | None = None,
         trace_id: str | None = None,
     ) -> ResumeToken:
+        """由 checkpoint mixin 实现：持久化可续跑状态并返回受限 resume token。"""
+
         raise NotImplementedError
 
     async def _fail_execution(
@@ -217,6 +224,8 @@ class OrchestratorState:
         defer_terminal: bool = False,
         approval_recovery: dict[str, Any] | None = None,
     ) -> RunResult:
+        """由生命周期 mixin 实现：失败收口、可选延迟终态及审批恢复信息持久化。"""
+
         raise NotImplementedError
 
     async def _complete(
@@ -231,6 +240,8 @@ class OrchestratorState:
         input: dict[str, Any] | None = None,
         defer_terminal: bool = False,
     ) -> CanonicalEvent | None:
+        """由生命周期 mixin 实现：成功收口并在适用时发布终态事件。"""
+
         raise NotImplementedError
 
     async def _defer_pending_delegation_terminal(
@@ -245,6 +256,8 @@ class OrchestratorState:
         trace_id: str | None = None,
         approval_recovery: dict[str, Any] | None = None,
     ) -> RunResult | None:
+        """由委派生命周期 mixin 实现：存在未完成子操作时延后 parent 终态。"""
+
         raise NotImplementedError
 
     async def _apply_execution_result(
@@ -256,6 +269,8 @@ class OrchestratorState:
         defer_terminal: bool = False,
         approval_recovery: dict[str, Any] | None = None,
     ) -> RunResult:
+        """由执行结果 mixin 实现：把 executor 返回值映射为持久化运行状态与事件。"""
+
         raise NotImplementedError
 
     async def fail_run(
@@ -269,4 +284,6 @@ class OrchestratorState:
         input: dict[str, Any] | None = None,
         defer_terminal: bool = False,
     ) -> RunResult:
+        """由生命周期 mixin 实现的公开失败入口，保留统一身份与终态控制参数。"""
+
         raise NotImplementedError

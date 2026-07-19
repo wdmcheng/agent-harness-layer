@@ -71,6 +71,8 @@ def assert_core_schema(db_path: Path) -> None:
 
 
 def test_local_sqlite_migration_creates_core_schema(tmp_path: Path) -> None:
+    """本地 SQLite 迁移必须初始化核心表；该测试只证明本地 schema，不替代服务数据库证据。"""
+
     # local migration 是 storage contract 的最低门槛：没有外部服务也必须能初始化核心表。
     # 它只证明 SQLite schema，不被拿来替代 PostgreSQL service migration 证据。
     db_path = tmp_path / "agent_harness.db"
@@ -82,6 +84,8 @@ def test_local_sqlite_migration_creates_core_schema(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_repository_contract_uses_uow_and_rolls_back(tmp_path: Path) -> None:
+    """公开仓储只能经 UoW 事务提交；未显式提交时离开上下文必须回滚，防止运行错误留下脏数据。"""
+
     # 这个用例锁 repository + UoW 的公开事务语义：调用方只看 DTO 和 commit/rollback，
     # 不接触 SQLAlchemy AsyncSession。rollback 分支防止未来把 context manager 改成
     # “离开就自动提交”，那会让 runtime/checkpoint 的错误路径产生脏数据。
@@ -201,6 +205,8 @@ async def test_0008_keeps_previous_tool_repository_writes_compatible(tmp_path: P
 )
 @pytest.mark.asyncio
 async def test_repository_contract_postgresql_service_adapter() -> None:
+    """服务 PostgreSQL adapter 必须复用同一 repository seam，验证本地实现没有掩盖后端差异。"""
+
     # PostgreSQL adapter 必须跑同一批 repository seam。默认跳过是为了让本地 unit gate
     # 不依赖 Docker；service smoke 会注入 DSN 单独执行，完成目标时必须贴出那份证据。
     dsn = os.environ["AGENT_HARNESS_TEST_POSTGRES_DSN"]
@@ -246,6 +252,8 @@ async def test_repository_contract_postgresql_service_adapter() -> None:
 
 
 def test_doctor_cli_reports_local_storage_migration_and_eval_status(tmp_path: Path) -> None:
+    """operator-facing doctor CLI 应报告临时本地库的迁移、存储与评测目录状态而不触碰默认数据。"""
+
     # doctor 是 operator-facing seam，所以通过 `python -m agent_harness.cli` 跑真实 CLI。
     # `--storage-dsn` 指向临时库，证明诊断可读 migration 状态，同时不污染 local.yaml 默认库。
     db_path = tmp_path / "agent_harness.db"
@@ -278,6 +286,8 @@ def test_doctor_cli_reports_local_storage_migration_and_eval_status(tmp_path: Pa
 
 
 def test_sqlalchemy_session_boundary_scan_has_no_business_leaks() -> None:
+    """静态门禁禁止业务入口直接依赖 SQLAlchemy session，强制通过 repository/UoW 保持事务边界。"""
+
     # 静态扫描只锁业务入口不直接 import Session/AsyncSession；storage adapter 和 migration
     # 可以使用 SQLAlchemy。这个门禁防止后续 API/agent/eval 绕过 repository/UoW。
     assert check_sqlalchemy_session_boundaries() == []

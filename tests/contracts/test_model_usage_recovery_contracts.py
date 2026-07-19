@@ -23,6 +23,8 @@ from agent_harness.storage.evidence_repositories import EvidenceOperationKind
 
 
 async def _usage_run(storage: SQLAlchemyStorage) -> str:
+    """创建带固定租户、会话和 trace 的最小 run，供 usage outbox 与容量断言复用。"""
+
     async with storage.uow() as uow:
         await uow.tenants.ensure("tenant-a")
         await uow.sessions.ensure(
@@ -47,6 +49,8 @@ async def _usage_run(storage: SQLAlchemyStorage) -> str:
 
 @pytest.mark.asyncio
 async def test_model_recovery_ignores_ordered_approval_outbox_items(tmp_path: Path) -> None:
+    """验证模型恢复只补投模型 usage，不会消费同一 run 中审批的有序 outbox 组。"""
+
     database = tmp_path / "mixed-recovery.db"
     dsn = f"sqlite+aiosqlite:///{database}"
     run_migrations(dsn)
@@ -54,6 +58,8 @@ async def test_model_recovery_ignores_ordered_approval_outbox_items(tmp_path: Pa
     sink = LocalJsonlEventSink(tmp_path / "mixed-recovery.jsonl")
 
     async def resolve_trace(**_: object) -> str:
+        """为本地 sink 返回稳定 trace，避免恢复测试依赖运行时 trace 查询。"""
+
         return "trace-a"
 
     try:
@@ -137,33 +143,51 @@ async def test_model_recovery_ignores_ordered_approval_outbox_items(tmp_path: Pa
 
 @pytest.mark.asyncio
 async def test_model_final_publish_recovery_does_not_replay_provider(tmp_path: Path) -> None:
+    """验证最终 usage 事件写入失败后，恢复只补事件且绝不第二次调用 provider。"""
+
     class SpyProvider(FakeModelProvider):
+        """统计 provider 调用次数的假实现，用于证明恢复没有重复外部副作用。"""
+
         calls = 0
 
         def complete(self, request: ModelRequest, *, model: str):
+            """记录一次真实调用后委托 fake provider，保持原始响应形状。"""
+
             self.calls += 1
             return super().complete(request, model=model)
 
     class FailFinalOnceSink:
+        """仅在第一条 usage 最终事件写入前失败的 sink 包装器。"""
+
         manages_event_capacity = False
 
         def __init__(self, delegate: LocalJsonlEventSink) -> None:
+            """保存耐久 JSONL delegate 并初始化一次性故障开关。"""
+
             self.delegate = delegate
             self.failed = False
 
         async def write(self, event: CanonicalEvent) -> CanonicalEvent:
+            """对首次 usage 更新事件抛出写前失败，其余事件委托耐久 sink。"""
+
             if event.event_type is CanonicalEventType.MODEL_USAGE_UPDATED and not self.failed:
                 self.failed = True
                 raise OSError("injected final write failure")
             return await self.delegate.write(event)
 
         async def read(self, *, run_id: str, after_seq: int = 0):
+            """透传事件读取，供恢复后验证稳定事件顺序。"""
+
             return await self.delegate.read(run_id=run_id, after_seq=after_seq)
 
         async def latest_seq(self, run_id: str) -> int:
+            """透传最后序号读取，保持 EventBus 所需查询能力。"""
+
             return await self.delegate.latest_seq(run_id)
 
         async def has_terminal(self, run_id: str) -> bool:
+            """透传终结查询，保持 sink 协议完整。"""
+
             return await self.delegate.has_terminal(run_id)
 
     database = tmp_path / "recovery.db"
@@ -172,6 +196,8 @@ async def test_model_final_publish_recovery_does_not_replay_provider(tmp_path: P
     storage = SQLAlchemyStorage.from_dsn(dsn)
 
     async def resolve_trace(**_: object) -> str:
+        """为使用 durable sink 的测试返回固定 trace。"""
+
         return "trace-a"
 
     durable_sink = LocalJsonlEventSink(
@@ -225,22 +251,36 @@ async def test_model_final_publish_recovery_does_not_replay_provider(tmp_path: P
 
 @pytest.mark.asyncio
 async def test_model_final_ack_loss_replays_event_only_and_settles_capacity(tmp_path: Path) -> None:
+    """验证最终事件已落库但确认丢失时，恢复幂等补投并清空本地容量预留。"""
+
     class SpyProvider(FakeModelProvider):
+        """以实例级计数记录 provider 调用，避免不同测试实例共享状态。"""
+
         def __init__(self) -> None:
+            """初始化调用计数，供恢复前后精确比较。"""
+
             self.calls = 0
 
         def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+            """记录调用并委托 fake provider，保持生产服务预期的响应类型。"""
+
             self.calls += 1
             return super().complete(request, model=model)
 
     class LoseFinalAckOnceSink:
+        """在最终事件已持久化后仅丢失一次确认的 sink 包装器。"""
+
         manages_event_capacity = False
 
         def __init__(self, delegate: LocalJsonlEventSink) -> None:
+            """保存 durable delegate 并初始化一次性确认丢失开关。"""
+
             self.delegate = delegate
             self.lost = False
 
         async def write(self, event: CanonicalEvent) -> CanonicalEvent:
+            """先委托真实写入，再对首条 usage 更新模拟调用方未收到确认。"""
+
             persisted = await self.delegate.write(event)
             if event.event_type is CanonicalEventType.MODEL_USAGE_UPDATED and not self.lost:
                 self.lost = True
@@ -248,12 +288,18 @@ async def test_model_final_ack_loss_replays_event_only_and_settles_capacity(tmp_
             return persisted
 
         async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
+            """透传读取，供断言事件不会因重放重复出现。"""
+
             return await self.delegate.read(run_id=run_id, after_seq=after_seq)
 
         async def latest_seq(self, run_id: str) -> int:
+            """透传最后序号查询，满足 EventBus reader 协议。"""
+
             return await self.delegate.latest_seq(run_id)
 
         async def has_terminal(self, run_id: str) -> bool:
+            """透传终结查询，满足 EventBus reader 协议。"""
+
             return await self.delegate.has_terminal(run_id)
 
     database = tmp_path / "ack-loss.db"
@@ -262,6 +308,8 @@ async def test_model_final_ack_loss_replays_event_only_and_settles_capacity(tmp_
     storage = SQLAlchemyStorage.from_dsn(dsn)
 
     async def resolve_trace(**_: object) -> str:
+        """为确认丢失场景提供稳定 trace，不引入额外存储读取。"""
+
         return "trace-a"
 
     durable_sink = LocalJsonlEventSink(
@@ -331,6 +379,8 @@ async def test_unknown_usage_result_blocks_every_public_terminal(
     tmp_path: Path,
     terminal_type: CanonicalEventType,
 ) -> None:
+    """验证 usage 结果未知时，完成、失败和取消三种公开终结事件都会被容量栅栏阻断。"""
+
     database = tmp_path / f"pending-{terminal_type.value}.db"
     dsn = f"sqlite+aiosqlite:///{database}"
     run_migrations(dsn)
@@ -338,6 +388,8 @@ async def test_unknown_usage_result_blocks_every_public_terminal(
     sink = LocalJsonlEventSink(tmp_path / f"pending-{terminal_type.value}.jsonl")
 
     async def resolve_trace(**_: object) -> str:
+        """为每个终结类型参数化场景提供固定 trace。"""
+
         return "trace-a"
 
     try:

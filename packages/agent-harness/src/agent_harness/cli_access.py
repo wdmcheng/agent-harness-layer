@@ -106,6 +106,8 @@ def list_approvals(
     import asyncio
 
     async def _list() -> None:
+        """在同一异步作用域查询并输出审批表，确保退出前释放 storage 连接。"""
+
         try:
             rows = await service.list_for_run(actor=settings.identity.default, run_id=run_id)
             columns = (
@@ -279,6 +281,8 @@ def resolve_approval(
     import asyncio
 
     async def _resolve() -> None:
+        """执行授权、恢复补偿与最终决议，并保证所有临时连接在结束时释放。"""
+
         try:
             approval = await service.get_by_id(
                 actor=settings.identity.default,

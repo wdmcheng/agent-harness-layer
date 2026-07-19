@@ -24,7 +24,10 @@ class ServiceApprovalResolutionRepositoryMixin:
 
     async def _raise_resolution_conflict(
         self, approval_id: str, run_id: str, tenant_id: str
-    ) -> None: ...
+    ) -> None:
+        """将审批所有权冲突转换为上层约定的领域错误。"""
+
+        ...
 
     async def claim_service_resolution(
         self,
@@ -77,12 +80,16 @@ class ServiceApprovalResolutionRepositoryMixin:
     async def get_resolution_queue_state(
         self, approval_id: str
     ) -> ApprovalResolutionQueueState | None:
+        """读取审批的私有队列状态；未创建 resolution 操作时返回 ``None``。"""
+
         model = await self._session.get(ApprovalModel, approval_id)
         if model is None or model.resolution_operation_id is None:
             return None
         return approval_resolution_queue_state(model)
 
     async def has_tool_claim(self, approval_id: str) -> bool:
+        """确认审批是否已生成工具调用，防止恢复逻辑重复入队或执行。"""
+
         result = await self._session.execute(
             select(ToolInvocationModel.id).where(ToolInvocationModel.approval_id == approval_id)
         )
@@ -91,6 +98,12 @@ class ServiceApprovalResolutionRepositoryMixin:
     async def list_pending_resolution_enqueue(
         self,
     ) -> list[ApprovalResolutionQueueState]:
+        """列出已取得审批 lease、尚未完成入队且没有工具调用的恢复候选项。
+
+        查询结果必须额外排除已有 tool claim 的记录：队列投递与工具执行分属不同
+        事务边界，不能仅凭 enqueue 状态推断外部副作用尚未发生。
+        """
+
         result = await self._session.scalars(
             select(ApprovalModel).where(
                 ApprovalModel.status == "waiting",
@@ -112,6 +125,8 @@ class ServiceApprovalResolutionRepositoryMixin:
         operation_id: str,
         message_id: str,
     ) -> ApprovalResolutionQueueState:
+        """以 lease 和 operation CAS 标记消息已入队，拒绝旧 owner 覆盖新状态。"""
+
         result = cast(
             CursorResult[Any],
             await self._session.execute(
@@ -148,6 +163,12 @@ class ServiceApprovalResolutionRepositoryMixin:
         workflow_owner_id: str,
         workflow_id: str,
     ) -> bool:
+        """原子取得审批执行所有权，确保同一批准最多创建一次工具调用。
+
+        所有 fingerprint、消息和 DBOS workflow owner 字段都参与条件更新，避免
+        过期 worker、伪造消息或同一审批的并发消费者越过 waiting 边界。
+        """
+
         result = cast(
             CursorResult[Any],
             await self._session.execute(

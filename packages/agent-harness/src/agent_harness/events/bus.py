@@ -46,6 +46,13 @@ class EventBus:
         run_trace_resolver: RunTraceResolver | None = None,
         capacity_storage: SQLAlchemyStorage | None = None,
     ) -> None:
+        """装配事件 sink、可选 artifact store 与 run-scoped 一致性协作者。
+
+        本地 sink 需要 EventBus 注入容量 claim 和 trace resolver；service sink 会在
+        自己的数据库事务中处理这些职责。按事件循环维护锁只解决本进程协程竞争，
+        不能替代 sink 的跨进程原子写入保证。
+        """
+
         self._sink = sink
         self._artifact_store = artifact_store
         self._inline_payload_bytes = inline_payload_bytes
@@ -98,6 +105,8 @@ class EventBus:
             bind_resolver(resolver)
 
     def _lock_for_current_loop(self) -> asyncio.Lock:
+        """取得当前 asyncio loop 专属锁，避免跨 loop 复用绑定式 ``asyncio.Lock``。"""
+
         loop = asyncio.get_running_loop()
         with self._loop_locks_guard:
             lock = self._loop_locks.get(loop)
@@ -126,7 +135,11 @@ class EventBus:
         )
 
     async def reconcile_local_capacity(self, *, run_id: str) -> None:
-        """新预约前接管既有 local JSONL 前缀；service sink 无需额外对账。"""
+        """新预约前接管既有 local JSONL 前缀；service sink 无需额外对账。
+
+        先由 sink 在跨进程文件锁内报告最高已落盘序号，再在同一进程 loop 锁内更新
+        数据库容量账本，避免阻塞式 ``flock`` 与并发协程互相等待造成死锁。
+        """
 
         capacity_storage = self._capacity_storage
         if capacity_storage is None:
@@ -136,6 +149,8 @@ class EventBus:
             raise RuntimeError("local event sink does not support capacity reconciliation")
 
         async def reconcile(highest_persisted_seq: int) -> None:
+            """在独立 UoW 中把已落盘 JSONL 前缀记入容量账本，避免重复占用序号。"""
+
             async with capacity_storage.uow() as uow:
                 await uow.event_capacity.reconcile_local_prefix(
                     run_id=run_id,
@@ -274,6 +289,8 @@ class EventBus:
             try:
 
                 def materialize_artifact() -> None:
+                    """在 sink 已取得 event-id 后写入大载荷，防止失败重试留下孤儿文件。"""
+
                     if pending_artifact_payload is None:
                         return
                     artifact_store = self._artifact_store
@@ -291,6 +308,8 @@ class EventBus:
                     event_id_for_claim: str,
                     event_size_before: int,
                 ) -> Generator[None, None, None]:
+                    """把 artifact 文件声明与事件追加绑定为可回滚的本地存储 claim。"""
+
                     if pending_artifact_payload is None:
                         yield
                         return

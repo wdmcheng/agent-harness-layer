@@ -248,6 +248,8 @@ async def test_eval_approve_dataset_failure_keeps_draft_reviewable(
         )
 
         def fail_write_approved(_case: object) -> Path:
+            """模拟批准数据集落盘失败，检验事务不会先于文件提交。"""
+
             raise OSError("approved dataset unavailable")
 
         monkeypatch.setattr(service.dataset, "write_approved", fail_write_approved)

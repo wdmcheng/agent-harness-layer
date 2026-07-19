@@ -184,6 +184,8 @@ def build_contract_app(tmp_path: Path, *, profile: str = "local") -> Any:
 
 
 def _response_ref(operation: dict[str, Any], status: str) -> str:
+    """提取 JSON 响应 schema 引用，供多个公开接口断言复用同一漂移判定。"""
+
     schema = operation["responses"][status]["content"]["application/json"]["schema"]
     return cast(str, schema["$ref"])
 

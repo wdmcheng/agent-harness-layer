@@ -21,6 +21,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _agent_config(agent_id: str, *, delegation_edges: list[str] | None = None) -> str:
+    """渲染最小有效 agent 配置，并仅允许测试覆盖 delegation target 列表。"""
+
     edges = delegation_edges or []
     edge_lines = "\n".join(f"  - {edge}" for edge in edges) or "  []"
     return f"""agent_id: {agent_id}
@@ -45,6 +47,8 @@ delegation_edges:
 
 
 def _write_agent_config(root: Path, relative: str, content: str) -> None:
+    """写入可真实 import 的临时 agent 包，动态修正 schema 引用到测试命名空间。"""
+
     path = root / relative / "config.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     namespace = root.resolve().name
@@ -96,12 +100,18 @@ async def _asgi_get_json(
     ],
     path: str,
 ) -> tuple[int, dict[str, Any]]:
+    """以最小 ASGI 调用执行 GET 并收集 JSON 响应，隔离测试与 HTTP 客户端实现。"""
+
     messages: list[dict[str, Any]] = []
 
     async def receive() -> dict[str, Any]:
+        """提供单段空请求体，满足 ASGI 应用的 receive 协议。"""
+
         return {"type": "http.request", "body": b"", "more_body": False}
 
     async def send(message: dict[str, Any]) -> None:
+        """按 ASGI 顺序收集响应帧，稍后由外层解析状态和完整 body。"""
+
         messages.append(message)
 
     await app(
@@ -138,13 +148,19 @@ async def _asgi_post_json(
     path: str,
     body: dict[str, Any],
 ) -> tuple[int, dict[str, Any]]:
+    """以最小 ASGI 调用执行 JSON POST，并保留 request-id/内容类型等公开边界。"""
+
     messages: list[dict[str, Any]] = []
     raw_body = json.dumps(body).encode()
 
     async def receive() -> dict[str, Any]:
+        """提供一次性编码后的 JSON 请求体，不引入网络或第三方 client 行为。"""
+
         return {"type": "http.request", "body": raw_body, "more_body": False}
 
     async def send(message: dict[str, Any]) -> None:
+        """收集响应帧以便外层组合 body 并验证统一错误或成功封套。"""
+
         messages.append(message)
 
     await app(

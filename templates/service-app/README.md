@@ -4,7 +4,7 @@
 
 这是 Agent Harness Layer 的可复制后端应用模板。它把 FastAPI、app-specific Typer 入口、worker、local/service profiles、Docker Compose、eval 目录和测试装配在一起；runtime、policy、approval、eval 与 storage 业务能力仍来自 `agent_harness` 公共 seam。
 
-模板包含 `examples.basic` smoke fixture，以及 RAG assistant、ticket triage、repo analyst、dev assistant 四个 P0 薄样例；service profile 已把 API 与 runtime worker 拆成独立进程，但 tool/model gateway、event pipeline 和 storage service 仍是未来边界。
+模板包含 `examples.basic` smoke fixture，以及 RAG assistant、ticket triage、repo analyst、dev assistant 四个轻量示例；service profile 已把 API 与 runtime worker 拆成独立进程，但 tool/model gateway、event pipeline 和 storage service 仍是未来边界。
 
 ## Quick Start
 
@@ -156,7 +156,7 @@ templates/service-app/
 - `scaffold agent` 属于核心 CLI；模板不得复制生成逻辑。它先在正式 registry 扫描根之外完成渲染和验证，再原子发布具体 Agent 目录。
 - 修改 endpoint 必须先更新 `API-Contract.md`，再运行 template/OpenAPI contract tests。
 
-当前 P0 CLI 盘点：
+当前 CLI 能力盘点：
 
 | 能力 | 当前归属 | 状态 |
 |---|---|---|

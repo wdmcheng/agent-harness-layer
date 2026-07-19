@@ -240,6 +240,8 @@ def inventory(
 def _add_inventory_entry(
     entries: dict[Path, LocalStateKind], path: Path, kind: LocalStateKind
 ) -> None:
+    """向合并 inventory 加入唯一规范路径；同一路径不能同时声明两种记录类型。"""
+
     existing = entries.get(path)
     if existing is not None and existing != kind:
         raise LocalStateMigrationError("local_state.path_kind_conflict", "path kind conflicts")

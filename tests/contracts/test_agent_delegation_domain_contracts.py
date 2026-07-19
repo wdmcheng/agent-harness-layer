@@ -18,6 +18,8 @@ from agent_harness.identity import IdentityContext
 
 
 def _identity(*, tenant_id: str = "tenant-a", user_id: str = "user-a") -> IdentityContext:
+    """构造可控的委派调用身份，用于验证请求哈希确实绑定安全主体而非仅绑定载荷。"""
+
     return IdentityContext(
         tenant_id=tenant_id,
         user_id=user_id,
@@ -29,6 +31,8 @@ def _identity(*, tenant_id: str = "tenant-a", user_id: str = "user-a") -> Identi
 
 
 def _request(**updates: object) -> DelegationRequest:
+    """提供完整且合法的委派基线载荷，让各断言只覆盖一个有意变化的字段。"""
+
     payload: dict[str, object] = {
         "parent_run_id": "run-parent",
         "source_agent_id": "agent-source",
@@ -62,6 +66,8 @@ def test_request_hash_is_stable_and_binds_security_context() -> None:
 
 
 def test_mixed_unknown_evidence_preserves_known_tokens_without_faking_totals() -> None:
+    """部分子运行缺少用量时仍可汇总已知 token，但成本、时延必须保持未知并标为不完整。"""
+
     summary = aggregate_delegation_evidence(
         parent_run_id="run-parent",
         children=[
@@ -101,6 +107,8 @@ def test_mixed_unknown_evidence_preserves_known_tokens_without_faking_totals() -
 
 
 def test_all_unknown_tokens_remain_null() -> None:
+    """全部计量未知时不能将空值压缩为零，避免上层把缺证据误读为无消耗。"""
+
     summary = aggregate_delegation_evidence(
         parent_run_id="run-parent",
         children=[
@@ -127,6 +135,8 @@ def test_all_unknown_tokens_remain_null() -> None:
 
 
 def test_incomplete_evidence_takes_precedence_over_known_budget_excess() -> None:
+    """即使已知部分触发预算超额，只要存在未知证据，聚合状态仍必须优先表示不完整。"""
+
     summary = aggregate_delegation_evidence(
         parent_run_id="run-parent",
         budget_exceeded=True,
@@ -177,6 +187,8 @@ def test_incomplete_evidence_takes_precedence_over_known_budget_excess() -> None
     ],
 )
 def test_child_evidence_rejects_invalid_numeric_values(field: str, value: object) -> None:
+    """拒绝布尔、负数及非有限计量，防止无效子运行证据进入预算与审计聚合。"""
+
     payload: dict[str, object] = {
         "run_id": "run-child",
         "agent_id": "agent-target",
@@ -203,6 +215,8 @@ def test_child_evidence_rejects_cost_status_mismatch(
     cost_usd: float | None,
     cost_status: DelegationCostStatus,
 ) -> None:
+    """成本数值与可用性状态必须成对一致，避免“已报告但为空”等自相矛盾证据。"""
+
     with pytest.raises(ValidationError):
         DelegationChildEvidence(
             run_id="run-child",

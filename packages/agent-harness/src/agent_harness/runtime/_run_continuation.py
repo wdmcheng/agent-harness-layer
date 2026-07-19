@@ -282,6 +282,13 @@ class RunContinuation(OrchestratorState):
         defer_terminal: bool = False,
         approval_recovery: dict[str, Any] | None = None,
     ) -> RunResult:
+        """将 executor 的三类结果原子映射为 run 终态或新的审批检查点。
+
+        completed/failed 先检查 delegation terminal 的延后收口窗口；waiting
+        只接受完整 approval DTO，并在创建 checkpoint 后委托 ApprovalService
+        发布审批记录，避免 executor 直接跨越审批状态机。
+        """
+
         if result.status == "completed":
             deferred = await self._defer_pending_delegation_terminal(
                 run_id=request.run_id,

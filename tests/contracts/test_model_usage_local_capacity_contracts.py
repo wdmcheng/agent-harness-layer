@@ -39,9 +39,13 @@ class CountingModelProvider(FakeModelProvider):
     """证明容量门禁发生在 model provider 副作用之前。"""
 
     def __init__(self) -> None:
+        """初始化调用计数，确保容量拒绝路径可断言 provider 尚未产生副作用。"""
+
         self.calls = 0
 
     def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        """记录调用后复用 fake provider 的合法结果，隔离本场景与模型实现细节。"""
+
         self.calls += 1
         return super().complete(request, model=model)
 
@@ -53,9 +57,13 @@ class CountingEmbeddingProvider:
     model = "embedding-model"
 
     def __init__(self) -> None:
+        """初始化 embedding 调用计数，供容量门禁前置断言使用。"""
+
         self.calls = 0
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+        """记录调用并返回最小有效 embedding，证明剩余容量足够时可正常执行。"""
+
         self.calls += 1
         return EmbeddingResponse(
             provider=self.provider,
@@ -72,6 +80,8 @@ class CountingEmbeddingProvider:
 
 
 def _context(run_id: str) -> UsageEvidenceContext:
+    """构造与 seeded run 匹配的 usage 上下文，避免测试重复手写关联字段。"""
+
     return UsageEvidenceContext(
         tenant_id="tenant-a",
         run_id=run_id,
@@ -84,6 +94,8 @@ def _context(run_id: str) -> UsageEvidenceContext:
 async def _assert_last_two_slots_settled(
     *, storage: SQLAlchemyStorage, event_path: Path, run_id: str
 ) -> None:
+    """断言最后两个可用序号被 request/final usage 完整消费并释放预约。"""
+
     events = await LocalJsonlEventSink(
         event_path,
         run_trace_resolver=resolve_trace,
@@ -108,6 +120,8 @@ async def _assert_last_two_slots_settled(
 async def test_local_model_invocation_consumes_each_of_last_two_reserved_slots(
     tmp_path: Path,
 ) -> None:
+    """验证模型调用可精确占用本地容量的最后两个预留序号并正常结算。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'model-last-slots.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -150,6 +164,8 @@ async def test_local_model_invocation_consumes_each_of_last_two_reserved_slots(
 async def test_local_embedding_invocation_consumes_each_of_last_two_reserved_slots(
     tmp_path: Path,
 ) -> None:
+    """验证 embedding 调用与模型调用遵循相同的本地容量双事件预约语义。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'embedding-last-slots.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -191,6 +207,8 @@ async def test_local_usage_capacity_exhaustion_precedes_provider_side_effect(
     tmp_path: Path,
     usage_kind: str,
 ) -> None:
+    """验证容量耗尽在 model/embedding provider 及 outbox 写入前关闭式失败。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / f'{usage_kind}-exhausted.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

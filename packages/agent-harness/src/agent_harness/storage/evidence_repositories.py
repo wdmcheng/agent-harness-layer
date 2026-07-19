@@ -40,9 +40,13 @@ class EvidenceOutboxRepository(UsageEvidenceRepositoryMixin, OrderedEvidenceRepo
     """usage settlement 的稳定 event-id 与 crash recovery 状态。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """复用当前 UoW 的会话，保证 outbox 状态与业务写入原子提交。"""
+
         self._session = session
 
     async def get_by_event_id(self, *, event_id: str) -> RunEvidenceOutboxModel | None:
+        """按全局事件标识读取 outbox 行，供幂等恢复路径核对既有状态。"""
+
         return await self._session.scalar(
             select(RunEvidenceOutboxModel).where(RunEvidenceOutboxModel.event_id == event_id)
         )

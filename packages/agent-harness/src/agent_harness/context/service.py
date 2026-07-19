@@ -11,6 +11,8 @@ class ContextAssemblyService:
     """让业务 agent 使用公共组装 seam，而不接触 ORM session/repository。"""
 
     def __init__(self, *, storage: SQLAlchemyStorage, artifact_store: FileArtifactStore) -> None:
+        """注入事务边界与 artifact 存储，确保组装内容及其证据引用成对持久化。"""
+
         self._storage = storage
         self._artifact_store = artifact_store
 

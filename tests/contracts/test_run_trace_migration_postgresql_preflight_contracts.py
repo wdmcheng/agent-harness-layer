@@ -33,6 +33,8 @@ async def test_0013_postgresql_preflight_rejects_invalid_run_relations_without_m
     from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
     async def snapshot(connection: AsyncConnection) -> tuple[object, ...]:
+        """汇总 schema、约束、修订和数据快照，验证预检失败绝不触碰数据库状态。"""
+
         execute = connection.execute
         tables = tuple(
             (

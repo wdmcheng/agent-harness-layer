@@ -21,10 +21,14 @@ class InvalidRunTransition(RuntimeError):
 
 
 def idempotency_value(key: IdempotencyKey | str | None) -> str | None:
+    """将可选 IdempotencyKey DTO 或原始字符串归一为持久化查询键。"""
+
     return None if key is None else key.value if isinstance(key, IdempotencyKey) else key
 
 
 def resume_token_value(token: ResumeToken | str) -> str:
+    """将 ResumeToken DTO 或原始字符串归一为 checkpoint 存储值。"""
+
     return token.value if isinstance(token, ResumeToken) else token
 
 
@@ -70,6 +74,8 @@ def checkpoint_identity(state: dict[str, Any]) -> IdentityContext:
 
 
 def optional_state_text(state: dict[str, Any], key: str) -> str | None:
+    """安全读取 checkpoint 中的可选非空文本，其他类型均视为缺失。"""
+
     value = state.get(key)
     return value if isinstance(value, str) and value else None
 

@@ -1,4 +1,4 @@
-"""service-app 的 runtime component 构造器。"""
+"""Service-app 运行组件构造器，统一组合 API 与 worker 依赖边界。"""
 
 from __future__ import annotations
 
@@ -62,6 +62,7 @@ class RuntimeComponents:
     queue: RunQueue | None = None
 
     async def close(self) -> None:
+        """按队列后存储的顺序释放资源，避免连接已关闭时 queue 仍需完成清理。"""
         if self.queue is not None:
             await self.queue.close()
         await self.storage.dispose()

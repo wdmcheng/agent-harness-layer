@@ -279,6 +279,13 @@ class UsageEvidenceRepositoryMixin:
         started_evidence: Mapping[str, object],
         operation_kind: str = "model_usage",
     ) -> RunEvidenceOutboxModel:
+        """兼容旧调用方创建或重放 ``started`` usage outbox，不在此处预约容量。
+
+        新路径应使用 ``claim_usage``，由唯一插入胜者同时预约事件容量；该方法保留
+        为迁移期 seam，重复调用仍要逐字段验证已保存的调用身份，不能静默复用别的
+        event 或 usage kind。
+        """
+
         if operation_kind not in {"model_usage", "embedding_usage"}:
             raise ValueError("invalid usage operation kind")
         normalized_started = _normalize_started_evidence(
@@ -328,6 +335,12 @@ class UsageEvidenceRepositoryMixin:
         reserved_event_count: int,
         started_evidence: Mapping[str, object],
     ) -> None:
+        """验证同一 usage_call_id 的重放绑定完全等价，并只暴露字段路径诊断。
+
+        ``started`` evidence 是后续 final evidence 的身份锚点；不一致时不能依据
+        调用方的最新值覆写持久化记录，否则并发重试会把不同副作用伪装成一次调用。
+        """
+
         if existing.event_id != event_id:
             raise ValueError("usage call is bound to another event id")
         if (
@@ -352,6 +365,8 @@ class UsageEvidenceRepositoryMixin:
         tenant_id: str,
         usage_call_id: str,
     ) -> RunEvidenceOutboxModel:
+        """按 tenant 与 usage_call_id 读取结算记录；不存在即报告稳定的查找失败。"""
+
         model = await self._session.scalar(
             select(RunEvidenceOutboxModel).where(
                 RunEvidenceOutboxModel.tenant_id == tenant_id,
@@ -370,6 +385,13 @@ class UsageEvidenceRepositoryMixin:
         result: dict[str, Any] | None,
         error_code: str | None = None,
     ) -> RunEvidenceOutboxModel:
+        """锁定 started 结算后持久化完整 final evidence，供发布失败后的恢复复用。
+
+        final evidence 必须继承 provider、model、主体和调用上下文等 durable started
+        身份。结果已持久化时只接受字节等价的重放；进入 ``needs_review`` 后禁止
+        自动闭合，保留人工审计边界。
+        """
+
         model = await self._session.scalar(
             select(RunEvidenceOutboxModel)
             .where(
@@ -460,6 +482,8 @@ class UsageEvidenceRepositoryMixin:
         return list(result.all())
 
     async def mark_published(self, *, tenant_id: str, usage_call_id: str) -> None:
+        """标记 usage 事件已发布；缺失记录必须失败，不能伪造已交付状态。"""
+
         changed = cast(
             CursorResult[Any],
             await self._session.execute(

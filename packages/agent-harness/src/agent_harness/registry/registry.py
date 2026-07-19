@@ -62,6 +62,12 @@ class AgentRegistry:
         *,
         executors: Mapping[str, AgentExecutor] | None = None,
     ) -> None:
+        """以已验证的 descriptor 和 executor 构建只读索引。
+
+        该构造器不执行文件加载或动态 import，便于测试和 composition root 注入；
+        从磁盘构建时应使用 ``load_from_directory`` 完成全量验证后再调用这里。
+        """
+
         self._descriptors = {descriptor.agent_id: descriptor for descriptor in descriptors}
         self._executors = dict(executors or {})
 
@@ -131,9 +137,13 @@ class AgentRegistry:
         return cls(descriptors, executors=executors)
 
     def list_agents(self) -> list[AgentDescriptor]:
+        """按稳定 agent_id 排序返回 descriptor，避免文件系统枚举影响 API 输出。"""
+
         return sorted(self._descriptors.values(), key=lambda item: item.agent_id)
 
     def get(self, agent_id: str) -> AgentDescriptor:
+        """取得声明的 agent；未知 id 统一转换为可序列化的 registry 错误。"""
+
         try:
             return self._descriptors[agent_id]
         except KeyError as exc:
@@ -165,6 +175,12 @@ class AgentRegistry:
             ) from exc
 
     def check_delegation(self, source_agent_id: str, target_agent_id: str) -> DelegationDecision:
+        """根据已加载 descriptor 判断 source 到 target 的静态 delegation 边。
+
+        这里只验证配置图，不替代运行时身份、策略、冻结预算快照或深度限制检查；
+        这些依然由 delegation application service 在实际执行前处理。
+        """
+
         source = self.get(source_agent_id)
         if target_agent_id in source.delegation_targets:
             return DelegationDecision(
@@ -191,6 +207,12 @@ class AgentRegistry:
         budget_summary: Mapping[str, Any] | None = None,
         trace_refs: Sequence[str] = (),
     ) -> DelegationSummary:
+        """生成已授权 delegation 的关系摘要，并复制调用方集合防止后续变异泄漏。
+
+        该 helper 先重复检查静态边，确保没有调用方能绕过 registry 直接伪造
+        parent/child 归属摘要；动态用量与预算值仍由上层的 durable evidence 提供。
+        """
+
         decision = self.check_delegation(source_agent_id, target_agent_id)
         if not decision.allowed:
             raise RegistryLoadError(

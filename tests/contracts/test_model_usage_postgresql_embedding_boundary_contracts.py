@@ -66,16 +66,24 @@ from tests.contracts.test_model_usage_postgresql_capacity_contracts import (
 
 @pytest.mark.asyncio
 async def test_postgresql_embedding_stable_call_id_does_not_replay_cache_or_provider() -> None:
+    """真实 PostgreSQL 下相同 embedding stable call ID 并发时，缓存和 provider 都只能执行一次。"""
+
     class CountingProvider:
+        """可阻塞的 embedding provider 替身，用显式开始/释放信号构造稳定并发竞争窗口。"""
+
         provider = "counting-embedding"
         model = "embedding-model"
 
         def __init__(self) -> None:
+            """初始化调用计数与两个协作事件，使测试能在 provider 执行中注入第二个调用。"""
+
             self.calls = 0
             self.started = asyncio.Event()
             self.release = asyncio.Event()
 
         async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+            """记录首次 provider 调用并等待释放，返回固定向量以隔离并发控制而非模型质量。"""
+
             self.calls += 1
             self.started.set()
             await self.release.wait()

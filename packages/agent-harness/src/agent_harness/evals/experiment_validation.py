@@ -22,6 +22,12 @@ def validate_evaluation(
     evaluator_profile: dict[str, Any],
     metric_versions: dict[str, str],
 ) -> None:
+    """验证完整 evaluator 输出严格对应冻结 split、harness、profile 与指标版本。
+
+    此检查同时拒绝重复 case、子集错配、标签漂移和指标集合变化，防止外部 evaluator
+    在实验已经创建后替换输入语义；证据引用先经独立边界校验，避免错误内容进入存储。
+    """
+
     _validate_result_evidence(result)
     expected_subsets = {
         **{case_id: "optimization" for case_id in split.optimization_case_ids},
@@ -57,6 +63,12 @@ def validate_partial_evaluation(
     evaluator_profile: dict[str, Any],
     metric_versions: dict[str, str],
 ) -> None:
+    """验证可恢复执行期间的局部输出，不要求覆盖全部 split 但禁止任何越界 case。
+
+    恢复累计前可缺少部分 case；一旦已有条目，则其 subset、标签和指标版本必须与
+    冻结输入完全一致，且不可重复，避免断点恢复拼接出互相矛盾的结果。
+    """
+
     _validate_result_evidence(result)
     expected_subsets = {
         **{case_id: "optimization" for case_id in split.optimization_case_ids},
@@ -91,6 +103,8 @@ def local_refs(
     candidate: ExperimentEvaluationResult | None,
     comparison: ExperimentComparison | None,
 ) -> list[str]:
+    """合并实验的局部证据引用，并按公开 DTO 的数量、大小和真相源约束裁剪。"""
+
     truth_ref = f"db://eval-experiments/{experiment_id}"
     return bounded_public_evidence_refs(
         [
@@ -104,6 +118,8 @@ def local_refs(
 
 
 def _validate_result_evidence(result: ExperimentEvaluationResult) -> None:
+    """检查局部与 case 级证据引用都安全、总量受限且不包含本机敏感路径。"""
+
     try:
         validate_safe_evidence_refs(
             result.local_evidence_refs,

@@ -249,6 +249,8 @@ def test_health_internal_error_uses_safe_envelope_without_secret_or_path(tmp_pat
     app = build_contract_app(tmp_path)
 
     def fail_health_summary() -> None:
+        """模拟健康摘要依赖泄露敏感文本的异常，检验统一错误 envelope 会隔离它。"""
+
         raise RuntimeError(
             "postgresql://user:secret-pass@localhost/db token=private /tmp/customer/state.db"
         )

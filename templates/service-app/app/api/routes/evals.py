@@ -1,4 +1,4 @@
-"""Eval Gate API 路由。"""
+"""评测门禁 API：管理草稿、人工批准、执行记录与评分证据。"""
 
 from __future__ import annotations
 
@@ -102,6 +102,7 @@ class EvalScoresResponse(HarnessDTO):
 
 
 def _local_refs_from_summary(score_summary: dict[str, Any]) -> list[str]:
+    """从持久化评分摘要安全提取本地证据引用，忽略不符合列表形状的旧数据。"""
     raw_refs = score_summary.get("local_refs")
     if not isinstance(raw_refs, list):
         return []
@@ -117,6 +118,11 @@ async def _check_approve_permission(
     dataset: str,
     reason: str,
 ) -> None:
+    """在批准评测案例前执行带数据集与理由上下文的策略检查。
+
+    只有批准入口调用该检查：草稿生成仍由 detector 负责，不能被误当成人工
+    审核通过，从而保持 approved dataset 的人工门禁语义。
+    """
     engine = policy or PolicyEngine(provider=YamlPolicyProvider.default())
     await engine.require_allowed(
         PolicyCheck(

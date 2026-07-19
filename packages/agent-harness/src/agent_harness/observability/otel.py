@@ -14,28 +14,38 @@ from agent_harness.observability.redaction import redact_telemetry_payload
 
 
 class OTelEventMapping(HarnessDTO):
+    """可发送给 OTel event 的名称与已净化属性集合。"""
+
     name: str
     attributes: dict[str, Any]
 
 
 class OTelSpanMapping(HarnessDTO):
+    """可创建为 OTel span 的名称与上下文属性集合。"""
+
     name: str
     attributes: dict[str, Any]
 
 
 class OTelMetricMapping(HarnessDTO):
+    """从受限 telemetry 字段派生的数值 metric，复用同一关联属性。"""
+
     name: str
     value: int | float
     attributes: dict[str, Any]
 
 
 class OTelRecordMapping(HarnessDTO):
+    """一条 provider-neutral telemetry 记录的 span、event 和 metrics 映射结果。"""
+
     span: OTelSpanMapping
     event: OTelEventMapping
     metrics: list[OTelMetricMapping]
 
 
 def map_event_to_otel(event: CanonicalEvent) -> OTelEventMapping:
+    """将 canonical event 的稳定 envelope 投影为 OTel event，不展开业务 payload。"""
+
     # OTel mapping 只输出稳定 envelope 字段。provider 原始细节留在
     # raw_event_ref/payload_ref 后面，不直接泄露进观测标签。
     return OTelEventMapping(
@@ -66,6 +76,8 @@ class OTelTelemetryAdapter:
     provider_name = "otel"
 
     def map_record(self, record: TelemetryRecord) -> OTelRecordMapping:
+        """先规范化和脱敏 telemetry 记录，再生成可导出的 OTel DTO 集合。"""
+
         record = prepare_telemetry_record(record)
         attributes = _record_attributes(record)
         return OTelRecordMapping(
@@ -76,8 +88,11 @@ class OTelTelemetryAdapter:
 
 
 def _record_attributes(record: TelemetryRecord) -> dict[str, Any]:
+    """组合关联上下文、引用与非嵌套净化字段，避免深层 payload 直接成为标签。"""
+
     context = record.context.to_payload()
     payload = redact_telemetry_payload(record.payload)
+    # 嵌套对象往往承载 provider 原始响应；只导出标量摘要可控制 cardinality 与泄露面。
     payload_summary = {
         key: value for key, value in payload.items() if not isinstance(value, dict | list)
     }
@@ -95,6 +110,8 @@ def _record_metrics(
     record: TelemetryRecord,
     attributes: dict[str, Any],
 ) -> list[OTelMetricMapping]:
+    """只从白名单数值字段派生 metric，避免任意 payload 键造成时序数据库爆炸。"""
+
     metric_keys = {
         "cost_usd",
         "count",

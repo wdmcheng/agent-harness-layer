@@ -190,6 +190,12 @@ class _SharedBudgetAllocationMixin:
         delegation_id: str,
         usage_call_id: str,
     ) -> AllocationRecord:
+        """在 child 副作用启动前锁定 allocation，并将首个启动状态持久化。
+
+        该标记用于恢复路径区分“可释放预约”和“已经可能发生外部调用”的 claim，
+        所以必须经同一 tenant/owner/delegation 复合键读取。
+        """
+
         allocation = await self._require_allocation_locked(
             tenant_id, budget_owner_run_id, delegation_id, usage_call_id
         )

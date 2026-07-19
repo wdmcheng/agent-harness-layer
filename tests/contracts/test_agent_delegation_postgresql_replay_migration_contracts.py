@@ -51,6 +51,8 @@ from tests.contracts.test_agent_delegation_postgresql_contracts import (
 
 @pytest.mark.asyncio
 async def test_postgresql_different_keys_compete_and_original_replay_keeps_first_budget() -> None:
+    """不同 key 在 PostgreSQL 竞争父预算时只允许一个胜者，原 key 重放必须保留首次预约。"""
+
     async with isolated_database("delegation_parent_budget") as dsn:
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -61,6 +63,8 @@ async def test_postgresql_different_keys_compete_and_original_replay_keeps_first
                 key: str,
                 request_hash: str,
             ) -> DelegationClaimResult | Exception:
+                """在独立事务中执行一次委派预约并返回竞争异常，供并发结果精确分类。"""
+
                 try:
                     async with storage.uow() as uow:
                         result = await uow.delegations.claim_and_reserve(
@@ -117,6 +121,8 @@ async def test_postgresql_different_keys_compete_and_original_replay_keeps_first
 
 @pytest.mark.asyncio
 async def test_postgresql_original_key_replays_after_other_key_changes_balance() -> None:
+    """其他 key 改变剩余余额后，原 key 重放仍必须复用历史预约而不是重新按当前余额计算。"""
+
     async with isolated_database("delegation_stable_replay") as dsn:
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -195,6 +201,8 @@ async def test_postgresql_original_key_replays_after_other_key_changes_balance()
 
 @pytest.mark.asyncio
 async def test_0015_postgresql_empty_database_downgrades_with_exact_opt_in() -> None:
+    """无委派证据的 PostgreSQL 数据库在精确确认后可安全降级，验证迁移可逆边界。"""
+
     async with isolated_database("delegation_downgrade_empty") as dsn:
         await asyncio.to_thread(run_migrations, dsn)
         await asyncio.to_thread(
@@ -218,6 +226,8 @@ async def test_0015_postgresql_empty_database_downgrades_with_exact_opt_in() -> 
 
 @pytest.mark.asyncio
 async def test_0016_postgresql_claim_blocks_exact_opt_in_downgrade() -> None:
+    """存在 0016 委派 claim 时即使传入确认开关也禁止降级，避免删除耐久预算证据。"""
+
     async with isolated_database("delegation_downgrade_evidence") as dsn:
         await asyncio.to_thread(run_migrations, dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)

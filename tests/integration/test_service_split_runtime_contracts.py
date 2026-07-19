@@ -31,6 +31,8 @@ PROFILES = (
 async def test_service_submit_then_independent_worker_executes_same_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """验证 API 仅提交 run，独立 worker 用持久身份和 trace 完成同一运行。"""
+
     postgres_dsn = os.environ["AGENT_HARNESS_TEST_POSTGRES_DSN"]
     redis_dsn = os.environ["REDIS_TEST_DSN"]
     # TEST_POSTGRES_DSN 是pytest控制变量，不是 HarnessSettings 字段。
@@ -124,6 +126,8 @@ async def test_service_submit_then_independent_worker_executes_same_run(
 async def test_service_approval_is_queued_and_worker_resumes_once(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """验证审批 HTTP 返回 waiting 后由 worker 恢复一次，审计注释同时完成脱敏。"""
+
     postgres_dsn = os.environ["AGENT_HARNESS_TEST_POSTGRES_DSN"]
     redis_dsn = os.environ["REDIS_TEST_DSN"]
     monkeypatch.delenv("AGENT_HARNESS_TEST_POSTGRES_DSN")

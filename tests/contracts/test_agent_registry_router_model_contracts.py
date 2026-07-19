@@ -38,6 +38,8 @@ from tests.contracts.test_agent_registry_model_context_contracts import (
 
 
 def test_api_contract_documents_agent_registry_endpoint() -> None:
+    """验证维护文档公开 registry endpoint，并移除过期的规划状态条目。"""
+
     contract = (ROOT / "API-Contract.md").read_text(encoding="utf-8")
 
     assert "### AGT-001 列出 agents" in contract
@@ -48,6 +50,8 @@ def test_api_contract_documents_agent_registry_endpoint() -> None:
 
 
 def test_template_openapi_exposes_agent_list_contract(tmp_path: Path) -> None:
+    """验证模板 OpenAPI 仅公开 agent descriptor 白名单和统一错误封套。"""
+
     app = create_app(
         orchestrator=cast(RunOrchestrator, object()),
         event_sink=LocalJsonlEventSink(tmp_path / "events.jsonl"),
@@ -94,6 +98,8 @@ def test_template_openapi_exposes_agent_list_contract(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_agent_list_route_uses_injected_registry_seam(tmp_path: Path) -> None:
+    """验证列表路由通过注入 registry 获取 descriptor，而非耦合文件系统加载。"""
+
     from agent_harness.registry import (
         AgentBudget,
         AgentDescriptor,
@@ -102,10 +108,16 @@ async def test_agent_list_route_uses_injected_registry_seam(tmp_path: Path) -> N
     )
 
     class SpyRegistry:
+        """返回固定 descriptor 并记录调用次数的 registry seam 替身。"""
+
         def __init__(self) -> None:
+            """从零初始化计数，便于断言 HTTP 请求恰好执行一次查询。"""
+
             self.calls = 0
 
         def list_agents(self) -> list[AgentDescriptor]:
+            """记录访问并返回完整公开字段，验证 route 不丢失或泄露描述信息。"""
+
             self.calls += 1
             return [
                 AgentDescriptor(
@@ -169,6 +181,8 @@ async def test_agent_list_route_uses_injected_registry_seam(tmp_path: Path) -> N
 
 
 def test_agent_registry_rejects_duplicate_agent_id(tmp_path: Path) -> None:
+    """验证两个文件声明同一 agent_id 时加载失败并指出冲突字段。"""
+
     from agent_harness.registry import AgentRegistry, RegistryLoadError
 
     _write_agent_config(tmp_path, "one", _agent_config("examples.basic"))
@@ -184,6 +198,8 @@ def test_agent_registry_rejects_duplicate_agent_id(tmp_path: Path) -> None:
 
 
 def test_agent_registry_rejects_invalid_config(tmp_path: Path) -> None:
+    """验证缺少必要配置的 agent 文件返回结构化 registry 校验错误。"""
+
     from agent_harness.registry import AgentRegistry, RegistryLoadError
 
     _write_agent_config(
@@ -203,6 +219,8 @@ name: Invalid Agent
 
 
 def test_agent_registry_controls_delegation_and_builds_summary(tmp_path: Path) -> None:
+    """验证 registry 同时控制 delegation 方向，并生成可持久化的摘要投影。"""
+
     from agent_harness.registry import AgentRegistry
 
     _write_agent_config(
@@ -239,6 +257,8 @@ def test_agent_registry_controls_delegation_and_builds_summary(tmp_path: Path) -
 
 
 def test_model_router_uses_fake_provider_and_reports_budget_fallback() -> None:
+    """验证模型路由在预算超限时选择声明的 fallback 并保留决策证据。"""
+
     from agent_harness.models import (
         FakeModelProvider,
         ModelRequest,
@@ -287,6 +307,8 @@ def test_model_router_uses_fake_provider_and_reports_budget_fallback() -> None:
 
 
 def test_model_router_has_explicit_reload_seam() -> None:
+    """验证路由配置只能通过显式 reload seam 更新，便于运行期受控切换。"""
+
     from agent_harness.models import FakeModelProvider, ModelRouter, ModelRouterConfig
 
     router = ModelRouter(

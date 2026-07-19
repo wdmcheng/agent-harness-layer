@@ -47,6 +47,8 @@ async def test_tool_registry_execution_failed_redacts_error_message(tmp_path: Pa
     artifacts = FileArtifactStore(tmp_path / "artifacts")
 
     def fail(arguments: dict[str, Any]) -> dict[str, str]:
+        """模拟工具提供方抛出含密钥的异常，确认 registry 负责统一脱敏。"""
+
         _ = arguments
         raise RuntimeError("provider failed with api_key=sk-1234567890")
 

@@ -65,9 +65,13 @@ from agent_harness.storage.shared_budget_models import (
 
 
 class TestIdentityRuntime:
+    """提供真实 SharedBudgetRuntime 所需的身份与价格投影 seam 的轻量测试宿主。"""
+
     __test__ = False
 
     def operation_identity(self, **values: Any) -> OperationIdentity:
+        """以固定测试密钥构造语义身份，保证重放断言不依赖环境 secret。"""
+
         return OperationIdentity.from_semantic_request(
             fingerprint_key=b"test-only-budget-fingerprint-key",
             fingerprint_key_version="test-v1",
@@ -81,6 +85,8 @@ class TestIdentityRuntime:
         agent_id: str,
         base: ModelRouterConfig,
     ) -> ModelRouterConfig:
+        """复用生产路由投影逻辑，验证冻结 snapshot 对模型路由的约束。"""
+
         return SharedBudgetRuntime.model_router_config(
             self,  # type: ignore[arg-type]
             snapshot=snapshot,
@@ -96,6 +102,8 @@ class TestIdentityRuntime:
         provider: str,
         model: str,
     ) -> tuple[Decimal | None, str, str]:
+        """复用生产价格投影逻辑，验证 embedding 结算只使用冻结目录信息。"""
+
         return SharedBudgetRuntime.embedding_price_config(
             self,  # type: ignore[arg-type]
             snapshot=snapshot,
@@ -111,10 +119,14 @@ class CountingFakeModelProvider:
     provider_id = "fake"
 
     def __init__(self) -> None:
+        """初始化调用计数和真实 fake provider，保持业务响应形状不变。"""
+
         self.calls = 0
         self._delegate = FakeModelProvider()
 
     def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        """记录外部模型副作用次数后委托 fake provider，支撑恢复窗口断言。"""
+
         self.calls += 1
         return self._delegate.complete(request, model=model)
 
@@ -125,6 +137,8 @@ def model_service(
     sink: LocalJsonlEventSink,
     provider: CountingFakeModelProvider,
 ) -> ModelInvocationService:
+    """组装使用固定价格目录和 trace resolver 的模型调用服务。"""
+
     return ModelInvocationService(
         router=ModelRouter(
             config=ModelRouterConfig(
@@ -144,6 +158,8 @@ def model_service(
 
 
 def model_request() -> ModelRequest:
+    """生成最小可计费的模型请求，供重放和预算场景共享。"""
+
     return ModelRequest(
         provider="fake",
         prompt="abc",
@@ -165,6 +181,12 @@ async def seed_managed_root(
     soft_token_limit: int = 100,
     fallback_soft_token_limit: int = 100,
 ) -> str:
+    """创建带冻结 shared-budget snapshot 的 root run，并返回其 durable 标识。
+
+    参数只控制各测试需要的预算和价格分支；租户、会话、目录版本保持固定，
+    让断言聚焦调用/恢复语义而不是初始化噪声。
+    """
+
     async with storage.uow() as uow:
         await uow.tenants.ensure("tenant-a")
         await uow.sessions.ensure(
@@ -288,6 +310,8 @@ async def seed_managed_root(
 
 
 def context(run_id: str) -> UsageEvidenceContext:
+    """构造与 seed root 对齐的使用证据上下文，避免测试重复手写关联字段。"""
+
     return UsageEvidenceContext(
         tenant_id="tenant-a",
         run_id=run_id,
@@ -298,6 +322,8 @@ def context(run_id: str) -> UsageEvidenceContext:
 
 
 async def resolve_trace(**_: object) -> str:
+    """为测试事件总线返回固定 trace，隔离调用预算合同与 trace 查询实现。"""
+
     return "trace-a"
 
 

@@ -48,6 +48,8 @@ async def test_postgresql_submission_coordination_serializes_independent_storage
     guardrail_calls = 0
 
     class CountingExecutor(FakeContractExecutor):
+        """记录跨数据库 engine 的执行次数，验证 advisory lock 覆盖真实副作用。"""
+
         calls = 0
 
         async def run(
@@ -55,6 +57,8 @@ async def test_postgresql_submission_coordination_serializes_independent_storage
             request: AgentExecutionRequest,
             context: AgentExecutionContext,
         ) -> AgentExecutionResult:
+            """累加执行计数并复用基础成功结果，保持 service 真实调用路径。"""
+
             self.calls += 1
             return await super().run(request, context)
 
@@ -74,6 +78,8 @@ async def test_postgresql_submission_coordination_serializes_independent_storage
     idempotency_key = f"postgres-coordinated-{uuid4()}"
 
     async def submit(orchestrator: RunOrchestrator, *, pause_winner: bool) -> Any:
+        """在 PostgreSQL 协调锁内提交一次 run，并可暂停 winner 形成竞争窗口。"""
+
         nonlocal guardrail_calls
         preflight = await orchestrator.prepare_trace(
             agent_id="fake-agent",
@@ -160,6 +166,8 @@ async def test_postgresql_same_explicit_trace_race_replays_after_initial_lookup(
     original_validate = RunRepository._validate_trace_claim  # pyright: ignore[reportPrivateUsage]
 
     async def pause_later_validation(repository: RunRepository, data: Any) -> None:
+        """暂停命名为 later 的任务，模拟数据库首次查询后被竞争提交抢先的窗口。"""
+
         task = asyncio.current_task()
         if task is not None and task.get_name() == "postgres-same-trace-later":
             entered.set()
@@ -169,6 +177,8 @@ async def test_postgresql_same_explicit_trace_race_replays_after_initial_lookup(
     monkeypatch.setattr(RunRepository, "_validate_trace_claim", pause_later_validation)
 
     class CountingExecutor(FakeContractExecutor):
+        """记录相同显式 trace 竞争下的 executor 次数，确保 later 只重放。"""
+
         calls = 0
 
         async def run(
@@ -176,6 +186,8 @@ async def test_postgresql_same_explicit_trace_race_replays_after_initial_lookup(
             request: AgentExecutionRequest,
             context: AgentExecutionContext,
         ) -> AgentExecutionResult:
+            """记录调用后沿用基础桩行为，避免测试绕过生产 run 路径。"""
+
             self.calls += 1
             return await super().run(request, context)
 
@@ -255,6 +267,8 @@ async def test_postgresql_trace_coordination_serializes_distinct_keys() -> None:
     guardrail_calls = 0
 
     class CountingExecutor(FakeContractExecutor):
+        """记录不同幂等键共享 trace 时的执行次数，验证全局 trace 锁。"""
+
         calls = 0
 
         async def run(
@@ -262,6 +276,8 @@ async def test_postgresql_trace_coordination_serializes_distinct_keys() -> None:
             request: AgentExecutionRequest,
             context: AgentExecutionContext,
         ) -> AgentExecutionResult:
+            """记录执行并返回基础结果，供断言失败方未进入 executor。"""
+
             self.calls += 1
             return await super().run(request, context)
 
@@ -285,6 +301,8 @@ async def test_postgresql_trace_coordination_serializes_distinct_keys() -> None:
         idempotency_key: str,
         pause_winner: bool,
     ) -> Any:
+        """以给定幂等键提交共享 trace，并在 winner guardrail 后停顿以观测串行化。"""
+
         nonlocal guardrail_calls
         preflight = await orchestrator.prepare_trace(
             agent_id="fake-agent",

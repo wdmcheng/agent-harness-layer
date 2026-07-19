@@ -29,6 +29,8 @@ class ExampleDTO(HarnessDTO):
 
 
 def test_dto_serializes_json_payload_and_rejects_unknown_fields() -> None:
+    """公共 DTO 必须输出纯 JSON 载荷并拒绝未知 provider 字段，防止私有 SDK 类型穿透边界。"""
+
     # vendor_object 模拟 provider SDK 对象泄漏，必须在公共 DTO seam 被挡住。
     payload = ExampleDTO(run_id="run-1").to_payload()
 
@@ -43,6 +45,8 @@ def test_dto_serializes_json_payload_and_rejects_unknown_fields() -> None:
 
 
 def test_error_envelope_exposes_field_path_and_repair_hint() -> None:
+    """API/CLI 错误封套必须保留字段路径与修复建议，使维护者不必依赖内部异常栈定位配置问题。"""
+
     # CLI/API 层依赖 field_path 和 hint 给维护者修配置，不能只剩一段异常文本。
     envelope = ApiErrorEnvelope(
         error=ErrorDetail(
@@ -58,6 +62,8 @@ def test_error_envelope_exposes_field_path_and_repair_hint() -> None:
 
 
 def test_trust_context_and_guardrail_decision_are_serializable() -> None:
+    """信任上下文与 guardrail 决策需要稳定可序列化，供 MCP、检索和工具输出共享同一边界语言。"""
+
     # trust/source/context refs 是未来 MCP、retrieval、tool output 进入模型前的边界语言。
     source = SourceRef(kind="tool", uri="mcp://search", label="Search tool")
     context_ref = ContextRef(
@@ -89,6 +95,8 @@ def test_trust_context_and_guardrail_decision_are_serializable() -> None:
 
 
 def test_identity_and_permission_context_keep_tenant_session_fields() -> None:
+    """权限上下文从身份派生时必须保留租户和会话字段，避免后续策略执行丢失隔离坐标。"""
+
     # policy 输入从 identity 派生，保证后续 auth backend 不会污染 policy seam。
     identity = IdentityContext.local_default(session_id="session-1")
     permission = PermissionContext.from_identity(

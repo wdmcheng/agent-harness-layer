@@ -23,6 +23,8 @@ class RecordedApprovedCaseEvaluator:
     """
 
     def __init__(self, *, storage: SQLAlchemyStorage) -> None:
+        """绑定存储 seam；评测时只读取已批准 case，不修改 curation 数据。"""
+
         self.storage = storage
 
     async def evaluate(
@@ -36,6 +38,13 @@ class RecordedApprovedCaseEvaluator:
         evaluator_profile: dict[str, Any],
         metric_versions: dict[str, str],
     ) -> ExperimentEvaluationResult:
+        """从冻结 split 读取已批准 case，并以版本化本地证据生成确定性评测结果。
+
+        split 中任何 case 不再可见都应报未找到，而不是静默缩小样本；这样可阻止
+        删除、跨租户或状态变化导致 comparison 看似完整。输出只携带受限引用，
+        不将 case payload 复制进 experiment 结果。
+        """
+
         async with self.storage.uow() as uow:
             rows = await uow.eval_cases.list(
                 tenant_id=tenant_id,
@@ -90,6 +99,8 @@ class RecordedApprovedCaseEvaluator:
 
 
 def _pass_threshold(profile: dict[str, Any]) -> float:
+    """解析 evaluator 的可选通过阈值，并拒绝 bool 等伪数值配置。"""
+
     value = profile.get("pass_threshold", 1.0)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise EvalExperimentError(
@@ -106,6 +117,12 @@ def _metric_scores(
     version_id: str,
     metric_versions: dict[str, str],
 ) -> dict[str, float]:
+    """取得指定 harness 版本的指标证据，必要时仅对 exact_match 使用本地回退。
+
+    任一声明指标缺失时必须失败，不能以零分代替；否则版本化评测会把证据缺口误报
+    为模型退化，并污染后续 comparison 的推荐结论。
+    """
+
     raw_by_version = case.metadata.get("experiment_scores", {})
     version_scores: dict[str, object] = {}
     if isinstance(raw_by_version, dict):

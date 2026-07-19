@@ -15,6 +15,8 @@ depends_on = None
 
 
 def _timestamp_columns() -> Sequence[sa.Column[Any]]:
+    """集中声明 experiment 相关新表的时间戳列，防止表间审计字段语义分叉。"""
+
     return (
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False

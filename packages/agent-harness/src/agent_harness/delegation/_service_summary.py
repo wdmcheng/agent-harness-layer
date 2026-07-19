@@ -49,11 +49,22 @@ class DelegationSummaryMixin:
 
         async def _publish_child_created(
             self, *, delegation: DelegationRecord, identity: IdentityContext
-        ) -> None: ...
+        ) -> None:
+            """确保 child 绑定事件已按有序 outbox 规则发布。"""
+
+            ...
+
         async def _publish_final(
             self, *, delegation: DelegationRecord, summary: DelegationSummary
-        ) -> None: ...
-        async def _resume_parent_terminal_if_ready(self, delegation: DelegationRecord) -> None: ...
+        ) -> None:
+            """确保聚合终态事件已在 child 事件之后发布。"""
+
+            ...
+
+        async def _resume_parent_terminal_if_ready(self, delegation: DelegationRecord) -> None:
+            """在 delegation 终态证据齐备后恢复父 run 的终态推进。"""
+
+            ...
 
     async def reconcile_child(self, child_run_id: str) -> DelegationExecutionResult:
         """worker/local 共用的可重入聚合；缺失或非法 usage 保持两类预约。"""
@@ -175,6 +186,13 @@ class DelegationSummaryMixin:
         tenant_id: str,
         parent_run_id: str,
     ) -> DelegationSummary | None:
+        """按 durable delegation relation 汇总 parent 的所有 child，不依赖内存缓存。
+
+        已结算 child 必须同时满足聚合、预约和 outbox 一致性；仅关联但尚未结算的
+        terminal child 以未知用量保留。发现矛盾记录即失败，防止 API 以不完整摘要
+        掩盖账本或证据损坏。
+        """
+
         async with self._storage.uow() as uow:
             shared_ledger = await uow.shared_budget.get_ledger(tenant_id, parent_run_id)
             cost_enabled = shared_ledger is None or shared_ledger.cost_limit is not None

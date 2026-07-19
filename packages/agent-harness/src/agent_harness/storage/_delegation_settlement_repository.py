@@ -44,9 +44,17 @@ from agent_harness.storage.shared_budget_repositories import SharedBudgetReposit
 
 
 class DelegationSettlementRepositoryMixin:
+    """在单个 UoW 内完成 child 绑定、预约释放与 parent 聚合结算。"""
+
     _session: AsyncSession
 
     async def attach_child(self, *, delegation_id: str, child_run_id: str) -> DelegationRecord:
+        """将唯一满足 parent、agent、trace 和幂等键约束的 child 绑定到 delegation。
+
+        已绑定同一 child 时返回重放结果；不同 child 或任一关系字段不一致均视为
+        幂等冲突/损坏，不能让恢复流程将其他 run 嫁接到既有预算预约。
+        """
+
         delegation = await self._session.scalar(
             select(AgentDelegationModel)
             .where(AgentDelegationModel.id == delegation_id)
@@ -132,6 +140,13 @@ class DelegationSettlementRepositoryMixin:
         evidence_refs: list[str],
         needs_review: bool,
     ) -> DelegationAggregateRecord:
+        """保存可信 child 聚合，并在同一事务结算预约、共享账本和有序最终事件。
+
+        ``needs_review`` 只推进状态而不伪造数值结算；完整聚合必须携带有限 token/cost
+        并与 child 关系逐项匹配。相同已完成聚合允许幂等重放，防止 worker 重投修改
+        已发布的 final evidence。
+        """
+
         delegation = await self._session.scalar(
             select(AgentDelegationModel)
             .where(AgentDelegationModel.id == delegation_id)

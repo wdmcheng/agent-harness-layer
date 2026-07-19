@@ -18,6 +18,8 @@ from agent_harness.storage.evidence_repositories import EvidenceOperationKind
 
 
 def _forged_started(*, tenant_id: str, run_id: str, trace_id: str) -> CanonicalEvent:
+    """构造未关联 durable outbox 的伪造 started 事件，验证 event sink 不会信任调用方自报关联。"""
+
     return CanonicalEvent(
         event_id=f"usage:{tenant_id}:forged:started",
         tenant_id=tenant_id,
@@ -37,6 +39,8 @@ def _forged_started(*, tenant_id: str, run_id: str, trace_id: str) -> CanonicalE
 async def test_local_forged_usage_event_cannot_consume_unbound_reservation(
     tmp_path: Path,
 ) -> None:
+    """本地 JSONL 路径拒绝伪造 usage 事件，未绑定预约与磁盘事件文件必须保持原样。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'forged-local.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -78,6 +82,8 @@ async def test_local_forged_usage_event_cannot_consume_unbound_reservation(
 async def test_usage_final_cannot_settle_capacity_before_result_is_persisted(
     tmp_path: Path,
 ) -> None:
+    """最终用量事件必须在结果已持久化后才可结算预约，防止事件先行造成不可恢复的账本缺口。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'premature-final.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -159,6 +165,8 @@ async def test_usage_final_cannot_settle_capacity_before_result_is_persisted(
 )
 @pytest.mark.asyncio
 async def test_postgresql_forged_usage_event_cannot_consume_unbound_reservation() -> None:
+    """PostgreSQL sink 同样按 outbox 绑定校验伪造事件，跨存储后端不能出现容量绕过。"""
+
     async with isolated_database("usage_binding") as dsn:
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)

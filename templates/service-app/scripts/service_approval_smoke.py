@@ -1,4 +1,4 @@
-"""真实 service smoke 的审批、拒绝与崩溃恢复场景。"""
+"""真实 service smoke 的审批、拒绝、事件失败与崩溃恢复场景。"""
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ GROUP = "agent-harness-workers"
 
 
 def _stream_length(env: dict[str, str]) -> int:
+    """读取审批 smoke 使用的固定运行队列长度，用于拒绝路径零入队断言。"""
     return stream_length(env, STREAM)
 
 
@@ -93,6 +94,7 @@ def run_approval_smoke(
     )
 
     def write_failure_exited() -> bool:
+        """确认事件写前故障 worker 已异常退出，避免过早读取未落库状态。"""
         result = run(
             [
                 "docker",
@@ -142,6 +144,7 @@ def run_approval_smoke(
     )
 
     def ack_failure_exited() -> bool:
+        """确认 ack 前故障发生在预定窗口，而非普通 worker 启动失败。"""
         result = run(
             [
                 "docker",
@@ -190,6 +193,7 @@ def run_approval_smoke(
     approval_ack: dict[str, int] = {}
 
     def approval_delivery_acked() -> bool:
+        """轮询直至 durable 审批证据对应的 Redis receipt 已被 worker 确认。"""
         nonlocal approval_ack
         try:
             approval_ack = run_queue_ack_evidence(

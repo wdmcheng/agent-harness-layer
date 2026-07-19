@@ -64,6 +64,8 @@ async def test_fallback_reclaims_only_a_route_in_frozen_sub_snapshot(
 async def test_embedding_cache_hit_commits_zero_claim_and_usage_together(
     tmp_path: Path,
 ) -> None:
+    """embedding 缓存命中仍需原子提交零影响 claim 与用量证据，保证账本、outbox 和终态许可一致。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'embedding.sqlite3'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage(dsn)
@@ -374,6 +376,8 @@ async def test_not_started_crash_reuses_claim_and_calls_provider_once(
     original_mark = service._mark_side_effect_started  # pyright: ignore[reportPrivateUsage]
 
     async def crash_before_started(**_: object) -> None:
+        """在副作用开始标记前中断，模拟仅预约成功的崩溃窗口以验证重试可安全继续。"""
+
         raise RuntimeError("injected before started")
 
     try:
@@ -417,6 +421,8 @@ async def test_started_unknown_recovery_fences_replay_and_terminal(
         usage_call_id: str,
         ownership: BudgetOperationOwnership | None,
     ) -> None:
+        """先写 started 再抛出故障，模拟结果未知窗口以验证恢复会围栏重放而非猜测结果。"""
+
         await original_mark(
             context=context,
             usage_call_id=usage_call_id,
@@ -467,6 +473,8 @@ async def test_result_committed_crash_only_republishes_event(
     original_publish = service._publish_final  # pyright: ignore[reportPrivateUsage]
 
     async def fail_publish(**_: object) -> None:
+        """在结果与结算已持久化后阻断事件发布，验证下一次调用只执行证据补投。"""
+
         raise RuntimeError("injected publish failure")
 
     try:

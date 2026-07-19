@@ -43,6 +43,12 @@ from agent_harness.storage.models import AgentRunModel, RunEvidenceOutboxModel
 
 
 class DelegationReadRepositoryMixin:
+    """提供 delegation 聚合、恢复与 usage 读取，隔离 ORM 实例生命周期。
+
+    所有方法只返回 DTO 或受控投影，因此 service 可以在 UoW 关闭后继续进行
+    evidence 发布与恢复判断，而不会把延迟加载的 ORM 状态带出事务边界。
+    """
+
     _session: AsyncSession
 
     async def list_for_parent(
@@ -51,6 +57,8 @@ class DelegationReadRepositoryMixin:
         tenant_id: str,
         parent_run_id: str,
     ) -> list[DelegationRecord]:
+        """按创建顺序读取某个 parent 的全部 delegation 关系。"""
+
         models = list(
             await self._session.scalars(
                 select(AgentDelegationModel)
@@ -187,10 +195,14 @@ class DelegationReadRepositoryMixin:
         return candidates
 
     async def get(self, delegation_id: str) -> DelegationRecord | None:
+        """按主键读取 delegation；不存在时返回 ``None`` 而非构造占位记录。"""
+
         model = await self._session.get(AgentDelegationModel, delegation_id)
         return None if model is None else _delegation_record(model)
 
     async def get_by_child(self, child_run_id: str) -> DelegationRecord | None:
+        """按 child run 反查唯一 parent delegation，用于 child 收口和恢复。"""
+
         model = await self._session.scalar(
             select(AgentDelegationModel).where(AgentDelegationModel.child_run_id == child_run_id)
         )
@@ -200,6 +212,8 @@ class DelegationReadRepositoryMixin:
         self,
         delegation_id: str,
     ) -> DelegationBudgetReservationRecord:
+        """读取 delegation 必有的预算预约，缺失即视为 durable 状态损坏。"""
+
         model = await self._session.scalar(
             select(DelegationBudgetReservationModel).where(
                 DelegationBudgetReservationModel.delegation_id == delegation_id
@@ -215,6 +229,8 @@ class DelegationReadRepositoryMixin:
         tenant_id: str,
         parent_run_id: str,
     ) -> list[DelegationAggregateRecord]:
+        """按创建顺序读取 parent 下已持久化的 child 聚合结果。"""
+
         models = list(
             await self._session.scalars(
                 select(DelegationAggregateModel)
@@ -231,6 +247,8 @@ class DelegationReadRepositoryMixin:
         self,
         child_run_id: str,
     ) -> list[DelegationUsageEvidenceRecord]:
+        """读取单个 child 的 usage outbox 投影，复用批量查询实现避免口径分叉。"""
+
         grouped = await self.usage_evidence_for_children(child_run_ids=[child_run_id])
         return grouped.get(child_run_id, [])
 

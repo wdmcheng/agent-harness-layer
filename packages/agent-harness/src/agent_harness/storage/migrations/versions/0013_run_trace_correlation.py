@@ -227,6 +227,8 @@ def downgrade() -> None:
 
 
 def _require_exact_empty_evidence_opt_in() -> None:
+    """仅接受单个精确 opt-in 参数，防止模糊开关误触破坏性 evidence downgrade。"""
+
     arguments = context.get_x_argument(as_dictionary=False)
     matches = [item for item in arguments if item.startswith("allow_empty_evidence_downgrade")]
     if matches != [_OPT_IN]:

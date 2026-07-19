@@ -261,6 +261,8 @@ def test_cli_trace_errors_use_stderr_and_leave_business_tables_unchanged(tmp_pat
     ]
 
     def invoke(*extra: str) -> subprocess.CompletedProcess[str]:
+        """以共享 CLI 参数执行子进程，统一捕获各类 trace 边界的外部表现。"""
+
         return subprocess.run(
             [*common, *extra],
             cwd=ROOT,

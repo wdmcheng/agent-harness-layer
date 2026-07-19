@@ -1,4 +1,4 @@
-"""真实 PostgreSQL shared-budget direct/delegation 原子竞争探针。"""
+"""真实 PostgreSQL 共享预算直连与委派原子竞争探针。"""
 
 from __future__ import annotations
 
@@ -37,6 +37,7 @@ def storage_dsn() -> str:
 
 
 def queue_dsn() -> str:
+    """保留 service 环境队列地址的显式校验，避免探针使用隐式默认连接。"""
     value = os.environ.get("AGENT_HARNESS_QUEUE__DSN", "").strip()
     if not value:
         raise RuntimeError("AGENT_HARNESS_QUEUE__DSN is required")
@@ -151,6 +152,7 @@ async def assert_budget_race() -> dict[str, object]:
             await uow.commit()
 
         async def compete_direct() -> str:
+            """尝试提交直连模型 claim；预算拒绝是本竞争实验的合法结果。"""
             slot = "direct"
             identity = OperationIdentity.from_semantic_request(
                 tenant_id=tenant_id,
@@ -192,6 +194,11 @@ async def assert_budget_race() -> dict[str, object]:
                 return "rejected"
 
         async def compete_delegation() -> str:
+            """尝试以同一父账本提交委派预留，与直连 claim 原子竞争容量。
+
+            两条协程分别打开 UoW，目的是让 PostgreSQL 的真实锁和约束决定唯一
+            获胜者；不能在脚本内预先串行化，否则无法证明跨路径竞争安全性。
+            """
             idempotency_key = f"budget-race-delegation-{suffix}"
             delegation_id = delegation_relation_id(
                 tenant_id=tenant_id,

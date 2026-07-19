@@ -43,6 +43,8 @@ def _script_module(module_name: str, filename: str) -> Any:
 
 
 def _smoke_support() -> Any:
+    """按文件路径加载 smoke 辅助模块，使静态部署合同能调用真实模板逻辑而非复制实现。"""
+
     path = TEMPLATE / "scripts" / "service_smoke_support.py"
     spec = importlib.util.spec_from_file_location("service_smoke_support_contract", path)
     assert spec is not None and spec.loader is not None
@@ -52,6 +54,8 @@ def _smoke_support() -> Any:
 
 
 def _smoke_service(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """装配 smoke 主脚本及其拆分模块到隔离模块表，避免测试依赖全局导入顺序。"""
+
     support = _smoke_support()
     monkeypatch.setitem(sys.modules, "service_smoke_support", support)
     operations_path = TEMPLATE / "scripts" / "service_smoke_operations.py"
@@ -113,6 +117,8 @@ def _smoke_service(monkeypatch: pytest.MonkeyPatch) -> Any:
 
 
 def _service_admin() -> Any:
+    """加载 service admin 及预算子命令模块，保留生产脚本的动态导入边界供合同验证。"""
+
     race_module = _script_module(
         "service_admin_budget_race",
         "service_admin_budget_race.py",
@@ -137,6 +143,8 @@ def _service_admin() -> Any:
 
 
 def _root_smoke() -> Any:
+    """加载仓库根 smoke 入口，用于比对模板脚本与发布入口的责任分工。"""
+
     path = ROOT / "scripts" / "smoke_service.py"
     spec = importlib.util.spec_from_file_location("root_service_smoke_contract", path)
     assert spec is not None and spec.loader is not None
@@ -146,6 +154,8 @@ def _root_smoke() -> Any:
 
 
 def _compose() -> dict[str, Any]:
+    """解析模板 Compose 配置为字典，调用方只断言声明性部署契约而不启动容器。"""
+
     return cast(
         dict[str, Any],
         yaml.safe_load((TEMPLATE / "docker-compose.yml").read_text(encoding="utf-8")),

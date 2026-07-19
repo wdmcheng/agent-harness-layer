@@ -34,6 +34,8 @@ def usage_payload(**overrides: object) -> dict[str, object]:
 
 
 def test_model_usage_evidence_has_exact_public_shape() -> None:
+    """公开 payload 只能包含协议允许字段，稳定调用关联键不得穿透到业务与审计表面。"""
+
     from agent_harness.models import ModelUsageEvidence
 
     evidence = ModelUsageEvidence.model_validate(usage_payload())
@@ -49,6 +51,8 @@ def test_model_usage_evidence_rejects_invalid_integer_metrics(
     field: str,
     value: object,
 ) -> None:
+    """token 与时延必须是非负整数，防止布尔、浮点或字符串被宽松转换后污染计量。"""
+
     from agent_harness.models import ModelUsageEvidence
 
     with pytest.raises(ValidationError):
@@ -57,6 +61,8 @@ def test_model_usage_evidence_rejects_invalid_integer_metrics(
 
 @pytest.mark.parametrize("value", [True, -1, math.nan, math.inf, -math.inf, "0"])
 def test_model_usage_evidence_rejects_invalid_cost(value: object) -> None:
+    """成本必须为有限的非负数，拒绝 NaN、无穷和隐式类型转换以保持账务语义可靠。"""
+
     from agent_harness.models import ModelUsageEvidence
 
     with pytest.raises(ValidationError):
@@ -75,6 +81,8 @@ def test_model_usage_evidence_rejects_inconsistent_cost_state(
     cost_status: str,
     cost_usd: object,
 ) -> None:
+    """成本可用性状态与数值必须一致，调用方不能用相互矛盾的数据伪造完整用量。"""
+
     from agent_harness.models import ModelUsageEvidence
 
     with pytest.raises(ValidationError):
@@ -82,6 +90,8 @@ def test_model_usage_evidence_rejects_inconsistent_cost_state(
 
 
 def test_estimated_cost_requires_safe_price_source() -> None:
+    """估算成本必须附带可追溯且安全的价格来源，避免无依据的金额进入审计证据。"""
+
     from agent_harness.models import ModelUsageEvidence
 
     with pytest.raises(ValidationError):
@@ -104,6 +114,8 @@ def test_estimated_cost_requires_safe_price_source() -> None:
 
 
 def test_unavailable_metrics_preserve_null_in_public_payload() -> None:
+    """供应商或缓存无法确认计量时公开载荷保留 null，不能把未知压缩成零。"""
+
     from agent_harness.models import ModelUsageEvidence
 
     evidence = ModelUsageEvidence.model_validate(
@@ -128,6 +140,8 @@ def test_unavailable_metrics_preserve_null_in_public_payload() -> None:
 
 
 def test_model_and_embedding_adapters_share_evidence_shape() -> None:
+    """模型与 embedding 适配器须投影到同一公开证据形状，方便统一存储和消费。"""
+
     from agent_harness.models import (
         UsageEvidenceContext,
         embedding_usage_evidence,

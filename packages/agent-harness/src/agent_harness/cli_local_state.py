@@ -59,6 +59,8 @@ def _migrate_profile_bundle(
     known_run_ids = set(asyncio.run(_load_run_values(dsn, include_trace=False)))
 
     def upgrade_database_and_load_traces() -> dict[str, str]:
+        """在文件重写前完成 schema 升级并返回迁移所需的 canonical trace 映射。"""
+
         run_migrations(dsn)
         values = asyncio.run(_load_run_values(dsn, include_trace=True))
         return {run_id: trace_id for run_id, trace_id in values.items() if trace_id is not None}

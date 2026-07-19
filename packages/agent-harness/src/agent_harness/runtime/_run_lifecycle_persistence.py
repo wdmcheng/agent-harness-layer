@@ -101,6 +101,13 @@ class RunLifecyclePersistence(OrchestratorState):
         defer_terminal: bool = False,
         approval_recovery: dict[str, Any] | None = None,
     ) -> RunResult:
+        """持久化执行期失败及其脱敏 evidence，并在 delegation 未收口时延迟终态。
+
+        与 ``fail_run`` 不同，此路径复用执行期持久化 helper，以支持 approval 恢复
+        标记。运行所属 tenant、trace 与 terminal 容量仍从 durable run 读取，不能信任
+        调用方参数。
+        """
+
         safe_reason = str(redact_secrets(reason))
         deferred = await self._defer_pending_delegation_terminal(
             run_id=run_id,
@@ -140,6 +147,12 @@ class RunLifecyclePersistence(OrchestratorState):
         request_id: str | None = None,
         trace_id: str | None = None,
     ) -> ResumeToken:
+        """创建顺序递增 checkpoint、将 run 置为 waiting，并发布对应的非终态事件。
+
+        checkpoint state 的 trace 总是由已持久化 run 覆盖，避免 executor 传入的旧值
+        与 event stream 脱节；返回 token 只在事务提交成功后对外可见。
+        """
+
         resume_token = ResumeToken(value=f"resume-{uuid4()}")
         async with self._storage.uow() as uow:
             run = await uow.runs.get(run_id)
@@ -209,6 +222,12 @@ class RunLifecyclePersistence(OrchestratorState):
         input: dict[str, Any] | None = None,
         defer_terminal: bool = False,
     ) -> CanonicalEvent | None:
+        """原子完成 run，并在没有待 delegation 证据时发布唯一 terminal 事件。
+
+        root run 在进入终态前必须让共享预算账本完成 fencing；如果 child 的有序证据
+        仍在处理中，则调用方应使用延迟终态路径，而非提前关闭 event stream。
+        """
+
         async with self._storage.uow() as uow:
             run = await uow.runs.get_for_update(run_id)
             if run is None or run.tenant_id != identity.tenant_id:

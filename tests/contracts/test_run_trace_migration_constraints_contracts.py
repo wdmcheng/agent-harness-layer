@@ -48,6 +48,8 @@ def test_0013_sqlite_canonical_event_run_owner_constraint_rejects_direct_bypass(
                 )
 
         def snapshot() -> tuple[str, ...]:
+            """捕获整库导出，用于证明约束拒绝后没有留下任何部分写入。"""
+
             return tuple(connection.iterdump())
 
         def insert_event(
@@ -58,6 +60,8 @@ def test_0013_sqlite_canonical_event_run_owner_constraint_rejects_direct_bypass(
             trace_id: str | None,
             record_scope: str,
         ) -> None:
+            """绕过 ORM 直接插入事件行，专门验证数据库层 run-owner 约束。"""
+
             connection.execute(
                 "insert into canonical_events("
                 "id, tenant_id, run_id, stream_id, event_type, seq, terminal, visibility, "

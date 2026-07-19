@@ -120,6 +120,8 @@ def tag_distribution(
     holdout: list[str],
     regression: list[str],
 ) -> dict[str, dict[str, int]]:
+    """统计每个请求标签在三个固定子集中的数量，供覆盖约束和公开解释复用。"""
+
     subsets = {
         "optimization": optimization,
         "holdout": holdout,
@@ -141,6 +143,8 @@ def split_id(
     holdout: list[str],
     regression: list[str],
 ) -> str:
+    """以请求和完整 membership 生成可复现 split 标识，不混入传输级 request id。"""
+
     payload = {
         "tenant_id": request.tenant_id,
         "agent_id": request.agent_id,
@@ -159,5 +163,7 @@ def split_id(
 
 
 def _stable_case_hash(request: DatasetSplitRequest, case_id: str) -> str:
+    """按 tenant、agent、dataset 和 case 生成稳定 tie-break，避免文件枚举影响拆分。"""
+
     value = "\0".join([request.tenant_id, request.agent_id, request.dataset, case_id])
     return hashlib.sha256(value.encode()).hexdigest()

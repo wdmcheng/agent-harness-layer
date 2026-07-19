@@ -91,9 +91,13 @@ async def test_fast_service_worker_preserves_delegation_event_order(
     )
 
     class _ReportedCostFakeProvider:
+        """返回已报告成本的模型 provider 替身，确保事件排序场景包含可结算的用量证据。"""
+
         provider_id = "fake"
 
         def complete(self, request: Any, *, model: str) -> ModelResponse:
+            """构造稳定模型结果与计量，隔离真实供应商延迟和价格波动对 worker 顺序的影响。"""
+
             return ModelResponse(
                 provider=self.provider_id,
                 model=model,
@@ -119,7 +123,11 @@ async def test_fast_service_worker_preserves_delegation_event_order(
         original_orchestrator = api.orchestrator
 
         class _WorkerBeforeSubmitReturns:
+            """在 child 提交后立即运行一次 worker，构造“提交返回前 child 已完成”的竞态窗口。"""
+
             async def submit_run(self, **kwargs: Any) -> Any:
+                """先委托真实编排器创建 child，再同步消费队列，验证 parent 证据仍按既定顺序落库。"""
+
                 child = await original_orchestrator.submit_run(**kwargs)
                 worker_run_id = await runtime_worker.run_once(
                     profile="service",
@@ -187,9 +195,13 @@ async def test_queued_parent_waits_for_delegation_then_resumes_terminal(
     parent_executor = _DelegatingExecutor()
 
     class _ReportedCostFakeProvider:
+        """为父运行恢复场景提供固定已报告成本，使预算结算与终态恢复可重复验证。"""
+
         provider_id = "fake"
 
         def complete(self, request: Any, *, model: str) -> ModelResponse:
+            """返回确定性正文、token 与成本，避免非业务差异干扰 parent checkpoint 的恢复断言。"""
+
             output = f"fake:{request.prompt}"
             return ModelResponse(
                 provider=self.provider_id,
@@ -203,6 +215,8 @@ async def test_queued_parent_waits_for_delegation_then_resumes_terminal(
             )
 
     def resolve_executor(self: AgentRegistry, agent_id: str) -> Any:
+        """仅替换父 agent 的 executor，子 agent 和其他 registry 行为仍走真实解析路径。"""
+
         if agent_id == "examples.basic":
             return parent_executor
         return original_resolve(self, agent_id)

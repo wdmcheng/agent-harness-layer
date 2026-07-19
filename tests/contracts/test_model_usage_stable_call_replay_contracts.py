@@ -71,6 +71,8 @@ from tests.contracts.test_model_usage_idempotency_contracts import (
 
 
 def test_stable_usage_call_id_binds_run_and_semantic_operation_slot() -> None:
+    """稳定调用 ID 必须同时绑定运行与语义操作位，既支持重试又不能跨运行或跨步骤复用。"""
+
     context = _context("run-a")
     first = stable_usage_call_id(context=context, operation_key="agent:model-primary")
     replay = stable_usage_call_id(context=context, operation_key="agent:model-primary")
@@ -89,6 +91,8 @@ def test_stable_usage_call_id_binds_run_and_semantic_operation_slot() -> None:
 async def test_model_stable_call_id_sequential_retry_does_not_replay_provider(
     tmp_path: Path,
 ) -> None:
+    """同一模型调用串行重试应读取已结算结果，不能再次触发外部 provider 或新增证据。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'model-sequential.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -128,6 +132,8 @@ async def test_model_stable_call_id_sequential_retry_does_not_replay_provider(
 async def test_model_stable_call_id_concurrent_retry_does_not_replay_provider(
     tmp_path: Path,
 ) -> None:
+    """并发模型重试只能选出一个结算胜者，竞争请求明确失败而不放大 provider 副作用。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'model-concurrent.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -173,6 +179,8 @@ async def test_model_stable_call_id_concurrent_retry_does_not_replay_provider(
 async def test_embedding_stable_call_id_sequential_retry_does_not_replay_cache_or_provider(
     tmp_path: Path,
 ) -> None:
+    """embedding 的串行重试复用持久化结算，不能重新命中缓存或调用向量 provider。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'embedding-sequential.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -209,6 +217,8 @@ async def test_embedding_stable_call_id_sequential_retry_does_not_replay_cache_o
 async def test_embedding_stable_call_id_concurrent_retry_does_not_replay_cache_or_provider(
     tmp_path: Path,
 ) -> None:
+    """embedding 并发重试在首个调用未完成时必须围栏后来者，避免缓存和 provider 双重执行。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'embedding-concurrent.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -252,6 +262,8 @@ async def test_embedding_stable_call_id_concurrent_retry_does_not_replay_cache_o
 async def test_model_retry_republishes_persisted_result_without_replaying_provider(
     tmp_path: Path,
 ) -> None:
+    """终态事件写入失败后，模型重试仅补发已持久化结果，不得重新调用 provider。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'model-result-persisted.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
@@ -304,6 +316,8 @@ async def test_model_retry_republishes_persisted_result_without_replaying_provid
 async def test_embedding_retry_republishes_persisted_result_without_replaying_provider(
     tmp_path: Path,
 ) -> None:
+    """embedding 的证据补发必须读取既有向量结果，避免重算导致成本和结果漂移。"""
+
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'embedding-result-persisted.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

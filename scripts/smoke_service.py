@@ -16,12 +16,16 @@ TEMPLATE = ROOT / "templates" / "service-app"
 
 
 def parse_args() -> argparse.Namespace:
+    """解析服务冒烟模式；迁移专用模式仍复用同一复制模板边界。"""
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--migrate-only", action="store_true")
     return parser.parse_args()
 
 
 def _build_core_wheel() -> Path:
+    """构建唯一核心 wheel，并拒绝残留或缺失产物以防复制 smoke 使用错误版本。"""
+
     subprocess.run(
         ["uv", "build", "--package", "agent-harness", "--clear"],
         cwd=ROOT,
@@ -57,10 +61,13 @@ def _run_copied_smoke(command: list[str], copied: Path, wheel_target: Path) -> N
 
 
 def main() -> int:
+    """在临时工作区复制模板、注入刚构建 wheel 并运行受限服务冒烟。"""
+
     args = parse_args()
     wheel = _build_core_wheel()
     with tempfile.TemporaryDirectory(prefix="agent-harness-service-smoke-") as temp:
         copied = Path(temp) / "service-app"
+        # 复制时排除本机状态与缓存，确保被测模板不能依赖宿主已安装环境或历史密钥。
         shutil.copytree(
             TEMPLATE,
             copied,

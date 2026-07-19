@@ -193,6 +193,8 @@ class ApprovalRecoveryRepositoryMixin:
         run_id: str,
         tenant_id: str,
     ) -> None:
+        """按当前持久化状态归类条件更新失败，避免将跨租户或终态误报为可重试。"""
+
         model = await self._session.get(ApprovalModel, approval_id)
         if model is None or model.run_id != run_id or model.tenant_id != tenant_id:
             raise LookupError(f"approval not found: {approval_id}")

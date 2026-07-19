@@ -49,6 +49,8 @@ async def test_eval_experiment_postgresql_repository_and_downgrade_contract() ->
     dsn = test_url.render_as_string(hide_password=False)
 
     def downgrade_config() -> Config:
+        """构造带空证据显式确认的 Alembic 配置，用于验证可降级前置条件。"""
+
         config = alembic_config(dsn)
         config.cmd_opts = Namespace(x=["allow_empty_evidence_downgrade=true"])
         return config

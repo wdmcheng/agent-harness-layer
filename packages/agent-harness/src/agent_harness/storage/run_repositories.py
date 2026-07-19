@@ -61,11 +61,15 @@ class RunTraceRepositoryConflict(RuntimeError):
     """Repository 在任何持久化副作用前拒绝 trace claim 冲突。"""
 
     def __init__(self, code: str) -> None:
+        """保存可映射为 API 错误的稳定冲突码，不泄露数据库约束细节。"""
+
         super().__init__(code)
         self.code = code
 
 
 def _run_record(model: AgentRunModel) -> RunRecord:
+    """将 ORM 运行模型映射为不暴露队列私有字段的公共仓储记录。"""
+
     return RunRecord(
         id=model.id,
         tenant_id=model.tenant_id,
@@ -82,6 +86,8 @@ def _run_record(model: AgentRunModel) -> RunRecord:
 
 
 def _run_execution_record(model: AgentRunModel) -> RunExecutionRecord:
+    """将已排队运行映射为 worker 所需状态，并拒绝半写入的队列字段组合。"""
+
     required = {
         "execution_context": model.execution_context_json,
         "operation_id": model.queue_operation_id,
@@ -89,6 +95,7 @@ def _run_execution_record(model: AgentRunModel) -> RunExecutionRecord:
         "effective_idempotency_key": model.queue_effective_idempotency_key,
         "enqueue_state": model.queue_enqueue_state,
     }
+    # 队列字段来自一次创建操作；任一缺失都表示旧数据或异常写入，不能交给 worker 猜测。
     missing = [name for name, value in required.items() if value is None]
     if missing:
         raise RuntimeError(f"run execution state incomplete: {', '.join(missing)}")
@@ -111,6 +118,8 @@ class RunRepository:
     """run lifecycle repository，集中处理幂等、queue state 与 canonical trace。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定当前 UoW 的异步 session；提交与回滚仍由 UoW 统一负责。"""
+
         self._session = session
 
     async def create(
@@ -136,6 +145,7 @@ class RunRepository:
                     raise RunTraceRepositoryConflict("trace.idempotency_conflict")
                 return existing
 
+        # trace claim 在插入前验证，避免先产生 run 副作用再发现全局根归属冲突。
         await self._validate_trace_claim(data)
 
         model = AgentRunModel(
@@ -250,12 +260,16 @@ class RunRepository:
             raise RunTraceRepositoryConflict("trace.conflict") from exc
 
     async def get_execution(self, run_id: str) -> RunExecutionRecord | None:
+        """读取一个已配置队列执行字段的运行；普通同步运行返回 ``None``。"""
+
         model = await self._session.get(AgentRunModel, run_id)
         if model is None or model.queue_operation_id is None:
             return None
         return _run_execution_record(model)
 
     async def list_pending_enqueue(self) -> list[RunExecutionRecord]:
+        """列出已落库但尚未投递消息的运行，供恢复任务补偿 enqueue。"""
+
         result = await self._session.scalars(
             select(AgentRunModel).where(
                 AgentRunModel.status == "created",
@@ -267,6 +281,8 @@ class RunRepository:
     async def mark_queued(
         self, *, run_id: str, operation_id: str, message_id: str
     ) -> RunExecutionRecord:
+        """以条件更新把运行标记为已投递，拒绝过期 operation 或非法状态跃迁。"""
+
         result = cast(
             CursorResult[Any],
             await self._session.execute(
@@ -293,6 +309,8 @@ class RunRepository:
         owner_id: str,
         workflow_id: str,
     ) -> bool:
+        """原子认领待执行运行；同一 owner/workflow 重试视为幂等成功。"""
+
         result = cast(
             CursorResult[Any],
             await self._session.execute(
@@ -314,6 +332,7 @@ class RunRepository:
         )
         if result.rowcount == 1:
             return True
+        # 条件更新未命中后仅接受完全相同的既有认领，避免另一个 worker 被误判成功。
         model = await self._session.get(AgentRunModel, run_id)
         return bool(
             model is not None
@@ -323,6 +342,8 @@ class RunRepository:
         )
 
     async def get(self, run_id: str) -> RunRecord | None:
+        """按主键读取公共运行摘要，不隐式加锁或改变状态。"""
+
         model = await self._session.get(AgentRunModel, run_id)
         return None if model is None else _run_record(model)
 
@@ -411,6 +432,8 @@ class RunRepository:
         output: dict[str, Any] | None = None,
         error: dict[str, Any] | None = None,
     ) -> RunRecord:
+        """更新运行状态及唯一的终态输出/错误载荷写入位置。"""
+
         model = await self._session.get(AgentRunModel, run_id)
         if model is None:
             raise LookupError(f"run not found: {run_id}")

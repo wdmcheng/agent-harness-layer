@@ -20,6 +20,8 @@ PROFILES = ROOT / "templates" / "service-app" / "configs" / "profiles"
 
 
 def test_boundary_contract_lists_banned_vendors_and_adapter_allowlist() -> None:
+    """验证 vendor 禁止集和按目录授权的 adapter 例外来自同一公开边界定义。"""
+
     # allowlist 按目录职责判断，不按单个文件白名单判断，方便后续 adapter 扩展。
     assert {"pydantic_ai", "dbos", "logfire", "phoenix", "langfuse"} <= BANNED_VENDOR_IMPORTS
     assert is_vendor_import_allowed(
@@ -31,6 +33,8 @@ def test_boundary_contract_lists_banned_vendors_and_adapter_allowlist() -> None:
 
 
 def test_doctor_cli_reports_local_profile_without_provider_keys() -> None:
+    """验证无副作用的 doctor 可在 local profile 下运行，不要求真实 provider 密钥。"""
+
     # doctor 是无副作用诊断：local profile 成功不应依赖真实 provider key。
     # 这里通过模块入口执行，证明公开 CLI seam 可用，而不是脚本直接调用 loader。
     result = subprocess.run(
@@ -61,6 +65,8 @@ def test_doctor_cli_reports_local_profile_without_provider_keys() -> None:
 
 
 def test_doctor_cli_reports_profile_errors_with_nonzero_exit(tmp_path: Path) -> None:
+    """验证配置错误通过非零退出和字段路径暴露，便于自动化门禁精确定位。"""
+
     # 错误路径必须 non-zero 并带 field path；这比“打印 warning 后继续”更适合 smoke 门禁。
     (tmp_path / "broken.yaml").write_text(
         """

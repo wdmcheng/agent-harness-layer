@@ -25,6 +25,8 @@ class _ArtifactClaimState(threading.local):
     """每线程记录当前 store 已持有的 checksum 锁，避免 claim 内重复加锁。"""
 
     def __init__(self) -> None:
+        """为线程首次访问创建独立的可重入 checksum 集合。"""
+
         self.checksums: set[str] = set()
 
 
@@ -41,6 +43,8 @@ class FileArtifactStore(ArtifactRecoveryMixin):
     """按内容 hash 写入 JSON artifact，供本地 trace/eval 复用。"""
 
     def __init__(self, root: Path) -> None:
+        """设置 artifact 根目录并在任何写入前恢复已登记的崩溃中断 claim。"""
+
         self.root = root
         self._claim_state = _ArtifactClaimState()
         self._recover_all_pending()
@@ -125,6 +129,8 @@ class FileArtifactStore(ArtifactRecoveryMixin):
 
     @property
     def _active_claims(self) -> set[str]:
+        """暴露当前线程持有的锁集合，仅供内部避免同 checksum 的嵌套死锁。"""
+
         return self._claim_state.checksums
 
     @contextmanager
@@ -171,6 +177,8 @@ class FileArtifactStore(ArtifactRecoveryMixin):
         return self._artifact_ref(checksum=checksum, size_bytes=len(data))
 
     def _artifact_ref(self, *, checksum: str, size_bytes: int) -> ArtifactRef:
+        """从内容寻址元数据构造引用；调用方不得据此假定文件已经 materialize。"""
+
         return ArtifactRef(
             ref=f"artifact://{checksum}",
             uri=str(self.root / f"{checksum}.json"),

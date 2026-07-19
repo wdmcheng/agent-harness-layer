@@ -32,6 +32,8 @@ from tests.contracts.test_eval_experiment_storage_contracts import (
 async def test_eval_experiment_repositories_are_tenant_scoped_and_idempotent(
     tmp_path: Path,
 ) -> None:
+    """验证 split 与实验记录同时具备租户隐身、请求重放与内容冲突保护。"""
+
     from agent_harness.storage import (
         ExperimentStorageConflict,
         ExperimentStorageNotFound,
@@ -97,6 +99,8 @@ async def test_eval_experiment_repositories_are_tenant_scoped_and_idempotent(
 async def test_execution_claim_is_fenced_and_uncertain_outcome_needs_review(
     tmp_path: Path,
 ) -> None:
+    """验证 execution claim fencing，失去确定执行结果后必须进入人工复核而非继续写终态。"""
+
     from agent_harness.storage import ExperimentStorageConflict, SQLAlchemyStorage, run_migrations
 
     dsn = sqlite_dsn(tmp_path / "eval-experiment-claim.db")

@@ -48,6 +48,8 @@ class OwnerOrchestrator:
     """只暴露 route 所需 ownership seam，避免测试越过公开适配边界。"""
 
     def __init__(self, *, missing: bool = False) -> None:
+        """选择返回固定运行授权或模拟运行不可见。"""
+
         self.missing = missing
 
     async def authorize_run_read(
@@ -56,6 +58,8 @@ class OwnerOrchestrator:
         *,
         identity: object,
     ) -> RunReadAuthorization:
+        """只为固定运行返回授权上下文，其他运行统一按不存在处理。"""
+
         if self.missing or run_id != "run-sse":
             raise LookupError("run not found")
         return RunReadAuthorization(
@@ -69,11 +73,15 @@ class ReaderSpy:
     """记录 HTTP 是否只调用冻结后的授权 reader seam。"""
 
     def __init__(self, events: list[CanonicalEvent]) -> None:
+        """保存预置事件并初始化 cursor 与分页调用记录。"""
+
         self.events = events
         self.contains_calls: list[tuple[str, int, bool]] = []
         self.page_calls: list[tuple[str, int, bool, int, int]] = []
 
     async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
+        """按运行和严格游标筛选事件，供 JSON 与 SSE 公开 envelope 对比。"""
+
         return [item for item in self.events if item.run_id == run_id and item.seq > after_seq]
 
     async def read_page(
@@ -85,6 +93,8 @@ class ReaderSpy:
         max_events: int = 100,
         max_bytes: int = 1_048_576,
     ) -> list[CanonicalEvent]:
+        """记录分页参数后按可见性和游标返回事件，模拟授权 reader 的协议。"""
+
         self.page_calls.append((run_id, after_seq, include_internal, max_events, max_bytes))
         visible = [
             item
@@ -102,6 +112,8 @@ class ReaderSpy:
         seq: int,
         include_internal: bool = False,
     ) -> bool:
+        """记录 cursor 成员查询，并仅在同一运行和可见性视图内返回真值。"""
+
         self.contains_calls.append((run_id, seq, include_internal))
         return any(
             item.run_id == run_id
@@ -116,6 +128,8 @@ class ReaderSpy:
         run_id: str,
         include_internal: bool = False,
     ) -> CanonicalEvent | None:
+        """返回同一可见性视图下首个终态事件，支持连接 EOF 判断。"""
+
         return next(
             (
                 item
@@ -143,6 +157,8 @@ async def asgi_get(
     delivered_request = False
 
     async def receive() -> dict[str, Any]:
+        """先发送一次空 HTTP 请求体，随后保持已结束状态以满足 ASGI 协议。"""
+
         nonlocal delivered_request
         if not delivered_request:
             delivered_request = True
@@ -150,6 +166,8 @@ async def asgi_get(
         return {"type": "http.request", "body": b"", "more_body": False}
 
     async def send(message: dict[str, Any]) -> None:
+        """按发送顺序收集 ASGI 响应消息，供状态、头和流体断言。"""
+
         messages.append(message)
 
     raw_path, _, query = path.partition("?")
@@ -178,6 +196,8 @@ async def asgi_get(
 
 
 def test_run_006_openapi_is_bidirectionally_exact() -> None:
+    """SSE 操作的参数、边界与响应码必须与公开 HTTP 契约双向一致。"""
+
     reader = ReaderSpy([])
     app = create_app(
         orchestrator=cast(Any, OwnerOrchestrator()),
@@ -206,6 +226,8 @@ def test_run_006_openapi_is_bidirectionally_exact() -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("cursor", [b"-1", b"1.0", b"+1", b"2147483648", b"not-a-seq"])
 async def test_invalid_last_event_id_uses_one_pre_handshake_envelope(cursor: bytes) -> None:
+    """非法 cursor 必须在 SSE 握手前返回唯一 JSON 校验错误，不能触碰 reader。"""
+
     reader = ReaderSpy([event(1, CanonicalEventType.RUN_COMPLETED)])
     app = create_app(
         orchestrator=cast(Any, OwnerOrchestrator()),
@@ -226,6 +248,8 @@ async def test_invalid_last_event_id_uses_one_pre_handshake_envelope(cursor: byt
 
 @pytest.mark.asyncio
 async def test_cursor_membership_visibility_and_after_seq_do_not_form_an_oracle() -> None:
+    """不可见、缺失、跨运行和超范围 cursor 都用相同校验响应，避免信息探测。"""
+
     reader = ReaderSpy(
         [
             event(1, CanonicalEventType.REASONING_DELTA, visibility="internal"),
@@ -263,6 +287,7 @@ async def test_cursor_membership_visibility_and_after_seq_do_not_form_an_oracle(
         "/api/v1/runs/run-sse/events/stream?after_seq=0",
     )
 
+    # 所有不可用 cursor 的公开外观相同；仅 spy 证明服务内部确实按同一可见性视图查询。
     for status, headers, body in (
         hidden,
         missing,
@@ -283,6 +308,8 @@ async def test_cursor_membership_visibility_and_after_seq_do_not_form_an_oracle(
 
 @pytest.mark.asyncio
 async def test_missing_zero_and_visible_cursor_resume_with_streaming_headers() -> None:
+    """首次订阅、零 cursor 与有效续传应产生正确帧集合和禁止缓冲的流式响应头。"""
+
     reader = ReaderSpy(
         [
             event(1, CanonicalEventType.RUN_STARTED),
@@ -329,6 +356,8 @@ async def test_missing_zero_and_visible_cursor_resume_with_streaming_headers() -
 
 @pytest.mark.asyncio
 async def test_authorized_internal_cursor_uses_the_same_visibility_view() -> None:
+    """经授权读取内部事件时，cursor 校验与后续分页必须使用同一内部可见性视图。"""
+
     reader = ReaderSpy(
         [
             event(1, CanonicalEventType.REASONING_DELTA, visibility="internal"),
@@ -354,6 +383,8 @@ async def test_authorized_internal_cursor_uses_the_same_visibility_view() -> Non
 
 @pytest.mark.asyncio
 async def test_include_internal_policy_and_run_ownership_fail_before_sse_headers() -> None:
+    """内部事件权限或运行归属失败必须在建立 SSE 响应头前返回 JSON 错误。"""
+
     reader = ReaderSpy([event(1, CanonicalEventType.RUN_COMPLETED)])
     denied_app = create_app(
         orchestrator=cast(Any, OwnerOrchestrator()),
@@ -385,6 +416,8 @@ async def test_include_internal_policy_and_run_ownership_fail_before_sse_headers
 
 @pytest.mark.asyncio
 async def test_run_003_and_run_006_expose_the_same_public_envelopes() -> None:
+    """JSON 事件查询与 SSE 流对同一公开事件必须输出等价 canonical envelope。"""
+
     reader = ReaderSpy(
         [
             event(1, CanonicalEventType.RUN_STARTED),

@@ -23,6 +23,8 @@ from agent_harness.storage import SQLAlchemyStorage, run_migrations
 
 
 def sqlite_dsn(path: Path) -> str:
+    """将临时数据库路径转换为异步 SQLite DSN，供真实迁移与 UoW 场景复用。"""
+
     return f"sqlite+aiosqlite:///{path}"
 
 
@@ -76,6 +78,8 @@ async def test_context_assembly_output_ref_contains_budgeted_model_input(tmp_pat
 
 
 def _config(agent_id: str, executor: str = "executor:executor") -> str:
+    """渲染最小有效 agent 配置，仅暴露被 registry 合同覆盖的变量字段。"""
+
     return f"""agent_id: {agent_id}
 version: 0.1.0
 name: Executor Contract Agent
@@ -96,6 +100,8 @@ delegation_edges: []
 
 
 def _write_agent(root: Path, name: str, *, config: str, module: str | None = None) -> Path:
+    """创建可由 registry 真实加载的临时 agent 包，并按需写入 executor 模块。"""
+
     package = root / name
     package.mkdir(parents=True)
     rendered = config.replace("fixture.Input", f"{root.name}.{name}.schemas.Input").replace(
@@ -119,6 +125,8 @@ class Output(HarnessDTO):
 
 
 def test_registry_resolves_package_local_executor_without_public_leak(tmp_path: Path) -> None:
+    """验证 registry 能加载包内 executor，同时 descriptor 不泄露私有 callable 细节。"""
+
     module = """
 from agent_harness.runtime import AgentExecutionResult
 
@@ -144,6 +152,8 @@ executor = Executor()
 
 
 def test_registry_validates_all_references_before_importing_any_target(tmp_path: Path) -> None:
+    """验证任一引用无效时先整体校验，绝不提前 import 其他 agent 的副作用模块。"""
+
     marker = tmp_path / "imported.txt"
     module = f"""
 from pathlib import Path
@@ -171,7 +181,11 @@ executor = Executor()
 
 
 class _StaticExecutor:
+    """始终返回指定结果的 typed executor 桩，用于验证 orchestrator 不再兜底 fake。"""
+
     def __init__(self, result: AgentExecutionResult) -> None:
+        """固定 run/resume 共用的执行结果，令场景只覆盖编排层状态映射。"""
+
         self.result = result
 
     async def run(
@@ -179,6 +193,8 @@ class _StaticExecutor:
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
+        """忽略传入运行上下文并返回预设结果，满足 typed executor 协议。"""
+
         del request, context
         return self.result
 
@@ -188,12 +204,16 @@ class _StaticExecutor:
         context: AgentExecutionContext,
         grant: ApprovalGrant,
     ) -> AgentExecutionResult:
+        """忽略恢复参数并返回预设结果，验证 resume 也不走 fake fallback。"""
+
         del request, context, grant
         return self.result
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_uses_typed_executor_and_has_no_fake_fallback(tmp_path: Path) -> None:
+    """验证存在 executor 时写入真实完成结果，缺失时稳定失败而非生成伪成功。"""
+
     dsn = sqlite_dsn(tmp_path / "runtime.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

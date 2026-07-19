@@ -51,6 +51,8 @@ class ApprovalRepository(
     """ApprovalService 使用的 waiting/resolve 状态 repository。"""
 
     def __init__(self, session: AsyncSession) -> None:
+        """绑定当前 UoW，会话生命周期由 service 装配层而非仓储自行管理。"""
+
         self._session = session
 
     async def create(self, data: ApprovalCreate) -> ApprovalRecord:
@@ -83,6 +85,8 @@ class ApprovalRepository(
         return approval_record(model)
 
     async def get(self, approval_id: str) -> ApprovalRecord | None:
+        """按 approval 主键读取稳定 DTO，供恢复与鉴权路径复核归属状态。"""
+
         model = await self._session.get(ApprovalModel, approval_id)
         return None if model is None else approval_record(model)
 

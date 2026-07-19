@@ -120,6 +120,8 @@ async def test_local_bm25_adapter_isolates_tenants_with_overlapping_chunk_ids(
         citation: str,
         source_ref: str,
     ) -> None:
+        """写入可覆盖的同名分片，集中构造跨租户隔离和同租户更新输入。"""
+
         await provider.index(
             RetrievalIndexRequest(
                 tenant_id=tenant_id,

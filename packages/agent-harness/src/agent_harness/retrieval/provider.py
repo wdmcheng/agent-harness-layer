@@ -39,10 +39,14 @@ class RetrievalChunk(HarnessDTO):
 
 
 def _empty_documents() -> list[RetrievalDocument]:
+    """为 Pydantic 提供独立的文档列表默认值，避免实例间共享可变容器。"""
+
     return []
 
 
 def _empty_chunks() -> list[RetrievalChunk]:
+    """为 Pydantic 提供独立的分块列表默认值，避免请求间污染索引输入。"""
+
     return []
 
 

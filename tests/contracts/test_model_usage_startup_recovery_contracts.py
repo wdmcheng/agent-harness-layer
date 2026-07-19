@@ -59,6 +59,11 @@ from tests.contracts.test_model_usage_idempotency_contracts import (
 async def test_runtime_startup_recovery_republishes_usage_before_executor_replay(
     tmp_path: Path,
 ) -> None:
+    """验证 worker 启动时先补齐未落盘用量证据，再恢复执行器状态。
+
+    这保证提供方调用不会因进程中断而重放，也避免执行器依据缺失的用量
+    结算继续推进运行。
+    """
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'runtime-recovery.db'}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)

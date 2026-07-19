@@ -57,6 +57,8 @@ def _service_profiles(
     source_token_limit: int | None = None,
     source_cost_limit: float | None = None,
 ) -> Path:
+    """复制服务模板并只调整源 agent 的 delegation edge 与预算上限。"""
+
     source = Path(__file__).resolve().parents[2] / "templates" / "service-app"
     target = tmp_path / "service-app"
     shutil.copytree(source, target)
@@ -85,6 +87,8 @@ class _DelegatingExecutor:
     """以真实 execution context 取得绑定 module，业务输入不携带 identity。"""
 
     def __init__(self) -> None:
+        """初始化调用计数，用于证明 worker 重放没有重复执行 delegation。"""
+
         self.calls = 0
 
     async def run(
@@ -92,6 +96,8 @@ class _DelegatingExecutor:
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
+        """从可信服务上下文获取 delegation module，并将业务输入映射为 child 请求。"""
+
         self.calls += 1
         module = cast(Any, context.require_service("agent.delegate"))
         result = await module.delegate(
@@ -114,6 +120,8 @@ async def _seed_parent(
     *,
     identity: IdentityContext,
 ) -> str:
+    """为真实 service worker 场景创建运行中的父 run，并返回其持久化标识。"""
+
     async with components.storage.uow() as uow:
         await uow.tenants.ensure(identity.tenant_id)
         session = await uow.sessions.ensure(

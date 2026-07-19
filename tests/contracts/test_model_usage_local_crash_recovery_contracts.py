@@ -35,7 +35,11 @@ def _publish_final_then_exit_before_capacity_commit(
     """子进程在 JSONL fsync 后绕过异常补偿，模拟 SIGKILL/掉电窗口。"""
 
     async def publish() -> None:
+        """建立真实 outbox/capacity 组合，并在 final 发布的数据库提交点触发硬退出。"""
+
         async def hard_exit_commit(_uow: SQLAlchemyUnitOfWork) -> None:
+            """用不可捕获的进程退出模拟提交前掉电，禁止正常异常处理收口现场。"""
+
             os._exit(23)
 
         SQLAlchemyUnitOfWork.commit = hard_exit_commit  # type: ignore[method-assign]

@@ -1,4 +1,4 @@
-"""RUN-006 local fake profile 的固定首 frame 性能门禁。"""
+"""本地 fake 配置下 SSE 首个业务帧的固定性能门禁。"""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def _percentile_95(samples: list[float]) -> float:
 
 
 def test_local_fake_run_sse_first_frame_p95_is_below_one_second(tmp_path: Path) -> None:
-    """从 HTTP dispatch 计时到首个业务 frame，不能用 formatter 耗时代替。"""
+    """从 HTTP 分发计时至首个业务帧，验证端到端而非格式化函数耗时。"""
 
     dsn = f"sqlite+aiosqlite:///{tmp_path / 'first-frame.db'}"
     events_path = tmp_path / "events.jsonl"
@@ -37,6 +37,7 @@ def test_local_fake_run_sse_first_frame_p95_is_below_one_second(tmp_path: Path) 
         **os.environ,
         "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY": "sse-p95-ephemeral-key",
     }
+    # 先用真实 CLI 生成终态运行和事件文件，避免首帧测试只覆盖空流路径。
     created = subprocess.run(
         [
             sys.executable,
@@ -64,6 +65,7 @@ def test_local_fake_run_sse_first_frame_p95_is_below_one_second(tmp_path: Path) 
         text=True,
     )
     assert created.returncode == 0, created.stderr
+    # 性能样本共用同一份已存在的事件，排除模型执行和持久化写入对读取延迟的干扰。
     preloaded = [
         json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line
     ]
@@ -80,6 +82,7 @@ def test_local_fake_run_sse_first_frame_p95_is_below_one_second(tmp_path: Path) 
     samples_ms: list[float] = []
     with TestClient(app) as client:
         for sample_index in range(SAMPLE_COUNT):
+            # 计时边界从 HTTP 请求发出开始，到客户端收到首个业务字节为止。
             started = perf_counter()
             with client.stream(
                 "GET",
@@ -95,6 +98,7 @@ def test_local_fake_run_sse_first_frame_p95_is_below_one_second(tmp_path: Path) 
             assert first_chunk.startswith(b"id: ")
             samples_ms.append(elapsed_ms)
 
+    # P95 为统计学百分位指标，不表示开发阶段；它用来抑制单次偶发抖动。
     p95_ms = _percentile_95(samples_ms)
     print(
         "sse-first-frame: "

@@ -66,6 +66,11 @@ class TelemetryFacade:
         artifact_store: FileArtifactStore | None = None,
         inline_payload_bytes: int = DEFAULT_INLINE_PAYLOAD_BYTES,
     ) -> None:
+        """装配必需本地证据 sink、可选外部 Provider 与大载荷 artifact 策略。
+
+        外部 Provider 只能在本地写入成功后接收脱敏记录；inline 上限由组合层
+        传入，以便 API、worker 和评测路径使用同一泄露与存储成本边界。
+        """
         self._local_sink = local_sink
         self._providers = providers or []
         self._artifact_store = artifact_store
@@ -141,6 +146,11 @@ class TelemetryFacade:
         *,
         local_status: TelemetryStatus,
     ) -> TelemetryPublishResult:
+        """向外部观测 Provider 扇出已脱敏记录，并把单个失败降级为状态证据。
+
+        Provider 失败不能回滚已写入的本地 canonical evidence，也不能中断正在
+        执行的 Agent；调用方得到每个 Provider 的结果后可选择告警或后续重试。
+        """
         provider_statuses: list[TelemetryStatus] = []
         for provider in self._providers:
             try:
@@ -164,6 +174,12 @@ class TelemetryFacade:
         *,
         event_type: CanonicalEventType,
     ) -> TelemetryStatus:
+        """把通用 telemetry record 编码为 canonical event 并先写入本地 sink。
+
+        run 作用域记录必须带 trace ID；无 run 的记录使用 trace 或固定 telemetry
+        stream，以免观测数据伪装成某个业务运行事件。序列号从真实 sink 高水位
+        递增，保持 local-first 证据可按写入顺序重放。
+        """
         if record.context.run_id is not None and record.context.trace_id is None:
             raise RunTraceValidationError
         run_id = record.context.run_id or record.context.trace_id or "telemetry"
@@ -228,6 +244,11 @@ def _externalize_large_payload(
     artifact_store: FileArtifactStore | None,
     inline_payload_bytes: int,
 ) -> tuple[dict[str, Any], str | None]:
+    """在脱敏后按字节大小决定内联、artifact 引用或摘要省略策略。
+
+    没有 artifact store 时仍返回内容摘要、大小和校验和，以便维护者追踪被省略
+    的载荷；不能因为无法存储完整内容就把未脱敏 payload 直接传给 Provider。
+    """
     payload_bytes = json.dumps(
         payload,
         ensure_ascii=False,
@@ -267,6 +288,7 @@ def _externalize_large_payload(
 
 
 def _safe_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    """保留小型标量字段作为诊断摘要，排除嵌套结构和长文本以降低泄露风险。"""
     summary: dict[str, Any] = {}
     for key, value in payload.items():
         if isinstance(value, int | float | bool):
@@ -277,6 +299,7 @@ def _safe_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _record_type_for_event(event_type: CanonicalEventType) -> str:
+    """将少数可聚合数值事件标识为 metric，其余事件保持通用 event 类型。"""
     if event_type in {
         CanonicalEventType.MODEL_USAGE_UPDATED,
         CanonicalEventType.EVAL_SCORE_RECORDED,

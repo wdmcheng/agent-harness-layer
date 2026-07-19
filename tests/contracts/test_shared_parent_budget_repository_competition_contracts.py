@@ -9,6 +9,8 @@ from tests.contracts.test_shared_parent_budget_repository_contracts import *
 async def test_sqlite_true_concurrency_commits_only_safe_direct_combination(
     tmp_path: Path,
 ) -> None:
+    """两个并发 direct 预约争夺同一账本时只能保留一个安全组合，另一个必须被原子拒绝。"""
+
     dsn = sqlite_dsn(tmp_path / "direct-race.sqlite3")
     run_migrations(dsn)
     storage = SQLAlchemyStorage(dsn)
@@ -16,6 +18,8 @@ async def test_sqlite_true_concurrency_commits_only_safe_direct_combination(
         root = await create_root(storage, suffix="direct-race")
 
         async def compete(suffix: str) -> str:
+            """以独立 UoW 提交一次预算 claim，并将容量拒绝转为可排序结果供并发断言。"""
+
             operation = identity(run_id=root, fingerprint=f"request-{suffix}")
             async with storage.uow() as uow:
                 try:
@@ -47,6 +51,8 @@ async def test_sqlite_true_concurrency_commits_only_safe_direct_combination(
 
 @pytest.mark.asyncio
 async def test_direct_and_delegation_compete_and_terminal_is_fenced(tmp_path: Path) -> None:
+    """direct 已占预算后 delegation 不得绕过同一 owner 余额，且未闭合影响必须阻止终态。"""
+
     dsn = sqlite_dsn(tmp_path / "competition.sqlite3")
     run_migrations(dsn)
     storage = SQLAlchemyStorage(dsn)
@@ -118,6 +124,8 @@ async def test_direct_and_delegation_compete_and_terminal_is_fenced(tmp_path: Pa
 
 @pytest.mark.asyncio
 async def test_cost_disabled_ignores_legal_unavailable_cost(tmp_path: Path) -> None:
+    """成本功能关闭时，可用性为 unknown 的合法成本不应被虚构为金额或阻塞 token 结算。"""
+
     dsn = sqlite_dsn(tmp_path / "cost-disabled.sqlite3")
     run_migrations(dsn)
     storage = SQLAlchemyStorage(dsn)

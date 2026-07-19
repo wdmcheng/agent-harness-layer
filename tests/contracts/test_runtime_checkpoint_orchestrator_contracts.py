@@ -83,6 +83,8 @@ from tests.contracts.test_runtime_checkpoint_runs_contracts import (
 
 
 def test_runtime_public_seams_expose_checkpoint_dtos() -> None:
+    """验证 runtime 包公开类型化 checkpoint、resume 和幂等 seam，避免调用方退回裸字符串。"""
+
     # Product-Spec 要求 runtime 包暴露 checkpoint/resume/idempotency seam。
     # 这里不实现独立 store，只锁公开 DTO/Protocol，防止调用方继续依赖裸字符串。
     assert ResumeToken(value="resume-1").value == "resume-1"
@@ -104,6 +106,8 @@ def test_runtime_main_spec_has_durable_purpose() -> None:
 
 @pytest.mark.asyncio
 async def test_fake_agent_run_is_idempotent_and_has_one_terminal_event(tmp_path: Path) -> None:
+    """验证重复提交同一 fake agent 复用 run，且事件流只保留一个公开终态。"""
+
     # start_run 是 runtime 的核心 seam：调用方只给 agent/input/idempotency，
     # 不需要知道 repository、event sink 或 checkpoint 表。重复提交必须返回同一 run。
     orchestrator, storage, events_path = await build_orchestrator(tmp_path)
@@ -133,6 +137,8 @@ async def test_fake_agent_run_is_idempotent_and_has_one_terminal_event(tmp_path:
 
 @pytest.mark.asyncio
 async def test_checkpoint_resume_survives_orchestrator_recreation(tmp_path: Path) -> None:
+    """验证 checkpoint 只依赖 durable 存储，重建 orchestrator 后仍能安全恢复。"""
+
     # checkpoint/resume 必须穿过持久化 seam。这里故意丢弃第一个 orchestrator，
     # 用同一数据库和事件文件重建第二个实例，证明 resume 不依赖内存状态。
     orchestrator, storage, events_path = await build_orchestrator(tmp_path)
@@ -170,10 +176,16 @@ async def test_waiting_idempotency_replay_invokes_pending_delegation_recovery(
     """local 重放不能只返回 WAITING，必须先给 durable delegation 恢复机会。"""
 
     class _RecoveryProbe:
+        """记录 waiting replay 是否调用 pending delegation 恢复 seam 的探针。"""
+
         def __init__(self) -> None:
+            """初始化空的 parent run 记录，便于精确断言恢复调用次数与归属。"""
+
             self.parent_run_ids: list[str] = []
 
         async def recover_pending_for_parent(self, *, parent_run_id: str) -> int:
+            """记录被请求恢复的 parent，并返回零修复量以隔离本用例的编排逻辑。"""
+
             self.parent_run_ids.append(parent_run_id)
             return 0
 
@@ -201,6 +213,8 @@ async def test_waiting_idempotency_replay_invokes_pending_delegation_recovery(
 
 @pytest.mark.asyncio
 async def test_resume_rejects_mismatched_path_before_mutating_token_run(tmp_path: Path) -> None:
+    """验证 URL run_id 与 token 归属不一致时在任何状态变化前拒绝恢复请求。"""
+
     # API path 中的 run_id 是安全边界。token 属于 A 时，用 B 的 URL 调 resume
     # 必须在完成 A 之前失败，否则一个错误 URL 就会推进别的 run。
     orchestrator, storage, events_path = await build_orchestrator(tmp_path)
@@ -238,6 +252,8 @@ async def test_resume_rejects_mismatched_path_before_mutating_token_run(tmp_path
 
 
 def test_cli_run_fake_agent_returns_terminal_event(tmp_path: Path) -> None:
+    """验证 CLI 最小运行入口在已迁移 schema 上输出 run、状态和 terminal event。"""
+
     # CLI 是 app developer 的最小可运行入口，但 schema 必须由显式 migration
     # 先初始化；运行命令本身不要求真实 provider key。
     db_path = tmp_path / "cli.db"
@@ -274,6 +290,8 @@ def test_cli_run_fake_agent_returns_terminal_event(tmp_path: Path) -> None:
 
 
 def test_template_router_exposes_create_run_route() -> None:
+    """验证 service 模板实际注册完整 run 路由表，而非仅存在可单测的 helper。"""
+
     # OpenSpec 要求 service-app 暴露 run API route；只测 helper 会漏掉
     # APIRouter 没注册的回归。这里不启动服务器，只锁模板的路由表。
     routes = [route for route in router.routes if isinstance(route, APIRoute)]
@@ -345,6 +363,8 @@ def test_fastapi_auto_422_is_removed_only_from_allowlisted_run_operations(
     framework_app = FastAPI()
 
     async def _read_item(item_id: int) -> dict[str, int]:
+        """提供带框架默认验证的对照路由，证明应用的 422 调整是窄范围定制。"""
+
         return {"item_id": item_id}
 
     framework_app.add_api_route("/items/{item_id}", _read_item, methods=["GET"])

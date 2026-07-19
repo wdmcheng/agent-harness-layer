@@ -65,7 +65,9 @@ class RunBoundExecutionService(Protocol):
         agent_id: str,
         request_id: str | None,
         trace_id: str,
-    ) -> object: ...
+    ) -> object:
+        """将服务封闭到已验证的运行、租户、请求和 trace，返回业务可见 facade。"""
+        ...
 
 
 def build_execution_context(
@@ -158,6 +160,11 @@ class AgentExecutionResult(HarnessDTO):
 
     @model_validator(mode="after")
     def validate_outcome(self) -> AgentExecutionResult:
+        """验证 completed、waiting、failed 三种结果的互斥字段组合。
+
+        执行器结果会驱动终态持久化或审批创建；在 DTO 边界拒绝混合输出、错误和
+        授权对象，避免编排器面对含糊状态时猜测应该发布哪一种事件。
+        """
         if self.status == "completed" and self.output is None:
             raise ValueError("completed execution requires output")
         if self.status == "waiting" and self.approval is None:
@@ -174,14 +181,17 @@ class AgentExecutionResult(HarnessDTO):
 
     @classmethod
     def completed(cls, output: dict[str, Any]) -> AgentExecutionResult:
+        """构造带业务输出的完成结果，交由编排器持久化终态和公开事件。"""
         return cls(status="completed", output=output)
 
     @classmethod
     def waiting(cls, approval: AgentApprovalRequest) -> AgentExecutionResult:
+        """构造等待人工授权的结果；审批参数已脱敏并通过 artifact 引用保存。"""
         return cls(status="waiting", approval=approval)
 
     @classmethod
     def failed(cls, error: str) -> AgentExecutionResult:
+        """构造稳定失败结果，避免 executor 直接写入运行状态绕过生命周期栅栏。"""
         return cls(status="failed", error=error)
 
 
@@ -193,14 +203,18 @@ class AgentExecutor(Protocol):
         self,
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
-    ) -> AgentExecutionResult: ...
+    ) -> AgentExecutionResult:
+        """执行首次请求，返回完成、等待审批或失败三种显式结果之一。"""
+        ...
 
     async def resume(
         self,
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
         grant: ApprovalGrant,
-    ) -> AgentExecutionResult: ...
+    ) -> AgentExecutionResult:
+        """在编排器验证 ApprovalGrant 后继续等待中的动作，不重新解释授权参数。"""
+        ...
 
 
 AgentExecutorResolver = Callable[[str], AgentExecutor]

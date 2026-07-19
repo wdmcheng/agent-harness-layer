@@ -78,7 +78,11 @@ async def test_service_worker_rejects_forged_execution_identity_before_side_effe
     """身份快照 tenant 被篡改时，reconcile 与 execute 都必须在副作用前失败。"""
 
     class RecordingExecutor(FakeContractExecutor):
+        """记录 executor 是否被调用的替身；身份门禁失效时才会产生该副作用。"""
+
         def __init__(self) -> None:
+            """初始化调用计数。"""
+
             self.calls = 0
 
         async def run(
@@ -86,6 +90,8 @@ async def test_service_worker_rejects_forged_execution_identity_before_side_effe
             request: AgentExecutionRequest,
             context: AgentExecutionContext,
         ) -> AgentExecutionResult:
+            """记录意外执行并返回完成结果，使断言能清楚指出门禁被绕过。"""
+
             del request, context
             self.calls += 1
             return AgentExecutionResult.completed({"unexpected": True})
@@ -102,6 +108,7 @@ async def test_service_worker_rejects_forged_execution_identity_before_side_effe
     )
     try:
         async with storage.uow() as uow:
+            # 直接植入 tenant 不一致的持久化身份快照，覆盖 worker 三个入口的共同门禁。
             await uow.tenants.ensure("tenant-real")
             session = await uow.sessions.create(
                 SessionCreate(
@@ -156,6 +163,7 @@ async def test_service_worker_rejects_forged_execution_identity_before_side_effe
             idempotency_key="forged-key",
         )
 
+        # 三个入口都必须先验证快照，不能先认领队列、调用 executor 或写终态 evidence。
         with pytest.raises(InvalidRunTransition, match="tenant mismatch"):
             if entrypoint == "reconcile":
                 await orchestrator.reconcile_queued_run(
@@ -224,35 +232,61 @@ async def test_approval_worker_rejects_forged_run_identity_tenant() -> None:
     )
 
     class ApprovalRepository:
+        """提供审批状态和记录的只读仓储替身。"""
+
         async def get_resolution_queue_state(self, _approval_id: str) -> object:
+            """返回已被 worker 认领的 resolution 队列状态。"""
+
             return state
 
         async def get(self, _approval_id: str) -> object:
+            """返回审批记录，供服务核对运行归属。"""
+
             return record
 
     class RunRepository:
+        """提供运行公开记录和私有执行身份快照的仓储替身。"""
+
         async def get(self, _run_id: str) -> object:
+            """返回可信运行 tenant 记录。"""
+
             return run
 
         async def get_execution(self, _run_id: str) -> object:
+            """返回被伪造 tenant 的执行身份快照。"""
+
             return run_state
 
     class UnitOfWork:
+        """暴露审批与运行仓储的异步上下文替身，不执行真实事务。"""
+
         approvals = ApprovalRepository()
         runs = RunRepository()
 
         async def __aenter__(self) -> UnitOfWork:
+            """进入当前固定的只读夹具上下文。"""
+
             return self
 
         async def __aexit__(self, *_args: object) -> None:
+            """无副作用退出；测试关注服务在读取后立即拒绝。"""
+
             return None
 
     class Storage:
+        """为审批服务返回固定 UoW 的最小存储替身。"""
+
         def uow(self) -> UnitOfWork:
+            """创建独立但内容相同的 UoW，符合服务的调用形状。"""
+
             return UnitOfWork()
 
     class Orchestrator:
+        """仅实现审批服务构造所需绑定 seam 的编排器替身。"""
+
         def bind_approval_service(self, _service: ApprovalService) -> None:
+            """接受绑定但不保存服务，避免测试引入循环依赖。"""
+
             return None
 
     service = ApprovalService(

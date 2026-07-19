@@ -15,6 +15,8 @@ depends_on = None
 
 
 def timestamp_columns() -> Sequence[sa.Column[Any]]:
+    """返回每张新增 eval 表共用的非空审计时间列，保证迁移内定义一致。"""
+
     return (
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False

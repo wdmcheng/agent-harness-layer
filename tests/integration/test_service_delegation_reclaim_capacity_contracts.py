@@ -57,6 +57,8 @@ async def test_service_reclaim_executes_one_child_and_holds_unknown_budget_once(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """验证崩溃 worker 遗留消息被 reclaim 后只执行一个 child，未知用量仅保留一次复核。"""
+
     redis_dsn = os.environ["REDIS_TEST_DSN"]
     monkeypatch.setenv("AGENT_HARNESS_QUEUE__DSN", redis_dsn)
     monkeypatch.setattr(runtime_worker, "RECLAIM_IDLE_SECONDS", 0)
@@ -183,6 +185,8 @@ async def test_service_postgresql_capacity_exhaustion_has_zero_redis_or_child_si
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """验证 PG 事件容量不足在入队或创建 child 前失败，Redis 与持久化状态均保持干净。"""
+
     redis_dsn = os.environ["REDIS_TEST_DSN"]
     monkeypatch.setenv("AGENT_HARNESS_QUEUE__DSN", redis_dsn)
     profiles = _service_profiles(tmp_path)

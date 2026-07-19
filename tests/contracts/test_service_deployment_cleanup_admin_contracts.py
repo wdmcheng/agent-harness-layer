@@ -44,6 +44,8 @@ from tests.contracts.test_service_deployment_compose_contracts import (
 
 
 def test_failure_diagnostic_omits_raw_secret_path_and_provider_error() -> None:
+    """运维失败诊断必须保留边界定位信息，同时剔除 DSN 密码、令牌、路径及供应商原始错误。"""
+
     support = _smoke_support()
     raw = (
         "postgresql://agent:plain-password@postgres/db "
@@ -75,6 +77,8 @@ def test_failure_diagnostic_omits_raw_secret_path_and_provider_error() -> None:
 
 
 def test_keep_data_requires_confirmed_credential_cleanup() -> None:
+    """保留 PostgreSQL 卷只能在凭据已确认清理时启用，避免残留数据与访问令牌同时存在。"""
+
     support = _smoke_support()
 
     assert support.preserve_postgres_volume(True, credential_cleanup_confirmed=True) is True
@@ -85,6 +89,8 @@ def test_keep_data_requires_confirmed_credential_cleanup() -> None:
 def test_failed_credential_cleanup_routes_to_redacted_cleanup_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """凭据清理失败要切换到可脱敏的 cleanup 边界，诊断中不能回显失败操作携带的秘密。"""
+
     support = _smoke_support()
     env = {"SERVICE_APP_COMPOSE_PROJECT": "agent-harness-safe123"}
 
@@ -94,6 +100,8 @@ def test_failed_credential_cleanup_routes_to_redacted_cleanup_boundary(
         *,
         check: bool = True,
     ) -> bool:
+        """模拟外部清理动作失败，保留调用形状以验证失败分支而不执行真实凭据操作。"""
+
         del check
         return False
 
@@ -113,6 +121,8 @@ def test_failed_credential_cleanup_routes_to_redacted_cleanup_boundary(
 
 
 def test_reclaim_receipts_require_two_real_owners_and_delivery_increment() -> None:
+    """重领证据必须证明消息从一个真实 worker 交给另一个 worker，且 delivery count 已递增。"""
+
     support = _smoke_support()
     worker_a = {
         "stream": "agent-harness:service:runs:stream",
@@ -130,6 +140,8 @@ def test_reclaim_receipts_require_two_real_owners_and_delivery_increment() -> No
 
 
 def test_postgres_terminal_evidence_correlates_applicable_fields() -> None:
+    """终态 PostgreSQL 证据应关联请求、工作流、用量 outbox、容量和共享预算，而不臆造缺失字段。"""
+
     support = _smoke_support()
     expected = {
         "request_id": "request-1",
@@ -329,6 +341,8 @@ async def test_service_admin_inspect_run_reads_postgresql_capacity_and_outbox() 
 
 
 def test_service_profile_keeps_application_dsn_out_of_committed_config() -> None:
+    """提交的 service 配置只能引用受控密钥文件与容器网络，不能固化本地应用 DSN 或开发令牌。"""
+
     profile = (TEMPLATE / "configs" / "profiles" / "service.yaml").read_text(encoding="utf-8")
     compose = (TEMPLATE / "docker-compose.yml").read_text(encoding="utf-8")
 

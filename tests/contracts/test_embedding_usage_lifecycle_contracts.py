@@ -36,14 +36,20 @@ class RecordingUsageTelemetryProvider:
     provider_name = "recording-usage"
 
     def __init__(self) -> None:
+        """初始化 telemetry 记录列表，供 started/final fan-out 顺序断言。"""
+
         self.records: list[TelemetryRecord] = []
 
     async def send(self, record: TelemetryRecord) -> TelemetryStatus:
+        """保存收到的脱敏 telemetry 记录并模拟 provider 成功发送。"""
+
         self.records.append(record)
         return TelemetryStatus(provider=self.provider_name, status="sent")
 
 
 async def _usage_run(storage: SQLAlchemyStorage) -> str:
+    """创建固定身份和 trace 的最小 run，供 embedding 与模型 usage 测试复用。"""
+
     async with storage.uow() as uow:
         await uow.tenants.ensure("tenant-a")
         await uow.sessions.ensure(
@@ -70,15 +76,23 @@ async def _usage_run(storage: SQLAlchemyStorage) -> str:
 async def test_embedding_cache_hit_has_usage_lifecycle_without_provider_side_effect(
     tmp_path: Path,
 ) -> None:
+    """验证 embedding 缓存命中仍发布完整 usage 生命周期，但不会触发真实 provider 调用。"""
+
     class CachedEmbeddingProvider:
+        """返回稳定缓存命中响应并分别记录查找和外部调用次数的 embedding provider 替身。"""
+
         provider = "openai-compatible"
         model = "text-embedding-test"
 
         def __init__(self) -> None:
+            """初始化缓存查找与 provider 调用计数。"""
+
             self.lookup_calls = 0
             self.provider_calls = 0
 
         async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+            """确认测试输入后返回命中响应，不增加 provider 调用计数。"""
+
             self.lookup_calls += 1
             assert request.input == "cached input"
             return EmbeddingResponse(
@@ -100,6 +114,8 @@ async def test_embedding_cache_hit_has_usage_lifecycle_without_provider_side_eff
     storage = SQLAlchemyStorage.from_dsn(dsn)
 
     async def resolve_trace(**_: object) -> str:
+        """为本地事件 sink 返回固定 trace，隔离测试对存储查询的依赖。"""
+
         return "trace-a"
 
     sink = LocalJsonlEventSink(
@@ -160,23 +176,35 @@ async def test_embedding_cache_hit_has_usage_lifecycle_without_provider_side_eff
 async def test_openai_compatible_embedding_maps_only_provider_neutral_usage(
     tmp_path: Path,
 ) -> None:
+    """验证 OpenAI 兼容响应只投影 provider-neutral usage，秘密、原始向量和输入不落事件。"""
+
     from agent_harness.adapters.models.openai_compatible_embeddings import (
         OpenAICompatibleEmbeddingProvider,
     )
 
     class MemoryCache:
+        """记录 cache 写入但始终未命中的最小缓存替身。"""
+
         def __init__(self) -> None:
+            """初始化写入记录，供断言 adapter 仅保存预期 cache 项。"""
+
             self.created: list[EmbeddingCacheCreate] = []
 
         async def get(self, **_: object) -> None:
+            """始终返回未命中，使测试走真实 provider 请求和 cache 写入路径。"""
+
             return None
 
         async def put(self, item: EmbeddingCacheCreate) -> None:
+            """记录 adapter 写入的 cache DTO，不执行真实存储。"""
+
             self.created.append(item)
 
     provider_calls = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
+        """断言请求确实携带私有输入和认证头，再返回含敏感字段的模拟 provider 响应。"""
+
         nonlocal provider_calls
         provider_calls += 1
         assert request.headers["authorization"] == "Bearer adapter-secret"
@@ -198,6 +226,8 @@ async def test_openai_compatible_embedding_maps_only_provider_neutral_usage(
     cache = MemoryCache()
 
     async def resolve_trace(**_: object) -> str:
+        """为 OpenAI 兼容 adapter 事件提供固定 trace。"""
+
         return "trace-a"
 
     try:
@@ -256,14 +286,20 @@ async def test_embedding_provider_exception_is_closed_in_event_and_outbox(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """验证 embedding provider 原异常被封闭，输入、认证信息和原始向量不进入异常或证据。"""
+
     import agent_harness.embeddings.invocation as embedding_invocation
     from agent_harness.embeddings import EmbeddingProviderInvocationError
 
     class LeakingEmbeddingProvider:
+        """故意在异常文本中拼接输入、认证与向量内容的 provider，用于验证脱敏边界。"""
+
         provider = "leaking-embedding"
         model = "embedding-model"
 
         async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+            """抛出包含敏感文本的原始异常，供调用服务封闭并测试其输出。"""
+
             raise RuntimeError(
                 f"input={request.input}; Authorization=Bearer embedding-secret; raw vector=[1,2]"
             )
@@ -277,6 +313,8 @@ async def test_embedding_provider_exception_is_closed_in_event_and_outbox(
     monkeypatch.setattr(embedding_invocation, "perf_counter", lambda: next(clock), raising=False)
 
     async def resolve_trace(**_: object) -> str:
+        """为失败场景的本地事件 sink 返回固定 trace。"""
+
         return "trace-a"
 
     try:
@@ -322,8 +360,14 @@ async def test_embedding_provider_exception_is_closed_in_event_and_outbox(
 
 @pytest.mark.asyncio
 async def test_provider_failure_closes_raw_prompt_secret_and_response(tmp_path: Path) -> None:
+    """验证模型 provider 异常同样封闭原 prompt、认证 secret 与响应片段。"""
+
     class LeakingProvider(FakeModelProvider):
+        """在模型调用异常中故意嵌入 prompt、认证和响应内容的 fake provider。"""
+
         def complete(self, request: ModelRequest, *, model: str):
+            """抛出泄露形态的异常，供模型调用服务验证稳定错误和事件脱敏。"""
+
             raise RuntimeError(
                 f"raw prompt={request.prompt}; Authorization=Bearer secret-token; "
                 "response={'private': true}"
@@ -335,6 +379,8 @@ async def test_provider_failure_closes_raw_prompt_secret_and_response(tmp_path: 
     storage = SQLAlchemyStorage.from_dsn(dsn)
 
     async def resolve_trace(**_: object) -> str:
+        """为模型失败事件提供固定 trace，避免测试混入 trace 解析路径。"""
+
         return "trace-a"
 
     sink = LocalJsonlEventSink(

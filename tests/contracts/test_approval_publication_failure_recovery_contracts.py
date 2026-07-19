@@ -38,9 +38,13 @@ async def test_terminal_event_failure_keeps_claim_recoverable_without_replaying_
     monkeypatch: pytest.MonkeyPatch,
     mode: str,
 ) -> None:
+    """验证 terminal 发布前后失败都保留可恢复 claim，恢复时绝不重复执行工具 handler。"""
+
     calls = 0
 
     def handler(arguments: dict[str, object]) -> dict[str, object]:
+        """记录一次真实 handler 副作用并原样返回参数，便于断言恢复的幂等性。"""
+
         nonlocal calls
         calls += 1
         return arguments
@@ -120,9 +124,13 @@ async def test_pre_executor_event_failure_retries_without_duplicate_handler(
     monkeypatch: pytest.MonkeyPatch,
     mode: str,
 ) -> None:
+    """验证 resumed 事件发布失败后重试只补偿状态，不会再次执行已完成 handler。"""
+
     calls = 0
 
     def handler(arguments: dict[str, object]) -> dict[str, object]:
+        """记录执行次数的最小 handler，用于证明 pre-executor 恢复不会重复副作用。"""
+
         nonlocal calls
         calls += 1
         return arguments
@@ -180,9 +188,13 @@ async def test_resolution_event_failure_is_idempotently_reconciled(
     monkeypatch: pytest.MonkeyPatch,
     mode: str,
 ) -> None:
+    """验证 approval.resolved 发布失败可由 recovery 幂等补齐且保持单一终态。"""
+
     calls = 0
 
     def handler(arguments: dict[str, object]) -> dict[str, object]:
+        """记录工具执行次数，确保 resolution evidence 补偿不触发业务重放。"""
+
         nonlocal calls
         calls += 1
         return arguments
@@ -241,9 +253,13 @@ async def test_approval_audit_failure_rolls_back_finalize_and_recovers_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """验证审批审计失败回滚公开 finalize，并由恢复路径仅收口一次。"""
+
     calls = 0
 
     def handler(arguments: dict[str, object]) -> dict[str, object]:
+        """提供可计数的成功 handler，隔离本场景与工具实现细节。"""
+
         nonlocal calls
         calls += 1
         return arguments
@@ -258,6 +274,8 @@ async def test_approval_audit_failure_rolls_back_finalize_and_recovers_once(
         self: AuditLogRepository,
         data: AuditLogCreate,
     ) -> object:
+        """只在首次 approved 审计写入失败，之后委托真实仓储验证可恢复收口。"""
+
         nonlocal failed
         if not failed and data.action == "approval.approved":
             failed = True

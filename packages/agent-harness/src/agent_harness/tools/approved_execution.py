@@ -74,6 +74,12 @@ class ApprovedToolExecutor:
         agent_tool_allowlist: set[str],
         enforce_agent_tool_allowlist: bool,
     ) -> None:
+        """装配审批后执行所需的工具、持久化、artifact 与审计协作者。
+
+        此执行器刻意不接受 policy engine：审批 grant 已是先前策略流程的持久化结果，
+        重复评估可能因规则漂移推翻已确认操作，破坏 at-most-once 恢复语义。
+        """
+
         self._tools = tools
         self._storage = storage
         self._artifact_store = artifact_store
@@ -343,6 +349,8 @@ class ApprovedToolExecutor:
         invocation_id: str,
         status: str,
     ) -> None:
+        """在审计服务存在时记录审批后副作用的最小身份和状态，不阻塞恢复主路径。"""
+
         if self._audit is None:
             return
         await self._audit.record(
@@ -363,6 +371,8 @@ class ApprovedToolExecutor:
         )
 
     def _is_agent_tool_allowed(self, tool_name: str) -> bool:
+        """仅在显式启用时应用工具白名单，保持历史配置的兼容行为。"""
+
         if not self._enforce_agent_tool_allowlist:
             return True
         return tool_name in self._agent_tool_allowlist

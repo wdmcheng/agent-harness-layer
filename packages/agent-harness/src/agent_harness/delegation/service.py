@@ -98,6 +98,12 @@ class DelegationService(
         shared_budget: DelegationBudgetIdentityRuntime,
         mode: DelegationMode,
     ) -> None:
+        """装配授权、持久化、事件和执行器依赖，供 local/service 共用同一状态机。
+
+        `shared_budget` 负责生成可重放的预约身份；此服务只协调调用顺序，
+        不在内存中保存 delegation 进度，避免进程重启后产生另一套事实来源。
+        """
+
         self._storage = storage
         self._registry = registry
         self._policy = policy
@@ -112,7 +118,12 @@ class DelegationService(
         *,
         identity: IdentityContext,
     ) -> DelegationExecutionResult:
-        """执行或恢复一个单层 delegation；拒绝路径不创建业务状态。"""
+        """执行或恢复一个单层 delegation；拒绝路径不创建业务状态。
+
+        先在事务内取得或重放 durable claim，再发布事件和启动 child，保证重试
+        不会重复预约预算或发起第二个 child。local 模式会同步收敛 child，
+        service 模式则将后续执行交给队列 worker。
+        """
 
         canonical_request_bytes = delegation_request_bytes(request, identity=identity)
         request_hash = hashlib.sha256(canonical_request_bytes).hexdigest()
@@ -230,6 +241,13 @@ class DelegationService(
         request: DelegationRequest,
         identity: IdentityContext,
     ) -> _FrozenDelegationAuthorization:
+        """校验父 run 与调用身份，并从创建时冻结的树快照推导可授权预算。
+
+        运行中的 registry 或策略配置不得扩大既有 run 的 delegation 图；因此
+        先验证 parent/session/tenant 归属，再以持久化快照决定 edge 和预算上限，
+        最后才执行实时的 `agent.delegate` 策略检查。
+        """
+
         async with self._storage.uow() as uow:
             parent = await uow.runs.get(request.parent_run_id)
             parent_session = None if parent is None else await uow.sessions.get(parent.session_id)
@@ -292,6 +310,12 @@ class DelegationService(
         delegation_id: str,
         idempotency_key: str,
     ) -> OperationIdentity:
+        """构造绑定规范请求、冻结树和实际预约额度的不可变预算身份。
+
+        repository 依靠该身份识别同一业务操作的重放；成本上限先转为 Decimal，
+        避免 float 表示差异让等价请求被误判为不同预约。
+        """
+
         trusted_cost_bound = (
             None
             if authorization.target_cost_limit is None
@@ -319,7 +343,11 @@ class DelegationService(
         snapshot: dict[str, Any] | None,
         tree_snapshot_id: str,
     ) -> _FrozenDelegationAuthorization | None:
-        """以 frozen catalog 中存在 target 作为创建时 edge membership 证明。"""
+        """从 frozen catalog 取出 source/target 的授权边和预约上限。
+
+        快照结构或类型不可信时一律返回 ``None``，让上层按拒绝处理；不能退回
+        到当前 registry，否则历史 run 会因后续配置变更而获得新的 delegation 权限。
+        """
 
         if not isinstance(snapshot, dict):
             return None
@@ -375,6 +403,12 @@ class DelegationService(
         snapshot: dict[str, Any] | None,
         request: DelegationRequest,
     ) -> bool:
+        """区分“快照允许该边但 target 丢失”与普通的未授权边。
+
+        这个区分只服务于稳定错误码：前者说明冻结 catalog 已损坏或不完整，
+        后者仍是正常的 edge 拒绝，二者都不会回退到实时配置补全信息。
+        """
+
         if not isinstance(snapshot, dict):
             return False
         owner = snapshot.get("owner")
@@ -392,6 +426,12 @@ class DelegationService(
 
     @staticmethod
     def _frozen_limits(budget: dict[str, object]) -> tuple[int, float | None] | None:
+        """验证快照中的单次预算，并归一化为 repository 可预约的标量。
+
+        布尔值虽然是 Python 的 ``int`` 子类，但不能作为 token 限额；非有限或
+        负数成本同样视为损坏快照，以 fail-closed 方式阻断创建。
+        """
+
         tokens = budget.get("max_tokens_per_run")
         raw_cost = budget.get("max_cost_usd_per_run")
         if isinstance(tokens, bool) or not isinstance(tokens, int) or tokens < 0:
@@ -413,6 +453,13 @@ class DelegationService(
         request: DelegationRequest,
         identity: IdentityContext,
     ) -> DelegationRecord:
+        """恢复已有 child，或在持久化 started 标记后仅启动一次新的 child。
+
+        外部 launcher 可能在超时后已经成功创建 run，因此异常路径先按稳定
+        idempotency key 回查。若 started 标记被重放却没有可证明的 child，宁可
+        将预算树提升为待人工处理，也绝不能再次调用 launcher。
+        """
+
         child_id = delegation.child_run_id
         if child_id is None:
             async with self._storage.uow() as uow:

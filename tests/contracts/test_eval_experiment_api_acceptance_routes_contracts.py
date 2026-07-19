@@ -32,6 +32,8 @@ from app.main import create_app
 async def test_eval_experiment_accept_route_maps_version_and_policy_gates(
     tmp_path: Path,
 ) -> None:
+    """验证接受路由分别映射版本不匹配、需审批与策略拒绝三类安全门禁。"""
+
     from agent_harness.auth import StaticTokenVerifier
     from agent_harness.evals import AcceptanceService, ExperimentService
     from agent_harness.policy import PolicyEngine, YamlPolicyProvider
@@ -156,6 +158,8 @@ async def test_eval_experiment_accept_route_maps_version_and_policy_gates(
 async def test_concurrent_create_replay_does_not_duplicate_evaluator_side_effect(
     tmp_path: Path,
 ) -> None:
+    """验证同幂等键的并发创建复用实验记录，且不会重复触发 evaluator 副作用。"""
+
     from agent_harness.auth import StaticTokenVerifier
     from agent_harness.evals import ExperimentService
     from agent_harness.storage import SQLAlchemyStorage, run_migrations
@@ -220,6 +224,8 @@ async def test_concurrent_create_replay_does_not_duplicate_evaluator_side_effect
 
 
 def test_eval_experiment_internal_failure_uses_safe_500_envelope(tmp_path: Path) -> None:
+    """验证未预期服务异常只返回稳定 500 包络，不回显内部异常或密钥。"""
+
     from agent_harness.auth import StaticTokenVerifier
 
     identity = IdentityContext(

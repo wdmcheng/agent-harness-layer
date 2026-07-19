@@ -55,9 +55,16 @@ async def test_approved_continuation_executes_once_and_seals_known_result(
     tmp_path: Path,
     fails: bool,
 ) -> None:
+    """验证审批恢复只执行一次，并将成功或确定失败封存为终态结果。
+
+    重复审批必须被拒绝，避免同一工具副作用在恢复窗口内被再次触发。
+    """
+
     calls = 0
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """模拟可观测副作用；按参数切换确定性成功或失败结果。"""
+
         nonlocal calls
         calls += 1
         if fails:
@@ -115,6 +122,8 @@ async def test_approved_tool_reserves_capacity_during_handler_and_releases_after
     calls = 0
 
     async def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """在执行窗口暂停，供测试读取容量预约与 invocation 中间状态。"""
+
         nonlocal calls
         calls += 1
         entered.set()
@@ -197,6 +206,8 @@ async def test_approved_tool_capacity_exhaustion_has_zero_claim_artifact_and_han
     calls = 0
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """记录是否越过容量前置校验，正常路径不应调用该函数。"""
+
         nonlocal calls
         calls += 1
         return arguments

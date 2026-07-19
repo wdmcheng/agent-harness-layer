@@ -34,6 +34,8 @@ class EvalCaseFactory:
     """把 trace source 收敛成 draft case DTO，不直接写 storage。"""
 
     def __init__(self, *, inline_payload_bytes: int = 8192) -> None:
+        """设置 draft 载荷内联上限；超限内容仅以校验引用进入 case。"""
+
         self._inline_payload_bytes = inline_payload_bytes
 
     def create_draft(
@@ -93,6 +95,8 @@ class EvalDraftDetector:
         factory: EvalCaseFactory | None = None,
         low_score_threshold: float = 0.8,
     ) -> None:
+        """注入可复用 factory 与默认低分阈值，保持检测与持久化完全分离。"""
+
         self._factory = factory or EvalCaseFactory()
         self._low_score_threshold = low_score_threshold
 
@@ -137,6 +141,8 @@ def _externalize_large_payload(
     artifact_refs: list[str],
     inline_payload_bytes: int,
 ) -> tuple[dict[str, Any], list[str]]:
+    """将过大的已脱敏 draft 载荷替换为 checksum 摘要与逻辑引用，控制存储和 API 大小。"""
+
     payload_bytes = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()
     if len(payload_bytes) <= inline_payload_bytes:
         return payload, artifact_refs

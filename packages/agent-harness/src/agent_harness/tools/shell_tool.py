@@ -38,6 +38,12 @@ class ShellTool:
         timeout_seconds: int = 30,
         inline_output_bytes: int = 8192,
     ) -> None:
+        """保存 workspace、命令策略、环境白名单和输出截断边界。
+
+        默认 ``enabled=False`` 且空 allowlist 也会拒绝执行，调用方必须显式打开两层
+        开关，避免配置遗漏时获得宿主命令能力。
+        """
+
         self._workspace = workspace
         self._artifact_store = artifact_store
         self._enabled = enabled
@@ -53,9 +59,16 @@ class ShellTool:
         *,
         context: ToolRuntimeContext,
     ) -> ToolCallResult:
+        """在预检通过后于受限 workspace 执行命令，并将大输出外置为 artifact。
+
+        子进程从白名单环境构造，stdout/stderr 分别截断和留存引用；这样返回载荷可控，
+        审计仍能追溯完整输出。
+        """
+
         invocation_id = str(uuid4())
         source_ref = f"tool://{request.tool_name}/{context.run_id or 'adhoc'}/{invocation_id}"
         command = str(request.arguments.get("command", ""))
+        # 所有拒绝都在创建子进程前返回，避免 allowlist/workspace 绕过产生副作用。
         preflight_error = self.preflight(request, context=context)
         if preflight_error is not None:
             return preflight_error
@@ -101,6 +114,7 @@ class ShellTool:
             )
 
         duration_ms = int((time.monotonic() - started) * 1000)
+        # 两条流独立落 artifact，避免 stderr 大量输出挤掉 stdout 的可诊断内容。
         stdout, stdout_ref, stdout_truncation = write_stream_artifact(
             artifact_store=self._artifact_store,
             tool_name=request.tool_name,
@@ -149,6 +163,12 @@ class ShellTool:
         *,
         context: ToolRuntimeContext,
     ) -> ToolCallResult | None:
+        """验证启用状态、Shell 解析、allowlist/denylist 和 workspace 路径边界。
+
+        返回已格式化的工具错误而非抛异常，使调用方可以把拒绝与执行结果使用同一审计
+        和 API 载荷处理。
+        """
+
         invocation_id = str(uuid4())
         source_ref = f"tool://{request.tool_name}/{context.run_id or 'adhoc'}/{invocation_id}"
         command = str(request.arguments.get("command", ""))
@@ -200,6 +220,8 @@ def _allowed(
     allowlist: list[str],
     denylist: list[str],
 ) -> bool:
+    """按可执行文件和完整命令匹配策略；denylist 优先且空 allowlist 默认拒绝。"""
+
     executable = argv[0] if argv else ""
     if not executable:
         return False
@@ -214,7 +236,10 @@ def _workspace_argument_error(
     argv: list[str],
     workspace: WorkspacePolicy,
 ) -> WorkspaceAccessError | None:
+    """检查命令参数中可能代表路径的值，拒绝逃离 workspace 的引用。"""
+
     for index, argument in enumerate(argv):
+        # 可执行文件本身允许绝对路径；其余候选路径必须接受 workspace 策略校验。
         for candidate in _path_candidates(argument):
             if index == 0 and Path(candidate).is_absolute():
                 continue
@@ -228,6 +253,8 @@ def _workspace_argument_error(
 
 
 def _path_candidates(argument: str) -> list[str]:
+    """同时返回原参数和 ``key=value`` 形式中的值部分，覆盖常见工具参数写法。"""
+
     candidates = [argument]
     if "=" in argument:
         candidates.append(argument.split("=", 1)[1])
@@ -235,6 +262,8 @@ def _path_candidates(argument: str) -> list[str]:
 
 
 def _should_check_path_argument(argument: str, root: Path) -> bool:
+    """识别可能解析为文件路径的参数，避免把普通选项和文字误判为路径。"""
+
     if not argument or argument in {"-", "--"}:
         return False
     if argument.startswith("-") and "/" not in argument and "=" not in argument:
@@ -250,6 +279,8 @@ def _should_check_path_argument(argument: str, root: Path) -> bool:
 
 
 def _filtered_env(env_whitelist: list[str]) -> dict[str, str]:
+    """从当前进程仅复制白名单环境变量，不继承密钥或代理等隐式状态。"""
+
     return {key: os.environ[key] for key in env_whitelist if key in os.environ}
 
 
@@ -264,6 +295,8 @@ def _shell_error(
     result: dict[str, object] | None = None,
     truncation: dict[str, object] | None = None,
 ) -> ToolCallResult:
+    """构造带稳定 invocation/source 身份的工具错误结果，供审计与 API 共用。"""
+
     return ToolCallResult(
         tool_name=request.tool_name,
         status=tool_status_for_error(code),

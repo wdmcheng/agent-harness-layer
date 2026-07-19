@@ -1,4 +1,4 @@
-"""只经 ToolRegistry file seam 读取 workspace 的 repo analyst。"""
+"""只经受控文件工具读取工作区的仓库分析 Agent 示例。"""
 
 from __future__ import annotations
 
@@ -20,22 +20,35 @@ _ALLOWED_TOOLS = ("file.read_file", "file.search_files", "file.list_files")
 
 
 class _ToolRegistryFactory(Protocol):
+    """运行时注入的工具注册表工厂协议，隔离模板与具体组合方式。"""
+
     def __call__(
         self,
         *,
         allowed_tools: Sequence[str],
         requested_tool_name: str,
-    ) -> ToolRegistry: ...
+    ) -> ToolRegistry:
+        """按白名单和本次请求工具名构造受限注册表。"""
+        ...
 
 
 class RepoAnalystExecutor:
-    """不暴露 shell，所有路径都由 composition 固定的 WorkspacePolicy 解析。"""
+    """通过最小文件白名单完成仓库检查，不暴露 shell 执行能力。
+
+    路径解析、租户与工作区边界由组合层配置的 ``WorkspacePolicy`` 负责；
+    示例只选择工具，不能绕开注册表直接访问文件系统。
+    """
 
     async def run(
         self,
         request: AgentExecutionRequest,
         context: AgentExecutionContext,
     ) -> AgentExecutionResult:
+        """选择一个只读工具并将结果压缩为适合 API 返回的摘要。
+
+        无论工具返回成功或拒绝，都记录 trace 与引用地址，便于调用方在
+        行内摘要被截断时回到 artifact/source 查看完整证据。
+        """
         data = _input(request)
         tool_name, arguments = _tool_request(data)
         factory = cast(_ToolRegistryFactory, context.require_service("tool_registry_factory"))
@@ -90,11 +103,18 @@ class RepoAnalystExecutor:
         context: AgentExecutionContext,
         grant: ApprovalGrant,
     ) -> AgentExecutionResult:
+        """明确拒绝恢复，避免只读 Agent 被误接入审批 continuation。"""
         del request, context, grant
         return AgentExecutionResult.failed("repo analyst has no approval continuation")
 
 
 def _input(request: AgentExecutionRequest) -> RepoAnalystInput:
+    """将交互式 prompt 翻译为结构化只读操作，同时保留显式字段优先级。
+
+    ``source`` 是上游传入的元数据而非 schema 输入，必须在校验前移除，
+    以防示例宽松接受未知字段。未带路径时使用当前工作区根目录，实际边界
+    仍由底层文件工具校验。
+    """
     payload = dict(request.input)
     payload.pop("source", None)
     prompt = str(payload.pop("prompt", None) or "").strip()
@@ -110,6 +130,7 @@ def _input(request: AgentExecutionRequest) -> RepoAnalystInput:
 
 
 def _tool_request(data: RepoAnalystInput) -> tuple[str, dict[str, str]]:
+    """把经 schema 校验的操作映射为唯一允许的文件工具及参数。"""
     if data.operation == "search":
         return "file.search_files", {"query": data.query}
     if data.operation == "list":
@@ -118,6 +139,11 @@ def _tool_request(data: RepoAnalystInput) -> tuple[str, dict[str, str]]:
 
 
 def _summary(result: dict[str, object] | None, *, error_code: str | None) -> str:
+    """生成有限长度的行内摘要，避免把大文件内容直接塞进 API 响应。
+
+    拒绝结果优先暴露稳定错误码；没有行内载荷时提示调用方读取 artifact，
+    以保留证据引用而不是把空结果误报为成功。
+    """
     if error_code is not None:
         return f"workspace tool rejected the request: {error_code}"
     if result is None:

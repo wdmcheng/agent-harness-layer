@@ -217,6 +217,8 @@ async def test_local_capacity_commit_failure_compensates_event_and_artifact(
             before_capacity = await uow.event_capacity.snapshot(run_id)
 
         async def fail_commit(_uow: SQLAlchemyUnitOfWork) -> None:
+            """在容量提交点注入失败，验证事件和外置载荷会被补偿清理。"""
+
             raise OSError("capacity commit failed")
 
         monkeypatch.setattr(SQLAlchemyUnitOfWork, "commit", fail_commit)

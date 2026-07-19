@@ -103,6 +103,8 @@ async def test_run_validation_errors_use_api_error_envelope(
 
 @pytest.mark.asyncio
 async def test_template_fastapi_app_registers_run_routes_and_reads_events(tmp_path: Path) -> None:
+    """验证模板 FastAPI app 注册真实 run 路由，并经同一 sink 读取持久化事件。"""
+
     # 这里检查真实 FastAPI app include_router 后的路由表，不再只看孤立 APIRouter。
     # event route 通过同一个 LocalJsonlEventSink 读取，证明 API surface 有 stream seam。
     orchestrator, storage, events_path = await build_orchestrator(tmp_path)
@@ -126,6 +128,8 @@ async def test_template_fastapi_app_registers_run_routes_and_reads_events(tmp_pa
 
 @pytest.mark.asyncio
 async def test_runtime_worker_shell_uses_runtime_components(tmp_path: Path) -> None:
+    """验证模板 worker shell 共用 runtime seam，可在本地 profile 创建并完成 fake run。"""
+
     # worker 当前实现不消费真实 Redis queue，但必须共用 API/CLI 的 runtime seam。
     # `run_once` 用临时 profile/DB/events 证明 worker shell 可以创建 fake run。
     db_path = tmp_path / "worker.db"
@@ -145,6 +149,8 @@ async def test_runtime_worker_shell_uses_runtime_components(tmp_path: Path) -> N
 
 @pytest.mark.asyncio
 async def test_template_api_helper_uses_runtime_seam(tmp_path: Path) -> None:
+    """验证 API helper 只委托 RunOrchestrator，不直接跨越到 ORM 或 worker 私有句柄。"""
+
     # API route helper 证明 template app 入口消费 RunOrchestrator，而不是直接碰 ORM
     # session 或 DBOS handle。FastAPI route wiring 只是薄层，核心行为由 helper 锁住。
     orchestrator, storage, _events_path = await build_orchestrator(tmp_path)
@@ -164,10 +170,16 @@ async def test_template_api_helper_uses_runtime_seam(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_template_openapi_and_error_envelope_include_request_id(tmp_path: Path) -> None:
+    """验证模板 OpenAPI 与异常处理都携带 request_id，并拒绝 FastAPI 默认 detail 封套。"""
+
     # OpenAPI 是公开管理面。response schema 必须带 request_id，错误也必须
     # 走统一 ApiErrorEnvelope，而不是 FastAPI 默认 {"detail": ...}。
     class MissingRunOrchestrator:
+        """稳定抛出缺失 run 的编排器替身，用于验证公开 404 错误封套。"""
+
         async def get_run(self, run_id: str) -> object:
+            """始终报告不存在，确保 route 错误处理不依赖真实存储状态。"""
+
             raise LookupError(f"run not found: {run_id}")
 
     app = create_app(
@@ -218,11 +230,15 @@ async def test_template_openapi_and_error_envelope_include_request_id(tmp_path: 
 
 @pytest.mark.asyncio
 async def test_events_api_filter_hides_internal_evidence_by_default(tmp_path: Path) -> None:
+    """验证默认事件 API 仅公开 public 生命周期，显式授权后才包含 internal evidence。"""
+
     # reasoning 与 delegation lifecycle 可以进 internal evidence，但普通用户
     # event stream 默认只能看到显式 public 的 run lifecycle event。
     sink = LocalJsonlEventSink(tmp_path / "events.jsonl")
 
     async def resolve_trace(*, tenant_id: str, run_id: str) -> str:
+        """为固定 run 返回 trace，并断言测试不会在错误租户或 run 上解析关联。"""
+
         assert (tenant_id, run_id) == ("default", "run-reasoning")
         return "trace-reasoning"
 

@@ -73,6 +73,8 @@ def test_secret_file_replacement_between_check_and_open_fails_closed(
     def replace_then_open(
         path: str | bytes | os.PathLike[str] | os.PathLike[bytes], flags: int
     ) -> int:
+        """在检查与打开之间替换目标文件，模拟 TOCTOU 攻击窗口以验证 inode 校验会 fail-closed。"""
+
         replacement.replace(candidate)
         return real_open(path, flags)
 
@@ -201,6 +203,8 @@ def test_later_secret_file_failure_scrubs_earlier_value_from_traceback(
 
 
 def test_config_errors_include_field_path_and_hint(tmp_path: Path) -> None:
+    """结构化配置错误需指向字段和修复建议，不能把原始解析栈暴露给运维人员。"""
+
     # 错误路径测试锁 operator-facing diagnostics，避免泄漏原始 Pydantic/YAML trace。
     profile_path = tmp_path / "broken.yaml"
     profile_path.write_text(
@@ -230,6 +234,8 @@ model:
 
 
 def test_unsafe_yaml_tags_are_reported_without_construction(tmp_path: Path) -> None:
+    """危险 YAML tag 必须作为普通配置错误报告，解析器不得实例化 Python 对象或执行副作用。"""
+
     profile_path = tmp_path / "unsafe.yaml"
     profile_path.write_text(
         '!!python/object/apply:os.system ["echo unsafe"]',
@@ -254,6 +260,8 @@ def test_invalid_env_file_uses_safe_structured_error(
     monkeypatch: pytest.MonkeyPatch,
     failure: Exception,
 ) -> None:
+    """不可读或非 UTF-8 的 .env 统一映射到脱敏的字段级诊断，不能泄漏私有路径或底层异常。"""
+
     env_file = tmp_path / "private" / ".env"
     env_file.parent.mkdir()
     env_file.write_text("placeholder", encoding="utf-8")
@@ -261,6 +269,8 @@ def test_invalid_env_file_uses_safe_structured_error(
     original_read_text = Path.read_text
 
     def fail_read_text(path: Path, *, encoding: str) -> str:
+        """仅让目标 .env 读取失败，保留其他路径真实读取以验证错误包装的最小范围。"""
+
         assert encoding == "utf-8"
         if path == env_file:
             raise failure
@@ -284,6 +294,8 @@ def test_invalid_env_file_uses_safe_structured_error(
 
 
 def test_missing_profile_error_uses_safe_stable_diagnostic(tmp_path: Path) -> None:
+    """缺失 profile 应返回稳定可行动的诊断，不让部署目录结构进入错误文本。"""
+
     missing = tmp_path / "customer" / "private" / "missing.yaml"
 
     with pytest.raises(SettingsLoadError) as exc_info:
