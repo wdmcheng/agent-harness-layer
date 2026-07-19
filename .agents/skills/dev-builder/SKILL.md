@@ -96,7 +96,7 @@ description: 当 DEV-PLAN.md 就绪、用户说要开始写代码或继续开发
         编码前读 DEV-PLAN 交付清单、Spec 功能描述、Design-Brief 视觉方向；涉及 endpoint、页面数据对接、异步任务、上传或流式接口时读取 API-Contract.md；涉及 OpenSpec change、CONTEXT.md、ADR 时读取相关原文，不凭记忆
         涉及 OpenSpec change 时，按该 change 的 tasks 和 delta spec 先写或更新公开 seam 测试，再实现；测试接缝必须来自用户行为、API、CLI、模块接口或持久化边界
         写测试前列出本 Task 的公开 seam 和验证路径，新增测试必须绑定其中一个 seam
-        编码后自检：代码实际值对照设计数值，行为对照 Spec
+        编码后自检：代码实际值对照设计数值，行为对照 Spec；逐项检查本轮新增或修改测试的方法名是否符合项目和测试框架的既有命名约定，并能表达被验证行为与关键情境；测试 docstring/注释按项目主语言说明验证意图、边界或夹具目的，复杂前提不能省略，无信息说明不补；完成证据列出自检范围和结果
         派发 code-reviewer 两阶段审查
         Stage 1 失败补实现，重新派 code-reviewer
         Stage 2 失败：质量和重构问题自己按修改纪律修，确属缺陷或安全漏洞才调 bug-fixer，重新派 code-reviewer
