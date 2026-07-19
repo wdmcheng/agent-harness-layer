@@ -44,6 +44,7 @@ description: 当用户说要审查代码、检查质量、验证功能是否完�
 
 [审查策略]
     逐项对照：读 Spec 条目 → 搜代码对应实现 → 验证行为 → 记证据。
+    冻结验证证据复用：主 Agent 提供完整的验证命令、输出、退出状态，以及受审内容的提交、摘要或哈希时，reviewer 先核验当前受审内容与锁定基线一致；一致则直接复用该验证证据，不重复运行相同测试，但仍须独立审查代码、契约和测试真实性。锁定后发生改动、工作树状态不符，或证据无法唯一对应受审内容时，明确判定原证据失效并说明需要补验的范围，不把旧结果写成当前通过。
     API 契约对照：如果有 API-Contract.md，读取其通用约定、相关 endpoint、页面到接口映射和契约验收清单；能生成运行时接口文档时抽查相关路径、schema、错误码、响应头和前端状态，不能生成时说明缺少命令或环境，不得假装已验证。
     变更契约对照：如果有 OpenSpec change，读取 change 下所有 proposal/specs/design/tasks 原文；只把它作为本次增量行为契约，和 Product-Spec.md、DEV-PLAN.md、API-Contract.md 一起审，不把它当第二套产品规范。
     OpenSpec 多变更联合审查：同一目标包含多个有关联的 change 时，读取全部相关 proposal/specs/design/tasks 以及 Product-Spec、DEV-PLAN、API-Contract、设计/ADR；除各 change 结论外，统一审查依赖 DAG、组合行为、共享接口/schema、文件所有权、迁移/回滚、任务加总、验收覆盖和允许实现顺序。`openspec validate --all --strict` 只作为可解析证据，不能代替联合审查结论。若主 Agent 主张这些 change 独立，必须审查其无顺序依赖、无共享接口、无共享验收和无所有权冲突的证据。

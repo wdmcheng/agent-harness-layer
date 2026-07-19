@@ -3,9 +3,9 @@
   "installMode": "vendored",
   "packPath": "/Volumes/develop/vibe-engineering/agent-pack",
   "packRemote": "git@github.com:wdmcheng/agent-pack.git",
-  "packCommit": "e936cb4",
+  "packCommit": "820d821",
   "projectEvolution": ".agents/evolution",
-  "updatedAt": "2026-07-17T10:38:55.294960+00:00",
+  "updatedAt": "2026-07-19T05:55:13.502786+00:00",
   "files": {
     ".agents/EVOLUTION.md": {
       "type": "file",
@@ -58,8 +58,8 @@
     ".agents/skills/code-review/SKILL.md": {
       "type": "file",
       "source": ".agents/skills/code-review/SKILL.md",
-      "sourceSha256": "c8bf4435c55a4eac3b0ffd532643dc2fa341943f652210b69b96c842c6f9425c",
-      "installedSha256": "c8bf4435c55a4eac3b0ffd532643dc2fa341943f652210b69b96c842c6f9425c"
+      "sourceSha256": "e738a7a0e5824398e13129dc498d61dd804d07a8b61ba4fc24fd7e847eb0a784",
+      "installedSha256": "e738a7a0e5824398e13129dc498d61dd804d07a8b61ba4fc24fd7e847eb0a784"
     },
     ".agents/skills/design-brief-builder/SKILL.md": {
       "type": "file",
