@@ -52,3 +52,131 @@ package SHALL 暴露 CanonicalEvent 到 OTel span/metric/event 的 mapping facad
 #### Scenario: Mapping facade 可用 fake event 测试
 - **WHEN** tests 使用 fake CanonicalEvent 调用 OTel mapping facade
 - **THEN** 返回 provider-neutral mapping DTO，不需要真实 observability provider 或 API key
+
+### Requirement: Run-scoped CanonicalEvent 必须携带 canonical trace
+EventBus SHALL 要求所有具有 `run_id` 的 lifecycle、approval、tool、model、retrieval、eval 和 terminal CanonicalEvent 携带该 run 的 canonical `trace_id`。Event sink MUST 拒绝同一 run 中缺失或与 persisted run context 不一致的 trace；非 run telemetry 不受此要求影响。
+
+公开 CanonicalEvent envelope 的 `run_id` SHALL 继续表示事件 stream。关系库 MUST 以独立 typed ownership 表示真实 AgentRun：run scope 必须以可延迟的 `(run_id, tenant_id, trace_id)` 复合外键或严格等价数据库约束引用同一 AgentRun，不能只验证三个字段各自合法；non-run scope 的数据库 ownership `run_id` 必须为空，并以 tenant-scoped `stream_id` 保留 envelope stream 和分配 seq。系统 MUST NOT 为 non-run telemetry 创建 sentinel/fake AgentRun；按 `run_id` 的 repository read 只返回真实 run ownership，不得把跨租户同名 non-run stream 混入结果。
+
+Local 与 PostgreSQL event sink MUST 只把稳定事件语义完全一致的相同 `event_id` 视为幂等重试。稳定指纹只排除 sink 分配的 `seq` 与调用方重建重试时不稳定的 `timestamp`；其余 envelope 字段任一不同都 MUST 在 artifact materialize 与 provider/fan-out 前返回不包含既有 payload 或归属信息的 replay conflict。状态已提交后的 terminal/approval 恢复 MUST 优先读取并校验既有确定性 evidence，只有缺失时才补写，不得用新请求的 `request_id` 改写或重构同一 event-id。
+
+#### Scenario: 同一 run 的事件 trace 一致
+- **WHEN** run 依次产生 queued、started、approval、tool/model 与 terminal event
+- **THEN** 所有事件保留各自唯一 event_id/seq，同时共享同一 canonical trace
+
+#### Scenario: 错误 trace 被拒绝
+- **WHEN** 下游组件尝试发布带空 trace 或不同 trace 的 run-scoped event
+- **THEN** EventBus 在持久化和 provider fan-out 前拒绝该事件并产生封闭诊断，不改写 canonical trace
+
+#### Scenario: 相同 event-id 的不同事件语义被拒绝
+- **WHEN** 调用方使用已持久化 event-id 发布不同 event type、payload/ref/checksum、identity、request/span、scope、terminal、visibility 或 run/tenant/trace 的事件
+- **THEN** sink 返回脱敏 replay conflict，保留原事件且不创建 artifact、不执行 fan-out；仅 seq/timestamp 不同的同语义重试仍返回原事件
+
+#### Scenario: Service PostgreSQL 保存 non-run telemetry
+
+- **WHEN** service composition 的 TelemetryFacade 向 PostgreSQL sink 发布 `context.run_id=null`、`trace_id=null` 且 envelope stream 为 `telemetry` 的 ordinary telemetry
+- **THEN** sink 在 tenant-scoped stream 上分配稳定 seq，持久化 `record_scope=non_run` 和空数据库 run ownership，保留 envelope stream，且不查询或创建 AgentRun lineage
+
+### Requirement: Model usage CanonicalEvent 使用有界稳定 payload
+model 与 embedding 调用都 SHALL 复用现有 `model.request.started` 和 `model.usage.updated` 两个 CanonicalEvent type，并以 `ModelUsageEvidence.usage_kind=model|embedding` 区分；系统 MUST NOT 为 embedding 擅自新增等价事件名。两个 event SHALL 复用 CanonicalEvent envelope 和同一稳定 `usage_call_id`。`usage_call_id` MUST 在 provider 副作用前生成，并以非空 string 固定写入 `CanonicalEvent.payload.correlation.usage_call_id`；TelemetryFacade MUST 把同一值保留在 `TelemetryRecord.payload.correlation.usage_call_id`。系统 MUST NOT 新增 CanonicalEvent envelope 顶层字段或使用其他 payload 路径，也 MUST NOT 把该值放入 `ModelUsageEvidence` public DTO。Payload 其余内容 MUST 只包含 provider-neutral usage/decision/outcome 摘要；prompt、embedding 原文、vector 全文、headers、secret、provider raw response/client 和 raw exception MUST 被脱敏、替换为安全 ref 或阻止写入。
+
+同一 run 的 terminal event SHALL 是最后一条 CanonicalEvent，且 `run.completed`、`run.failed`、`run.cancelled` 的 `visibility` MUST 为 `public`。durable evidence outbox MUST 以稳定 event id和显式顺序先发布 usage、`approval.resolved` 等 prerequisite evidence，最后发布 public terminal；approval continuation 的确定性结果 MUST 在同一 ordered group 中把 resolution 排在 terminal 前，二者 durable 后才公开 resolution。EventBus 与 local/PostgreSQL sink MUST 在持久化前拒绝 `terminal=true` 且 `visibility!=public`，并对 terminal 后的 terminal 或 non-terminal 写入统一 fail closed，不能只拒绝第二个 terminal；terminal 可见后 recovery MUST NOT 再补写 prerequisite evidence或重放 provider/tool。
+
+`0014` durable evidence outbox SHALL 为每个 run 持久化 terminal capacity reservation。任何可能产生后续 evidence 的 provider、tool、approval 或 delegation operation MUST 在外部副作用前，由受信、版本化、封闭的 typed registry 以 `operation_kind` 派生最大 prerequisite event 数，并在 run 级锁或等价 CAS 内原子建立 operation reservation；业务 agent、HTTP/CLI 输入和 provider payload MUST NOT 提供或缩小该数值。容量不变量 MUST 是 `highest_persisted_seq + outstanding_reserved_event_count + terminal_reservation <= 2147483647`；`highest_persisted_seq` 为该 run 最大已持久化 `seq`，无 event 时为 `0`，MUST NOT 用 event row count 代替。预约消费、event 插入与 high-water mark 推进 MUST 在同一 run 锁/事务完成。容量不足 MUST 以 `event.sequence_exhausted` 在副作用前拒绝且不消费 seq。Reservation 只在对应 evidence 已持久化或能证明不会产生时按实耗结算/释放；结果未知时 MUST 保持占用并阻止 terminal。Terminal MUST 消费既有 terminal reservation，不能挪用未结算 operation reservation。
+
+正常持久化的 CanonicalEvent envelope MUST 使用公共 `canonical_event_bytes()` 计算：`CanonicalEvent.to_payload()` 经 UTF-8、`ensure_ascii=false`、排序键、紧凑 separators 与 `allow_nan=false` 编码，JSONL 换行和 SSE frame 开销不计入，并且结果不超过 `65536` bytes。EventBus MUST 先把超限 payload 写入 artifact/ref 并重算；重算后仍超限时以 `event.envelope_too_large` 在写入和 fan-out 前拒绝。local/DB sink、legacy 校验和 SSE byte page MUST 复用该 serializer。历史或 direct-write 超限 row MUST 以 `event.envelope_state_invalid` fail closed，不得截断或返回无 cursor 的空读取结果。
+
+#### Scenario: Started 与最终 usage event 关联一致
+- **WHEN** 同一次 model/embedding 调用发布 started 和调用级最终 usage event
+- **THEN** 两个 event 的 tenant/run/request/agent/trace 与 `payload.correlation.usage_call_id` 逐值一致，TelemetryRecord 保留相同路径和值，各自 `event_id` 保持唯一，run 内 seq 单调递增，最终 usage 恰好一条且 `CanonicalEvent.terminal=false`
+
+#### Scenario: 大或敏感 provider payload 不内联
+- **WHEN** adapter 输入包含 prompt、embedding、vector、secret 或 provider raw response
+- **THEN** CanonicalEvent payload 不包含原值，只保留有界脱敏摘要或允许的 artifact/ref
+
+#### Scenario: Terminal 后拒绝晚到 usage
+- **WHEN** 同一 run 已持久化 terminal event，随后收到任何 usage 或其他业务事件写入
+- **THEN** EventBus/sink 在分配新 seq 和 fan-out 前拒绝写入，既有 terminal 和聚合 evidence 保持不变
+
+#### Scenario: Non-public run terminal 在持久化前拒绝
+- **WHEN** 任一 outbox、runtime 或恢复路径尝试发布 `run.completed`、`run.failed` 或 `run.cancelled`，但 envelope 为 `terminal=true` 且 `visibility!=public`
+- **THEN** EventBus 与 local/PostgreSQL sink 在持久化、seq 消耗和 fan-out 前统一拒绝；调用方修正为 public terminal 后，默认 RUN-003、RUN-006 与 CLI reader 都能观察同一最终结算信号
+
+#### Scenario: Approval resolution 与 terminal 按 outbox 顺序恢复
+- **WHEN** approved tool 已持久化确定性结果，但 resolution 或 terminal sink 写入失败、确认丢失或进程退出
+- **THEN** recovery 以稳定 event id先补投唯一 `approval.resolved`，再补投唯一 terminal，二者完成后才公开 approval resolution；tool handler 不重放
+
+#### Scenario: 副作用前预约全部 prerequisite evidence
+- **WHEN** provider/tool/approval/delegation operation 声明的最大 event 数会让 highest persisted seq、outstanding 和 terminal reservation 总和超过上限
+- **THEN** repository 在任何外部副作用前以 `event.sequence_exhausted` 拒绝；没有 started/outbox/provider/tool/queue 业务副作用，已有预约和 terminal capacity 不变
+
+#### Scenario: 稀疏高序号不能低估已用容量
+- **WHEN** non-terminal run 已持久化 `seq={1, 2147483646}`，随后 operation 请求 prerequisite reservation
+- **THEN** repository 以 `highest_persisted_seq=2147483646` 在副作用前拒绝 operation，保留 terminal reservation；SQLite/local 与 PostgreSQL 均不得按两条 row 计算
+
+#### Scenario: 未知结果保持 event capacity
+- **WHEN** 已预约 operation 产生外部副作用后结果或最终 evidence 不确定
+- **THEN** reservation 保持 outstanding，run 不发布 terminal；恢复只补投稳定 evidence，不能把未知 event 数按零释放
+
+#### Scenario: 超限 envelope 在写入前拒绝
+- **WHEN** payload artifact 化后完整 CanonicalEvent envelope 仍超过 `65536` bytes
+- **THEN** EventBus 以 `event.envelope_too_large` 零持久化、零 fan-out 失败，不截断 envelope或消耗 seq
+
+#### Scenario: Canonical serializer 跨 sink 结果唯一
+- **WHEN** envelope 包含中文、转义字符、不同键插入顺序、恰好边界或 NaN
+- **THEN** EventBus、local JSONL、SQLite/PostgreSQL 校验和 SSE page 使用同一 canonical bytes；键顺序不改变计数，恰好 `65536` bytes 允许、超过一个 byte 拒绝，NaN 在持久化前拒绝
+
+### Requirement: Delegation 在副作用前消费 event capacity reservation
+`DelegationService` SHALL 在创建 child run、投递 queue、调用 provider 或发布 delegation 业务 event 前，通过 `0014` durable evidence outbox 的受信、版本化、封闭 registry 以 `operation_kind=delegation` 派生最大 prerequisite event 数，并在 run 级锁或等价 CAS 内持久化 event capacity operation/reservation。调用方、tool/module payload 与 service queue message MUST NOT 提供、覆盖或缩小预约数。全新 delegation claim、parent budget reservation 与 event capacity operation/reservation MUST 在同一 application UoW 内提交或回滚；同一 idempotency key/hash 重放 MUST 复用首次持久化的 operation 和预约，MUST NOT 再次占用容量。
+
+容量不足 MUST 在任何 child、queue、provider 或业务 event 副作用前以内部稳定错误 `event.sequence_exhausted` fail closed，且不得消费 `seq`。只有对应 prerequisite evidence 已持久化或能证明不再产生时才可按实耗结算或释放预约；结果未知时 MUST 保持 event capacity reservation 与 parent budget reservation 占用并阻止 parent terminal。Local 与 PostgreSQL/Redis service 路径 MUST 使用同一 application seam 并产生相同结果。
+
+#### Scenario: 容量不足时 delegation 零副作用
+- **WHEN** 全新 delegation claim 的最大 prerequisite event 数会使 `highest_persisted_seq + outstanding_reserved_event_count + terminal_reservation` 超过上限
+- **THEN** `DelegationService` 在 claim、budget/event reservation、child、queue、provider 与业务 event 产生前以 `event.sequence_exhausted` 拒绝；既有容量、高水位和 terminal reservation 不变
+
+#### Scenario: 同 key 重放不重复预约
+- **WHEN** 相同 idempotency key/hash 在首次 claim、budget reservation 与 event capacity operation 已提交后重试或由 worker reclaim
+- **THEN** local 与 service 路径复用首次持久化的 delegation operation、budget reservation 和 event capacity reservation，不创建第二个 child、queue operation、provider call 或容量预约
+
+#### Scenario: 未知结果保持两类预约并阻止 terminal
+- **WHEN** delegation 已产生外部副作用，但 child、queue、provider 或最终 evidence 的结果不确定
+- **THEN** parent budget reservation 与 event capacity reservation 保持 reserved/needs_review，parent 不发布 terminal；恢复只能继续既有稳定 operation 或补投确定 evidence，不能把未知预算或 event 数按零释放
+
+### Requirement: Delegation 使用固定的 CanonicalEvent 生命周期
+获准的真实 delegation SHALL 在 parent run 上发布固定的 CanonicalEvent 生命周期，最多为 `delegation.claimed` -> `delegation.child.created` -> `delegation.completed|delegation.failed` 三条，final 两种类型互斥。child 创建前的确定性执行失败 SHALL 只发布 claimed 与 failed；edge、policy、tenant、cycle、depth、budget、idempotency 或 event-capacity 拒绝 MUST NOT 发布 delegation 业务事件。结果未知或 evidence 非法时，系统 MUST 保持 budget/event reservation 为 reserved/needs_review、阻止 parent terminal，且 MUST NOT 发布 completed/failed final。
+
+四种事件 MUST 使用 parent `run_id`、parent canonical `trace_id`、source `agent_id`，并固定 `record_scope=run`、`visibility=internal`、`terminal=false`。event id MUST 分别为 `delegation:{delegation_id}:claimed`、`delegation:{delegation_id}:child` 与 `delegation:{delegation_id}:final`。重试、恢复和 worker reclaim MUST 复用或补投这些稳定 event id，MUST NOT 增加生命周期事件数或产生公开别名。
+
+公共 payload MUST 只包含 `delegation_id`、`source_agent_id`、`target_agent_id`。claimed 只增加 `status=claimed`。child.created 增加 `child_run_id` 与 `status`，status MUST 只允许 `queued|running|completed|failed`；local inline 路径允许 attach 时 child 已终态。completed 增加 `status=completed` 与严格符合 API Contract 5.30 `DelegationSummary` 的完整脱敏 `summary`，MUST NOT 增加顶层 `child_run_id` 或 `error_code`。failed 增加 `status=failed` 与 `error_code=delegation.execution_failed`；只有 child 已创建时才携带严格符合 5.30 的完整脱敏 `summary`，child identity 只通过 `summary.children` 表达且 MUST NOT 另加顶层 `child_run_id`；pre-child failed 不得携带 `child_run_id` 或 `summary`。payload MUST NOT 包含 child input、完整 identity/request hash、动态余额、原始 usage、resume token、secret、本地路径或原始异常。
+
+固定 CanonicalEvent catalog MUST 与 39 种生产枚举精确相等。`terminal=true` SHALL 当且仅当 event type 为 `run.completed`、`run.failed`、`run.cancelled`，且三种 run terminal event MUST 为 `visibility=public`；其他 event type MUST 为 `terminal=false`。EventBus 与 local/PostgreSQL sink MUST 在分配 seq、消费容量、物化 artifact 或 fan-out 前拒绝 type/terminal/visibility 不一致的 envelope。RUN-003、CLI 与 RUN-006 MUST 默认过滤 internal event；只有通过 tenant/run 授权并显式请求 internal visibility 的 reader 才能读取原始事件。
+
+#### Scenario: 成功 delegation 发布三阶段事件
+- **WHEN** child 已创建并以可信 evidence 完成 parent aggregation
+- **THEN** parent run 恰有 claimed、child.created、completed 三条 delegation 事件，按 seq 严格有序，使用稳定 event id、parent trace/source agent 与受控 payload；三条均 internal 且 non-terminal
+
+#### Scenario: child 创建前确定性失败
+- **WHEN** claim 与预约已提交，但 child 创建前发生确定性执行失败
+- **THEN** parent run 只有 claimed 与 failed，failed 使用 final event id、稳定 error_code，且不包含 child_run_id 或 summary；未消费的 child event capacity 按既有 outbox 规则结算或释放
+
+#### Scenario: unknown 结果不伪造 final
+- **WHEN** child、queue、provider 或 evidence 结果未知，或者 usage evidence 非法
+- **THEN** delegation 保持 needs_review 和两类 reservation，parent terminal 被阻止，不发布 completed 或 failed，恢复不重放外部副作用
+
+#### Scenario: terminal 组合在副作用前双向拒绝
+- **WHEN** 非 run-terminal event 设置 `terminal=true`，或者三种 run-terminal event 之一设置 `terminal=false` 或 non-public visibility
+- **THEN** EventBus 与 local/PostgreSQL sink 在 seq、容量、artifact 和 fan-out 变化前拒绝，既有事件和预约状态保持不变
+
+#### Scenario: reader 默认隐藏 internal delegation evidence
+- **WHEN** 普通 RUN-003、CLI 或 RUN-006 reader 未显式请求并通过 internal visibility 授权
+- **THEN** 四种 delegation lifecycle event 均不返回；获准 internal reader 返回同一 CanonicalEvent，不生成别名或第二套事件
+
+### Requirement: Shared-budget claim 是 terminal 前置 evidence
+Shared-budget reservation/settlement SHALL 与既有 usage/delegation evidence 关联，但 MUST NOT 复用或篡改 event capacity 数值。任一未结算 shared-budget claim MUST 阻止 run terminal。预算拒绝允许写入唯一、稳定、脱敏且封闭的内部 decision/audit/usage rejection evidence；provider、child、queue、业务执行与 delegation 生命周期 event 副作用 MUST 为零。
+
+新 direct operation 的 shared claim、usage outbox 与 event-capacity reservation，以及新 delegation 的 shared claim、既有 delegation reservation、ordered evidence 与 event-capacity reservation，MUST 分别在同一 application UoW 全部提交或回滚。可信结果持久化、`side_effect_state=result_committed`与 shared settlement MUST 原子提交；cache hit的zero-impact claim/allocation、usage result/outbox与capacity结算也必须原子，不能产生单边记录。提交后的event publish失败只补投既有outbox，不得重放外部副作用。
+
+#### Scenario: Budget 拒绝只留下允许的内部证据
+- **WHEN** shared ledger 在外部副作用前拒绝 direct 或 delegation operation
+- **THEN** 系统最多写合同允许的稳定内部 rejection evidence，不发布 delegation claimed/child/final，不调用 provider、不创建 child、不投递 queue，event capacity 与 token/cost ledger 分别保持各自不变量

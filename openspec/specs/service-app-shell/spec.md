@@ -1,9 +1,7 @@
 ## Purpose
 
 定义 service-app template 的后端应用壳、目录边界、本地 profile 和文档入口要求。
-
 ## Requirements
-
 ### Requirement: Service-app template 暴露预留后端布局
 service-app template SHALL 预留 Product Spec 要求的后端应用、agent、配置、eval、测试、文档和环境文件布局。
 
@@ -79,15 +77,39 @@ service-app FastAPI app SHALL 注册 Product Spec 与 `API-Contract.md` 已定�
 - **THEN** schema 不包含 `/api/v1/tools` 或其他未写入 `API-Contract.md` 的远程 tool execution route
 
 ### Requirement: P0 HTTP 契约与运行时 OpenAPI 无漂移
-service-app SHALL 使用统一 DTO 和 `ApiErrorEnvelope` 暴露 `API-Contract.md` 当前定义的 P0 endpoint；实现前 MUST 先为 health、单项 approval 读取和 `EVL-001` 至 `EVL-003` 的每个 operation 补齐字段级契约基线。所有 response MUST 携带适用的 `request_id`，run response MUST 携带 `run_id`，validation error MUST 使用 422 `ApiErrorEnvelope`。
+service-app SHALL 使用统一 DTO 和 `ApiErrorEnvelope` 暴露 `API-Contract.md` 当前定义的 P0 endpoint；实现前 MUST 先为 health、单项 approval 读取和 `EVL-001` 至 `EVL-003` 的每个 operation 补齐字段级契约基线。所有 response MUST 携带适用的 `request_id`，run response MUST 携带 `run_id`，validation error MUST 使用 422 `ApiErrorEnvelope`。RUN-001 至 RUN-005 的运行时 OpenAPI response status 集合 MUST 与 `API-Contract.md` 逐 operation 精确相等，不得因 router 级 metadata 暴露生产路径不可能返回的 status；每个已声明错误 status MUST 引用 `ApiErrorEnvelope`。本变更最终将 RUN-002 原子切换为 `RunDetailResponse`；归档投影中该 response MUST 是唯一最终语义，不得继续保留 `RunCreateResponse` 的旧 MUST。
 
 #### Scenario: OpenAPI 全量漂移检查通过
 - **WHEN** contract test 将运行时 OpenAPI 与 `API-Contract.md` 当前 P0 path、method、schema、认证和错误响应对照
 - **THEN** 所有已定义 endpoint 均有一致声明，且不存在缺失、额外或字段语义漂移
 
 #### Scenario: 所有适用 operation 的 validation error 使用统一 envelope
-- **WHEN** contract test 参数化遍历具有 request body、path 或 query validation 的当前 P0 operations 并提交各自无效输入
+- **WHEN** contract test 参数化遍历 API Contract 明确声明 422 的当前 P0 operations 并提交各自无效输入
 - **THEN** 每个适用 operation 都返回 HTTP 422 和 `ApiErrorEnvelope`，其中含脱敏错误和 `request_id`，而不是 FastAPI 默认 detail body
+
+#### Scenario: RUN-001 的 OpenAPI response 精确
+- **WHEN** contract test 读取 `POST /api/v1/agents/{agent_id}/runs` 的运行时 OpenAPI operation
+- **THEN** response status 集合恰好为 `200`、`202`、`400`、`401`、`403`、`404`、`409`、`422`、`500`、`503`，成功 response 引用 `RunCreateResponse`，每个错误 response 引用 `ApiErrorEnvelope`
+
+#### Scenario: RUN-002 的最终 detail schema 与 response 精确
+- **WHEN** contract test 读取 `GET /api/v1/runs/{run_id}` 的运行时 OpenAPI operation
+- **THEN** response status 集合恰好为 `200`、`401`、`403`、`404`、`500`，成功 response 只引用 `RunDetailResponse`，每个错误 response 引用 `ApiErrorEnvelope`，且 schema 不再引用 `RunCreateResponse`
+
+#### Scenario: RUN-003 的 OpenAPI response 精确
+- **WHEN** contract test 读取 `GET /api/v1/runs/{run_id}/events` 的运行时 OpenAPI operation
+- **THEN** response status 集合恰好为 `200`、`401`、`403`、`404`、`422`、`500`，成功 response 引用 `RunEventsResponse`，每个错误 response 引用 `ApiErrorEnvelope`
+
+#### Scenario: RUN-004 的 OpenAPI response 精确
+- **WHEN** contract test 读取 `POST /api/v1/runs/{run_id}/cancel` 的运行时 OpenAPI operation
+- **THEN** response status 集合恰好为 `200`、`401`、`403`、`404`、`409`、`500`，成功 response 引用 `RunCreateResponse`，每个错误 response 引用 `ApiErrorEnvelope`
+
+#### Scenario: RUN-005 的 OpenAPI response 精确
+- **WHEN** contract test 读取 `POST /api/v1/runs/{run_id}/resume` 的运行时 OpenAPI operation
+- **THEN** response status 集合恰好为 `200`、`401`、`403`、`404`、`409`、`422`、`500`，成功 response 引用 `RunCreateResponse`，每个错误 response 引用 `ApiErrorEnvelope`
+
+#### Scenario: Run response 漂移检查同时拒绝缺失和多余 status
+- **WHEN** 任一 RUN-001 至 RUN-005 operation 的运行时 OpenAPI 相对精确基准缺失一个 status 或额外出现一个 status
+- **THEN** contract test 必须失败，并定位发生漂移的 path、method、缺失集合与多余集合
 
 ### Requirement: Template 入口保持编排与 vendor 边界
 service-app 的 API、CLI、worker 和测试入口 MUST 只通过 `agent_harness` 公共 seam 编排能力；业务逻辑 MUST 留在 agent 目录，模板 app 和 eval runner MUST NOT 直接 import vendor SDK 或操作 ORM session。
@@ -112,11 +134,11 @@ service-app 模板 CLI SHALL 只实现 app-specific `serve`。`doctor`、agents�
 - **THEN** 调用使用核心 `agent-harness` CLI 的同一 command、DTO、error 和 service seam；模板不维护独立实现
 
 ### Requirement: Service profile 分离 API 提交与 worker 执行
-service-app SHALL在 service profile分离 API/worker：RUN-001先持久化 `status=created`与私有 enqueue_pending，Redis接受并记录 queued/message ref后才发布 `run.queued`/返回成功；worker消费同 message执行。approve continuation同样持久化可补投状态；deny不排队。local/CLI继续 inline。
+service-app SHALL 在 service profile 分离 API/worker：RUN-001 先持久化 `status=created` 与私有 enqueue_pending，Redis 接受并记录 queued/message ref 后才发布 `run.queued`/返回成功；worker 消费同 message 执行。approve continuation 同样持久化可补投状态。deny 不排队、不调用 executor/tool，但 API 只原子提交 deny 仲裁与有序 outbox；公开 approval/run 必须保持 waiting，直到唯一 `approval.resolved` 与对应 failed/fallback terminal 依序持久化后才进入终态。local/CLI 继续 inline，并遵守相同的“resolution 先于 terminal”证据顺序。
 
 #### Scenario: API 不在请求进程执行 agent
 - **WHEN** service profile 调用 RUN-001 且 worker 暂停
-- **THEN** API 返回同一 `status=created` run，run 不进入 terminal，executor调用计数为零，message留在 Redis等待 worker
+- **THEN** API 返回同一 `status=created` run，run 不进入 terminal，executor 调用计数为零，message 留在 Redis 等待 worker
 
 #### Scenario: Worker 启动后完成 API run
 - **WHEN** 独立 worker 随后消费该 message
@@ -124,26 +146,26 @@ service-app SHALL在 service profile分离 API/worker：RUN-001先持久化 `sta
 
 #### Scenario: Local profile 无外部依赖回归
 - **WHEN** 开发者使用 local profile 或 `agent-harness run`
-- **THEN** run 继续通过 SQLite/local event seam inline 执行，不要求 Redis、DBOS system database 或 service worker
+- **THEN** run 继续通过 SQLite/local event seam inline 执行，不要求 Redis、DBOS system database 或 service worker；approval resolution 与 terminal 仍按相同顺序持久化
 
 #### Scenario: Service approval API 不执行 approve continuation
-- **WHEN** reviewer在 service profile批准 executor-produced waiting approval且 worker暂停
-- **THEN** APR-002完成 lease/policy/audit/enqueue状态并返回 queued/in-progress语义，executor/tool调用计数保持零；worker恢复后才执行原 continuation
+- **WHEN** reviewer 在 service profile 批准 executor-produced waiting approval 且 worker 暂停
+- **THEN** APR-002 完成 lease/policy/audit/enqueue 状态并返回 queued/in-progress 语义，executor/tool 调用计数保持零；worker 恢复后才执行原 continuation，并在 resolution/terminal evidence 均已持久化后公开 approved 与 run 终态
 
 #### Scenario: Service deny 不进入 queue
-- **WHEN** reviewer在 service profile拒绝同类 waiting approval
-- **THEN** API原子收口 denied，queue/DBOS operation为零，worker无需参与且 handler保持零
+- **WHEN** reviewer 在 service profile 拒绝同类 waiting approval
+- **THEN** API 原子提交 deny 仲裁与有序 outbox，queue/DBOS operation 为零，worker 无需执行 continuation 且 handler 保持零；公开状态在 denied resolution 与 failed/fallback terminal 持久化前保持 waiting
 
 ### Requirement: Worker 只在确定性收口后确认 delivery
-runtime worker MUST在消费新消息前恢复同 tenant的 run `enqueue_pending` operation；approve recovery只允许 active `resolution_state=claimed`、`enqueue_pending` lease、尚无 tool claim且已保存完整 reviewer/decision/规范化 request hash的 operation，其他 approval state fail closed。approval pickup必须先 CAS为 `execution_owned`并持久化 DBOS workflow owner/ref。pickup到 API中断窗口的 run message先补齐 queued/message/`run.queued` evidence再执行。run到 terminal/waiting后才 ack；不确定异常不 ack，确定性失败先写 failed terminal再 ack。
+runtime worker MUST 在消费新消息前恢复同 tenant 的 run `enqueue_pending` operation；approve recovery 只允许 active `resolution_state=claimed`、`enqueue_pending` lease、尚无 tool claim 且已保存完整 reviewer/decision/规范化 request hash 的 operation，其他 approval state 封闭失败。approval pickup 必须先 CAS 为 `execution_owned` 并持久化 DBOS workflow owner/ref。pickup 到 API 中断窗口的 run message 先补齐 queued/message/`run.queued` evidence 再执行。run 到 waiting 后可确认 delivery；run 或 approval 进入公开终态前，worker MUST 确认该动作要求的 usage evidence、唯一 `approval.resolved` 与对应 terminal 已按顺序持久化。不确定异常或任一前置 evidence 未确认时不得 ack；确定性失败也必须先完成相同的证据顺序再 ack。恢复只补投稳定 ID 的 outbox，不得重放 provider、tool handler 或 continuation。
 
 #### Scenario: 不确定失败保留 pending
-- **WHEN** worker 在持久化执行结果前遇到连接中断或被取消
-- **THEN** delivery 未 ack，run 不被伪造为 completed，后续 worker 可 reclaim 同一 message
+- **WHEN** worker 在持久化执行结果、usage、approval resolution 或 terminal evidence 前遇到连接中断或被取消
+- **THEN** delivery 未 ack，run/approval 不被伪造为公开终态，后续 worker 可 reclaim 同一 message，并只恢复未确认的执行步骤或稳定 outbox
 
 #### Scenario: 确定性失败先落证据再 ack
-- **WHEN** executor 返回受控失败且 runtime 成功持久化 failed terminal event
-- **THEN** worker ack delivery，后续 reclaim 不再执行该 message
+- **WHEN** executor 返回受控失败或 approved tool 返回已持久化的确定性 failed result
+- **THEN** worker 先确认适用的 usage、唯一 `approval.resolved` 与唯一 failed terminal 均已按序持久化，再 ack delivery；后续 reclaim 不再执行 provider、tool handler 或该 message
 
 ### Requirement: Service smoke 使用真实独立 API/worker
 service-app的 `smoke-service` SHALL在仓库内和 workspace外复制项目中启动真实四服务，并分别证明：(1) initial DBOS owner/workflow已持久化后 hard crash -> Redis reclaim ->同 workflow恢复；(2) `examples.dev_assistant`产生 application waiting checkpoint，APR-002 approve经 worker恢复、deny零 continuation。脚本 MUST使用有效 service credential、共享 PostgreSQL/Redis，不得用 direct Python worker、DBOS metadata冒充 application checkpoint、共享 JSONL或日志推断替代。
@@ -159,3 +181,67 @@ service-app的 `smoke-service` SHALL在仓库内和 workspace外复制项目中�
 #### Scenario: Workspace 外 smoke 保留认证与资源隔离
 - **WHEN** 复制项目运行四服务 smoke并在中途失败
 - **THEN** service verifier仍拒绝缺失/无效凭据、有效临时凭据只在本轮生效，默认 cleanup删除复制项目本轮 containers/network/volume/queue/credential且不触碰仓库或其他项目资源
+
+### Requirement: RUN-001 使用可选 caller trace 或服务端生成 trace
+RUN-001 SHALL 接受可选 `X-Trace-Id`。合法 caller value 进入统一 runtime trace normalizer；缺失时服务端生成 canonical trace。空白、超长、非法字符或已绑定其他 root run 的 value MUST 在业务副作用前返回统一 `ApiErrorEnvelope`；公开 body 不回显内部 trace 生成细节。
+
+#### Scenario: 缺失 header 仍建立 trace
+- **WHEN** 已认证调用方不带 `X-Trace-Id` 创建 run
+- **THEN** RUN-001 按当前 local/service success status 返回，后续 RUN-003 event evidence 可读取非空 canonical trace
+
+#### Scenario: 非法 header 被拒绝
+- **WHEN** 调用方提供空白、超长、非法字符或已绑定其他 root run 的 `X-Trace-Id`
+- **THEN** API 返回 422 validation_error 或 409 trace conflict 的 `ApiErrorEnvelope`，且不创建 run、queue message 或 event
+
+### Requirement: RUN-002 原子切换为 durable delegation detail
+service app SHALL 在真实 delegation aggregation 可读的同一 change 中把 `GET /api/v1/runs/{run_id}` 从 `RunCreateResponse` 切换为 API Contract 5.31 的 `RunDetailResponse`。响应 MUST 包含当前 agent、nullable parent run、`DelegationSummary` 或 null；根 run 和 child run 均从持久化关系构造，不得用空占位伪装完成。`DelegationSummary.children` MUST 以带 `child_run_id` 的 durable parent-child relation 决定 membership，并从持久化 child run 取得 `RunStatus`；aggregate row 只补充已结算 evidence，MUST NOT 决定 child 是否存在。仅活动 child 或已终态但尚未聚合的 child MUST 以 unknown 数值出现并令 `budget_status=incomplete`；已结算与未结算 child 并存时 MUST 全部返回；当且仅当确无 child relation 时 summary 才为 null。
+
+#### Scenario: Parent run 返回 durable aggregation
+- **WHEN** parent run 已有完成或失败的 child delegation evidence
+- **THEN** RUN-002 返回 `RunDetailResponse`，其中 delegation summary 与持久化 child status、`ModelUsageEvidence` 和 trace refs 对账一致
+
+#### Scenario: 仅活动 child 仍出现在 parent detail
+- **WHEN** parent 已持久化 child relation，且 child `RunStatus` 为 `created|running|waiting`、尚无 terminal aggregate
+- **THEN** RUN-002 返回包含该 child 身份、持久化状态与 trace refs 的非 null summary，token/cost/latency 为 null 且 `budget_status=incomplete`
+
+#### Scenario: 已终态但尚未聚合的 child 不被遗漏
+- **WHEN** child 已是 `completed|failed|cancelled`，但可重入 aggregation 尚未写入 aggregate row
+- **THEN** RUN-002 仍按 durable relation 返回该 child，未结算数值为 null 且 `budget_status=incomplete`，不得返回 null
+
+#### Scenario: 已结算与未结算 child 并存
+- **WHEN** parent 同时存在已有可信 aggregate 的 child 与活动或尚未聚合的 child
+- **THEN** RUN-002 的 `children` 包含全部 durable relation，只累计已知 token，cost/latency 按全体完整性返回 null，且 `budget_status=incomplete`
+
+#### Scenario: 确无 child relation 时 summary 为 null
+- **WHEN** parent 不存在任何带 `child_run_id` 的 durable delegation relation
+- **THEN** RUN-002 返回 `delegation_summary=null`，不得以空 children 对象伪装已有 aggregation
+
+#### Scenario: Child run 返回 parent ref
+- **WHEN** 调用方读取 delegated child run
+- **THEN** RUN-002 返回该 child 的 `parent_run_id`，且不会泄漏其他租户关系
+
+#### Scenario: OpenAPI 原子切换 schema
+- **WHEN** 生成 service app OpenAPI
+- **THEN** RUN-002 success 只引用 `RunDetailResponse`，状态与 error envelope 保持 API Contract 精确集合，不再引用 `RunCreateResponse`
+
+### Requirement: DLG-001 不新增公开 HTTP route
+P0 DLG-001 SHALL 只通过 runtime/worker 注册的内置 `agent.delegate` tool/module seam 调用。service app OpenAPI MUST NOT 暴露 `/delegations` endpoint；授权、错误和结果使用 tool/module DTO 与 `DelegationSummary`。
+
+#### Scenario: OpenAPI 没有 delegation route
+- **WHEN** 生成 service app OpenAPI
+- **THEN** 不存在 `/api/v1/runs/{parent_run_id}/delegations` 或其他公开 delegation path，RUN-002 是唯一新增公开读取形状
+
+### Requirement: Runtime composition 统一注入 shared-budget seam
+Local app、service API 与 worker composition SHALL 为 model、embedding、delegation 和 terminal guard 注入同一 shared-budget repository/UoW，并统一把 root 自身或 tenant-fenced delegation relation 解析为非空 `budget_owner_run_id`；P0 MUST NOT 新增公开 budget ledger HTTP route，也不得把内部 owner、余额、reservation、price secret 或 needs_review 细节加入公开 response。
+
+#### Scenario: Local 与 service 使用同一合同
+- **WHEN** 相同 parent budget 场景分别通过 local inline 与 service PostgreSQL/Redis 执行
+- **THEN** 两条入口命中相同非空 owner 并得到逐值一致的 allow/reject、claim state 与公开错误语义，OpenAPI route 集合不增加 budget endpoint
+
+#### Scenario: Direct budget reject 的公开 code 逐值一致
+- **WHEN** local 或 service 的 direct model/embedding 因无可信有限上界、静态硬不合格、当前余额不足、snapshot无效或ledger needs-review而拒绝
+- **THEN** 两条入口的module/runtime与usage rejection evidence都使用`budget.reservation_rejected`；内部reason可区分原因但不得进入公开response或泄露余额，delegation仍使用`delegation.budget_exceeded`
+
+#### Scenario: Local 与 service 使用相同组合错误优先级
+- **WHEN** local/SQLite 与 service/PostgreSQL 对相同 stable key、relation/snapshot、budget 与 event-capacity 组合执行新 claim 或 replay
+- **THEN** 两条入口都按 exact replay/identity conflict、integrity、`event.sequence_state_invalid`、budget、`event.sequence_exhausted`、unique-race重读的顺序收敛；capacity-only逐值返回`event.sequence_exhausted`，budget+capacity返回对应budget code，数据库异常不进入公开消息

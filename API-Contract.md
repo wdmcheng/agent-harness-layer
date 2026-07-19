@@ -402,7 +402,7 @@ payload 不得包含 child input、完整 identity/request hash、动态余额�
 - `terminal=true` 当且仅当 `event_type` 为 `run.completed`、`run.failed` 或 `run.cancelled`；三种 run terminal event 必须显式设置 `terminal=true`、`visibility=public`，其余 36 种类型必须设置 `terminal=false`。EventBus 与 local/PostgreSQL sink 必须在分配 seq、消费容量、物化 artifact 或 fan-out 前拒绝 type/terminal/visibility 任一不一致的 envelope，不能依赖 DTO 默认值。每个 run 只能有一个 terminal event。
 - terminal event 是同一 run 的最后一条 CanonicalEvent；持久化后 EventBus/sink 必须拒绝 terminal 和 non-terminal 的任何后续业务事件，不能让已结束的 SSE/JSON 消费者漏掉晚到 evidence。
 - terminal 由 durable evidence outbox 协调：usage 结算与 `approval.resolved` 等必需前置 evidence 先按稳定 event id 幂等发布，terminal 最后发布；terminal 一旦可见，恢复不得再补写前置 evidence或重放 provider/tool 副作用。
-- `model-usage-evidence` 已通过 `0014` 有序 outbox 原子协调 usage、approval resolution 与 terminal 恢复语义，完整门禁与同 digest 代码 1+2 已通过；change 保持 active 且只到 `ready-to-archive`，不代表已归档、发布或部署。
+- `model-usage-evidence` 已通过 `0014` 有序 outbox 原子协调 usage、approval resolution 与 terminal 恢复语义，完整门禁与同 digest 代码 1+2 已通过；change 已于 2026-07-19 归档并同步主规格，但不代表已发布或部署。
 - `reasoning.delta` 默认不对普通用户可见。
 - `model-usage-evidence` SHALL 让 model 与 embedding 精确复用 `model.request.started`、`model.usage.updated`，并以 `ModelUsageEvidence.usage_kind` 区分，不新增等价 embedding event type；单次调用关联固定写在 `payload.correlation.usage_call_id`，类型为非空 string。该值不进入 CanonicalEvent envelope 顶层字段或 `ModelUsageEvidence`；TelemetryFacade 保留相同路径和值。`model.usage.updated` 只结束调用级 usage 生命周期，`CanonicalEvent.terminal=false`，不得关闭 run stream。
 - CanonicalEvent envelope 的唯一字节定义为公共 `canonical_event_bytes()`：先取 `CanonicalEvent.to_payload()`，再以 UTF-8、`ensure_ascii=false`、`sort_keys=true`、紧凑 separators `(',', ':')`、`allow_nan=false` 生成 JSON bytes；不计 JSONL 末尾换行、SSE `data:`/frame 分隔符或传输压缩。EventBus、local JSONL、SQLite/PostgreSQL legacy 校验和 SSE byte page 必须调用同一实现，不能各自使用默认 `json.dumps`。正常 envelope 最多 `65536` bytes；大 payload 必须先使用 `payload_ref` 并保留 checksum 或 artifact reference，artifact 化后 envelope 仍超限时，EventBus 以 `event.envelope_too_large` 在持久化和 fan-out 前拒绝。历史或 direct-write 超限 row 读取时返回稳定 `event.envelope_state_invalid`，SSE 转换为一个脱敏 `stream.error` 后关闭，不得返回无 cursor 的空页并忙循环。边界合同必须覆盖恰好等于/超过 `65536` 与 `1048576` bytes、中文/转义字符、不同键插入顺序和 NaN 拒绝。
@@ -1252,7 +1252,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 | 字段 | 约束 |
 |---|---|
-| 状态 | 实现与完整门禁已完成；公开 HTTP shape 不变，内部 shared-budget seam 仍须在归档前通过 fresh 代码 1+2 与审查后收口。 |
+| 状态 | 实现、完整门禁、fresh 代码 1+2 与审查后收口均已完成；对应 change 已于 2026-07-19 归档并同步主规格，公开 HTTP shape 不变。 |
 | owner | 每个 root run 创建唯一同 tenant `ParentBudgetLedger`，`budget_owner_run_id=root.run_id` 且非空；该 root 的 direct model/embedding、delegation top-level claim 和 child allocation 共用同一 owner。P0 拒绝嵌套、孤儿、循环、跨租户或 delegation relation 不唯一的 topology。 |
 | frozen snapshot | Root 创建时冻结 token/cost hard limits、cost-enabled 状态、registry/config/catalog versions，以及 root 和当时显式 targets 各自的 descriptor/model-policy/route/price sub-snapshot。Child 继承同一 owner snapshot ID/hard limits，只能按自己的 target sub-snapshot 进一步收紧已启用维度；reload 只影响新 root。 |
 | typed secret | Tenant-scoped keyed request fingerprint 使用 `AGENT_HARNESS_BUDGET__FINGERPRINT_KEY` 或对应 `_FILE` typed setting。缺失、direct/file 冲突、越界、symlink、超限、非 UTF-8 或空值在 application startup fail closed；runtime/migration 不得直接读取 env/path，secret 原值不得进入 payload、snapshot、event、trace、audit、error 或数据库。 |
@@ -1268,7 +1268,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 | 字段 | 约束 |
 |---|---|
-| 状态 | shared-budget 联合修复与完整门禁已完成；真实执行保持不变，预算 ownership、allocation、migration 与 terminal 仍须在同一冻结摘要上通过 fresh 代码 1+2。 |
+| 状态 | shared-budget 联合修复、完整门禁及同一冻结摘要的 fresh 代码 1+2 均已完成；对应 change 已于 2026-07-19 归档并同步主规格，真实执行保持不变。 |
 | 入口 | runtime/worker 注册的内置 `agent.delegate` tool/module seam；P0 不新增公开 delegation HTTP endpoint。 |
 | 请求 | parent `run_id`、source/target `agent_id`、child input、显式 idempotency key、IdentityContext、request/trace context。 |
 | 策略 | 先校验 source descriptor 的 delegation edge，再执行 `agent.delegate` PolicyEngine check；任一步 deny 都不得创建 child run、queue message、provider call 或业务 CanonicalEvent；允许写一次脱敏 policy/audit denial evidence。 |
@@ -1285,7 +1285,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 | 字段 | 约束 |
 |---|---|
-| 状态 | `ready-to-archive`；完整验证与代码 1+2 已通过，保持 active 且不自动归档。 |
+| 状态 | 完整验证与代码 1+2 已通过；对应 change 已于 2026-07-19 归档并同步主规格。 |
 | 入口 | provider adapter -> model/embedding router/facade -> EventBus/TelemetryFacade；业务 agent 只消费输出和稳定 DTO。 |
 | 生命周期 | model 与 embedding 调用前都发布 `model.request.started`，完成或受控失败后都发布恰好一条调用级最终 `model.usage.updated`，并以 `ModelUsageEvidence.usage_kind` 区分；不得新增等价 embedding event type。`usage_call_id` 必须由 durable tenant/run/request/agent/trace 关联与稳定语义调用槽位生成，invocation seam 不提供随机回退，也不得把 prompt、embedding input 等敏感业务输入纳入 ID。`model.usage.updated` 必须 `CanonicalEvent.terminal=false`，run terminal marker 仍只属于三种 run terminal event。 |
 | terminal 顺序 | 每次 started 调用先写 durable settlement/outbox 状态；provider 结果只写入该状态一次，再按稳定 `usage_call_id`/event id 幂等发布最终 usage。service worker 在 DBOS runtime 启动前恢复全部已有确定结果，queued run 重放或执行前再做 run-scoped recovery；恢复只补投 model/embedding evidence，不得误消费 approval 等共享 outbox 项。runtime 收口前恢复所有 pending settlement，最终 usage 必须先于同一 run terminal；不得重放 provider。`approval.resolved` 等其他前置 evidence 与 terminal 复用同一有序 outbox，EventBus/sink 拒绝 terminal 后的任何业务事件。 |
@@ -1716,7 +1716,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
 - [x] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致，并由局部双向 drift contract 持续校验。
 - [x] 已明确当前 events JSON seam、P0 待实现 RUN-006 SSE 与 P1 可选 WS 的边界。
-- [ ] 已固定并实现 BGT-001、DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；typed fingerprint secret、`0016` topology/source/price、usage 错误优先级修正与完整门禁已完成，仍须按同一冻结摘要通过 fresh 代码 1+2 与审查后收口。
+- [x] 已固定并实现 BGT-001、DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；typed fingerprint secret、`0016` topology/source/price、usage 错误优先级修正、完整门禁、同一冻结摘要的 fresh 代码 1+2 与审查后收口均已完成，对应 changes 已归档并同步主规格。
 - [x] 已明确 `reasoning.delta` 默认不可见。
 - [x] 已明确 API route 不得暴露 ORM、DBOS、provider SDK 或进程内 handle。
 - [x] 已明确新增/修改 endpoint 必须先改本契约，再做局部 OpenAPI drift 检查。

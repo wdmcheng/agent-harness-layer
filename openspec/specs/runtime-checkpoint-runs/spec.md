@@ -2,7 +2,6 @@
 
 ## Purpose
 定义 provider-neutral run lifecycle、idempotency、checkpoint/resume 与持久化事件边界的长期契约，确保 run 在重复提交、非法状态转换和进程重启场景下保持确定性，并让 API、CLI 和 worker 共用同一 runtime seam；service profile 的 DBOS 集成只能留在受控 adapter 边界，不得泄漏到 runtime core 或业务 agent。
-
 ## Requirements
 ### Requirement: RunOrchestrator 管理 run lifecycle
 package SHALL 暴露 provider-neutral `RunOrchestrator`，负责创建、取消、恢复 run，并通过 repository/UoW 和 EventBus 记录 lifecycle。
@@ -152,23 +151,23 @@ service profile SHALL 使用 `PostgreSQLEventSink` 通过现有 `canonical_event
 - **THEN** 数据库唯一约束只允许一个 terminal；幂等 event id返回已有 event，非幂等第二终态返回稳定 conflict且不消耗额外 seq
 
 ### Requirement: Service approve continuation 由 worker 执行，deny 在 API 原子收口
-service profile的 `APR-002 decision=approve` SHALL在 API进程完成认证/policy、原子取得 resolution lease后，持久化 lease、operation id、首次 request id、`resolution_state=claimed`与 enqueue状态，再投递独立 `resume_approval` operation；worker MUST从 approval/resolution/run execution context重建匹配的 `ApprovalGrant`，并在启动该 lease专属 DBOS workflow前以 CAS把 resolution state从 `claimed`迁移为 `execution_owned`、持久化 workflow owner/ref，再通过相同 provider-neutral runtime resume seam恢复原 executor/tool continuation。`decision=deny` MUST沿用 repository条件更新原子写 denied/event/audit并使目标动作不执行，不创建 resolution lease、queue operation或 DBOS workflow。API进程不得为 approve调用 executor/tool，也不得把 deny发送给 worker。
+service profile 的 `APR-002 decision=approve` SHALL 在 API 进程完成认证/policy、原子取得 resolution lease 后，持久化 lease、operation id、首次 request id、`resolution_state=claimed` 与 enqueue 状态，再投递独立 `resume_approval` operation；worker MUST 从 approval/resolution/run execution context 重建匹配的 `ApprovalGrant`，并在启动该 lease 专属 DBOS workflow 前以 CAS 把 resolution state 从 `claimed` 迁移为 `execution_owned`、持久化 workflow owner/ref，再通过相同 provider-neutral runtime resume seam 恢复原 executor/tool continuation。`decision=deny` MUST 由 API/repository 原子仲裁且不得创建 resolution lease、queue operation 或 DBOS workflow，但公开 approval/run 终态不得先于唯一 `approval.resolved` 与对应 terminal 的有序 outbox 证据持久化；API 只提交 deny 仲裁与 outbox，不执行 executor/tool。approve continuation 的真实结果也 MUST 先生成稳定 ID 的唯一 `approval.resolved`，再生成对应 completed/failed terminal；只有两者均已由 outbox 确认持久化后，公开 approval/run 才可进入终态。恢复流程 MUST 重放同一 outbox 记录，不得重放 provider、tool handler 或 continuation。
 
-#### Scenario: Approval resolve 排队后由 worker恢复
-- **WHEN** executor-produced approval处于 waiting，reviewer通过 APR-002 approve
-- **THEN** API 返回 resolution queued/in-progress语义并投递 approval refs，worker验证 tenant/identity/agent/run/action/resource/arguments hash/lease后恢复同一 continuation，handler恰好一次且 terminal唯一
+#### Scenario: Approval resolve 排队后由 worker 恢复
+- **WHEN** executor-produced approval 处于 waiting，reviewer 通过 APR-002 approve
+- **THEN** API 返回 resolution queued/in-progress 语义并投递 approval refs，worker 验证 tenant/identity/agent/run/action/resource/arguments hash/lease 后恢复同一 continuation，handler 恰好一次；真实 result 持久化后先确认唯一 `approval.resolved`，再确认唯一 terminal，随后才公开 approved 与 run 终态
 
-#### Scenario: Deny 原子终止且零 continuation message
-- **WHEN** reviewer在 service profile对 waiting approval提交 deny
-- **THEN** API/repository原子写 denied与唯一 event/audit，run进入既有 failed/fallback语义；不创建 resolution lease、operation/message/DBOS workflow，executor/tool handler计数为零
+#### Scenario: Deny 原子仲裁且零 continuation message
+- **WHEN** reviewer 在 service profile 对 waiting approval 提交 deny
+- **THEN** API/repository 原子写入 deny 仲裁与有序 outbox，且不创建 resolution lease、operation/message/DBOS workflow，executor/tool handler 计数为零；公开状态保持 waiting，直到 denied resolution evidence 与 failed/fallback terminal 依序持久化后才公开 denied 与 run 终态
 
 #### Scenario: Approve 与 deny 并发只有一个决策胜出
-- **WHEN** approve与 deny并发提交同一 waiting approval
-- **THEN** repository条件仲裁只允许一个终态；deny胜出则零 queue，approve胜出则只有一个 lease/operation，失败方返回稳定 409且不产生第二个 audit/handler
+- **WHEN** approve 与 deny 并发提交同一 waiting approval
+- **THEN** repository 条件仲裁只允许一个决策；deny 胜出则零 queue，approve 胜出则只有一个 lease/operation，失败方返回稳定 409；胜出方只产生一组有序 resolution/terminal outbox 与公开终态，不产生第二个 audit、handler 或 terminal
 
 #### Scenario: Approval continuation 重启与旧 lease fail closed
-- **WHEN** worker在 approval resume中断、message被 reclaim或旧 lease/message重复到达
-- **THEN** 新 worker以当前 resolution lease和同 DBOS owner恢复；过期/不匹配 lease不得调用 handler，已完成 claim返回已持久化结果且不产生第二个 audit/terminal
+- **WHEN** worker 在 approval resume 或有序 outbox 投递期间中断、message 被 reclaim，或旧 lease/message 重复到达
+- **THEN** 新 worker 以当前 resolution lease 和同 DBOS owner 恢复；过期/不匹配 lease 不得调用 handler，已完成 claim 返回已持久化结果；未确认的 evidence 只按稳定 ID 重放 outbox，不产生第二个 provider/tool 调用、resolution 或 terminal
 
 ### Requirement: Approval enqueue 失败可按同 lease 幂等补投
 approval repository SHALL在 claim approve lease的同一事务持久化 `resolution_operation_id`、首次 `resolution_request_id`、`resolution_reviewer_id`、`resolution_decision`、规范化 `resolution_request_hash`、`resolution_state=claimed`和 `enqueue_state=enqueue_pending`。这些 fingerprint/state字段是私有列/DTO，不得放入 public metadata/ApprovalRecord。Redis enqueue成功后 SHALL写 `enqueue_state=queued`与 message id。enqueue失败 MUST返回可重试的 `approval.enqueue_unavailable`。仅当 active lease仍为 pre-execution `resolution_state=claimed`、处于 `enqueue_pending|queued`、尚无 tool claim且 reviewer/decision/规范化 request hash全部相同时，APR-002重试才能复用原 operation：`enqueue_pending`幂等补投，`queued`复用既有 message/ref并只补齐 evidence。worker启动恢复器也 MUST只处理保存了完整 fingerprint、尚无 tool claim的 active `claimed+enqueue_pending` lease；不得换 lease或用新 attempt id覆盖。worker pickup在创建 DBOS workflow前 MUST以 CAS迁移为 `execution_owned`并保存 workflow owner/ref；此后只有同 owner恢复，或由 fingerprint匹配的真实 APR-002请求在 lease超时且无 claim时，于同一事务审计旧 operation/message/workflow refs、换发新 resolution lease id、按新 id派生 operation、以本次 request id建立新 operation首次 correlation、重新绑定已验证 fingerprint、清空 active message/workflow refs并重置为 `claimed+enqueue_pending`。不同 fingerprint、已有 claim或其他私有 state仍按既有409/恢复边界 fail closed。
@@ -191,3 +190,89 @@ run repository SHALL私有持久化 `queue_operation_id`、`queue_request_id`、
 #### Scenario: Pickup 对账 API 中断窗口
 - **WHEN** Redis已接受 message但 API在保存 queued/message ref或发布 evidence前中断，worker先 pickup该 entry
 - **THEN** worker验证 message与 run私有 fingerprint一致，补齐 queued/message ref和唯一 `run.queued`后才执行；不创建第二 run/message/event
+
+### Requirement: Run lifecycle 传播持久化 canonical trace
+RunOrchestrator SHALL 在创建 run 时取得 canonical `trace_id` 并写入私有 execution context。checkpoint、resume token state、queue/worker recovery 和 terminal transition MUST 读取该持久化值，不得接受下游调用方以参数覆盖或在缺失时静默生成另一值。
+
+#### Scenario: Idempotent replay 保留首次 trace
+- **WHEN** 同一 idempotency key 重放已创建的 run，且 caller trace 缺失或与首次 canonical trace 相同
+- **THEN** 系统复用首次 run 与其 canonical trace，不改写 execution context 或产生重复 lifecycle event
+
+#### Scenario: Idempotent replay 拒绝不同 trace
+- **WHEN** 同一 idempotency key 重放已创建的 run，但 caller trace 与首次 canonical trace 不同
+- **THEN** 系统返回 `409 trace.idempotency_conflict`，不改写 execution context，且不产生新 run、event、queue message、approval 或 provider side effect
+
+#### Scenario: Resume 使用原 trace
+- **WHEN** run 从 checkpoint 恢复并产生新的 resume request_id
+- **THEN** resumed 与 terminal event 使用原 canonical trace，同时保留新的 request_id 作为本次入口关联
+
+### Requirement: Runtime 执行单层 child run 并保持 parent 归属
+runtime SHALL 通过受控 delegation application service 创建单层 child run。child MUST 继承 `tenant_id`、授权 identity 与 correlation refs，记录 `parent_run_id`、source/target agent 和 delegation id；local inline 与 service queue 路径 MUST 使用同一状态机和 repository contract。
+
+#### Scenario: Local profile 执行 child
+- **WHEN** 已授权 delegation 在 local profile 提交
+- **THEN** runtime 创建并执行一个 child run，parent 可读取持久化关系与 terminal aggregation
+
+#### Scenario: Service profile 投递 child
+- **WHEN** 已授权 delegation 在 service profile 提交
+- **THEN** 系统以稳定 operation/idempotency refs 投递一个 child run，worker 重投或 reclaim 不产生第二个逻辑 child
+
+#### Scenario: Child failure 保留 parent 可审计结果
+- **WHEN** target executor 失败或 child 被取消
+- **THEN** child 进入对应 terminal，parent aggregation 记录失败状态与脱敏 error/trace refs，不把 parent 伪装成 delegation 成功
+
+### Requirement: Delegation 幂等键绑定规范化请求
+每个 delegation request SHALL 要求显式 idempotency key，并计算覆盖 tenant、有效 identity、parent run、source agent、target agent、child input 与稳定预算意图的规范化 hash。P0 request 没有显式预算参数时，预算意图 MUST 固定为 `inherit_parent`；动态 parent 剩余额度、锁内计算的有效预留额与其他可变余额投影 MUST NOT 进入 hash。ownership/edge/policy/tenant/cycle/depth 校验不得创建 delegation/预算/child 业务状态；通过后，系统 MUST 在同一事务中先按唯一 `(tenant_id,parent_run_id,idempotency_key)` 读取或创建 claim 并核对 hash：既有同 hash MUST 重放或恢复首次持久化的 delegation/child/reservation，不得按当前余额重算 hash 或再次预留；既有异 hash MUST 在任何 reservation 写入前返回 `delegation.idempotency_conflict`；全新 claim 才在 parent lock/CAS 内计算最坏情况有效预留额，并与 parent budget reservation 同事务提交或回滚。任何冲突或失败不得产生新 child、queue、provider 或业务 event 副作用；允许的一次脱敏 policy/audit evidence 不属于 delegation 业务状态。
+
+#### Scenario: 同 key 同请求重放
+- **WHEN** 调用方用相同 key 重试语义相同的规范化 delegation request
+- **THEN** 系统返回既有 delegation 和 child refs，或从原 claim/reservation 的 durable state 恢复原 operation；不创建第二 reservation、不再次执行 target executor
+
+#### Scenario: 同 key 异请求冲突
+- **WHEN** 相同 key 对应不同 target 或 input hash
+- **THEN** 系统在预算读取/预留前通过 tool/module error DTO 返回 `delegation.idempotency_conflict`，新 claim/reservation 与业务副作用计数均为零；P0 没有 delegation HTTP response，未来 HTTP adapter 如需映射 status 必须由独立公开契约定义
+
+#### Scenario: 同 key 并发只提交一个 claim 与 reservation
+- **WHEN** 两个并发请求使用相同 key 与相同规范化 hash，且该 key 尚未持久化
+- **THEN** SQLite 与 PostgreSQL repository 都只提交一个 claim 和一个 parent reservation；另一请求重放或恢复该 durable state，不重复占用余额
+
+#### Scenario: Claim 后崩溃重试复用原 reservation
+- **WHEN** 新 claim 与 reservation 已提交，但进程在创建 child 前退出，随后相同 key/hash 重试
+- **THEN** recovery 复用原 claim、reservation 与 operation继续执行或确定性补偿，不再次预留、不因余额变化错误返回 budget exceeded
+
+#### Scenario: 其他 key 改变余额后原 key 仍稳定重放
+- **WHEN** 首次 claim/reservation 已提交，另一 idempotency key 随后预留或结算同一 parent 预算，再以原 key 和相同稳定请求重试
+- **THEN** 系统按稳定 request hash 命中原 claim 并复用首次持久化的有效 reservation/operation，不把当前 parent 剩余额度写入 hash，不返回 `delegation.idempotency_conflict`，也不创建第二 reservation
+
+### Requirement: Delegation 预算按 parent 原子预留与结算
+系统 SHALL 在任何 child run、queue、provider 或业务 event 副作用前，以 parent run 为竞争范围，通过 row lock 或等价 CAS 原子预留全新 claim 的最坏情况有效预算；新 claim 与 reservation MUST 在同一事务提交或回滚。不同 idempotency key MUST 竞争同一 parent 可用余额，不能各自读取旧余额后同时放行。reservation MUST 持久化 `reserved|settled|released|needs_review` 状态：child 创建前的确定性失败可原子释放；child 创建后只能用已经通过非 bool、非负、有限数值与 cost-status 组合校验的可信 usage evidence 结算；非法或结果未知时 MUST 保持占用并进入 `needs_review`，不得把未知值当 0 或用负值增加可用余额。
+
+#### Scenario: 不同 key 并发不能共同超支
+- **WHEN** 两个不同 idempotency key 并发请求同一 parent，单个请求都低于当前余额但二者最坏情况预算之和超过余额
+- **THEN** SQLite 与 PostgreSQL repository 都只允许一个 reservation 成功；另一请求返回 `delegation.budget_exceeded`，不创建 child、queue、provider call 或业务 event
+
+#### Scenario: Child 创建前失败释放预留
+- **WHEN** reservation 成功后、child 创建前发生可证明的确定性失败
+- **THEN** 同一事务或受 fencing 的补偿把 reservation 标记为 released并归还余额，重试不产生重复释放
+
+#### Scenario: Child 结果未知时保留预留
+- **WHEN** child 已创建但 execution/usage 结果不确定或必要 usage evidence 缺失
+- **THEN** reservation 保持 reserved或转为 needs_review，parent 可用余额不增加；只有可信 usage evidence 可把它结算为 settled
+
+### Requirement: Delegation 失败使用封闭错误集合
+delegation seam SHALL 使用 `delegation.edge_denied`、`delegation.policy_denied`、`delegation.idempotency_conflict`、`delegation.cycle_detected`、`delegation.depth_exceeded`、`delegation.budget_exceeded`、`delegation.target_not_found` 和 `delegation.execution_failed`。错误、event、audit 与 tool result MUST 脱敏；跨租户 target、provider raw usage、resume token 和本地路径不得进入结果。
+
+#### Scenario: Target 不存在
+- **WHEN** target agent 不存在或对当前 tenant/identity 不可见
+- **THEN** seam 返回 `delegation.target_not_found`，不泄漏其他租户 agent 且不创建 child
+
+#### Scenario: Child 执行失败
+- **WHEN** child executor 达到确定性 failed terminal
+- **THEN** seam 返回或记录 `delegation.execution_failed` 与脱敏 child/trace refs，parent aggregation 保留失败证据且不自动重复执行 child
+
+### Requirement: Shared-budget recovery 按外部副作用阶段 fencing
+Runtime 与 worker SHALL 区分三个恢复阶段：reservation 已提交且durable `side_effect_state=not_started`；`side_effect_state=started`但没有与shared settlement同UoW提交的可信result；可信result与全部shared settlement已原子提交但最终event尚未发布。恢复 MUST复用稳定claim，不得重复reservation、provider call、child run或queue operation；第一阶段才可继续原operation或在证明零副作用后释放，第二阶段进入needs_review且不得重放外部调用，第三阶段只从既有outbox补投event。新writer MUST NOT产生“result已持久化、ledger未结算”或cache claim/evidence单边提交；这种pre-0016 legacy半状态只能由`0016`migration预检/backfill处理。
+
+#### Scenario: Worker reclaim 不重复预算或外部执行
+- **WHEN** service worker 在上述任一阶段 crash 后 reclaim 同一 operation
+- **THEN** worker 按durable phase恢复相应阶段；前两阶段没有可补投result，第三阶段只补投event，shared ledger与外部执行计数均保持幂等，SQLite/local与PostgreSQL/Redis语义一致
