@@ -300,10 +300,12 @@ def main() -> int:
         else:
             payload = asyncio.run(inspect_run(args.run_id))
     except Exception as exc:  # noqa: BLE001 - 管理脚本只输出脱敏错误分类
+        original = getattr(exc, "orig", None)
         print(
             json.dumps(
                 {
-                    "error_code": getattr(exc, "code", None),
+                    # SQLSTATE 只描述稳定数据库错误类别，不包含 SQL、参数或 secret。
+                    "error_code": getattr(original, "sqlstate", None) or getattr(exc, "code", None),
                     "error_type": type(exc).__name__,
                 },
                 ensure_ascii=False,

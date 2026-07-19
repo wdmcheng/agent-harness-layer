@@ -28,10 +28,13 @@ async def test_tool_registry_preflight_errors_are_not_masked_by_approval(
 ) -> None:
     """Registry 最终 seam 必须先返回 disabled/allowlist_denied，再进入 approval。"""
 
+    from pydantic import SecretStr
+
     from agent_harness.artifacts import FileArtifactStore
     from agent_harness.audit import AuditService
     from agent_harness.config.schemas import (
         AgentConfig,
+        BudgetSettings,
         HarnessSettings,
         MCPServerSettings,
         ModelSettings,
@@ -59,6 +62,7 @@ async def test_tool_registry_preflight_errors_are_not_masked_by_approval(
             mcp_servers=[MCPServerSettings(name="demo", allowlist=[])],
         ),
         agent=AgentConfig(tool_allowlist=["shell.execute", "mcp.demo.unsafe"]),
+        budget=BudgetSettings(fingerprint_key=SecretStr("test-only-tool-registry-key")),
     )
     db_path = tmp_path / "tool-preflight.db"
     dsn = sqlite_dsn(db_path)

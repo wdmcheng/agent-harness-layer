@@ -8,7 +8,14 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from agent_harness.contracts import GuardrailDecisionStatus
+from tests.contracts.agent_delegation_service_identity_test_support import (
+    _descriptor,
+    _identity,
+    _Policy,
+    _SharedBudgetRuntimeFixture,
+    delegation_claim,
+)
+
 from agent_harness.delegation.service import DelegationMode, DelegationService
 from agent_harness.events import (
     EventBus,
@@ -16,7 +23,6 @@ from agent_harness.events import (
     LocalJsonlEventSink,
     PostgreSQLEventSink,
 )
-from agent_harness.identity import IdentityContext
 from agent_harness.models import (
     ModelDecision,
     ModelInvocationService,
@@ -26,91 +32,13 @@ from agent_harness.models import (
     ModelRouterConfig,
     UsageEvidenceContext,
 )
-from agent_harness.policy import PolicyCheck, PolicyEvaluation
-from agent_harness.registry import (
-    AgentBudget,
-    AgentDescriptor,
-    AgentModelPolicy,
-    AgentRegistry,
-    AgentToolPolicy,
-)
+from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunDetailResult, RunResult, RunStatus
-from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.storage import SQLAlchemyStorage, run_migrations
 from agent_harness.storage.repositories import RunCreate, SessionCreate
 from agent_harness.storage.run_trace_gate import StorageRunTraceResolver
-from agent_harness.storage.shared_budget import LedgerCreate, OperationIdentity
+from agent_harness.storage.shared_budget import LedgerCreate
 from agent_harness.storage.shared_budget_models import ParentBudgetLedgerModel
-
-
-def _descriptor(
-    agent_id: str,
-    *,
-    targets: list[str],
-    max_tokens: int = 100,
-    max_cost_usd: float | None = 10.0,
-) -> AgentDescriptor:
-    return AgentDescriptor(
-        agent_id=agent_id,
-        version="1",
-        name=agent_id,
-        description="delegation contract agent",
-        input_schema_ref="schemas/input.json",
-        output_schema_ref="schemas/output.json",
-        config_ref=f"agents/{agent_id}/config.yaml",
-        tool_policy=AgentToolPolicy(allowed_tools=["agent.delegate"]),
-        model_policy=AgentModelPolicy(
-            provider="fake",
-            default_model="fake-basic",
-            fallback_models=[],
-        ),
-        budget=AgentBudget(
-            max_tokens_per_run=max_tokens,
-            max_cost_usd_per_run=max_cost_usd,
-        ),
-        eval_dataset=None,
-        delegation_targets=targets,
-    )
-
-
-def _identity(*, permissions: list[str] | None = None) -> IdentityContext:
-    return IdentityContext(
-        tenant_id="tenant-a",
-        user_id="user-a",
-        session_id="session-a",
-        roles=["operator"],
-        permissions=permissions if permissions is not None else ["agent.delegate"],
-        auth_method="api-key",
-    )
-
-
-class _Policy:
-    async def evaluate(self, check: PolicyCheck) -> PolicyEvaluation:
-        decision = (
-            GuardrailDecisionStatus.ALLOW.value
-            if "agent.delegate" in check.actor.permissions
-            else GuardrailDecisionStatus.DENY.value
-        )
-        return PolicyEvaluation(
-            decision=decision,
-            reason="contract policy",
-            actor=check.actor,
-            action=check.action,
-            resource=check.resource,
-        )
-
-
-class _SharedBudgetRuntimeFixture:
-    """让 delegation 合同夹具走与真实 composition 相同的 allocation seam。"""
-
-    def operation_identity(self, **values: Any) -> OperationIdentity:
-        return OperationIdentity.from_semantic_request(
-            fingerprint_key=b"delegation-contract-budget-key",
-            fingerprint_key_version="delegation-contract-v1",
-            **values,
-        )
-
-    model_router_config = SharedBudgetRuntime.model_router_config
 
 
 class _ParentDetailOrchestrator:
@@ -410,6 +338,7 @@ async def _build_service(
         run_trace_resolver=resolver,
         capacity_storage=None if database_events else storage,
     )
+    shared_budget = _SharedBudgetRuntimeFixture()
     usage_service = None
     if trustworthy_usage:
         usage_service = ModelInvocationService(
@@ -425,7 +354,7 @@ async def _build_service(
             ),
             storage=storage,
             event_bus=event_bus,
-            shared_budget=_SharedBudgetRuntimeFixture(),
+            shared_budget=shared_budget,
         )
     runtime = _InlineChildRuntime(
         storage,
@@ -459,6 +388,7 @@ async def _build_service(
         policy=_Policy(),
         event_bus=event_bus,
         orchestrator=runtime,
+        shared_budget=shared_budget,
         mode=mode,
     )
     return storage, service, runtime, parent.id, sink
@@ -510,4 +440,5 @@ __all__ = [
     "_build_service",
     "_descriptor",
     "_identity",
+    "delegation_claim",
 ]

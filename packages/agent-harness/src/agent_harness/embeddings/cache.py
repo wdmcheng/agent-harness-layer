@@ -30,6 +30,44 @@ class StorageEmbeddingCache:
             await uow.commit()
             return record
 
+    async def peek(
+        self,
+        *,
+        tenant_id: str,
+        provider: str,
+        model: str,
+        input_hash: str,
+    ) -> EmbeddingCacheRecord | None:
+        """为 shared-budget 预检提供不产生持久化写入的 cache lookup。"""
+
+        async with self._storage.uow() as uow:
+            return await uow.embedding_cache.peek(
+                tenant_id=tenant_id,
+                provider=provider,
+                model=model,
+                input_hash=input_hash,
+            )
+
+    async def mark_hit(
+        self,
+        *,
+        tenant_id: str,
+        provider: str,
+        model: str,
+        input_hash: str,
+    ) -> EmbeddingCacheRecord:
+        """供非 settlement 调用在自己的事务中提交 cache hit evidence。"""
+
+        async with self._storage.uow() as uow:
+            record = await uow.embedding_cache.mark_hit(
+                tenant_id=tenant_id,
+                provider=provider,
+                model=model,
+                input_hash=input_hash,
+            )
+            await uow.commit()
+            return record
+
     async def put(self, data: EmbeddingCacheCreate) -> EmbeddingCacheRecord:
         async with self._storage.uow() as uow:
             record = await uow.embedding_cache.put(data)

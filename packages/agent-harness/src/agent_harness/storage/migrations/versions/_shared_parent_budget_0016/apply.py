@@ -24,6 +24,7 @@ from agent_harness.storage.migrations.versions._shared_parent_budget_0016.plan i
 def _legacy_preflight(connection: sa.Connection) -> list[dict[str, Any]]:
     """DDL 前整批分类 legacy tree，并返回只含可验证事实的 backfill plan。"""
 
+    _validate_parent_graph(connection)
     plans: list[dict[str, Any]] = []
     roots = connection.execute(
         sa.text(
@@ -53,6 +54,67 @@ def _legacy_preflight(connection: sa.Connection) -> list[dict[str, Any]]:
                 raise closure_error
             plans.append(plan)
     return plans
+
+
+def _validate_parent_graph(connection: sa.Connection) -> None:
+    """扫描全表而非只遍历 root，禁止坏节点逃过 0016 分类。"""
+
+    runs = [
+        {str(key): value for key, value in row.items()}
+        for row in connection.execute(
+            sa.text("select id,tenant_id,parent_run_id,agent_id from agent_runs")
+        ).mappings()
+    ]
+    runs_by_id = {str(row["id"]): row for row in runs}
+    relations = [
+        {str(key): value for key, value in row.items()}
+        for row in connection.execute(
+            sa.text(
+                "select id,tenant_id,parent_run_id,child_run_id,source_agent_id,target_agent_id,"
+                "status "
+                "from agent_delegations"
+            )
+        ).mappings()
+    ]
+    relations_by_child: dict[str, list[dict[str, object]]] = {}
+    for relation in relations:
+        parent = runs_by_id.get(str(relation["parent_run_id"]))
+        if (
+            parent is None
+            or parent["parent_run_id"] is not None
+            or parent["tenant_id"] != relation["tenant_id"]
+            or parent["agent_id"] != relation["source_agent_id"]
+        ):
+            raise RuntimeError("0016 parent graph is invalid")
+        raw_child_id = relation["child_run_id"]
+        if raw_child_id is None:
+            # completed 只可能出现在 child 已创建且可信聚合已完成之后；缺 child 的
+            # completed relation 是历史损坏，不能被终态 reservation 伪装为 legacy_closed。
+            if relation["status"] == "completed":
+                raise RuntimeError("0016 parent graph is invalid")
+            continue
+        child_id = str(raw_child_id)
+        child = runs_by_id.get(child_id)
+        if (
+            child is None
+            or child["tenant_id"] != relation["tenant_id"]
+            or child["parent_run_id"] != relation["parent_run_id"]
+            or child["agent_id"] != relation["target_agent_id"]
+        ):
+            raise RuntimeError("0016 parent graph is invalid")
+        relations_by_child.setdefault(child_id, []).append(relation)
+    for run in runs:
+        raw_parent_id = run["parent_run_id"]
+        if raw_parent_id is None:
+            continue
+        parent = runs_by_id.get(str(raw_parent_id))
+        if (
+            parent is None
+            or parent["tenant_id"] != run["tenant_id"]
+            or parent["parent_run_id"] is not None
+            or len(relations_by_child.get(str(run["id"]), [])) != 1
+        ):
+            raise RuntimeError("0016 parent graph is invalid")
 
 
 def _apply_backfill(connection: sa.Connection, plans: list[dict[str, Any]]) -> None:
@@ -166,17 +228,13 @@ def _apply_backfill(connection: sa.Connection, plans: list[dict[str, Any]]) -> N
         for raw_claim in plan["claims"]:
             claim = dict(raw_claim)
             identity = claim.get("identity_json")
+            if not isinstance(identity, Mapping):
+                raise RuntimeError("0016 backfill claim identity is invalid")
             claim.update(
                 tenant_id=ledger["tenant_id"],
                 budget_owner_run_id=ledger["budget_owner_run_id"],
-                identity_schema_version=(
-                    None
-                    if not isinstance(identity, Mapping)
-                    else identity["identity_schema_version"]
-                ),
-                identity_hash=(
-                    None if not isinstance(identity, Mapping) else identity["identity_hash"]
-                ),
+                identity_schema_version=identity["identity_schema_version"],
+                identity_hash=identity["identity_hash"],
                 backfill_source=claim.get("backfill_source", "legacy_checkpoint_v1"),
             )
             connection.execute(sa.insert(claim_table), claim)

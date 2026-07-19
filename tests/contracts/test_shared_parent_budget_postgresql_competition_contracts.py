@@ -1,8 +1,79 @@
 """真实 PostgreSQL 竞争、catalog 与 replay integrity 合同。"""
 
+from typing import Any
+
+from sqlalchemy.exc import IntegrityError
+
 # 所有场景共享同一真实 PostgreSQL isolated database 与 ledger 夹具。
 # ruff: noqa: F403, F405
 from tests.contracts.test_shared_parent_budget_postgresql_contracts import *
+
+from agent_harness.storage.delegation_repositories import DelegationBudgetExceeded
+
+
+@pytest.mark.asyncio
+async def test_postgresql_mixed_direct_delegation_race_has_one_lock_order() -> None:
+    """重复 mixed race，禁止 parent/ledger 反向持锁偶发 PostgreSQL deadlock。"""
+
+    async with isolated_database("shared_budget_mixed_lock_order") as dsn:
+        await asyncio.to_thread(run_migrations, dsn)
+        storage = SQLAlchemyStorage(dsn)
+        try:
+            for index in range(20):
+                suffix = f"pg-mixed-{index}"
+                root = await create_root(storage, suffix=suffix)
+                async with storage.uow() as uow:
+                    snapshot = await uow.shared_budget.get_tree_snapshot("tenant-a", root)
+                assert snapshot is not None
+
+                async def compete_direct(root_id: str, case_suffix: str) -> str:
+                    try:
+                        async with storage.uow() as uow:
+                            await uow.shared_budget.claim_direct(
+                                direct_claim(
+                                    root_id=root_id,
+                                    usage_call_id=f"usage-{case_suffix}",
+                                    fingerprint=f"request-{case_suffix}",
+                                    token_bound=60,
+                                    cost_bound=Decimal("6.00"),
+                                )
+                            )
+                            await uow.commit()
+                        return "committed"
+                    except BudgetReservationRejected:
+                        return "rejected"
+
+                async def compete_delegation(
+                    root_id: str,
+                    frozen_snapshot: dict[str, Any],
+                    case_suffix: str,
+                    case_index: int,
+                ) -> str:
+                    try:
+                        async with storage.uow() as uow:
+                            await uow.delegations.claim_and_reserve(
+                                delegation_claim(
+                                    root_id=root_id,
+                                    snapshot=frozen_snapshot,
+                                    key=f"delegation-{case_suffix}",
+                                    request_hash=f"{case_index:064x}",
+                                    trace_id=f"trace-{case_suffix}",
+                                    requested_tokens=100,
+                                    requested_cost=10.0,
+                                )
+                            )
+                            await uow.commit()
+                        return "committed"
+                    except DelegationBudgetExceeded:
+                        return "rejected"
+
+                outcomes = await asyncio.gather(
+                    compete_direct(root, suffix),
+                    compete_delegation(root, snapshot, suffix, index),
+                )
+                assert sorted(outcomes) == ["committed", "rejected"]
+        finally:
+            await storage.dispose()
 
 
 @pytest.mark.asyncio
@@ -192,6 +263,20 @@ async def test_postgresql_0016_rejects_terminal_tree_with_pending_queue_recovery
                         "cast('{}' as jsonb),'root-a','run:child-a:execute','enqueue_pending')"
                     )
                 )
+                await connection.execute(
+                    text(
+                        "insert into agent_delegations("
+                        "id,tenant_id,parent_run_id,child_run_id,source_agent_id,target_agent_id,"
+                        "idempotency_key,request_hash,budget_intent,child_input_json,identity_json,"
+                        "trace_id,status,error_json,event_operation_kind,event_registry_version,"
+                        "reserved_event_count) values ("
+                        "'delegation-a','tenant-a','root-a','child-a','agent-a','agent-b',"
+                        "'child-queue-key',:request_hash,'inherit_parent',cast('{}' as jsonb),"
+                        "cast('{}' as jsonb),'trace-a','completed',cast('null' as jsonb),"
+                        "'delegation','v1',3)"
+                    ),
+                    {"request_hash": "a" * 64},
+                )
                 run_ids.append("child-a")
             for sequence, run_id in enumerate(run_ids, start=1):
                 await connection.execute(
@@ -259,6 +344,30 @@ async def test_postgresql_replay_rejects_corrupted_persisted_identity_detail() -
             async with storage.uow() as uow:
                 await uow.shared_budget.claim_direct(claim)
                 await uow.commit()
+            with pytest.raises(IntegrityError):
+                async with storage.uow() as uow:
+                    model = await uow.session.scalar(
+                        select(BudgetOperationClaimModel).where(
+                            BudgetOperationClaimModel.usage_call_id == "usage-pg-identity-integrity"
+                        )
+                    )
+                    assert model is not None
+                    model.identity_json = {}
+                    await uow.commit()
+            for field in ("source_agent_id", "target_agent_id", "target_route_catalog_digest"):
+                with pytest.raises(IntegrityError):
+                    async with storage.uow() as uow:
+                        model = await uow.session.scalar(
+                            select(BudgetOperationClaimModel).where(
+                                BudgetOperationClaimModel.usage_call_id
+                                == "usage-pg-identity-integrity"
+                            )
+                        )
+                        assert model is not None
+                        corrupted = dict(model.identity_json)
+                        corrupted[field] = "forged-delegation-only-value"
+                        model.identity_json = corrupted
+                        await uow.commit()
             async with storage.uow() as uow:
                 model = await uow.session.scalar(
                     select(BudgetOperationClaimModel).where(
@@ -269,7 +378,6 @@ async def test_postgresql_replay_rejects_corrupted_persisted_identity_detail() -
                 corrupted = dict(model.identity_json)
                 corrupted["provider"] = "tampered-provider"
                 model.identity_json = corrupted
-                model.agent_id = "tampered-agent"
                 await uow.commit()
             async with storage.uow() as uow:
                 with pytest.raises(BudgetOperationConflict):
@@ -310,22 +418,14 @@ async def test_postgresql_atomic_delegation_requires_explicit_frozen_edge() -> N
             async with storage.uow() as uow:
                 with pytest.raises(DelegationStorageConflict, match="delegation.execution_failed"):
                     await uow.delegations.claim_and_reserve(
-                        DelegationClaimCreate(
-                            tenant_id="tenant-a",
-                            parent_run_id=root,
-                            source_agent_id="agent-a",
-                            target_agent_id="agent-b",
-                            idempotency_key="pg-explicit-edge",
+                        delegation_claim(
+                            root_id=root,
+                            snapshot=snapshot,
+                            key="pg-explicit-edge",
                             request_hash="e" * 64,
-                            budget_intent="inherit_parent",
-                            child_input={"query": "must fail closed"},
-                            identity={"user_id": "user-a"},
                             trace_id="trace-pg-explicit-edge",
-                            request_id="request-pg-explicit-edge",
-                            parent_token_limit=100,
-                            requested_token_reservation=20,
-                            parent_cost_limit=10.0,
-                            requested_cost_reservation=1.0,
+                            requested_tokens=20,
+                            requested_cost=1.0,
                         )
                     )
                 relation = await uow.session.scalar(

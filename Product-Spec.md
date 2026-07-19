@@ -788,7 +788,7 @@ auth_method: str
 - [x] AC-031: Given 重复 embedding 输入, when 第二次调用, then 命中 cache 或记录 cache miss 原因。
 - [x] AC-032: Given 历史、检索和 tool output 同时进入上下文, when 组装 prompt, then 输出 context assembly trace，包含来源、可信级别、token 预算和截断记录。
 - [x] AC-064: Given model、embedding provider 或 embedding cache 完成一次调用, when 记录 provider-neutral evidence, then 非负且有限的 token、cost、latency、provider/model、cache/provider side-effect decision 和 budget decision 可由同一 run/trace 关联，且业务 agent 不拼接 provider 原始事件。
-- [ ] AC-068: Given 一个 root execution tree 同时发生 direct model/embedding、delegation 与 child allocation, when 多进程并发预约、结算、崩溃恢复或 terminal, then 所有 operation 以同一非空 root owner ledger 竞争冻结的 token/cost hard limits，exact replay 不重复扣减，conflict/unknown/needs-review fail closed，拒绝路径无 provider/child/queue 副作用，且 SQLite 与真实 PostgreSQL 逐值一致。
+- [x] AC-068: Given 一个 root execution tree 同时发生 direct model/embedding、delegation 与 child allocation, when 多进程并发预约、结算、崩溃恢复或 terminal, then 所有 operation 以同一非空 root owner ledger 竞争冻结的 token/cost hard limits，exact replay 不重复扣减，conflict/unknown/needs-review fail closed，拒绝路径无 provider/child/queue 副作用，且 SQLite 与真实 PostgreSQL 逐值一致。
 
 ### REQ-013: Retrieval 与 RAG
 

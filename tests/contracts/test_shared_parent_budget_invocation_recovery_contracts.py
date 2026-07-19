@@ -187,6 +187,62 @@ async def test_embedding_cache_miss_replay_uses_durable_started_identity(
 
 
 @pytest.mark.asyncio
+async def test_exact_embedding_replay_precedes_cache_and_snapshot_integrity(
+    tmp_path: Path,
+) -> None:
+    """Embedding durable miss 先于后写 cache 与当前 snapshot 完整性。"""
+
+    dsn = f"sqlite+aiosqlite:///{tmp_path / 'embedding-corrupt-snapshot.sqlite3'}"
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage(dsn)
+    sink = LocalJsonlEventSink(tmp_path / "embedding-corrupt-snapshot-events.jsonl")
+    service = EmbeddingInvocationService(
+        provider=LocalEmbeddingProvider(cache=StorageEmbeddingCache(storage)),
+        storage=storage,
+        event_bus=EventBus(sink=sink, run_trace_resolver=resolve_trace),
+        shared_budget=TestIdentityRuntime(),
+        input_token_price_usd=Decimal("0"),
+        price_source_ref="catalog:local:mock-small",
+        price_source_version="catalog-v1",
+    )
+    run_id = await seed_managed_root(storage)
+    request = EmbeddingRequest(input="durable embedding miss", tenant_id="tenant-a")
+    try:
+        first = await service.embed(
+            request,
+            context=context(run_id),
+            usage_call_id="usage-embedding-corrupt-snapshot",
+        )
+        async with storage.uow() as uow:
+            ledger = await uow.session.get(
+                ParentBudgetLedgerModel,
+                ("tenant-a", run_id),
+            )
+            assert ledger is not None
+            snapshot = dict(ledger.snapshot_json)
+            snapshot["catalog_version"] = "catalog-corrupted-after-embedding"
+            ledger.snapshot_json = snapshot
+            await uow.commit()
+
+        replayed = await service.embed(
+            request,
+            context=context(run_id),
+            usage_call_id="usage-embedding-corrupt-snapshot",
+        )
+        with pytest.raises(BudgetOperationConflict):
+            await service.embed(
+                request.model_copy(update={"input": "changed embedding input"}),
+                context=context(run_id),
+                usage_call_id="usage-embedding-corrupt-snapshot",
+            )
+
+        assert first.cache.hit is False
+        assert replayed == first
+    finally:
+        await storage.dispose()
+
+
+@pytest.mark.asyncio
 async def test_delegated_embedding_cache_hit_creates_zero_allocation_only(
     tmp_path: Path,
 ) -> None:
@@ -246,6 +302,10 @@ async def test_delegated_embedding_cache_hit_creates_zero_allocation_only(
             usage_call_id="usage-delegated-embedding-hit",
         )
         async with storage.uow() as uow:
+            await uow.runs.set_status(delegated.child_run_id, RunStatus.COMPLETED.value)
+            await uow.commit()
+        reconciled = await delegation_service.reconcile_child(delegated.child_run_id)
+        async with storage.uow() as uow:
             direct = await uow.session.scalar(
                 select(BudgetOperationClaimModel).where(
                     BudgetOperationClaimModel.usage_call_id == "usage-delegated-embedding-hit"
@@ -256,8 +316,20 @@ async def test_delegated_embedding_cache_hit_creates_zero_allocation_only(
                     DelegationBudgetAllocationModel.usage_call_id == "usage-delegated-embedding-hit"
                 )
             )
+            top_level_claim = await uow.session.scalar(
+                select(BudgetOperationClaimModel).where(
+                    BudgetOperationClaimModel.delegation_id == delegated.delegation_id
+                )
+            )
+            reservation = await uow.delegations.get_reservation(delegated.delegation_id)
+            ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
+            terminal_allowed = await uow.shared_budget.terminal_allowed("tenant-a", parent_run_id)
             allocation_state = None if allocation is None else allocation.state
             allocation_impact = None if allocation is None else allocation.token_impact
+            top_level_state = None if top_level_claim is None else top_level_claim.state
+            top_level_impact = None if top_level_claim is None else top_level_claim.token_impact
+            ledger_state = None if ledger is None else ledger.state
+            ledger_impact = None if ledger is None else ledger.token_impact
     finally:
         await storage.dispose()
 
@@ -266,6 +338,23 @@ async def test_delegated_embedding_cache_hit_creates_zero_allocation_only(
     assert allocation is not None
     assert allocation_state == "settled"
     assert allocation_impact == 0
+    assert reconciled.status == "completed"
+    assert reconciled.summary is not None
+    assert reconciled.summary.input_tokens == 0
+    assert reconciled.summary.output_tokens == 0
+    assert reconciled.summary.cost_usd == 0
+    assert reconciled.summary.budget_status == "within_budget"
+    assert reservation.state == "settled"
+    assert reservation.settled_input_tokens == 0
+    assert reservation.settled_output_tokens == 0
+    assert reservation.settled_cost_usd == 0
+    assert top_level_claim is not None
+    assert top_level_state == "settled"
+    assert top_level_impact == 0
+    assert ledger is not None
+    assert ledger_state == "active"
+    assert ledger_impact == 0
+    assert terminal_allowed is True
 
 
 @pytest.mark.asyncio

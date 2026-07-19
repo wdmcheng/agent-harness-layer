@@ -31,6 +31,28 @@ class EmbeddingCacheStore(Protocol):
         ...
 
 
+class PreflightEmbeddingCacheStore(EmbeddingCacheStore, Protocol):
+    """支持 shared-budget 预检纯读与显式 hit 结算的 cache seam。"""
+
+    async def peek(
+        self,
+        *,
+        tenant_id: str,
+        provider: str,
+        model: str,
+        input_hash: str,
+    ) -> EmbeddingCacheRecord | None: ...
+
+    async def mark_hit(
+        self,
+        *,
+        tenant_id: str,
+        provider: str,
+        model: str,
+        input_hash: str,
+    ) -> EmbeddingCacheRecord: ...
+
+
 class EmbeddingRequest(HarnessDTO):
     """一次 embedding 请求的稳定输入，tenant 用于 cache 证据归属。"""
 
@@ -99,7 +121,7 @@ class LocalEmbeddingProvider:
     def __init__(
         self,
         *,
-        cache: EmbeddingCacheStore,
+        cache: PreflightEmbeddingCacheStore,
         provider: str = "local",
         model: str = "mock-small",
     ) -> None:
@@ -109,14 +131,22 @@ class LocalEmbeddingProvider:
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         cached = await self.lookup_cache(request)
-        return cached if cached is not None else await self.embed_cache_miss(request)
+        if cached is None:
+            return await self.embed_cache_miss(request)
+        await self._cache.mark_hit(
+            tenant_id=request.tenant_id,
+            provider=self.provider,
+            model=self.model,
+            input_hash=cached.cache.input_hash,
+        )
+        return cached
 
     async def lookup_cache(self, request: EmbeddingRequest) -> EmbeddingResponse | None:
         """只读 tenant/provider/model/input hash，命中时不产生 provider 副作用。"""
 
         input_hash = hashlib.sha256(request.input.encode("utf-8")).hexdigest()
         started = perf_counter()
-        cached = await self._cache.get(
+        cached = await self._cache.peek(
             tenant_id=request.tenant_id,
             provider=self.provider,
             model=self.model,

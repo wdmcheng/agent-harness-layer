@@ -18,11 +18,86 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    and_,
+    column,
     func,
+    or_,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.elements import ColumnElement
 
 from agent_harness.storage.orm_base import Base
+
+
+def _identity_text(key: str) -> ColumnElement[str]:
+    """让 ORM metadata 与 0016 migration 共用跨 dialect JSON 约束形状。"""
+
+    return column("identity_json", JSON)[key].as_string()
+
+
+def _required_identity_equal(key: str, value: object) -> ColumnElement[bool]:
+    field = _identity_text(key)
+    return and_(field.is_not(None), field == value)
+
+
+def _required_identity_text(key: str) -> ColumnElement[bool]:
+    field = _identity_text(key)
+    return and_(field.is_not(None), func.length(field) > 0)
+
+
+def _claim_identity_json_shape() -> ColumnElement[bool]:
+    operation_kind = column("operation_kind", String)
+    usage_kind = column("usage_kind", String)
+    schema_version = column("identity_schema_version", String)
+    identity_hash = column("identity_hash", String)
+    run_id = column("run_id", String)
+    agent_id = column("agent_id", String)
+    delegation_id = column("delegation_id", String)
+    return and_(
+        _required_identity_equal("ownership_kind", operation_kind),
+        _required_identity_equal("usage_kind", usage_kind),
+        _required_identity_equal("identity_schema_version", schema_version),
+        _required_identity_equal("identity_hash", identity_hash),
+        _required_identity_equal("run_id", run_id),
+        _required_identity_equal("agent_id", agent_id),
+        _required_identity_text("request_fingerprint"),
+        _required_identity_text("fingerprint_key_version"),
+        or_(
+            and_(
+                operation_kind == "direct",
+                _identity_text("delegation_claim_id").is_(None),
+                _identity_text("source_agent_id").is_(None),
+                _identity_text("target_agent_id").is_(None),
+                _identity_text("target_route_catalog_digest").is_(None),
+            ),
+            and_(
+                operation_kind == "delegation",
+                _required_identity_equal("delegation_claim_id", delegation_id),
+                _required_identity_equal("source_agent_id", agent_id),
+                _required_identity_text("target_agent_id"),
+                _required_identity_text("target_route_catalog_digest"),
+            ),
+        ),
+    )
+
+
+def _allocation_identity_json_shape() -> ColumnElement[bool]:
+    return and_(
+        _required_identity_equal("ownership_kind", "allocation"),
+        _required_identity_equal("usage_kind", column("usage_kind", String)),
+        _required_identity_equal(
+            "identity_schema_version", column("identity_schema_version", String)
+        ),
+        _required_identity_equal("identity_hash", column("identity_hash", String)),
+        _required_identity_equal("run_id", column("run_id", String)),
+        _required_identity_equal("agent_id", column("agent_id", String)),
+        _required_identity_equal("delegation_claim_id", column("delegation_id", String)),
+        _identity_text("source_agent_id").is_(None),
+        _identity_text("target_agent_id").is_(None),
+        _identity_text("target_route_catalog_digest").is_(None),
+        _required_identity_text("request_fingerprint"),
+        _required_identity_text("fingerprint_key_version"),
+    )
 
 
 class ParentBudgetLedgerModel(Base):
@@ -110,6 +185,17 @@ class BudgetOperationClaimModel(Base):
             name="ck_budget_claim_kind_key",
         ),
         CheckConstraint(
+            "(operation_kind = 'direct' and usage_kind in ('model','embedding') "
+            "and identity_schema_version = 'budget-operation-v1' and request_hash is null) or "
+            "(operation_kind = 'delegation' and usage_kind = 'delegation' "
+            "and identity_schema_version = 'budget-delegation-v1' and request_hash is not null)",
+            name="ck_budget_claim_identity_shape",
+        ),
+        CheckConstraint(
+            _claim_identity_json_shape(),
+            name="ck_budget_claim_identity_json_shape",
+        ),
+        CheckConstraint(
             "state in ('reserved','settled','released','needs_review')",
             name="ck_budget_claim_state",
         ),
@@ -138,10 +224,10 @@ class BudgetOperationClaimModel(Base):
     )
     run_id: Mapped[str] = mapped_column(String(36), nullable=False)
     agent_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    usage_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    identity_schema_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    identity_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    identity_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    usage_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    identity_schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    identity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    identity_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     request_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     reserved_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
     reserved_cost: Mapped[Decimal | None] = mapped_column(Numeric(20, 8), nullable=True)
@@ -189,6 +275,15 @@ class DelegationBudgetAllocationModel(Base):
             "delegation_id",
             "usage_call_id",
             name="uq_budget_allocation_usage",
+        ),
+        CheckConstraint(
+            "usage_kind in ('model','embedding') "
+            "and identity_schema_version = 'budget-operation-v1'",
+            name="ck_budget_allocation_identity_shape",
+        ),
+        CheckConstraint(
+            _allocation_identity_json_shape(),
+            name="ck_budget_allocation_identity_json_shape",
         ),
         CheckConstraint(
             "state in ('reserved','settled','released','needs_review')",

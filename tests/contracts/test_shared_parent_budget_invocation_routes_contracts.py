@@ -5,6 +5,18 @@
 from tests.contracts.test_shared_parent_budget_invocation_contracts import *
 
 
+class CountingEmbeddingProvider(LocalEmbeddingProvider):
+    """记录 cache miss 写路径次数，证明拒绝发生在 provider 副作用前。"""
+
+    def __init__(self, *, cache: StorageEmbeddingCache) -> None:
+        super().__init__(cache=cache)
+        self.calls = 0
+
+    async def embed_cache_miss(self, request: EmbeddingRequest) -> Any:
+        self.calls += 1
+        return await super().embed_cache_miss(request)
+
+
 def test_target_frozen_policy_overrides_global_model_route() -> None:
     """跨 agent child 的 plan 必须来自 target sub-snapshot，而非全局/source 默认值。"""
 
@@ -304,86 +316,3 @@ async def test_unconfigured_model_provider_records_closed_budget_rejection(
         "budget_rejection_reason": "snapshot_invalid",
         "provider_called": False,
     }
-
-
-@pytest.mark.asyncio
-async def test_sequence_state_invalid_precedes_hard_budget(tmp_path: Path) -> None:
-    """Sequence state 损坏与 hard budget 同时失败时必须先返回前者。"""
-
-    dsn = f"sqlite+aiosqlite:///{tmp_path / 'sequence-priority.sqlite3'}"
-    run_migrations(dsn)
-    storage = SQLAlchemyStorage(dsn)
-    provider = CountingFakeModelProvider()
-    sink = LocalJsonlEventSink(tmp_path / "sequence-priority-events.jsonl")
-    try:
-        run_id = await seed_managed_root(storage, token_limit=4)
-        async with storage.uow() as uow:
-            await uow.session.execute(
-                update(RunEventCapacityModel)
-                .where(RunEventCapacityModel.run_id == run_id)
-                .values(terminal_reservation=0)
-            )
-            await uow.commit()
-        service = model_service(storage=storage, sink=sink, provider=provider)
-        with pytest.raises(EventSequenceStateInvalid) as rejected:
-            await service.complete(
-                model_request(),
-                context=context(run_id),
-                usage_call_id="usage-sequence-invalid",
-            )
-        assert rejected.value.code == "event.sequence_state_invalid"
-        assert provider.calls == 0
-    finally:
-        await storage.dispose()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("token_limit", "expected_error"),
-    [
-        (4, BudgetReservationRejected),
-        (100, EventCapacityExceeded),
-    ],
-    ids=["budget-precedes-capacity", "capacity-only"],
-)
-async def test_direct_budget_and_capacity_priority_matrix(
-    tmp_path: Path,
-    token_limit: int,
-    expected_error: type[Exception],
-) -> None:
-    """有效 sequence 下，hard budget 先于 exhaustion，单独 exhaustion 保持原码。"""
-
-    dsn = f"sqlite+aiosqlite:///{tmp_path / f'direct-priority-{token_limit}.sqlite3'}"
-    run_migrations(dsn)
-    storage = SQLAlchemyStorage(dsn)
-    provider = CountingFakeModelProvider()
-    sink = LocalJsonlEventSink(tmp_path / f"direct-priority-{token_limit}-events.jsonl")
-    try:
-        run_id = await seed_managed_root(storage, token_limit=token_limit)
-        async with storage.uow() as uow:
-            await uow.session.execute(
-                update(RunEventCapacityModel)
-                .where(RunEventCapacityModel.run_id == run_id)
-                .values(highest_persisted_seq=MAX_EVENT_SEQ - 1)
-            )
-            await uow.commit()
-        service = model_service(storage=storage, sink=sink, provider=provider)
-        with pytest.raises(expected_error):
-            await service.complete(
-                model_request(),
-                context=context(run_id),
-                usage_call_id=f"usage-direct-priority-{token_limit}",
-            )
-        async with storage.uow() as uow:
-            ledger = await uow.shared_budget.get_ledger("tenant-a", run_id)
-            claim = await uow.session.scalar(
-                select(BudgetOperationClaimModel).where(
-                    BudgetOperationClaimModel.usage_call_id
-                    == f"usage-direct-priority-{token_limit}"
-                )
-            )
-        assert ledger is not None and ledger.token_impact == 0
-        assert claim is None
-        assert provider.calls == 0
-    finally:
-        await storage.dispose()

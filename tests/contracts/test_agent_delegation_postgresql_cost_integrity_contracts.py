@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from tests.contracts.test_agent_delegation_postgresql_contracts import (
     DelegationBudgetExceeded as DelegationBudgetExceeded,
 )
@@ -46,7 +48,11 @@ async def test_postgresql_sub_micro_cost_round_trips_without_fixed_scale_loss() 
         run_migrations(dsn)
         storage = SQLAlchemyStorage.from_dsn(dsn)
         try:
-            parent_run_id = await _parent(storage, suffix="sub-micro")
+            parent_run_id = await _parent(
+                storage,
+                suffix="sub-micro",
+                cost_limit=Decimal("1.0"),
+            )
             async with storage.uow() as uow:
                 parent = await uow.runs.get(parent_run_id)
                 assert parent is not None

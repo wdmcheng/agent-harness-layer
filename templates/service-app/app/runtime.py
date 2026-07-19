@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from agent_harness.adapters.queue import RedisRunQueue
 from agent_harness.approvals import ApprovalService
@@ -33,6 +34,7 @@ from agent_harness.policy import (
 from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator, RunQueue
 from agent_harness.runtime.services import build_agent_execution_services
+from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.storage import (
     SQLAlchemyStorage,
     require_migration_head,
@@ -194,6 +196,7 @@ def build_runtime_components(
         policy=policy_engine,
         event_bus=event_bus,
         orchestrator=orchestrator,
+        shared_budget=cast(SharedBudgetRuntime, executor_services["shared_budget"]),
         mode="service" if service_mode else "local",
     )
     orchestrator.bind_execution_service(

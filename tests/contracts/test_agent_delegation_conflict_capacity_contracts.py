@@ -76,6 +76,8 @@ async def test_new_claim_fails_closed_on_corrupt_settled_reservation(
                     parent_run_id,
                     requested_token_reservation=10,
                     requested_cost_reservation=1.0,
+                    _trusted_token_bound=60,
+                    _trusted_cost_bound=4.0,
                 )
             )
             await uow.commit()

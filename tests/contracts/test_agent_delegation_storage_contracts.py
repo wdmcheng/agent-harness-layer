@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import sqlite3
 from decimal import Decimal
 from pathlib import Path
@@ -12,6 +14,7 @@ from alembic import command
 from sqlalchemy import text, update
 from tests.contracts.run_trace_migration_test_helpers import migration_config
 
+from agent_harness.delegation.models import delegation_relation_id
 from agent_harness.storage import SQLAlchemyStorage, run_migrations
 from agent_harness.storage.delegation_models import DelegationBudgetReservationModel
 from agent_harness.storage.delegation_repositories import (
@@ -22,7 +25,7 @@ from agent_harness.storage.delegation_repositories import (
 )
 from agent_harness.storage.event_capacity_repositories import MAX_EVENT_SEQ, EventCapacityExceeded
 from agent_harness.storage.repositories import RunCreate, SessionCreate
-from agent_harness.storage.shared_budget import LedgerCreate
+from agent_harness.storage.shared_budget import LedgerCreate, OperationIdentity
 
 
 def sqlite_dsn(path: Path) -> str:
@@ -147,6 +150,9 @@ async def _create_child_relation(
 
 
 def _claim(parent_run_id: str, **updates: object) -> DelegationClaimCreate:
+    trusted_token_override = updates.pop("_trusted_token_bound", None)
+    trusted_cost_override = updates.pop("_trusted_cost_bound", ...)
+    cost_enabled_override = updates.pop("_cost_enabled", None)
     payload: dict[str, object] = {
         "tenant_id": "tenant-a",
         "parent_run_id": parent_run_id,
@@ -165,6 +171,76 @@ def _claim(parent_run_id: str, **updates: object) -> DelegationClaimCreate:
         "requested_cost_reservation": 4.0,
     }
     payload.update(updates)
+    tenant_id = str(payload["tenant_id"])
+    idempotency_key = str(payload["idempotency_key"])
+    delegation_id = str(
+        payload.get("delegation_id")
+        or delegation_relation_id(
+            tenant_id=tenant_id,
+            parent_run_id=parent_run_id,
+            idempotency_key=idempotency_key,
+        )
+    )
+    routes = [
+        {
+            "usage_kind": "model",
+            "provider": "fake",
+            "model": "fake-basic",
+            "price_source_ref": "catalog:fake",
+            "price_source_version": "v1",
+            "input_token_price_usd": "0",
+            "output_token_price_usd": "0",
+            "soft_max_tokens_per_call": 100,
+        }
+    ]
+    catalog_digest = hashlib.sha256(
+        json.dumps(
+            routes,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    parent_token_limit = int(str(payload["parent_token_limit"]))
+    requested_tokens = int(str(payload["requested_token_reservation"]))
+    parent_cost = payload["parent_cost_limit"]
+    requested_cost = payload["requested_cost_reservation"]
+    trusted_cost = (
+        trusted_cost_override
+        if trusted_cost_override is not ...
+        else requested_cost
+        if requested_cost is not None
+        else parent_cost
+    )
+    cost_enabled = (
+        parent_cost is not None if cost_enabled_override is None else bool(cost_enabled_override)
+    )
+    payload["delegation_id"] = delegation_id
+    payload.setdefault(
+        "budget_identity",
+        OperationIdentity.from_delegation_request(
+            tenant_id=tenant_id,
+            fingerprint_key=b"delegation-storage-contract-key",
+            fingerprint_key_version="delegation-storage-v1",
+            canonical_request_bytes=str(payload["request_hash"]).encode("utf-8"),
+            parent_run_id=parent_run_id,
+            source_agent_id=str(payload["source_agent_id"]),
+            target_agent_id=str(payload["target_agent_id"]),
+            delegation_claim_id=delegation_id,
+            operation_slot=idempotency_key,
+            tree_snapshot_id=f"snapshot:{parent_run_id}",
+            target_sub_snapshot_id=f"snapshot:{parent_run_id}:agent-target",
+            target_route_catalog_digest=f"budget-routes-v1:{catalog_digest}",
+            cost_enabled=cost_enabled,
+            trusted_token_bound=(
+                min(parent_token_limit, requested_tokens)
+                if trusted_token_override is None
+                else int(str(trusted_token_override))
+            ),
+            trusted_cost_bound=(None if trusted_cost is None else Decimal(str(trusted_cost))),
+        ),
+    )
     return DelegationClaimCreate.model_validate(payload)
 
 

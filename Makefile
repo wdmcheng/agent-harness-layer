@@ -21,11 +21,12 @@ test:
 	$(UV) run pytest
 
 eval:
+	AGENT_HARNESS_BUDGET__FINGERPRINT_KEY="local-eval-ephemeral-key" \
 	$(UV) run python templates/service-app/app/migrate.py \
 		--profile local \
 		--profiles-dir "$(CURDIR)/templates/service-app/configs/profiles" \
 		--storage-dsn "sqlite+aiosqlite:///$(EVAL_STATE_DIR)/eval.db"
-	BUDGET_LEDGER_FINGERPRINT_KEY="local-eval-ephemeral-key" \
+	AGENT_HARNESS_BUDGET__FINGERPRINT_KEY="local-eval-ephemeral-key" \
 	$(UV) run python templates/service-app/scripts/run_example_evals.py \
 		--state-dir "$(EVAL_STATE_DIR)"
 

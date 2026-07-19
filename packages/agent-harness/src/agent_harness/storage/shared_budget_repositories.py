@@ -15,10 +15,14 @@ from agent_harness.storage._delegation_records import (
 from agent_harness.storage._shared_budget_allocation_repository import (
     _SharedBudgetAllocationMixin,
 )
+from agent_harness.storage._shared_budget_delegation_repository import (
+    _SharedBudgetDelegationMixin,
+)
 from agent_harness.storage._shared_budget_direct_repository import _SharedBudgetDirectMixin
 from agent_harness.storage._shared_budget_lifecycle_repository import (
     _SharedBudgetLifecycleMixin,
 )
+from agent_harness.storage._shared_budget_replay_repository import _SharedBudgetReplayMixin
 from agent_harness.storage._shared_budget_repository_records import (
     _ledger_create_snapshot_valid,
     _ledger_record,
@@ -42,7 +46,9 @@ _ZERO = Decimal("0")
 
 class SharedBudgetRepository(
     _SharedBudgetDirectMixin,
+    _SharedBudgetDelegationMixin,
     _SharedBudgetAllocationMixin,
+    _SharedBudgetReplayMixin,
     _SharedBudgetLifecycleMixin,
 ):
     """所有调用都运行在 application UoW 的同一个 AsyncSession 内。"""
@@ -131,11 +137,15 @@ class SharedBudgetRepository(
         budget_owner_run_id: str,
         source_agent_id: str,
         target_agent_id: str,
-    ) -> tuple[int, Decimal | None]:
-        """只从 root 创建时冻结的 target budget 生成顶层 delegation reservation。"""
+    ) -> tuple[int, Decimal | None, str]:
+        """锁定 root ledger 并返回冻结 reservation；状态由调用方按优先级判定。"""
 
         try:
-            ledger = await self._lock_ledger(tenant_id, budget_owner_run_id)
+            ledger = await self._lock_ledger(
+                tenant_id,
+                budget_owner_run_id,
+                allow_needs_review=True,
+            )
         except BudgetReservationRejected as exc:
             if exc.reason == "ledger_needs_review":
                 raise DelegationBudgetExceeded("delegation.budget_exceeded") from exc
@@ -154,7 +164,7 @@ class SharedBudgetRepository(
         effective_cost_limit = (
             cost_limit if cost_limit is not None else cast(Decimal, ledger.cost_limit)
         )
-        return token_limit, effective_cost_limit if ledger.cost_enabled else None
+        return token_limit, effective_cost_limit if ledger.cost_enabled else None, ledger.state
 
     async def resolve_operation_ownership(
         self, *, tenant_id: str, run_id: str

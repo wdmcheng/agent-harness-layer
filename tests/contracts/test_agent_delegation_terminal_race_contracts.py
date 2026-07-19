@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import os
+from typing import Any
 
 import pytest
 from tests.contracts.embedding_cache_postgresql_migration_contract_helpers import (
     isolated_database,
 )
 
+from agent_harness.delegation.models import delegation_relation_id
 from agent_harness.events import EventBus, PostgreSQLEventSink
 from agent_harness.identity import IdentityContext
 from agent_harness.runtime import (
@@ -28,6 +32,7 @@ from agent_harness.storage.repositories import (
     CheckpointRecord,
     CheckpointRepository,
 )
+from agent_harness.storage.shared_budget import LedgerCreate, OperationIdentity
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("AGENT_HARNESS_TEST_POSTGRES_DSN"),
@@ -79,8 +84,81 @@ async def test_child_final_cannot_cross_terminal_intent_freeze(
             ) -> AgentExecutionResult:
                 self.parent_run_id = request.run_id
                 async with storage.uow() as uow:
+                    routes: list[dict[str, object]] = [
+                        {
+                            "usage_kind": "model",
+                            "provider": "fake",
+                            "model": "fake-basic",
+                            "price_source_ref": "catalog:fake",
+                            "price_source_version": "v1",
+                            "input_token_price_usd": "0",
+                            "output_token_price_usd": "0",
+                            "soft_max_tokens_per_call": 100,
+                        }
+                    ]
+                    snapshot_id = f"snapshot:{request.run_id}"
+                    snapshot: dict[str, Any] = {
+                        "owner": {
+                            "agent_id": request.agent_id,
+                            "root_run_id": request.run_id,
+                            "delegation_targets": ["agent-target"],
+                            "max_tokens_per_run": 100,
+                            "max_cost_usd_per_run": None,
+                            "cost_enabled": False,
+                        },
+                        "registry_version": "terminal-race-registry-v1",
+                        "config_version": "terminal-race-config-v1",
+                        "catalog_version": "terminal-race-catalog-v1",
+                        "agents": {
+                            agent_id: {
+                                "agent_id": agent_id,
+                                "descriptor_version": f"{agent_id}-v1",
+                                "model_policy": {
+                                    "provider": "fake",
+                                    "default_model": "fake-basic",
+                                    "fallback_models": [],
+                                },
+                                "target_budget": {
+                                    "max_tokens_per_run": (
+                                        100 if agent_id == request.agent_id else 50
+                                    ),
+                                    "max_cost_usd_per_run": None,
+                                },
+                                "routes": routes,
+                            }
+                            for agent_id in (request.agent_id, "agent-target")
+                        },
+                    }
+                    await uow.shared_budget.create_ledger(
+                        LedgerCreate(
+                            tenant_id=context.identity.tenant_id,
+                            budget_owner_run_id=request.run_id,
+                            token_limit=100,
+                            cost_limit=None,
+                            registry_version="terminal-race-registry-v1",
+                            config_version="terminal-race-config-v1",
+                            catalog_version="terminal-race-catalog-v1",
+                            snapshot_id=snapshot_id,
+                            snapshot=snapshot,
+                        )
+                    )
+                    delegation_id = delegation_relation_id(
+                        tenant_id=context.identity.tenant_id,
+                        parent_run_id=request.run_id,
+                        idempotency_key="race-key",
+                    )
+                    catalog_digest = hashlib.sha256(
+                        json.dumps(
+                            routes,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            allow_nan=False,
+                        ).encode("utf-8")
+                    ).hexdigest()
                     await uow.delegations.claim_and_reserve(
                         DelegationClaimCreate(
+                            delegation_id=delegation_id,
                             tenant_id=context.identity.tenant_id,
                             parent_run_id=request.run_id,
                             source_agent_id=request.agent_id,
@@ -95,6 +173,23 @@ async def test_child_final_cannot_cross_terminal_intent_freeze(
                             requested_token_reservation=50,
                             parent_cost_limit=None,
                             requested_cost_reservation=None,
+                            budget_identity=OperationIdentity.from_delegation_request(
+                                tenant_id=context.identity.tenant_id,
+                                fingerprint_key=b"terminal-race-delegation-key",
+                                fingerprint_key_version="terminal-race-v1",
+                                canonical_request_bytes=b"a" * 64,
+                                parent_run_id=request.run_id,
+                                source_agent_id=request.agent_id,
+                                target_agent_id="agent-target",
+                                delegation_claim_id=delegation_id,
+                                operation_slot="race-key",
+                                tree_snapshot_id=snapshot_id,
+                                target_sub_snapshot_id=f"{snapshot_id}:agent-target",
+                                target_route_catalog_digest=(f"budget-routes-v1:{catalog_digest}"),
+                                cost_enabled=False,
+                                trusted_token_bound=50,
+                                trusted_cost_bound=None,
+                            ),
                         )
                     )
                     await uow.commit()

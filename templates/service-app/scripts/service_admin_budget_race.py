@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import os
 from decimal import Decimal
 from uuid import uuid4
 
 from agent_harness.config import load_settings
+from agent_harness.delegation.models import delegation_relation_id
 from agent_harness.storage import (
     RunCreate,
     SessionCreate,
@@ -189,15 +192,43 @@ async def assert_budget_race() -> dict[str, object]:
                 return "rejected"
 
         async def compete_delegation() -> str:
+            idempotency_key = f"budget-race-delegation-{suffix}"
+            delegation_id = delegation_relation_id(
+                tenant_id=tenant_id,
+                parent_run_id=root_run_id,
+                idempotency_key=idempotency_key,
+            )
+            target_routes = [
+                {
+                    "usage_kind": "model",
+                    "provider": "fake",
+                    "model": "fake-basic",
+                    "price_source_ref": "catalog:fake",
+                    "price_source_version": "v1",
+                    "input_token_price_usd": "0",
+                    "output_token_price_usd": "0",
+                    "soft_max_tokens_per_call": 100,
+                }
+            ]
+            catalog_digest = hashlib.sha256(
+                json.dumps(
+                    target_routes,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
             try:
                 async with storage.uow() as uow:
                     await uow.delegations.claim_and_reserve(
                         DelegationClaimCreate(
+                            delegation_id=delegation_id,
                             tenant_id=tenant_id,
                             parent_run_id=root_run_id,
                             source_agent_id="examples.basic",
                             target_agent_id="examples.target",
-                            idempotency_key=f"budget-race-delegation-{suffix}",
+                            idempotency_key=idempotency_key,
                             request_hash="d" * 64,
                             budget_intent="inherit_parent",
                             child_input={"smoke": "mixed-race"},
@@ -208,6 +239,23 @@ async def assert_budget_race() -> dict[str, object]:
                             requested_token_reservation=60,
                             parent_cost_limit=5.0,
                             requested_cost_reservation=3.0,
+                            budget_identity=OperationIdentity.from_delegation_request(
+                                tenant_id=tenant_id,
+                                fingerprint_key=b"service-smoke-delegation-key",
+                                fingerprint_key_version="service-smoke-key-v1",
+                                canonical_request_bytes=b"d" * 64,
+                                parent_run_id=root_run_id,
+                                source_agent_id="examples.basic",
+                                target_agent_id="examples.target",
+                                delegation_claim_id=delegation_id,
+                                operation_slot=idempotency_key,
+                                tree_snapshot_id=snapshot_id,
+                                target_sub_snapshot_id=(f"{snapshot_id}:examples.target"),
+                                target_route_catalog_digest=(f"budget-routes-v1:{catalog_digest}"),
+                                cost_enabled=True,
+                                trusted_token_bound=100,
+                                trusted_cost_bound=Decimal("5"),
+                            ),
                         )
                     )
                     await uow.commit()

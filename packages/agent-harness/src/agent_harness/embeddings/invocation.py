@@ -141,6 +141,16 @@ class EmbeddingInvocationService(_EmbeddingSettlementMixin):
         if request.tenant_id != context.tenant_id:
             raise ValueError("embedding request tenant does not match usage context")
         call_id = usage_call_id
+        replay = await self._replay_settlement_before_current_snapshot(
+            request=request,
+            context=context,
+            usage_call_id=call_id,
+        )
+        if replay is not None:
+            return await self._resume_existing_settlement(
+                claim=replay.usage,
+                usage_call_id=call_id,
+            )
         selected_provider = self._provider.provider
         selected_model = self._provider.model
         await self._event_bus.reconcile_local_capacity(run_id=context.run_id)

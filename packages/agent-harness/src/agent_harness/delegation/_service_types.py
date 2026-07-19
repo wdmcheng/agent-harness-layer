@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Protocol
+from decimal import Decimal
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.delegation.models import (
@@ -10,6 +11,9 @@ from agent_harness.delegation.models import (
 )
 from agent_harness.policy import PolicyCheck, PolicyEvaluation
 from agent_harness.runtime import RunStatus
+
+if TYPE_CHECKING:
+    from agent_harness.storage.shared_budget import OperationIdentity
 
 DelegationMode = Literal["local", "service"]
 _TERMINAL = {RunStatus.COMPLETED.value, RunStatus.FAILED.value, RunStatus.CANCELLED.value}
@@ -25,6 +29,37 @@ class DelegationOrchestrator(Protocol):
 
 class DelegationPolicy(Protocol):
     async def evaluate(self, check: PolicyCheck) -> PolicyEvaluation: ...
+
+
+class DelegationBudgetIdentityRuntime(Protocol):
+    def delegation_identity(
+        self,
+        *,
+        tenant_id: str,
+        canonical_request_bytes: bytes,
+        parent_run_id: str,
+        source_agent_id: str,
+        target_agent_id: str,
+        delegation_id: str,
+        idempotency_key: str,
+        tree_snapshot_id: str,
+        snapshot: dict[str, Any],
+        trusted_token_bound: int,
+        trusted_cost_bound: Decimal | None,
+    ) -> OperationIdentity: ...
+
+    def delegation_replay_identity(
+        self,
+        *,
+        tenant_id: str,
+        canonical_request_bytes: bytes,
+        parent_run_id: str,
+        source_agent_id: str,
+        target_agent_id: str,
+        delegation_id: str,
+        idempotency_key: str,
+        persisted_identity: OperationIdentity,
+    ) -> OperationIdentity: ...
 
 
 class DelegationError(RuntimeError):
@@ -48,6 +83,7 @@ TERMINAL_RUN_STATUSES = _TERMINAL
 __all__ = [
     "TERMINAL_RUN_STATUSES",
     "DelegationError",
+    "DelegationBudgetIdentityRuntime",
     "DelegationExecutionResult",
     "DelegationMode",
     "DelegationOrchestrator",

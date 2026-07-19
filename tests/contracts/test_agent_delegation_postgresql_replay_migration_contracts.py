@@ -135,6 +135,9 @@ async def test_postgresql_original_key_replays_after_other_key_changes_balance()
                         key="key-a",
                         request_hash="a" * 64,
                         reserved_tokens=30,
+                        parent_cost_limit=None,
+                        requested_cost_reservation=None,
+                        trusted_token_bound=30,
                     )
                 )
                 await uow.commit()
@@ -147,6 +150,9 @@ async def test_postgresql_original_key_replays_after_other_key_changes_balance()
                             key=key,
                             request_hash=request_hash,
                             reserved_tokens=30,
+                            parent_cost_limit=None,
+                            requested_cost_reservation=None,
+                            trusted_token_bound=30,
                         )
                     )
                 await uow.commit()
@@ -159,6 +165,9 @@ async def test_postgresql_original_key_replays_after_other_key_changes_balance()
                         request_hash="a" * 64,
                         # 当前只剩 10；replay 必须忽略旧 DTO 的派生值并复用首次 30。
                         reserved_tokens=100,
+                        parent_cost_limit=None,
+                        requested_cost_reservation=None,
+                        trusted_token_bound=30,
                     )
                 )
                 with pytest.raises(DelegationBudgetExceeded) as captured:
@@ -169,6 +178,9 @@ async def test_postgresql_original_key_replays_after_other_key_changes_balance()
                             key="key-d",
                             request_hash="d" * 64,
                             reserved_tokens=20,
+                            parent_cost_limit=None,
+                            requested_cost_reservation=None,
+                            trusted_token_bound=30,
                         )
                     )
         finally:

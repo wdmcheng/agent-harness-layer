@@ -15,10 +15,7 @@ from agent_harness.storage._shared_budget_repository_records import (
     _decimal,
     _ledger_snapshot_valid,
 )
-from agent_harness.storage.shared_budget import (
-    BudgetReservationRejected,
-    OperationIdentity,
-)
+from agent_harness.storage.shared_budget import BudgetReservationRejected, OperationIdentity
 from agent_harness.storage.shared_budget_models import (
     BudgetOperationClaimModel,
     DelegationBudgetAllocationModel,
@@ -267,50 +264,6 @@ class _SharedBudgetLifecycleMixin:
             and agent_id in target_values
         )
 
-    @staticmethod
-    def _direct_replay_matches(
-        model: BudgetOperationClaimModel, requested: OperationIdentity
-    ) -> bool:
-        """重算 durable identity，并绑定 direct detail 列后才允许 exact replay。"""
-
-        try:
-            persisted = OperationIdentity.model_validate(model.identity_json)
-        except (TypeError, ValueError):
-            return False
-        return (
-            persisted.to_payload() == requested.to_payload()
-            and persisted.ownership_kind == "direct"
-            and persisted.delegation_claim_id is None
-            and model.operation_kind == "direct"
-            and model.delegation_id is None
-            and model.run_id == persisted.run_id == model.budget_owner_run_id
-            and model.agent_id == persisted.agent_id
-            and model.usage_kind == persisted.usage_kind
-            and model.identity_schema_version == persisted.identity_schema_version
-            and model.identity_hash == persisted.identity_hash
-        )
-
-    @staticmethod
-    def _allocation_replay_matches(
-        model: DelegationBudgetAllocationModel, requested: OperationIdentity
-    ) -> bool:
-        """Allocation exact replay 还必须绑定 child、delegation 与 stable key。"""
-
-        try:
-            persisted = OperationIdentity.model_validate(model.identity_json)
-        except (TypeError, ValueError):
-            return False
-        return (
-            persisted.to_payload() == requested.to_payload()
-            and persisted.ownership_kind == "allocation"
-            and persisted.delegation_claim_id == model.delegation_id
-            and model.run_id == persisted.run_id
-            and model.agent_id == persisted.agent_id
-            and model.usage_kind == persisted.usage_kind
-            and model.identity_schema_version == persisted.identity_schema_version
-            and model.identity_hash == persisted.identity_hash
-        )
-
     def _identity_matches_snapshot(
         self, identity: OperationIdentity, ledger: ParentBudgetLedgerModel
     ) -> bool:
@@ -367,6 +320,7 @@ class _SharedBudgetLifecycleMixin:
                 DelegationBudgetAllocationModel.usage_call_id == usage_call_id,
             )
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if allocation is None:
             raise LookupError(f"budget allocation not found: {usage_call_id}")
@@ -384,6 +338,7 @@ class _SharedBudgetLifecycleMixin:
                 BudgetOperationClaimModel.usage_call_id == usage_call_id,
             )
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if claim is None:
             raise LookupError(f"budget claim not found: {usage_call_id}")

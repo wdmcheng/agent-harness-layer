@@ -2,6 +2,7 @@
 
 # 场景文件复用统一 ledger/identity 夹具，避免测试前提在拆分后漂移。
 # ruff: noqa: F403, F405
+from sqlalchemy.exc import IntegrityError
 from tests.contracts.test_shared_parent_budget_repository_contracts import *
 
 
@@ -133,13 +134,59 @@ async def test_direct_replay_rejects_corrupted_persisted_identity_detail(tmp_pat
             corrupted = dict(model.identity_json)
             corrupted["provider"] = "tampered-provider"
             model.identity_json = corrupted
-            model.agent_id = "tampered-agent"
             await uow.commit()
         async with storage.uow() as uow:
             with pytest.raises(BudgetOperationConflict):
                 await uow.shared_budget.preflight_direct(claim)
             ledger = await uow.shared_budget.get_ledger("tenant-a", root)
         assert ledger is not None and ledger.token_impact == 60
+    finally:
+        await storage.dispose()
+
+
+@pytest.mark.asyncio
+async def test_database_rejects_direct_identity_json_shape_mismatch(tmp_path: Path) -> None:
+    """数据库必须拒绝绕过 repository 写入的空 direct identity JSON。"""
+
+    dsn = sqlite_dsn(tmp_path / "direct-identity-shape.sqlite3")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage(dsn)
+    try:
+        root = await create_root(storage, suffix="direct-identity-shape")
+        claim = DirectBudgetClaim(
+            tenant_id="tenant-a",
+            budget_owner_run_id=root,
+            usage_call_id="usage-direct-identity-shape",
+            identity=identity(run_id=root),
+            token_reservation=60,
+            cost_reservation=Decimal("4.00"),
+        )
+        async with storage.uow() as uow:
+            await uow.shared_budget.claim_direct(claim)
+            await uow.commit()
+        with pytest.raises(IntegrityError):
+            async with storage.uow() as uow:
+                model = await uow.session.scalar(
+                    select(BudgetOperationClaimModel).where(
+                        BudgetOperationClaimModel.usage_call_id == "usage-direct-identity-shape"
+                    )
+                )
+                assert model is not None
+                model.identity_json = {}
+                await uow.commit()
+        for field in ("source_agent_id", "target_agent_id", "target_route_catalog_digest"):
+            with pytest.raises(IntegrityError):
+                async with storage.uow() as uow:
+                    model = await uow.session.scalar(
+                        select(BudgetOperationClaimModel).where(
+                            BudgetOperationClaimModel.usage_call_id == "usage-direct-identity-shape"
+                        )
+                    )
+                    assert model is not None
+                    corrupted = dict(model.identity_json)
+                    corrupted[field] = "forged-delegation-only-value"
+                    model.identity_json = corrupted
+                    await uow.commit()
     finally:
         await storage.dispose()
 

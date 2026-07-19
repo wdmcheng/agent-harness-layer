@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, cast
 
 import typer
 
@@ -23,6 +23,7 @@ from agent_harness.policy import PolicyCheck
 from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator, RunStatus
 from agent_harness.runtime.services import build_agent_execution_services
+from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.storage import SQLAlchemyStorage, storage_dsn_from_settings
 
 policy_app = typer.Typer(no_args_is_help=True)
@@ -236,23 +237,24 @@ def resolve_approval(
     audit = AuditService(storage=storage)
     policy = policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
     registry = AgentRegistry.load_from_directory(agents_dir)
+    executor_services = build_agent_execution_services(
+        settings=settings,
+        storage=storage,
+        storage_dsn=resolved_dsn,
+        policy=policy,
+        audit=audit,
+        event_sink=event_sink,
+        event_bus=event_bus,
+        artifact_store=artifact_store,
+        service_root=service_root,
+        registry=registry,
+    )
     orchestrator = RunOrchestrator(
         storage=storage,
         event_bus=event_bus,
         identity=settings.identity.default,
         executor_resolver=registry.resolve_executor,
-        executor_services=build_agent_execution_services(
-            settings=settings,
-            storage=storage,
-            storage_dsn=resolved_dsn,
-            policy=policy,
-            audit=audit,
-            event_sink=event_sink,
-            event_bus=event_bus,
-            artifact_store=artifact_store,
-            service_root=service_root,
-            registry=registry,
-        ),
+        executor_services=executor_services,
     )
     delegation_service = DelegationService(
         storage=storage,
@@ -260,6 +262,7 @@ def resolve_approval(
         policy=policy,
         event_bus=event_bus,
         orchestrator=orchestrator,
+        shared_budget=cast(SharedBudgetRuntime, executor_services["shared_budget"]),
         mode="local",
     )
     orchestrator.bind_execution_service(

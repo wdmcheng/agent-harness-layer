@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
+from tests.contracts.agent_delegation_service_runtime_test_support import delegation_claim
 from tests.contracts.test_agent_delegation_service_contracts import (
     AgentDelegationModel as AgentDelegationModel,
 )
 from tests.contracts.test_agent_delegation_service_contracts import (
     DelegationBudgetReservationModel as DelegationBudgetReservationModel,
-)
-from tests.contracts.test_agent_delegation_service_contracts import (
-    DelegationClaimCreate as DelegationClaimCreate,
 )
 from tests.contracts.test_agent_delegation_service_contracts import (
     DelegationError as DelegationError,
@@ -34,9 +32,6 @@ from tests.contracts.test_agent_delegation_service_contracts import (
 )
 from tests.contracts.test_agent_delegation_service_contracts import (
     _request as _request,
-)
-from tests.contracts.test_agent_delegation_service_contracts import (
-    delegation_request_hash as delegation_request_hash,
 )
 from tests.contracts.test_agent_delegation_service_contracts import (
     pytest as pytest,
@@ -82,6 +77,9 @@ async def test_claim_replay_rejects_durable_operation_drift_before_child(
         async with storage.uow() as uow:
             parent = await uow.runs.get(parent_run_id)
             assert parent is not None
+            ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
+            snapshot = await uow.shared_budget.get_tree_snapshot("tenant-a", parent_run_id)
+            assert ledger is not None and snapshot is not None
             other_parent = await uow.runs.create(
                 RunCreate(
                     tenant_id="tenant-a",
@@ -91,22 +89,12 @@ async def test_claim_replay_rejects_durable_operation_drift_before_child(
                 )
             )
             claim = await uow.delegations.claim_and_reserve(
-                DelegationClaimCreate(
-                    tenant_id="tenant-a",
+                delegation_claim(
                     parent_run_id=parent_run_id,
-                    source_agent_id="agent-source",
-                    target_agent_id="agent-target",
-                    idempotency_key=request.idempotency_key,
-                    request_hash=delegation_request_hash(request, identity=identity),
-                    budget_intent="inherit_parent",
-                    child_input=request.child_input,
-                    identity=identity.to_payload(),
-                    trace_id="trace-parent",
-                    request_id=request.request_id,
-                    parent_token_limit=100,
-                    requested_token_reservation=100,
-                    parent_cost_limit=10.0,
-                    requested_cost_reservation=10.0,
+                    request=request,
+                    identity=identity,
+                    tree_snapshot_id=ledger.snapshot_id,
+                    snapshot=snapshot,
                 )
             )
             if drift_kind.startswith("claim_"):
@@ -184,23 +172,16 @@ async def test_committed_claim_recovery_rejects_changed_session_owner(
     identity = _identity()
     try:
         async with storage.uow() as uow:
+            ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
+            snapshot = await uow.shared_budget.get_tree_snapshot("tenant-a", parent_run_id)
+            assert ledger is not None and snapshot is not None
             await uow.delegations.claim_and_reserve(
-                DelegationClaimCreate(
-                    tenant_id="tenant-a",
+                delegation_claim(
                     parent_run_id=parent_run_id,
-                    source_agent_id="agent-source",
-                    target_agent_id="agent-target",
-                    idempotency_key=request.idempotency_key,
-                    request_hash=delegation_request_hash(request, identity=identity),
-                    budget_intent="inherit_parent",
-                    child_input=request.child_input,
-                    identity=identity.to_payload(),
-                    trace_id="trace-parent",
-                    request_id=request.request_id,
-                    parent_token_limit=100,
-                    requested_token_reservation=100,
-                    parent_cost_limit=10.0,
-                    requested_cost_reservation=10.0,
+                    request=request,
+                    identity=identity,
+                    tree_snapshot_id=ledger.snapshot_id,
+                    snapshot=snapshot,
                 )
             )
             await uow.session.execute(
@@ -223,6 +204,58 @@ async def test_committed_claim_recovery_rejects_changed_session_owner(
 
 
 @pytest.mark.asyncio
+async def test_recovery_rejects_missing_managed_claim_before_evidence_side_effects(
+    tmp_path: Path,
+) -> None:
+    """托管顶层 claim 缺失时，恢复不得先发布 claimed evidence。"""
+
+    storage, service, runtime, parent_run_id, sink = await _build_service(tmp_path)
+    request = _request(parent_run_id)
+    identity = _identity()
+    try:
+        async with storage.uow() as uow:
+            ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
+            snapshot = await uow.shared_budget.get_tree_snapshot("tenant-a", parent_run_id)
+            assert ledger is not None and snapshot is not None
+            claimed = await uow.delegations.claim_and_reserve(
+                delegation_claim(
+                    parent_run_id=parent_run_id,
+                    request=request,
+                    identity=identity,
+                    tree_snapshot_id=ledger.snapshot_id,
+                    snapshot=snapshot,
+                )
+            )
+            top_claim = await uow.session.scalar(
+                select(BudgetOperationClaimModel).where(
+                    BudgetOperationClaimModel.delegation_id == claimed.delegation.id
+                )
+            )
+            assert top_claim is not None
+            await uow.session.delete(top_claim)
+            await uow.commit()
+
+        with pytest.raises(DelegationError, match="^delegation.execution_failed$"):
+            await service.recover_pending_for_parent(parent_run_id=parent_run_id)
+
+        async with storage.uow() as uow:
+            claimed_outbox = await uow.session.scalar(
+                select(RunEvidenceOutboxModel).where(
+                    RunEvidenceOutboxModel.event_id == f"delegation:{claimed.delegation.id}:claimed"
+                )
+            )
+            assert claimed_outbox is not None
+            claimed_outbox_state = claimed_outbox.state
+        events = await sink.read(run_id=parent_run_id)
+    finally:
+        await storage.dispose()
+
+    assert runtime.calls == 0
+    assert claimed_outbox_state == "result_persisted"
+    assert events == []
+
+
+@pytest.mark.asyncio
 async def test_recovery_entrypoint_finishes_committed_claim_without_parent_reexecution(
     tmp_path: Path,
 ) -> None:
@@ -233,23 +266,16 @@ async def test_recovery_entrypoint_finishes_committed_claim_without_parent_reexe
     identity = _identity()
     try:
         async with storage.uow() as uow:
+            ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
+            snapshot = await uow.shared_budget.get_tree_snapshot("tenant-a", parent_run_id)
+            assert ledger is not None and snapshot is not None
             claim = await uow.delegations.claim_and_reserve(
-                DelegationClaimCreate(
-                    tenant_id="tenant-a",
+                delegation_claim(
                     parent_run_id=parent_run_id,
-                    source_agent_id="agent-source",
-                    target_agent_id="agent-target",
-                    idempotency_key=request.idempotency_key,
-                    request_hash=delegation_request_hash(request, identity=identity),
-                    budget_intent="inherit_parent",
-                    child_input=request.child_input,
-                    identity=identity.to_payload(),
-                    trace_id="trace-parent",
-                    request_id=request.request_id,
-                    parent_token_limit=100,
-                    requested_token_reservation=100,
-                    parent_cost_limit=10.0,
-                    requested_cost_reservation=10.0,
+                    request=request,
+                    identity=identity,
+                    tree_snapshot_id=ledger.snapshot_id,
+                    snapshot=snapshot,
                 )
             )
             await uow.commit()
@@ -286,23 +312,16 @@ async def test_recovery_never_relaunches_started_unknown_delegation(tmp_path: Pa
     identity = _identity()
     try:
         async with storage.uow() as uow:
+            ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
+            snapshot = await uow.shared_budget.get_tree_snapshot("tenant-a", parent_run_id)
+            assert ledger is not None and snapshot is not None
             claimed = await uow.delegations.claim_and_reserve(
-                DelegationClaimCreate(
-                    tenant_id="tenant-a",
+                delegation_claim(
                     parent_run_id=parent_run_id,
-                    source_agent_id="agent-source",
-                    target_agent_id="agent-target",
-                    idempotency_key=request.idempotency_key,
-                    request_hash=delegation_request_hash(request, identity=identity),
-                    budget_intent="inherit_parent",
-                    child_input=request.child_input,
-                    identity=identity.to_payload(),
-                    trace_id="trace-parent",
-                    request_id=request.request_id,
-                    parent_token_limit=100,
-                    requested_token_reservation=100,
-                    parent_cost_limit=10.0,
-                    requested_cost_reservation=10.0,
+                    request=request,
+                    identity=identity,
+                    tree_snapshot_id=ledger.snapshot_id,
+                    snapshot=snapshot,
                 )
             )
             started = await uow.shared_budget.mark_delegation_started(

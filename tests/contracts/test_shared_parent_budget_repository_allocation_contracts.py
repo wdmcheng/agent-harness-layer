@@ -2,7 +2,10 @@
 
 # 场景文件复用统一 ledger/identity 夹具，避免测试前提在拆分后漂移。
 # ruff: noqa: F403, F405
+from sqlalchemy.exc import IntegrityError
 from tests.contracts.test_shared_parent_budget_repository_contracts import *
+
+from agent_harness.delegation.models import delegation_relation_id
 
 
 @pytest.mark.asyncio
@@ -115,13 +118,71 @@ async def test_allocation_replay_rejects_corrupted_persisted_identity_detail(
             corrupted = dict(model.identity_json)
             corrupted["provider"] = "tampered-provider"
             model.identity_json = corrupted
-            model.agent_id = "tampered-agent"
             await uow.commit()
         async with storage.uow() as uow:
             with pytest.raises(BudgetOperationConflict):
                 await uow.shared_budget.preflight_allocation(allocation)
             ledger = await uow.shared_budget.get_ledger("tenant-a", root)
         assert ledger is not None and ledger.token_impact == 60
+    finally:
+        await storage.dispose()
+
+
+@pytest.mark.asyncio
+async def test_database_rejects_allocation_identity_shape_mismatch(tmp_path: Path) -> None:
+    """即使绕过 DTO/repository，数据库也拒绝 allocation 伪装成顶层 schema。"""
+
+    dsn = sqlite_dsn(tmp_path / "allocation-identity-shape.sqlite3")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage(dsn)
+    try:
+        root = await create_root(storage, suffix="allocation-identity-shape")
+        delegation_id, child_id = await create_delegation(
+            storage,
+            root_id=root,
+            suffix="allocation-identity-shape",
+        )
+        allocation = AllocationBudgetClaim(
+            tenant_id="tenant-a",
+            budget_owner_run_id=root,
+            delegation_id=delegation_id,
+            usage_call_id="usage-allocation-identity-shape",
+            identity=allocation_identity(
+                root_id=root,
+                child_id=child_id,
+                delegation_id=delegation_id,
+            ),
+            token_reservation=20,
+            cost_reservation=Decimal("1.00"),
+        )
+        async with storage.uow() as uow:
+            await uow.shared_budget.allocate(allocation)
+            await uow.commit()
+        with pytest.raises(IntegrityError):
+            async with storage.uow() as uow:
+                model = await uow.session.scalar(
+                    select(DelegationBudgetAllocationModel).where(
+                        DelegationBudgetAllocationModel.usage_call_id
+                        == "usage-allocation-identity-shape"
+                    )
+                )
+                assert model is not None
+                model.identity_json = {}
+                await uow.commit()
+        for field in ("source_agent_id", "target_agent_id", "target_route_catalog_digest"):
+            with pytest.raises(IntegrityError):
+                async with storage.uow() as uow:
+                    model = await uow.session.scalar(
+                        select(DelegationBudgetAllocationModel).where(
+                            DelegationBudgetAllocationModel.usage_call_id
+                            == "usage-allocation-identity-shape"
+                        )
+                    )
+                    assert model is not None
+                    corrupted = dict(model.identity_json)
+                    corrupted[field] = "forged-delegation-only-value"
+                    model.identity_json = corrupted
+                    await uow.commit()
     finally:
         await storage.dispose()
 
@@ -156,9 +217,15 @@ async def test_atomic_delegation_rejects_target_missing_from_explicit_edge(
             ).hexdigest()
             await uow.commit()
         async with storage.uow() as uow:
+            relation_id = delegation_relation_id(
+                tenant_id="tenant-a",
+                parent_run_id=root,
+                idempotency_key="delegation-explicit-edge",
+            )
             with pytest.raises(DelegationStorageConflict, match="delegation.execution_failed"):
                 await uow.delegations.claim_and_reserve(
                     DelegationClaimCreate(
+                        delegation_id=relation_id,
                         tenant_id="tenant-a",
                         parent_run_id=root,
                         source_agent_id="agent-a",
@@ -174,6 +241,14 @@ async def test_atomic_delegation_rejects_target_missing_from_explicit_edge(
                         requested_token_reservation=20,
                         parent_cost_limit=10.0,
                         requested_cost_reservation=1.0,
+                        budget_identity=delegation_identity(
+                            root_id=root,
+                            delegation_id=relation_id,
+                            idempotency_key="delegation-explicit-edge",
+                            request_hash="e" * 64,
+                            token_bound=20,
+                            cost_bound=Decimal("1.00"),
+                        ),
                     )
                 )
             relation = await uow.session.scalar(
@@ -199,9 +274,23 @@ async def test_delegation_0014_0015_0016_claim_is_one_uow(tmp_path: Path) -> Non
             agent_b_token_limit=60,
             agent_b_cost_limit=Decimal("4.00"),
         )
+        relation_id = delegation_relation_id(
+            tenant_id="tenant-a",
+            parent_run_id=root,
+            idempotency_key="delegation-uow",
+        )
+        top_identity = delegation_identity(
+            root_id=root,
+            delegation_id=relation_id,
+            idempotency_key="delegation-uow",
+            request_hash="f" * 64,
+            token_bound=60,
+            cost_bound=Decimal("4.00"),
+        )
         async with storage.uow() as uow:
             result = await uow.delegations.claim_and_reserve(
                 DelegationClaimCreate(
+                    delegation_id=relation_id,
                     tenant_id="tenant-a",
                     parent_run_id=root,
                     source_agent_id="agent-a",
@@ -217,6 +306,7 @@ async def test_delegation_0014_0015_0016_claim_is_one_uow(tmp_path: Path) -> Non
                     requested_token_reservation=60,
                     parent_cost_limit=10.0,
                     requested_cost_reservation=4.0,
+                    budget_identity=top_identity,
                 )
             )
             await uow.commit()
@@ -227,6 +317,7 @@ async def test_delegation_0014_0015_0016_claim_is_one_uow(tmp_path: Path) -> Non
                 budget_owner_run_id=root,
                 delegation_id=result.delegation.id,
                 request_hash="f" * 64,
+                identity=top_identity,
                 token_reservation=60,
                 cost_reservation=Decimal("4.00"),
             )

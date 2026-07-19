@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.identity import IdentityContext
@@ -80,8 +80,7 @@ class BudgetSettings(HarnessDTO):
 
     max_tokens_per_run: int = 8192
     max_cost_usd_per_run: float | None = None
-    fingerprint_key_env: str = "BUDGET_LEDGER_FINGERPRINT_KEY"
-    fingerprint_key_file_env: str = "BUDGET_LEDGER_FINGERPRINT_KEY_FILE"
+    fingerprint_key: SecretStr = Field(min_length=1, exclude=True, repr=False)
     fingerprint_key_version: str = "budget-fingerprint-v1"
 
 
@@ -176,7 +175,7 @@ class HarnessSettings(HarnessDTO):
     policy: PolicySettings
     model: ModelSettings
     identity: IdentitySettings = Field(default_factory=IdentitySettings)
-    budget: BudgetSettings = Field(default_factory=BudgetSettings)
+    budget: BudgetSettings
     service: ServiceSettings = Field(default_factory=ServiceSettings)
     tools: ToolSettings = Field(default_factory=ToolSettings)
     agent: AgentConfig = Field(default_factory=AgentConfig)

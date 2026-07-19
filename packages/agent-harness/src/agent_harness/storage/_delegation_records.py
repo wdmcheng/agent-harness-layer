@@ -23,6 +23,7 @@ from agent_harness.storage.event_capacity_repositories import (
     operation_event_capacity,
 )
 from agent_harness.storage.models import AgentRunModel, RunEvidenceOutboxModel
+from agent_harness.storage.shared_budget import OperationIdentity
 
 
 class DelegationStorageError(RuntimeError):
@@ -42,6 +43,7 @@ class DelegationBudgetExceeded(DelegationStorageError):
 
 
 class DelegationClaimCreate(HarnessDTO):
+    delegation_id: str = Field(min_length=1)
     tenant_id: str = Field(min_length=1)
     parent_run_id: str = Field(min_length=1)
     source_agent_id: str = Field(min_length=1)
@@ -57,6 +59,7 @@ class DelegationClaimCreate(HarnessDTO):
     requested_token_reservation: int
     parent_cost_limit: float | None
     requested_cost_reservation: float | None
+    budget_identity: OperationIdentity
 
     @field_validator("parent_token_limit", "requested_token_reservation", mode="before")
     @classmethod
@@ -96,6 +99,13 @@ class DelegationRecord(HarnessDTO):
     reserved_event_count: int
     created_at: datetime
     updated_at: datetime
+
+
+class DelegationReplayIdentitySeed(HarnessDTO):
+    """Stable relation 与可选 0016 顶层预算身份的只读重放种子。"""
+
+    delegation: DelegationRecord
+    budget_identity: OperationIdentity | None
 
 
 class DelegationBudgetReservationRecord(HarnessDTO):

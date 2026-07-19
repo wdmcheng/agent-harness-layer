@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from agent_harness.contracts import GuardrailDecisionStatus
 from agent_harness.delegation._service_evidence import (
@@ -15,6 +16,9 @@ from agent_harness.delegation._service_recovery import DelegationRecoveryMixin
 from agent_harness.delegation._service_summary import DelegationSummaryMixin
 from agent_harness.delegation._service_types import (
     TERMINAL_RUN_STATUSES as _TERMINAL,
+)
+from agent_harness.delegation._service_types import (
+    DelegationBudgetIdentityRuntime as DelegationBudgetIdentityRuntime,
 )
 from agent_harness.delegation._service_types import (
     DelegationError as DelegationError,
@@ -33,7 +37,8 @@ from agent_harness.delegation._service_types import (
 )
 from agent_harness.delegation.models import (
     DelegationRequest,
-    delegation_request_hash,
+    delegation_relation_id,
+    delegation_request_bytes,
 )
 from agent_harness.events import EventBus
 from agent_harness.identity import IdentityContext
@@ -52,6 +57,9 @@ from agent_harness.storage.event_capacity_repositories import (
 )
 from agent_harness.storage.repositories import RunRecord
 
+if TYPE_CHECKING:
+    from agent_harness.storage.shared_budget import OperationIdentity
+
 # 公开类型仍以 application service facade 为身份，避免拆分泄漏私有模块名。
 DelegationError.__module__ = __name__
 DelegationExecutionResult.__module__ = __name__
@@ -68,6 +76,8 @@ class _FrozenDelegationAuthorization:
     target_token_limit: int
     parent_cost_limit: float | None
     target_cost_limit: float | None
+    tree_snapshot_id: str
+    snapshot: dict[str, Any]
 
 
 class DelegationService(
@@ -85,6 +95,7 @@ class DelegationService(
         policy: DelegationPolicy,
         event_bus: EventBus,
         orchestrator: RunOrchestrator | DelegationOrchestrator,
+        shared_budget: DelegationBudgetIdentityRuntime,
         mode: DelegationMode,
     ) -> None:
         self._storage = storage
@@ -92,6 +103,7 @@ class DelegationService(
         self._policy = policy
         self._event_bus = event_bus
         self._orchestrator = orchestrator
+        self._shared_budget = shared_budget
         self._mode = mode
 
     async def delegate(
@@ -102,25 +114,66 @@ class DelegationService(
     ) -> DelegationExecutionResult:
         """执行或恢复一个单层 delegation；拒绝路径不创建业务状态。"""
 
-        request_hash = delegation_request_hash(request, identity=identity)
+        canonical_request_bytes = delegation_request_bytes(request, identity=identity)
+        request_hash = hashlib.sha256(canonical_request_bytes).hexdigest()
         scope = f"delegation-parent:{identity.tenant_id}:{request.parent_run_id}"
         try:
             async with self._storage.idempotency_request_lock(scope):
                 async with self._storage.uow() as uow:
-                    claim = await uow.delegations.replay_existing(
+                    replay_seed = await uow.delegations.replay_identity_seed(
                         tenant_id=identity.tenant_id,
                         parent_run_id=request.parent_run_id,
                         idempotency_key=request.idempotency_key,
                         request_hash=request_hash,
                     )
                     await uow.commit()
-                if claim is None:
+                if replay_seed is not None:
+                    persisted_budget_identity = replay_seed.budget_identity
+                    budget_identity = (
+                        None
+                        if persisted_budget_identity is None
+                        else self._shared_budget.delegation_replay_identity(
+                            tenant_id=identity.tenant_id,
+                            canonical_request_bytes=canonical_request_bytes,
+                            parent_run_id=request.parent_run_id,
+                            source_agent_id=request.source_agent_id,
+                            target_agent_id=request.target_agent_id,
+                            delegation_id=replay_seed.delegation.id,
+                            idempotency_key=request.idempotency_key,
+                            persisted_identity=persisted_budget_identity,
+                        )
+                    )
+                    async with self._storage.uow() as uow:
+                        claim = await uow.delegations.replay_existing(
+                            tenant_id=identity.tenant_id,
+                            parent_run_id=request.parent_run_id,
+                            idempotency_key=request.idempotency_key,
+                            request_hash=request_hash,
+                            expected_identity=budget_identity,
+                        )
+                        await uow.commit()
+                    if claim is None:
+                        raise DelegationStorageConflict("delegation.execution_failed")
+                else:
                     authorization = await self._authorize(request=request, identity=identity)
                     parent = authorization.parent
+                    delegation_id = delegation_relation_id(
+                        tenant_id=identity.tenant_id,
+                        parent_run_id=parent.id,
+                        idempotency_key=request.idempotency_key,
+                    )
+                    budget_identity = self._delegation_budget_identity(
+                        authorization=authorization,
+                        tenant_id=identity.tenant_id,
+                        canonical_request_bytes=canonical_request_bytes,
+                        delegation_id=delegation_id,
+                        idempotency_key=request.idempotency_key,
+                    )
                     await self._event_bus.reconcile_local_capacity(run_id=parent.id)
                     async with self._storage.uow() as uow:
                         claim = await uow.delegations.claim_and_reserve(
                             DelegationClaimCreate(
+                                delegation_id=delegation_id,
                                 tenant_id=identity.tenant_id,
                                 parent_run_id=parent.id,
                                 source_agent_id=authorization.source_agent_id,
@@ -136,6 +189,7 @@ class DelegationService(
                                 requested_token_reservation=authorization.target_token_limit,
                                 parent_cost_limit=authorization.parent_cost_limit,
                                 requested_cost_reservation=authorization.target_cost_limit,
+                                budget_identity=budget_identity,
                             )
                         )
                         await uow.commit()
@@ -197,6 +251,7 @@ class DelegationService(
         if parent.parent_run_id is not None:
             raise DelegationError("delegation.depth_exceeded")
         async with self._storage.uow() as uow:
+            ledger = await uow.shared_budget.get_ledger(identity.tenant_id, parent.id)
             snapshot = await uow.shared_budget.get_tree_snapshot(
                 identity.tenant_id,
                 parent.id,
@@ -205,6 +260,7 @@ class DelegationService(
             parent=parent,
             request=request,
             snapshot=snapshot,
+            tree_snapshot_id="" if ledger is None else ledger.snapshot_id,
         )
         if authorization is None:
             if self._frozen_edge_has_missing_target(snapshot=snapshot, request=request):
@@ -227,12 +283,41 @@ class DelegationService(
             raise DelegationError("delegation.policy_denied")
         return authorization
 
+    def _delegation_budget_identity(
+        self,
+        *,
+        authorization: _FrozenDelegationAuthorization,
+        tenant_id: str,
+        canonical_request_bytes: bytes,
+        delegation_id: str,
+        idempotency_key: str,
+    ) -> OperationIdentity:
+        trusted_cost_bound = (
+            None
+            if authorization.target_cost_limit is None
+            else Decimal(str(authorization.target_cost_limit))
+        )
+        return self._shared_budget.delegation_identity(
+            tenant_id=tenant_id,
+            canonical_request_bytes=canonical_request_bytes,
+            parent_run_id=authorization.parent.id,
+            source_agent_id=authorization.source_agent_id,
+            target_agent_id=authorization.target_agent_id,
+            delegation_id=delegation_id,
+            idempotency_key=idempotency_key,
+            tree_snapshot_id=authorization.tree_snapshot_id,
+            snapshot=authorization.snapshot,
+            trusted_token_bound=authorization.target_token_limit,
+            trusted_cost_bound=trusted_cost_bound,
+        )
+
     @staticmethod
     def _frozen_authorization(
         *,
         parent: RunRecord,
         request: DelegationRequest,
         snapshot: dict[str, Any] | None,
+        tree_snapshot_id: str,
     ) -> _FrozenDelegationAuthorization | None:
         """以 frozen catalog 中存在 target 作为创建时 edge membership 证明。"""
 
@@ -275,7 +360,13 @@ class DelegationService(
             parent_token_limit=source_limits[0],
             target_token_limit=target_limits[0],
             parent_cost_limit=source_limits[1],
-            target_cost_limit=target_limits[1],
+            # Frozen target 的 null cost ceiling 表示继承已启用的 owner ceiling，
+            # 顶层 immutable identity 必须绑定 repository 实际预约值。
+            target_cost_limit=(
+                target_limits[1] if target_limits[1] is not None else source_limits[1]
+            ),
+            tree_snapshot_id=tree_snapshot_id,
+            snapshot=snapshot,
         )
 
     @staticmethod

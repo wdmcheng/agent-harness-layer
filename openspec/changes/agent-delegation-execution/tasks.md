@@ -24,5 +24,5 @@
 
 ## 5. 归档投影修正
 
-- [ ] 5.1 将本 change 对 `P0 HTTP 契约与运行时 OpenAPI 无漂移` 的最终修改写成完整 MODIFIED requirement，使 RUN-002 在累计 active-change 投影中唯一引用 `RunDetailResponse`，并以投影 contract 拒绝旧 `RunCreateResponse` MUST 残留
-- [ ] 5.2 随 Phase 13.8A 修复后重跑 RUN-001 至 RUN-005 局部/全量 OpenAPI drift tests、strict validation 与同一冻结 digest 的 fresh 代码 1+2，再恢复 `ready-to-archive`
+- [x] 5.1 将本 change 对 `P0 HTTP 契约与运行时 OpenAPI 无漂移` 的最终修改写成完整 MODIFIED requirement，使 RUN-002 在累计 active-change 投影中唯一引用 `RunDetailResponse`，并以投影 contract 拒绝旧 `RunCreateResponse` MUST 残留
+- [x] 5.2 随 Phase 13.8A 修复后重跑 RUN-001 至 RUN-005 局部/全量 OpenAPI drift tests、strict validation 与同一冻结 digest 的代码 1+2，再恢复 `ready-to-archive`

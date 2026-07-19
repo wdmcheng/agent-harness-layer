@@ -1252,7 +1252,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 | 字段 | 约束 |
 |---|---|
-| 状态 | 修正中；公开 HTTP shape 不变，内部 shared-budget seam 必须在归档前通过完整门禁与代码 1+2。 |
+| 状态 | 实现与完整门禁已完成；公开 HTTP shape 不变，内部 shared-budget seam 仍须在归档前通过 fresh 代码 1+2 与审查后收口。 |
 | owner | 每个 root run 创建唯一同 tenant `ParentBudgetLedger`，`budget_owner_run_id=root.run_id` 且非空；该 root 的 direct model/embedding、delegation top-level claim 和 child allocation 共用同一 owner。P0 拒绝嵌套、孤儿、循环、跨租户或 delegation relation 不唯一的 topology。 |
 | frozen snapshot | Root 创建时冻结 token/cost hard limits、cost-enabled 状态、registry/config/catalog versions，以及 root 和当时显式 targets 各自的 descriptor/model-policy/route/price sub-snapshot。Child 继承同一 owner snapshot ID/hard limits，只能按自己的 target sub-snapshot 进一步收紧已启用维度；reload 只影响新 root。 |
 | typed secret | Tenant-scoped keyed request fingerprint 使用 `AGENT_HARNESS_BUDGET__FINGERPRINT_KEY` 或对应 `_FILE` typed setting。缺失、direct/file 冲突、越界、symlink、超限、非 UTF-8 或空值在 application startup fail closed；runtime/migration 不得直接读取 env/path，secret 原值不得进入 payload、snapshot、event、trace、audit、error 或数据库。 |
@@ -1268,7 +1268,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 | 字段 | 约束 |
 |---|---|
-| 状态 | shared-budget 修正中；真实执行保持不变，但预算 ownership、allocation、migration 与 terminal 必须符合 BGT-001 后重新完成同一 digest 的代码 1+2。 |
+| 状态 | shared-budget 联合修复与完整门禁已完成；真实执行保持不变，预算 ownership、allocation、migration 与 terminal 仍须在同一冻结摘要上通过 fresh 代码 1+2。 |
 | 入口 | runtime/worker 注册的内置 `agent.delegate` tool/module seam；P0 不新增公开 delegation HTTP endpoint。 |
 | 请求 | parent `run_id`、source/target `agent_id`、child input、显式 idempotency key、IdentityContext、request/trace context。 |
 | 策略 | 先校验 source descriptor 的 delegation edge，再执行 `agent.delegate` PolicyEngine check；任一步 deny 都不得创建 child run、queue message、provider call 或业务 CanonicalEvent；允许写一次脱敏 policy/audit denial evidence。 |
@@ -1716,7 +1716,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
 - [x] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致，并由局部双向 drift contract 持续校验。
 - [x] 已明确当前 events JSON seam、P0 待实现 RUN-006 SSE 与 P1 可选 WS 的边界。
-- [ ] 已固定并实现 BGT-001、DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；当前需完成 typed fingerprint secret、`0016` topology/source/price、usage 错误优先级修正，并按同一 digest 重新通过完整门禁与代码 1+2。
+- [ ] 已固定并实现 BGT-001、DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；typed fingerprint secret、`0016` topology/source/price、usage 错误优先级修正与完整门禁已完成，仍须按同一冻结摘要通过 fresh 代码 1+2 与审查后收口。
 - [x] 已明确 `reasoning.delta` 默认不可见。
 - [x] 已明确 API route 不得暴露 ORM、DBOS、provider SDK 或进程内 handle。
 - [x] 已明确新增/修改 endpoint 必须先改本契约，再做局部 OpenAPI drift 检查。

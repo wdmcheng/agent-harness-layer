@@ -93,11 +93,24 @@ def child_evidence(
         for item in evidence
     ):
         raise ValueError("delegation usage evidence scope mismatch")
-    input_values = [item.input_tokens for item in evidence]
-    output_values = [item.output_tokens for item in evidence]
+    # Cache hit 的 null token/cost 表示 provider usage 不适用，而不是未知。
+    # Delegation 聚合必须在这个 evidence 归一化边界把它转换成已知零值；
+    # 否则后续 summary 会错误保留整笔 parent reservation 并触发 needs_review。
+    cache_hits = [_is_known_zero_cache_hit(item) for item in evidence]
+    input_values = [
+        0 if cache_hit else item.input_tokens
+        for item, cache_hit in zip(evidence, cache_hits, strict=True)
+    ]
+    output_values = [
+        0 if cache_hit else item.output_tokens
+        for item, cache_hit in zip(evidence, cache_hits, strict=True)
+    ]
     input_complete = not has_pending and all(value is not None for value in input_values)
     output_complete = not has_pending and all(value is not None for value in output_values)
-    all_cost = not has_pending and all(item.cost_status != "unavailable" for item in evidence)
+    all_cost = not has_pending and all(
+        cache_hit or item.cost_status != "unavailable"
+        for item, cache_hit in zip(evidence, cache_hits, strict=True)
+    )
     return DelegationChildEvidence(
         run_id=child.id,
         agent_id=child.agent_id,
@@ -117,6 +130,15 @@ def child_evidence(
         latency_ms=None if has_pending else sum(item.latency_ms for item in evidence),
         usage_evidence_refs=[row.event_id for row in rows],
         trace_refs=[child.trace_id],
+    )
+
+
+def _is_known_zero_cache_hit(evidence: ModelUsageEvidence) -> bool:
+    """识别 DTO 已验证的 cache-hit 语义，供 delegation 聚合映射为已知零。"""
+
+    return (
+        evidence.decision.get("cache_status") == "hit"
+        and evidence.decision.get("provider_called") is False
     )
 
 

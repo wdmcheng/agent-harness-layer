@@ -93,6 +93,14 @@ async def test_direct_and_delegation_compete_and_terminal_is_fenced(tmp_path: Pa
                     budget_owner_run_id=root,
                     delegation_id=delegation_id,
                     request_hash="a" * 64,
+                    identity=delegation_identity(
+                        root_id=root,
+                        delegation_id=delegation_id,
+                        idempotency_key="delegation-a",
+                        request_hash="a" * 64,
+                        token_bound=50,
+                        cost_bound=Decimal("3.00"),
+                    ),
                     token_reservation=50,
                     cost_reservation=Decimal("3.00"),
                 )

@@ -86,6 +86,56 @@ def test_0016_preserves_strictly_closed_legacy_tree_without_ledger(tmp_path: Pat
         )
 
 
+def test_0016_rejects_completed_legacy_delegation_without_child_before_ddl(
+    tmp_path: Path,
+) -> None:
+    """Completed delegation 必须有 child，不能被终态 reservation 伪装成 closed。"""
+
+    path = tmp_path / "closed-legacy-completed-without-child.sqlite3"
+    run_migrations(sqlite_dsn(path), "0015_agent_delegation")
+    with sqlite3.connect(path) as connection:
+        seed_identity(connection, "tenant-a")
+        connection.execute(
+            "insert into run_trace_bindings(trace_id,tenant_id,root_run_id) "
+            "values ('trace-a','tenant-a','root-a')"
+        )
+        connection.execute(
+            "insert into agent_runs(id,tenant_id,session_id,agent_id,status,trace_id,input_json) "
+            "values ('root-a','tenant-a','session-tenant-a','agent-a','completed','trace-a','{}')"
+        )
+        connection.execute(
+            "insert into run_event_capacity(run_id,tenant_id,highest_persisted_seq,"
+            "outstanding_reserved_event_count,terminal_reservation) "
+            "values ('root-a','tenant-a',1,0,0)"
+        )
+        connection.execute(
+            "insert into agent_delegations("
+            "id,tenant_id,parent_run_id,child_run_id,source_agent_id,target_agent_id,"
+            "idempotency_key,request_hash,budget_intent,child_input_json,identity_json,"
+            "trace_id,status,event_operation_kind,event_registry_version,reserved_event_count) "
+            "values ('delegation-a','tenant-a','root-a',null,'agent-a','agent-b','key-a',"
+            "'request-hash-a','inherit_parent','{}','{}','trace-a','completed',"
+            "'delegation','v1',3)"
+        )
+        connection.execute(
+            "insert into delegation_budget_reservations("
+            "id,delegation_id,tenant_id,parent_run_id,reserved_tokens,reserved_cost_usd,"
+            "settled_input_tokens,settled_output_tokens,settled_cost_usd,state) values ("
+            "'reservation-a','delegation-a','tenant-a','root-a',10,null,5,5,0,'settled')"
+        )
+        connection.commit()
+
+    with pytest.raises(RuntimeError, match="0016 parent graph is invalid"):
+        run_migrations(sqlite_dsn(path))
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("select version_num from alembic_version").fetchone() == (
+            "0015_agent_delegation",
+        )
+        assert connection.execute(
+            "select count(*) from sqlite_master where type='table' and name='parent_budget_ledgers'"
+        ).fetchone() == (0,)
+
+
 def test_0016_downgrade_refuses_any_shared_budget_evidence(tmp_path: Path) -> None:
     path = tmp_path / "evidence.sqlite3"
     run_migrations(sqlite_dsn(path))
@@ -184,6 +234,17 @@ def test_0016_rejects_terminal_root_with_pending_tree_work(
                 "outstanding_reserved_event_count,terminal_reservation) "
                 "values ('child-a','tenant-a',0,0,?)",
                 (1 if pending_kind == "child" else 0,),
+            )
+            connection.execute(
+                "insert into agent_delegations("
+                "id,tenant_id,parent_run_id,child_run_id,source_agent_id,target_agent_id,"
+                "idempotency_key,request_hash,budget_intent,child_input_json,identity_json,"
+                "trace_id,status,error_json,event_operation_kind,event_registry_version,"
+                "reserved_event_count) values ("
+                "'delegation-a','tenant-a','root-a','child-a','agent-a','agent-b',"
+                "'delegation-key',?,'inherit_parent','{}','{}','trace-a','claimed',null,"
+                "'delegation','v1',3)",
+                ("a" * 64,),
             )
         else:
             if pending_kind in {"approval", "approval-enqueue", "approval-owned"}:

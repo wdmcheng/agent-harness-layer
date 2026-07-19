@@ -4,7 +4,7 @@ x-runtime-environment: &runtime-environment
   AGENT_HARNESS_PROFILE: service
   AGENT_HARNESS_STORAGE__DSN_FILE: /run/secrets/agent_harness_storage_dsn
   AGENT_HARNESS_QUEUE__DSN: redis://redis:6379/0
-  BUDGET_LEDGER_FINGERPRINT_KEY_FILE: /run/secrets/agent_harness_budget_fingerprint_key
+  AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE: /run/secrets/agent_harness_budget_fingerprint_key
   SERVICE_APP_EXECUTOR_ID: agent-harness-service-worker
   SERVICE_APP_RECLAIM_IDLE_SECONDS: ${SERVICE_APP_RECLAIM_IDLE_SECONDS:-1}
 

@@ -40,7 +40,7 @@ Phase 13.7 已建立稳定 `usage_call_id`、provider result settlement/outbox �
 - Delegation claim、child execution/allocation、parent aggregation 与 worker reclaim。
 - Shared budget repository/UoW、terminal guard、runtime/service composition。
 - Alembic `0016`、typed models、local SQLite 与 service PostgreSQL；typed config/startup/Compose secret 注入。
-- 本 change 的 proposal/design/delta/tasks、contract/integration/smoke tests；公开 API shape 不变。Canonical specs、历史/前置 changes 与 Product/API/DEV 主线文档仅作为只读上游，后续显式 sync/archive 时再合并。
+- 本 change 的 proposal/design/delta/tasks、contract/integration/smoke tests，以及按已确认新语义同步更新的 Product/API/DEV 主线文档；公开 API shape 不变。Canonical specs 与历史/前置 changes 保持只读，只在后续显式 sync/archive 时合并。
 
 ## Testing Seams
 

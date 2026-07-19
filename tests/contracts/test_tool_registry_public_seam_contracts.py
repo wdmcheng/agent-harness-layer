@@ -178,9 +178,12 @@ async def test_tool_registry_public_seam_enforces_errors_policy_and_output_metad
 async def test_mcp_builtin_tools_use_connect_policy_action(tmp_path: Path) -> None:
     """MCP 工具默认动作必须命中 `mcp.connect` 审批策略。"""
 
+    from pydantic import SecretStr
+
     from agent_harness.artifacts import FileArtifactStore
     from agent_harness.audit import AuditService
     from agent_harness.config.schemas import (
+        BudgetSettings,
         HarnessSettings,
         MCPServerSettings,
         ModelSettings,
@@ -202,6 +205,7 @@ async def test_mcp_builtin_tools_use_connect_policy_action(tmp_path: Path) -> No
         model=ModelSettings(provider="fake"),
         observability=ObservabilitySettings(kind="local-jsonl"),
         tools=ToolSettings(mcp_servers=[MCPServerSettings(name="demo", allowlist=["unsafe"])]),
+        budget=BudgetSettings(fingerprint_key=SecretStr("test-only-tool-registry-key")),
     )
     db_path = tmp_path / "mcp-policy.db"
     dsn = sqlite_dsn(db_path)

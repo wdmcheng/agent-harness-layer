@@ -27,6 +27,77 @@ _EVIDENCE_TABLES = (
 )
 
 
+def _identity_text(key: str) -> sa.ColumnElement[str]:
+    """生成由 SQLite/PostgreSQL 各自编译的 JSON 文本字段表达式。"""
+
+    return sa.column("identity_json", sa.JSON())[key].as_string()
+
+
+def _required_identity_equal(key: str, value: object) -> sa.ColumnElement[bool]:
+    field = _identity_text(key)
+    return sa.and_(field.is_not(None), field == value)
+
+
+def _required_identity_text(key: str) -> sa.ColumnElement[bool]:
+    field = _identity_text(key)
+    return sa.and_(field.is_not(None), sa.func.length(field) > 0)
+
+
+def _claim_identity_json_shape() -> sa.ColumnElement[bool]:
+    operation_kind = sa.column("operation_kind", sa.String())
+    usage_kind = sa.column("usage_kind", sa.String())
+    schema_version = sa.column("identity_schema_version", sa.String())
+    identity_hash = sa.column("identity_hash", sa.String())
+    run_id = sa.column("run_id", sa.String())
+    agent_id = sa.column("agent_id", sa.String())
+    delegation_id = sa.column("delegation_id", sa.String())
+    return sa.and_(
+        _required_identity_equal("ownership_kind", operation_kind),
+        _required_identity_equal("usage_kind", usage_kind),
+        _required_identity_equal("identity_schema_version", schema_version),
+        _required_identity_equal("identity_hash", identity_hash),
+        _required_identity_equal("run_id", run_id),
+        _required_identity_equal("agent_id", agent_id),
+        _required_identity_text("request_fingerprint"),
+        _required_identity_text("fingerprint_key_version"),
+        sa.or_(
+            sa.and_(
+                operation_kind == "direct",
+                _identity_text("delegation_claim_id").is_(None),
+                _identity_text("source_agent_id").is_(None),
+                _identity_text("target_agent_id").is_(None),
+                _identity_text("target_route_catalog_digest").is_(None),
+            ),
+            sa.and_(
+                operation_kind == "delegation",
+                _required_identity_equal("delegation_claim_id", delegation_id),
+                _required_identity_equal("source_agent_id", agent_id),
+                _required_identity_text("target_agent_id"),
+                _required_identity_text("target_route_catalog_digest"),
+            ),
+        ),
+    )
+
+
+def _allocation_identity_json_shape() -> sa.ColumnElement[bool]:
+    return sa.and_(
+        _required_identity_equal("ownership_kind", "allocation"),
+        _required_identity_equal("usage_kind", sa.column("usage_kind", sa.String())),
+        _required_identity_equal(
+            "identity_schema_version", sa.column("identity_schema_version", sa.String())
+        ),
+        _required_identity_equal("identity_hash", sa.column("identity_hash", sa.String())),
+        _required_identity_equal("run_id", sa.column("run_id", sa.String())),
+        _required_identity_equal("agent_id", sa.column("agent_id", sa.String())),
+        _required_identity_equal("delegation_claim_id", sa.column("delegation_id", sa.String())),
+        _identity_text("source_agent_id").is_(None),
+        _identity_text("target_agent_id").is_(None),
+        _identity_text("target_route_catalog_digest").is_(None),
+        _required_identity_text("request_fingerprint"),
+        _required_identity_text("fingerprint_key_version"),
+    )
+
+
 def upgrade() -> None:
     connection = op.get_bind()
     backfill_plans = _legacy_preflight(connection)
@@ -89,10 +160,10 @@ def upgrade() -> None:
         sa.Column("delegation_id", sa.String(36), nullable=True),
         sa.Column("run_id", sa.String(36), nullable=False),
         sa.Column("agent_id", sa.String(255), nullable=False),
-        sa.Column("usage_kind", sa.String(16), nullable=True),
-        sa.Column("identity_schema_version", sa.String(64), nullable=True),
-        sa.Column("identity_hash", sa.String(64), nullable=True),
-        sa.Column("identity_json", sa.JSON(), nullable=True),
+        sa.Column("usage_kind", sa.String(16), nullable=False),
+        sa.Column("identity_schema_version", sa.String(64), nullable=False),
+        sa.Column("identity_hash", sa.String(64), nullable=False),
+        sa.Column("identity_json", sa.JSON(), nullable=False),
         sa.Column("request_hash", sa.String(64), nullable=True),
         sa.Column("reserved_tokens", sa.Integer(), nullable=False),
         sa.Column("reserved_cost", sa.Numeric(20, 8), nullable=True),
@@ -141,6 +212,17 @@ def upgrade() -> None:
             "(operation_kind = 'delegation' and usage_call_id is null "
             "and delegation_id is not null)",
             name="ck_budget_claim_kind_key",
+        ),
+        sa.CheckConstraint(
+            "(operation_kind = 'direct' and usage_kind in ('model','embedding') "
+            "and identity_schema_version = 'budget-operation-v1' and request_hash is null) or "
+            "(operation_kind = 'delegation' and usage_kind = 'delegation' "
+            "and identity_schema_version = 'budget-delegation-v1' and request_hash is not null)",
+            name="ck_budget_claim_identity_shape",
+        ),
+        sa.CheckConstraint(
+            _claim_identity_json_shape(),
+            name="ck_budget_claim_identity_json_shape",
         ),
         sa.CheckConstraint(
             "state in ('reserved','settled','released','needs_review')",
@@ -219,6 +301,15 @@ def upgrade() -> None:
             "delegation_id",
             "usage_call_id",
             name="uq_budget_allocation_usage",
+        ),
+        sa.CheckConstraint(
+            "usage_kind in ('model','embedding') "
+            "and identity_schema_version = 'budget-operation-v1'",
+            name="ck_budget_allocation_identity_shape",
+        ),
+        sa.CheckConstraint(
+            _allocation_identity_json_shape(),
+            name="ck_budget_allocation_identity_json_shape",
         ),
         sa.CheckConstraint(
             "state in ('reserved','settled','released','needs_review')",

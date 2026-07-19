@@ -21,6 +21,7 @@ from agent_harness.storage import run_migrations
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVICE_APP = ROOT / "templates" / "service-app"
+SMOKE_FINGERPRINT_KEY = "local-smoke-ephemeral-key"
 
 
 REQUIRED_TEMPLATE_PATHS = [
@@ -45,6 +46,15 @@ def _fail(message: str) -> int:
     return 1
 
 
+def _smoke_env() -> dict[str, str]:
+    """只向 smoke 子进程注入临时 key，不写 profile、dotenv 或状态目录。"""
+
+    return {
+        **os.environ,
+        "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY": SMOKE_FINGERPRINT_KEY,
+    }
+
+
 def check_import() -> int:
     """通过安装后的 package seam 验证核心包可 import 并暴露版本。"""
 
@@ -67,7 +77,11 @@ def check_template_layout() -> int:
 def check_local_profile() -> int:
     """确认 local profile 保持离线可跑，不能偷偷要求真实 provider key。"""
 
-    settings = load_settings(profile="local", profiles_dir=SERVICE_APP / "configs" / "profiles")
+    settings = load_settings(
+        profile="local",
+        profiles_dir=SERVICE_APP / "configs" / "profiles",
+        overrides={"budget": {"fingerprint_key": SMOKE_FINGERPRINT_KEY}},
+    )
     if settings.profile != "local":
         return _fail("local profile must declare profile=local.")
     if settings.model.requires_api_key:
@@ -92,6 +106,7 @@ def check_doctor() -> int:
             str(SERVICE_APP / "configs" / "profiles"),
         ],
         cwd=ROOT,
+        env=_smoke_env(),
         check=False,
         capture_output=True,
         text=True,
@@ -125,6 +140,7 @@ def check_agents_list() -> int:
                 dsn,
             ],
             cwd=ROOT,
+            env=_smoke_env(),
             check=False,
             capture_output=True,
             text=True,
@@ -192,11 +208,7 @@ def check_fake_run() -> int:
                 "billing invoice needs review",
             ],
             cwd=ROOT,
-            env={
-                **os.environ,
-                # 隔离 smoke 只验证 secret 通过进程内注入，不把 key 写入状态目录。
-                "BUDGET_LEDGER_FINGERPRINT_KEY": "local-smoke-ephemeral-key",
-            },
+            env=_smoke_env(),
             check=False,
             capture_output=True,
             text=True,

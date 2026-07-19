@@ -217,6 +217,21 @@ class _SharedBudgetAllocationMixin:
             actual_cost=actual_cost,
             cost_status=cost_status,
         )
+        seed = await self._session.scalar(
+            select(DelegationBudgetAllocationModel).where(
+                DelegationBudgetAllocationModel.tenant_id == tenant_id,
+                DelegationBudgetAllocationModel.budget_owner_run_id == budget_owner_run_id,
+                DelegationBudgetAllocationModel.delegation_id == delegation_id,
+                DelegationBudgetAllocationModel.usage_call_id == usage_call_id,
+            )
+        )
+        if seed is None:
+            raise LookupError(f"budget allocation not found: {usage_call_id}")
+        if seed.side_effect_state == "result_committed":
+            if seed.result_json != result:
+                raise BudgetOperationConflict
+            return _allocation_record(seed, replayed=True)
+        ledger = await self._lock_ledger(tenant_id, budget_owner_run_id, allow_needs_review=True)
         allocation = await self._require_allocation_locked(
             tenant_id, budget_owner_run_id, delegation_id, usage_call_id
         )
@@ -224,7 +239,6 @@ class _SharedBudgetAllocationMixin:
             if allocation.result_json != result:
                 raise BudgetOperationConflict
             return _allocation_record(allocation, replayed=True)
-        ledger = await self._lock_ledger(tenant_id, budget_owner_run_id, allow_needs_review=True)
         top = await self._session.scalar(
             select(BudgetOperationClaimModel)
             .where(BudgetOperationClaimModel.delegation_id == delegation_id)
@@ -291,12 +305,26 @@ class _SharedBudgetAllocationMixin:
             actual_cost=actual_cost,
             cost_status=cost_status,
         )
+        seed = await self._session.scalar(
+            select(BudgetOperationClaimModel).where(
+                BudgetOperationClaimModel.tenant_id == tenant_id,
+                BudgetOperationClaimModel.budget_owner_run_id == budget_owner_run_id,
+                BudgetOperationClaimModel.operation_kind == "direct",
+                BudgetOperationClaimModel.usage_call_id == usage_call_id,
+            )
+        )
+        if seed is None:
+            raise LookupError(f"budget claim not found: {usage_call_id}")
+        if seed.side_effect_state == "result_committed":
+            if seed.result_json != result:
+                raise BudgetOperationConflict
+            return _claim_record(seed, replayed=True)
+        ledger = await self._lock_ledger(tenant_id, budget_owner_run_id, allow_needs_review=True)
         claim = await self._require_direct_locked(tenant_id, budget_owner_run_id, usage_call_id)
         if claim.side_effect_state == "result_committed":
             if claim.result_json != result:
                 raise BudgetOperationConflict
             return _claim_record(claim, replayed=True)
-        ledger = await self._lock_ledger(tenant_id, budget_owner_run_id, allow_needs_review=True)
         unknown_token = actual_tokens is None
         token_impact = claim.reserved_tokens if unknown_token else actual_tokens
         token_over = token_impact > claim.reserved_tokens

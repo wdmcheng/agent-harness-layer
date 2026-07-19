@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 from typing import Any, Literal
+from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import Field, field_validator, model_validator
 
@@ -97,14 +98,14 @@ class DelegationSummary(HarnessDTO):
     trace_refs: list[str]
 
 
-def delegation_request_hash(
+def delegation_request_payload(
     request: DelegationRequest,
     *,
     identity: IdentityContext,
-) -> str:
-    """绑定稳定安全上下文；动态余额和锁内 reservation 不参与 hash。"""
+) -> dict[str, Any]:
+    """返回 request hash 与 keyed fingerprint 共用的稳定语义 payload。"""
 
-    payload = {
+    return {
         "tenant_id": identity.tenant_id,
         "identity": {
             "user_id": identity.user_id,
@@ -119,13 +120,50 @@ def delegation_request_hash(
         "child_input": request.child_input,
         "budget_intent": request.budget_intent,
     }
-    canonical = json.dumps(
-        payload,
+
+
+def delegation_request_bytes(
+    request: DelegationRequest,
+    *,
+    identity: IdentityContext,
+) -> bytes:
+    """只在一个边界生成 canonical bytes，禁止两层幂等语义各自序列化。"""
+
+    return json.dumps(
+        delegation_request_payload(request, identity=identity),
         ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def delegation_request_hash(
+    request: DelegationRequest,
+    *,
+    identity: IdentityContext,
+) -> str:
+    """绑定稳定安全上下文；动态余额和锁内 reservation 不参与 hash。"""
+
+    return hashlib.sha256(delegation_request_bytes(request, identity=identity)).hexdigest()
+
+
+def delegation_relation_id(*, tenant_id: str, parent_run_id: str, idempotency_key: str) -> str:
+    """让同一 stable key 的并发 writer 在 relation insert 前派生同一个内部 ID。"""
+
+    return str(
+        uuid5(
+            NAMESPACE_URL,
+            ":".join(
+                (
+                    "agent-harness-delegation",
+                    tenant_id,
+                    parent_run_id,
+                    idempotency_key,
+                )
+            ),
+        )
     )
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def aggregate_delegation_evidence(
@@ -197,5 +235,8 @@ __all__ = [
     "DelegationRequest",
     "DelegationSummary",
     "aggregate_delegation_evidence",
+    "delegation_relation_id",
+    "delegation_request_bytes",
     "delegation_request_hash",
+    "delegation_request_payload",
 ]

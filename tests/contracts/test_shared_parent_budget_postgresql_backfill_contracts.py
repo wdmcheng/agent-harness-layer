@@ -8,7 +8,24 @@ from tests.contracts.test_shared_parent_budget_postgresql_contracts import *
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "backfill_case",
-    ["valid", "identity-mismatch", "unused-target-incomplete"],
+    [
+        "valid",
+        "identity-mismatch",
+        "unused-target-incomplete",
+        "missing-source",
+        "source-conflict",
+        "history-conflict",
+        "null-input-price",
+        "bool-output-price",
+        "negative-input-price",
+        "nan-output-price",
+        "infinity-input-price",
+        "null-embedding-price",
+        "bool-embedding-price",
+        "negative-embedding-price",
+        "nan-embedding-price",
+        "infinity-embedding-price",
+    ],
 )
 async def test_postgresql_0016_backfill_and_evidence_aware_downgrade(
     backfill_case: str,
@@ -85,6 +102,44 @@ async def test_postgresql_0016_backfill_and_evidence_aware_downgrade(
                     }
                 ],
             }
+        price_case = backfill_case.endswith("-price")
+        if price_case:
+            owner = cast(dict[str, Any], snapshot["owner"])
+            owner["max_cost_usd_per_run"] = "10"
+            owner["cost_enabled"] = True
+            agent = cast(dict[str, Any], cast(dict[str, Any], snapshot["agents"])["agent-a"])
+            cast(dict[str, Any], agent["target_budget"])["max_cost_usd_per_run"] = "10"
+            invalid_price: object = {
+                "null-input-price": None,
+                "bool-output-price": True,
+                "negative-input-price": "-1",
+                "nan-output-price": "NaN",
+                "infinity-input-price": "Infinity",
+                "null-embedding-price": None,
+                "bool-embedding-price": True,
+                "negative-embedding-price": "-1",
+                "nan-embedding-price": "NaN",
+                "infinity-embedding-price": "Infinity",
+            }[backfill_case]
+            routes = cast(list[dict[str, Any]], agent["routes"])
+            if "embedding" in backfill_case:
+                routes.append(
+                    {
+                        "usage_kind": "embedding",
+                        "provider": "local",
+                        "model": "mock-small",
+                        "price_source_ref": "catalog:local",
+                        "price_source_version": "v1",
+                        "input_token_price_usd": invalid_price,
+                    }
+                )
+            else:
+                field = (
+                    "output_token_price_usd"
+                    if backfill_case in {"bool-output-price", "nan-output-price"}
+                    else "input_token_price_usd"
+                )
+                routes[0][field] = invalid_price
         operation = OperationIdentity.from_semantic_request(
             tenant_id="tenant-a",
             fingerprint_key=b"legacy-test-key",
@@ -103,18 +158,18 @@ async def test_postgresql_0016_backfill_and_evidence_aware_downgrade(
             price_source_ref="catalog:fake",
             price_source_version="v1",
             cache_key_digest=None,
-            cost_enabled=False,
+            cost_enabled=price_case,
             trusted_token_bound=identity_token_bound,
-            trusted_cost_bound=None,
+            trusted_cost_bound=Decimal("1") if price_case else None,
         ).to_payload()
         result = {"outcome": "completed", "evidence": {"provider_called": True}}
         bundle: dict[str, Any] = {
             "ledger": {
                 "token_limit": 100,
-                "cost_limit": None,
-                "cost_enabled": False,
+                "cost_limit": "10" if price_case else None,
+                "cost_enabled": price_case,
                 "token_impact": 4,
-                "cost_impact": "0",
+                "cost_impact": "0.5" if price_case else "0",
                 "state": "active",
                 "version": 1,
                 "registry_version": "registry-v1",
@@ -136,11 +191,11 @@ async def test_postgresql_0016_backfill_and_evidence_aware_downgrade(
                     "identity_json": operation,
                     "request_hash": None,
                     "reserved_tokens": 5,
-                    "reserved_cost": None,
+                    "reserved_cost": "1" if price_case else None,
                     "actual_tokens": 4,
-                    "actual_cost": None,
+                    "actual_cost": "0.5" if price_case else None,
                     "token_impact": 4,
-                    "cost_impact": "0",
+                    "cost_impact": "0.5" if price_case else "0",
                     "state": "settled",
                     "side_effect_state": "result_committed",
                     "result_json": result,
@@ -190,20 +245,64 @@ async def test_postgresql_0016_backfill_and_evidence_aware_downgrade(
                 ),
                 {"result": json.dumps(result)},
             )
-            await connection.execute(
-                text(
-                    "insert into checkpoints(id,tenant_id,run_id,sequence,resume_token,state_json) "
-                    "values ('checkpoint-a','tenant-a','root-a',1,'resume-a',"
-                    "cast(:state as jsonb))"
-                ),
-                {"state": json.dumps({"shared_budget_backfill_v1": bundle})},
-            )
+            if backfill_case == "missing-source":
+                await connection.execute(
+                    text(
+                        "insert into checkpoints(id,tenant_id,run_id,sequence,resume_token,"
+                        "state_json) values ('checkpoint-a','tenant-a','root-a',1,'resume-a',"
+                        "cast(:state as jsonb))"
+                    ),
+                    {"state": json.dumps({"shared_budget_backfill_v1": bundle})},
+                )
+            else:
+                await seed_postgresql_backfill_records(
+                    connection,
+                    tenant_id="tenant-a",
+                    run_id="root-a",
+                    bundle=bundle,
+                    prefix="checkpoint-a",
+                )
+                if backfill_case == "source-conflict":
+                    await connection.execute(
+                        text(
+                            "update checkpoints set state_json=cast(:state as jsonb) "
+                            "where id='checkpoint-a-source'"
+                        ),
+                        {
+                            "state": json.dumps(
+                                {"shared_budget_source_v1": {"source_version": "tampered"}}
+                            )
+                        },
+                    )
+                if backfill_case == "history-conflict":
+                    await connection.execute(
+                        text(
+                            "update checkpoints set state_json=cast(:state as jsonb) "
+                            "where id='checkpoint-a-history'"
+                        ),
+                        {
+                            "state": json.dumps(
+                                {
+                                    "shared_budget_history_v1": {
+                                        "history_version": "shared-budget-history-v1",
+                                        "registry_version": "current-config-v2",
+                                    }
+                                }
+                            )
+                        },
+                    )
         await engine.dispose()
 
         if backfill_case != "valid":
             expected = (
-                "target sub-snapshot is incomplete"
-                if backfill_case == "unused-target-incomplete"
+                "independent source is missing"
+                if backfill_case == "missing-source"
+                else "independent source conflicts with bundle"
+                if backfill_case == "source-conflict"
+                else "versioned history is invalid"
+                if backfill_case == "history-conflict"
+                else "target sub-snapshot is incomplete"
+                if backfill_case == "unused-target-incomplete" or price_case
                 else "direct identity is invalid"
             )
             with pytest.raises(RuntimeError, match=expected):

@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
-from agent_harness.delegation import DelegationRequest, delegation_request_hash
+from agent_harness.delegation import (
+    DelegationRequest,
+    delegation_relation_id,
+    delegation_request_bytes,
+    delegation_request_hash,
+)
 from agent_harness.events import CanonicalEventType, EventBus
 from agent_harness.identity import IdentityContext
 from agent_harness.registry import AgentRegistry
@@ -19,6 +24,7 @@ from agent_harness.runtime import (
     ApprovalGrant,
     RunStatus,
 )
+from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.storage import SQLAlchemyStorage, run_migrations
 from agent_harness.storage.delegation_repositories import DelegationClaimCreate
 from app.runtime import build_runtime_components
@@ -32,6 +38,7 @@ class _ApprovalThenDelegationExecutor:
 
     def __init__(self) -> None:
         self.storage: SQLAlchemyStorage | None = None
+        self.shared_budget: SharedBudgetRuntime | None = None
 
     async def run(
         self,
@@ -57,8 +64,8 @@ class _ApprovalThenDelegationExecutor:
         grant: ApprovalGrant,
     ) -> AgentExecutionResult:
         del grant
-        if self.storage is None:
-            raise RuntimeError("test storage is not bound")
+        if self.storage is None or self.shared_budget is None:
+            raise RuntimeError("test runtime dependencies are not bound")
         storage = self.storage
         delegation_request = DelegationRequest(
             parent_run_id=request.run_id,
@@ -69,8 +76,24 @@ class _ApprovalThenDelegationExecutor:
             request_id=context.request_id,
         )
         async with storage.uow() as uow:
+            ledger = await uow.shared_budget.get_ledger(
+                context.identity.tenant_id,
+                request.run_id,
+            )
+            snapshot = await uow.shared_budget.get_tree_snapshot(
+                context.identity.tenant_id,
+                request.run_id,
+            )
+            if ledger is None or snapshot is None:
+                raise RuntimeError("test shared budget snapshot is unavailable")
+            delegation_id = delegation_relation_id(
+                tenant_id=context.identity.tenant_id,
+                parent_run_id=request.run_id,
+                idempotency_key=delegation_request.idempotency_key,
+            )
             await uow.delegations.claim_and_reserve(
                 DelegationClaimCreate(
+                    delegation_id=delegation_id,
                     tenant_id=context.identity.tenant_id,
                     parent_run_id=request.run_id,
                     source_agent_id=request.agent_id,
@@ -89,6 +112,22 @@ class _ApprovalThenDelegationExecutor:
                     requested_token_reservation=50,
                     parent_cost_limit=None,
                     requested_cost_reservation=None,
+                    budget_identity=self.shared_budget.delegation_identity(
+                        tenant_id=context.identity.tenant_id,
+                        canonical_request_bytes=delegation_request_bytes(
+                            delegation_request,
+                            identity=context.identity,
+                        ),
+                        parent_run_id=request.run_id,
+                        source_agent_id=request.agent_id,
+                        target_agent_id="examples.ticket_triage",
+                        delegation_id=delegation_id,
+                        idempotency_key=delegation_request.idempotency_key,
+                        tree_snapshot_id=ledger.snapshot_id,
+                        snapshot=snapshot,
+                        trusted_token_bound=1024,
+                        trusted_cost_bound=None,
+                    ),
                 )
             )
             await uow.commit()
@@ -132,6 +171,10 @@ async def test_approval_waits_for_delegation_then_closes_ordered_evidence(
         artifact_root=tmp_path / "approval-delegation-artifacts",
     )
     executor.storage = components.storage
+    executor.shared_budget = cast(
+        SharedBudgetRuntime,
+        components.executor_services["shared_budget"],
+    )
     actor = IdentityContext.local_default()
     reviewer = IdentityContext(
         tenant_id=actor.tenant_id,

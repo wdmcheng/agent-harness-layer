@@ -11,10 +11,26 @@ from tests.contracts.test_shared_parent_budget_migration_contracts import *
         "valid",
         "omit-claim",
         "hash-tamper",
+        "delegation-source-field",
+        "delegation-target-field",
+        "delegation-route-field",
         "usage-kind-mismatch",
         "cost-mode-mismatch",
         "trusted-token-mismatch",
         "unused-target-incomplete",
+        "missing-source",
+        "source-conflict",
+        "history-conflict",
+        "null-input-price",
+        "bool-output-price",
+        "negative-input-price",
+        "nan-output-price",
+        "infinity-input-price",
+        "null-embedding-price",
+        "bool-embedding-price",
+        "negative-embedding-price",
+        "nan-embedding-price",
+        "infinity-embedding-price",
     ],
 )
 def test_0016_backfills_only_complete_checkpoint_snapshot_and_direct_identity(
@@ -92,6 +108,46 @@ def test_0016_backfills_only_complete_checkpoint_snapshot_and_direct_identity(
                 }
             ],
         }
+    price_case = identity_case.endswith("-price")
+    if price_case:
+        owner = cast(dict[str, Any], snapshot["owner"])
+        owner["max_cost_usd_per_run"] = "10"
+        owner["cost_enabled"] = True
+        agent = cast(dict[str, Any], cast(dict[str, Any], snapshot["agents"])["agent-a"])
+        cast(dict[str, Any], agent["target_budget"])["max_cost_usd_per_run"] = "10"
+        invalid_price: object = {
+            "null-input-price": None,
+            "bool-output-price": True,
+            "negative-input-price": "-1",
+            "nan-output-price": "NaN",
+            "infinity-input-price": "Infinity",
+            "null-embedding-price": None,
+            "bool-embedding-price": True,
+            "negative-embedding-price": "-1",
+            "nan-embedding-price": "NaN",
+            "infinity-embedding-price": "Infinity",
+        }[identity_case]
+        routes = cast(list[dict[str, Any]], agent["routes"])
+        if "embedding" in identity_case:
+            routes.append(
+                {
+                    "usage_kind": "embedding",
+                    "provider": "local",
+                    "model": "mock-small",
+                    "price_source_ref": "catalog:local",
+                    "price_source_version": "v1",
+                    "input_token_price_usd": invalid_price,
+                }
+            )
+        else:
+            field = (
+                "output_token_price_usd"
+                if identity_case in {"bool-output-price", "nan-output-price"}
+                else "input_token_price_usd"
+            )
+            routes[0][field] = invalid_price
+    ledger_cost_enabled = price_case
+    identity_cost_enabled = price_case or identity_case == "cost-mode-mismatch"
     operation = OperationIdentity.from_semantic_request(
         tenant_id="tenant-a",
         fingerprint_key=b"legacy-test-key",
@@ -112,20 +168,30 @@ def test_0016_backfills_only_complete_checkpoint_snapshot_and_direct_identity(
         cache_key_digest=(
             "legacy-cache-digest" if identity_case == "usage-kind-mismatch" else None
         ),
-        cost_enabled=identity_case == "cost-mode-mismatch",
+        cost_enabled=identity_cost_enabled,
         trusted_token_bound=6 if identity_case == "trusted-token-mismatch" else 5,
-        trusted_cost_bound=(Decimal("1") if identity_case == "cost-mode-mismatch" else None),
+        trusted_cost_bound=(Decimal("1") if identity_cost_enabled else None),
     ).to_payload()
     if identity_case == "hash-tamper":
         operation["model"] = "tampered-model"
+    forged_usage_field = {
+        "delegation-source-field": "source_agent_id",
+        "delegation-target-field": "target_agent_id",
+        "delegation-route-field": "target_route_catalog_digest",
+    }.get(identity_case)
+    if forged_usage_field is not None:
+        operation[forged_usage_field] = "forged-delegation-only-value"
+        hash_payload = dict(operation)
+        hash_payload.pop("identity_hash")
+        operation["identity_hash"] = canonical_hash(hash_payload)
     result = {"outcome": "completed", "evidence": {"provider_called": True}}
     bundle: dict[str, Any] = {
         "ledger": {
             "token_limit": 100,
-            "cost_limit": None,
-            "cost_enabled": False,
+            "cost_limit": "10" if ledger_cost_enabled else None,
+            "cost_enabled": ledger_cost_enabled,
             "token_impact": 4,
-            "cost_impact": "0",
+            "cost_impact": "0.5" if ledger_cost_enabled else "0",
             "state": "active",
             "version": 1,
             "registry_version": "registry-v1",
@@ -147,11 +213,11 @@ def test_0016_backfills_only_complete_checkpoint_snapshot_and_direct_identity(
                 "identity_json": operation,
                 "request_hash": None,
                 "reserved_tokens": 5,
-                "reserved_cost": None,
+                "reserved_cost": "1" if ledger_cost_enabled else None,
                 "actual_tokens": 4,
-                "actual_cost": None,
+                "actual_cost": "0.5" if ledger_cost_enabled else None,
                 "token_impact": 4,
-                "cost_impact": "0",
+                "cost_impact": "0.5" if ledger_cost_enabled else "0",
                 "state": "settled",
                 "side_effect_state": "result_committed",
                 "result_json": result,
@@ -186,19 +252,53 @@ def test_0016_backfills_only_complete_checkpoint_snapshot_and_direct_identity(
             "'published',?,2)",
             (json.dumps(result),),
         )
-        connection.execute(
-            "insert into checkpoints(id,tenant_id,run_id,sequence,resume_token,state_json) "
-            "values ('checkpoint-a','tenant-a','root-a',1,'resume-a',?)",
-            (json.dumps({"shared_budget_backfill_v1": bundle}),),
-        )
+        if identity_case == "missing-source":
+            connection.execute(
+                "insert into checkpoints(id,tenant_id,run_id,sequence,resume_token,state_json) "
+                "values ('checkpoint-a','tenant-a','root-a',1,'resume-a',?)",
+                (json.dumps({"shared_budget_backfill_v1": bundle}),),
+            )
+        else:
+            seed_backfill_records(
+                connection,
+                tenant_id="tenant-a",
+                run_id="root-a",
+                bundle=bundle,
+                prefix="checkpoint-a",
+            )
+            if identity_case == "source-conflict":
+                connection.execute(
+                    "update checkpoints set state_json=? where id='checkpoint-a-source'",
+                    (json.dumps({"shared_budget_source_v1": {"source_version": "tampered"}}),),
+                )
+            if identity_case == "history-conflict":
+                connection.execute(
+                    "update checkpoints set state_json=? where id='checkpoint-a-history'",
+                    (
+                        json.dumps(
+                            {
+                                "shared_budget_history_v1": {
+                                    "history_version": "shared-budget-history-v1",
+                                    "registry_version": "current-config-v2",
+                                }
+                            }
+                        ),
+                    ),
+                )
         connection.commit()
 
     if identity_case != "valid":
         expected = (
             "omits or invents durable operation evidence"
             if identity_case == "omit-claim"
+            else "independent source is missing"
+            if identity_case == "missing-source"
+            else "independent source conflicts with bundle"
+            if identity_case == "source-conflict"
+            else "versioned history is invalid"
+            if identity_case == "history-conflict"
             else "target sub-snapshot is incomplete"
-            if identity_case == "unused-target-incomplete"
+            if identity_case == "unused-target-incomplete" or price_case
             else "direct identity is invalid"
         )
         with pytest.raises(RuntimeError, match=expected):

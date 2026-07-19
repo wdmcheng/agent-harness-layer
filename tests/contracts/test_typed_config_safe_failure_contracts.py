@@ -126,6 +126,80 @@ def test_secret_file_value_uses_existing_pydantic_field_path(
     assert settings_frames > 0
 
 
+def test_secret_file_conflict_scrubs_traceback_frame_locals(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """direct/file 冲突的异常链与 frame locals 都不得保留 direct secret。"""
+
+    trusted_root = tmp_path / "secrets"
+    trusted_root.mkdir()
+    candidate = trusted_root / "fingerprint-key"
+    candidate.write_text("unused-file-secret", encoding="utf-8")
+    secret_fixture = "unique-direct-conflict-secret-fixture"
+    monkeypatch.setenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY", secret_fixture)
+    monkeypatch.setenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE", str(candidate))
+
+    with pytest.raises(SettingsLoadError) as exc_info:
+        load_settings(
+            profile="service",
+            profiles_dir=PROFILES,
+            secret_root=trusted_root,
+        )
+
+    assert exc_info.value.errors[0].code == "config.secret_file_conflict"
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert secret_fixture not in str(exc_info.value)
+    assert secret_fixture not in "".join(traceback.format_exception(exc_info.value))
+    current = exc_info.value.__traceback__
+    settings_frames = 0
+    while current is not None:
+        module_name = current.tb_frame.f_globals.get("__name__")
+        if module_name in {
+            "agent_harness.config.settings",
+            "agent_harness.config.secret_files",
+        }:
+            settings_frames += 1
+            assert secret_fixture not in repr(current.tb_frame.f_locals)
+        current = current.tb_next
+    assert settings_frames > 0
+
+
+def test_later_secret_file_failure_scrubs_earlier_value_from_traceback(
+    tmp_path: Path,
+) -> None:
+    """后续 `_FILE` 失败时，已读取的前序 secret 不得留在 helper frame。"""
+
+    trusted_root = tmp_path / "secrets"
+    trusted_root.mkdir()
+    fingerprint_path = trusted_root / "fingerprint-key"
+    secret_fixture = "unique-earlier-file-secret-fixture"
+    fingerprint_path.write_text(secret_fixture, encoding="utf-8")
+    missing_path = trusted_root / "missing-storage-dsn"
+    process_env = {
+        "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE": str(fingerprint_path),
+        "AGENT_HARNESS_STORAGE__DSN_FILE": str(missing_path),
+    }
+
+    with pytest.raises(SettingsLoadError) as exc_info:
+        secret_files_module.load_secret_file_env(
+            process_env,
+            secret_root=trusted_root,
+        )
+
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    current = exc_info.value.__traceback__
+    helper_frames = 0
+    while current is not None:
+        if current.tb_frame.f_globals.get("__name__") == "agent_harness.config.secret_files":
+            helper_frames += 1
+            assert secret_fixture not in repr(current.tb_frame.f_locals)
+        current = current.tb_next
+    assert helper_frames > 0
+
+
 def test_config_errors_include_field_path_and_hint(tmp_path: Path) -> None:
     # 错误路径测试锁 operator-facing diagnostics，避免泄漏原始 Pydantic/YAML trace。
     profile_path = tmp_path / "broken.yaml"

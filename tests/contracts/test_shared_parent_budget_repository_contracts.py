@@ -99,6 +99,55 @@ def allocation_identity(
     )
 
 
+def delegation_identity(
+    *,
+    root_id: str,
+    delegation_id: str,
+    idempotency_key: str,
+    request_hash: str,
+    token_bound: int,
+    cost_bound: Decimal | None,
+) -> OperationIdentity:
+    routes = [
+        {
+            "usage_kind": "model",
+            "provider": "fake",
+            "model": "fake-basic",
+            "price_source_ref": "price:fake",
+            "price_source_version": "v1",
+            "input_token_price_usd": "0",
+            "output_token_price_usd": "0",
+            "soft_max_tokens_per_call": 100,
+        }
+    ]
+    catalog_digest = hashlib.sha256(
+        json.dumps(
+            routes,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return OperationIdentity.from_delegation_request(
+        tenant_id="tenant-a",
+        fingerprint_key=b"test-only-budget-fingerprint-key",
+        fingerprint_key_version="test-v1",
+        canonical_request_bytes=request_hash.encode("utf-8"),
+        parent_run_id=root_id,
+        source_agent_id="agent-a",
+        target_agent_id="agent-b",
+        delegation_claim_id=delegation_id,
+        operation_slot=idempotency_key,
+        tree_snapshot_id=f"snapshot:{root_id}",
+        target_sub_snapshot_id=f"snapshot:{root_id}:agent-b",
+        target_route_catalog_digest=f"budget-routes-v1:{catalog_digest}",
+        cost_enabled=cost_bound is not None,
+        trusted_token_bound=token_bound,
+        trusted_cost_bound=cost_bound,
+    )
+
+
 def corrupt_tree_catalog(snapshot: dict[str, object], case: str) -> dict[str, object]:
     """生成首次写入必须拒绝的 target catalog 反例。"""
 
@@ -301,6 +350,14 @@ async def create_delegation(
             budget_owner_run_id=root_id,
             delegation_id=delegation_id,
             request_hash="d" * 64,
+            identity=delegation_identity(
+                root_id=root_id,
+                delegation_id=delegation_id,
+                idempotency_key=f"delegation-{suffix}",
+                request_hash="d" * 64,
+                token_bound=token_reservation,
+                cost_bound=cost_reservation,
+            ),
             token_reservation=token_reservation,
             cost_reservation=cost_reservation,
         )
@@ -333,6 +390,7 @@ __all__ = [
     "corrupt_tree_catalog",
     "create_delegation",
     "create_root",
+    "delegation_identity",
     "deepcopy",
     "hashlib",
     "identity",

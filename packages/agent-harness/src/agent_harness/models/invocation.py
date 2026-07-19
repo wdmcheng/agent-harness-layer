@@ -175,6 +175,16 @@ class ModelInvocationService(_ModelSettlementMixin):
         """执行一次 model 调用；任何 provider 副作用都晚于 durable 预约。"""
 
         call_id = usage_call_id
+        replay = await self._replay_settlement_before_current_snapshot(
+            request=request,
+            context=context,
+            usage_call_id=call_id,
+        )
+        if replay is not None:
+            return await self._resume_existing_settlement(
+                claim=replay.usage,
+                usage_call_id=call_id,
+            )
         await self._event_bus.reconcile_local_capacity(run_id=context.run_id)
         started_evidence: ModelUsageEvidence | None = None
         try:

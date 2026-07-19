@@ -96,6 +96,63 @@ class UsageEvidenceRepositoryMixin:
 
     _session: AsyncSession
 
+    async def replay_usage(
+        self,
+        *,
+        tenant_id: str,
+        run_id: str,
+        agent_id: str,
+        request_id: str | None,
+        trace_id: str,
+        usage_call_id: str,
+        event_id: str,
+        operation_kind: EvidenceOperationKind,
+    ) -> UsageSettlementClaim | None:
+        """不读取当前 run/capacity，只验证 durable outbox 自身及 execution 绑定。"""
+
+        existing = await self._session.scalar(
+            select(RunEvidenceOutboxModel).where(
+                RunEvidenceOutboxModel.tenant_id == tenant_id,
+                RunEvidenceOutboxModel.usage_call_id == usage_call_id,
+            )
+        )
+        if existing is None:
+            return None
+        persisted_started = (
+            existing.result_json.get("started")
+            if isinstance(existing.result_json, Mapping)
+            else None
+        )
+        if not isinstance(persisted_started, Mapping):
+            raise ValueError("usage settlement is missing its durable started identity")
+        normalized_started = _normalize_started_evidence(
+            cast(Mapping[str, object], persisted_started),
+            tenant_id=tenant_id,
+            run_id=run_id,
+            operation_kind=operation_kind.value,
+        )
+        if (
+            normalized_started["agent_id"] != agent_id
+            or normalized_started.get("request_id") != request_id
+            or normalized_started["trace_id"] != trace_id
+        ):
+            raise ValueError("usage replay does not match execution identity")
+        self._validate_usage_binding(
+            existing,
+            run_id=run_id,
+            event_id=event_id,
+            operation_kind=operation_kind.value,
+            reserved_event_count=operation_event_capacity(operation_kind),
+            started_evidence=normalized_started,
+        )
+        return UsageSettlementClaim(
+            created=False,
+            state=existing.state,
+            operation_kind=existing.operation_kind,
+            result_json=existing.result_json,
+            error_code=existing.error_code,
+        )
+
     async def claim_usage(
         self,
         *,

@@ -23,7 +23,7 @@ from agent_harness.storage.shared_budget_models import (
 _ZERO = Decimal("0")
 
 
-def _snapshot_hash(snapshot: dict[str, Any]) -> str:
+def _snapshot_hash(snapshot: object) -> str:
     encoded = json.dumps(
         snapshot,
         ensure_ascii=False,

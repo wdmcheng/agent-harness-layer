@@ -72,6 +72,83 @@ class _ModelSettlementMixin:
     @staticmethod
     def _durable_response(response: ModelResponse) -> dict[str, Any]: ...
 
+    @staticmethod
+    def _semantic_request(request: ModelRequest) -> dict[str, object]:
+        return {
+            "provider": request.provider,
+            "model": request.model,
+            "prompt": request.prompt,
+            "max_output_tokens": request.max_output_tokens,
+            "timeout_seconds": request.timeout_seconds,
+        }
+
+    async def _replay_settlement_before_current_snapshot(
+        self,
+        *,
+        request: ModelRequest,
+        context: UsageEvidenceContext,
+        usage_call_id: str,
+    ) -> _SettlementStart | None:
+        """先验证 durable identity/result；当前 snapshot 只约束新执行。"""
+
+        if self._shared_budget is None:
+            return None
+        async with self._storage.uow() as uow:
+            seed = await uow.shared_budget.usage_replay_seed(
+                tenant_id=context.tenant_id,
+                usage_call_id=usage_call_id,
+            )
+            if seed is None:
+                return None
+            persisted = seed.identity
+            assert persisted.provider is not None
+            assert persisted.model is not None
+            expected = self._shared_budget.operation_identity(
+                tenant_id=context.tenant_id,
+                ownership_kind=seed.ownership.kind,
+                run_id=context.run_id,
+                agent_id=context.agent_id,
+                delegation_claim_id=seed.ownership.delegation_id,
+                usage_kind="model",
+                operation_slot=usage_call_id,
+                semantic_request=self._semantic_request(request),
+                tree_snapshot_id=persisted.tree_snapshot_id,
+                agent_sub_snapshot_id=persisted.agent_sub_snapshot_id,
+                provider=persisted.provider,
+                model=persisted.model,
+                price_source_ref=persisted.price_source_ref,
+                price_source_version=persisted.price_source_version,
+                cache_key_digest=persisted.cache_key_digest,
+                cost_enabled=persisted.cost_enabled,
+                trusted_token_bound=persisted.trusted_token_bound,
+                trusted_cost_bound=persisted.trusted_cost_bound,
+            )
+            uow.shared_budget.validate_usage_replay_identity(
+                seed=seed,
+                expected_identity=expected,
+            )
+            usage = await uow.evidence_outbox.replay_usage(
+                tenant_id=context.tenant_id,
+                run_id=context.run_id,
+                agent_id=context.agent_id,
+                request_id=context.request_id,
+                trace_id=context.trace_id,
+                usage_call_id=usage_call_id,
+                event_id=self._final_event_id(context.tenant_id, usage_call_id),
+                operation_kind=EvidenceOperationKind.MODEL_USAGE,
+            )
+            if usage is None:
+                raise UsageInvocationReplayError("missing_usage_settlement")
+            uow.shared_budget.validate_usage_replay_settlement(
+                seed=seed,
+                usage_state=usage.state,
+                usage_result=usage.result_json,
+            )
+        if seed.state == "reserved" and seed.side_effect_state == "not_started":
+            # 首次事务尚未开始外部副作用时，仍走正常 frozen snapshot 路径恢复。
+            return None
+        return _SettlementStart(usage=usage, ownership=seed.ownership)
+
     async def _start_settlement(
         self,
         *,
@@ -99,6 +176,12 @@ class _ModelSettlementMixin:
                         plan.trusted_cost_bound if ledger.cost_limit is not None else None
                     )
                     if ledger.cost_limit is not None and trusted_cost is None:
+                        # Exact replay 已在本 UoW 前完成；对新请求，sequence 完整性
+                        # 必须先于 intent_unbounded，且失败时不能写拒绝 evidence。
+                        await uow.event_capacity.assert_sequence_state_valid(
+                            tenant_id=evidence.tenant_id,
+                            run_id=evidence.run_id,
+                        )
                         raise BudgetReservationRejected(reason="intent_unbounded")
                     identity = self._shared_budget.operation_identity(
                         tenant_id=evidence.tenant_id,
@@ -108,13 +191,7 @@ class _ModelSettlementMixin:
                         delegation_claim_id=resolved.delegation_id,
                         usage_kind="model",
                         operation_slot=usage_call_id,
-                        semantic_request={
-                            "provider": request.provider,
-                            "model": request.model,
-                            "prompt": request.prompt,
-                            "max_output_tokens": request.max_output_tokens,
-                            "timeout_seconds": request.timeout_seconds,
-                        },
+                        semantic_request=self._semantic_request(request),
                         tree_snapshot_id=ledger.snapshot_id,
                         agent_sub_snapshot_id=f"{ledger.snapshot_id}:{evidence.agent_id}",
                         provider=plan.provider,

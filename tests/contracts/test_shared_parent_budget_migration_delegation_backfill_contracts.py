@@ -5,7 +5,10 @@
 from tests.contracts.test_shared_parent_budget_migration_contracts import *
 
 
-@pytest.mark.parametrize("omit_frozen_target", [False, True])
+@pytest.mark.parametrize(
+    ("omit_frozen_target", "forge_top_fingerprint", "forge_allocation_catalog_field"),
+    [(False, False, False), (True, False, False), (False, True, False), (False, False, True)],
+)
 @pytest.mark.parametrize(
     ("actual_tokens", "claim_state"),
     [(3, "settled"), (12, "needs_review")],
@@ -15,6 +18,8 @@ def test_0016_backfills_delegation_claim_and_child_allocation_from_one_tree_bund
     actual_tokens: int,
     claim_state: str,
     omit_frozen_target: bool,
+    forge_top_fingerprint: bool,
+    forge_allocation_catalog_field: bool,
 ) -> None:
     """Child 复用 root snapshot；settled actual-over 保守提升为 needs_review。"""
 
@@ -105,6 +110,43 @@ def test_0016_backfills_delegation_claim_and_child_allocation_from_one_tree_bund
         trusted_token_bound=20,
         trusted_cost_bound=None,
     ).to_payload()
+    if forge_allocation_catalog_field:
+        identity["source_agent_id"] = "forged-source"
+        hash_payload = dict(identity)
+        hash_payload.pop("identity_hash")
+        identity["identity_hash"] = canonical_hash(hash_payload)
+    target_routes = cast(dict[str, Any], cast(dict[str, Any], snapshot["agents"])["agent-b"])[
+        "routes"
+    ]
+    top_identity = OperationIdentity.from_delegation_request(
+        tenant_id="tenant-a",
+        fingerprint_key=b"legacy-test-key",
+        fingerprint_key_version="legacy-key-v1",
+        canonical_request_bytes=b"legacy-delegation-request-a",
+        parent_run_id="root-a",
+        source_agent_id="agent-a",
+        target_agent_id="agent-b",
+        delegation_claim_id="delegation-a",
+        operation_slot="key-a",
+        tree_snapshot_id="snapshot:legacy-tree",
+        target_sub_snapshot_id="snapshot:legacy-tree:agent-b",
+        target_route_catalog_digest=f"budget-routes-v1:{canonical_hash(target_routes)}",
+        cost_enabled=False,
+        trusted_token_bound=10,
+        trusted_cost_bound=None,
+    ).to_payload()
+    fingerprint_proofs = delegation_fingerprint_proofs(
+        top_identity,
+        delegation_id="delegation-a",
+        request_hash="request-hash-a",
+    )
+    if forge_top_fingerprint:
+        top_identity = (
+            OperationIdentity.model_validate(top_identity)
+            .model_copy(update={"request_fingerprint": "forged-unrelated-fingerprint"})
+            .rehashed()
+            .to_payload()
+        )
     child_result = {"outcome": "completed", "evidence": {"provider_called": True}}
     top_level_impact = actual_tokens if claim_state == "settled" else max(10, actual_tokens)
     bundle: dict[str, Any] = {
@@ -131,8 +173,8 @@ def test_0016_backfills_delegation_claim_and_child_allocation_from_one_tree_bund
                 "delegation_id": "delegation-a",
                 "run_id": "root-a",
                 "agent_id": "agent-a",
-                "usage_kind": None,
-                "identity_json": None,
+                "usage_kind": "delegation",
+                "identity_json": top_identity,
                 "request_hash": "request-hash-a",
                 "reserved_tokens": 10,
                 "reserved_cost": None,
@@ -229,15 +271,25 @@ def test_0016_backfills_delegation_claim_and_child_allocation_from_one_tree_bund
             "'model_usage','published',?,2)",
             (json.dumps(child_result),),
         )
-        connection.execute(
-            "insert into checkpoints(id,tenant_id,run_id,sequence,resume_token,state_json) "
-            "values ('checkpoint-a','tenant-a','root-a',1,'resume-a',?)",
-            (json.dumps({"shared_budget_backfill_v1": bundle}),),
+        seed_backfill_records(
+            connection,
+            tenant_id="tenant-a",
+            run_id="root-a",
+            bundle=bundle,
+            delegation_fingerprint_proofs=fingerprint_proofs,
+            prefix="checkpoint-a",
         )
         connection.commit()
 
-    if omit_frozen_target:
-        with pytest.raises(RuntimeError, match="owner limits conflict with snapshot"):
+    if omit_frozen_target or forge_top_fingerprint or forge_allocation_catalog_field:
+        expected_error = (
+            "owner limits conflict with snapshot"
+            if omit_frozen_target
+            else "backfill delegation linkage is invalid"
+            if forge_top_fingerprint
+            else "allocation identity is invalid"
+        )
+        with pytest.raises(RuntimeError, match=expected_error):
             run_migrations(sqlite_dsn(path))
         with sqlite3.connect(path) as connection:
             assert connection.execute(

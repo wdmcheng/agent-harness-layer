@@ -10,6 +10,6 @@ def budget_fingerprint_key(monkeypatch: pytest.MonkeyPatch) -> None:
     """0016 identity 必须有稳定 key；测试只注入不可用于部署的固定值。"""
 
     monkeypatch.setenv(
-        "BUDGET_LEDGER_FINGERPRINT_KEY",
+        "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY",
         "test-only-shared-budget-fingerprint-key",
     )

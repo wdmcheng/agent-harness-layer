@@ -48,7 +48,7 @@ def test_compose_declares_migration_api_worker_and_shared_runtime_configuration(
     shared_keys = {
         "AGENT_HARNESS_STORAGE__DSN_FILE",
         "AGENT_HARNESS_QUEUE__DSN",
-        "BUDGET_LEDGER_FINGERPRINT_KEY_FILE",
+        "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE",
         "SERVICE_APP_EXECUTOR_ID",
         "SERVICE_APP_RECLAIM_IDLE_SECONDS",
     }

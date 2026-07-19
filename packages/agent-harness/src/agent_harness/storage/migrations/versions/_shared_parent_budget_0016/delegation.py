@@ -7,28 +7,15 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import cast
 
 import sqlalchemy as sa
 
-
-def _decimal(value: object, *, field: str) -> Decimal:
-    if isinstance(value, bool):
-        raise RuntimeError(f"0016 backfill {field} is invalid")
-    try:
-        result = Decimal(str(value))
-    except (InvalidOperation, ValueError) as exc:
-        raise RuntimeError(f"0016 backfill {field} is invalid") from exc
-    if not result.is_finite() or result < 0:
-        raise RuntimeError(f"0016 backfill {field} is invalid")
-    return result
-
-
-def _integer(value: object, *, field: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise RuntimeError(f"0016 backfill {field} is invalid")
-    return value
+from agent_harness.storage.migrations.versions._shared_parent_budget_0016.values import (
+    _decimal,
+    _integer,
+)
 
 
 def _released_delegation_proof_valid(

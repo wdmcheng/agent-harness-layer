@@ -22,6 +22,12 @@ from agent_harness.delegation.models import (
     aggregate_delegation_evidence as aggregate_delegation_evidence,
 )
 from agent_harness.delegation.models import (
+    delegation_relation_id as delegation_relation_id,
+)
+from agent_harness.delegation.models import (
+    delegation_request_bytes as delegation_request_bytes,
+)
+from agent_harness.delegation.models import (
     delegation_request_hash as delegation_request_hash,
 )
 from agent_harness.delegation.module import AgentDelegateInput as AgentDelegateInput

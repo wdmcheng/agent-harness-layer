@@ -23,6 +23,7 @@ from agent_harness.policy import InputGuardrail, PolicyCheck, PolicyDeniedError
 from agent_harness.registry import AgentRegistry, RegistryLoadError
 from agent_harness.runtime import RunOrchestrator, RunTraceError
 from agent_harness.runtime.services import build_agent_execution_services
+from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.scaffold import ScaffoldError, scaffold_agent_package
 from agent_harness.storage import SQLAlchemyStorage, storage_dsn_from_settings
 from agent_harness.storage import diagnostics as storage_diagnostics
@@ -194,6 +195,7 @@ def run(
         policy=policy,
         event_bus=event_bus,
         orchestrator=orchestrator,
+        shared_budget=cast(SharedBudgetRuntime, executor_services["shared_budget"]),
         mode="local",
     )
     orchestrator.bind_execution_service(

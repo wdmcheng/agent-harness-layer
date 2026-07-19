@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal, cast
 from uuid import uuid4
 
 from sqlalchemy import select
 
 from agent_harness.config import load_settings
+from agent_harness.delegation.models import delegation_relation_id
 from agent_harness.storage import (
     RunCreate,
     SessionCreate,
@@ -252,14 +255,38 @@ async def assert_budget_topology() -> dict[str, object]:
             actual=3,
         )
 
+        idempotency_key = f"topology-delegation-{suffix}"
+        delegation_id = delegation_relation_id(
+            tenant_id=tenant_id,
+            parent_run_id=root_a_id,
+            idempotency_key=idempotency_key,
+        )
+        target_snapshot = _cost_disabled_snapshot(snapshot_a, root_a_id)
+        raw_target_agents: object = target_snapshot["agents"]
+        assert isinstance(raw_target_agents, dict)
+        target_agents = cast(dict[str, object], raw_target_agents)
+        raw_target_agent = target_agents["examples.target"]
+        assert isinstance(raw_target_agent, dict)
+        typed_target = cast(dict[str, Any], raw_target_agent)
+        target_routes = cast(list[object], typed_target["routes"])
+        catalog_digest = hashlib.sha256(
+            json.dumps(
+                target_routes,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
         async with storage.uow() as uow:
             claimed = await uow.delegations.claim_and_reserve(
                 DelegationClaimCreate(
+                    delegation_id=delegation_id,
                     tenant_id=tenant_id,
                     parent_run_id=root_a_id,
                     source_agent_id="examples.basic",
                     target_agent_id="examples.target",
-                    idempotency_key=f"topology-delegation-{suffix}",
+                    idempotency_key=idempotency_key,
                     request_hash="e" * 64,
                     budget_intent="inherit_parent",
                     child_input={"smoke": "cost-disabled-allocation"},
@@ -270,6 +297,23 @@ async def assert_budget_topology() -> dict[str, object]:
                     requested_token_reservation=20,
                     parent_cost_limit=None,
                     requested_cost_reservation=None,
+                    budget_identity=OperationIdentity.from_delegation_request(
+                        tenant_id=tenant_id,
+                        fingerprint_key=b"service-smoke-topology-delegation-key",
+                        fingerprint_key_version="service-smoke-key-v1",
+                        canonical_request_bytes=b"e" * 64,
+                        parent_run_id=root_a_id,
+                        source_agent_id="examples.basic",
+                        target_agent_id="examples.target",
+                        delegation_claim_id=delegation_id,
+                        operation_slot=idempotency_key,
+                        tree_snapshot_id=snapshot_a,
+                        target_sub_snapshot_id=f"{snapshot_a}:examples.target",
+                        target_route_catalog_digest=f"budget-routes-v1:{catalog_digest}",
+                        cost_enabled=False,
+                        trusted_token_bound=20,
+                        trusted_cost_bound=None,
+                    ),
                 )
             )
             child = await uow.runs.create(

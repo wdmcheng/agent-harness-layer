@@ -31,10 +31,11 @@ def load_secret_file_env(
         and not key.startswith(TEST_ENV_PREFIX)
         and key.removesuffix("_FILE") != "AGENT_HARNESS_CONFIG"
     }
+    conflict_error: SettingsLoadError | None = None
     for file_key in file_inputs:
         direct_key = file_key.removesuffix("_FILE")
         if direct_key in process_env:
-            raise SettingsLoadError(
+            conflict_error = SettingsLoadError(
                 [
                     ErrorDetail(
                         code="config.secret_file_conflict",
@@ -44,16 +45,35 @@ def load_secret_file_env(
                     )
                 ]
             )
+            break
+    if conflict_error is not None:
+        # helper 也可能被独立调用；抛错前释放持有 direct secret 的 mapping，
+        # 避免 traceback locals capture 绕过上层结构化错误脱敏。
+        file_inputs.clear()
+        del process_env
+        raise conflict_error
 
+    # 后续读取失败时，traceback 会保留本 frame；先释放包含 direct secret 的
+    # 原始环境 mapping，再确保已成功读取的前序值在抛错前原地清空。
+    del process_env
     resolved: dict[str, str] = {}
+    read_error: SettingsLoadError | None = None
     for file_key, raw_path in file_inputs.items():
         direct_key = file_key.removesuffix("_FILE")
         field_path = _env_field_path(direct_key)
-        resolved[direct_key] = _read_secret_file(
-            raw_path,
-            secret_root=secret_root,
-            field_path=field_path,
-        )
+        try:
+            resolved[direct_key] = _read_secret_file(
+                raw_path,
+                secret_root=secret_root,
+                field_path=field_path,
+            )
+        except SettingsLoadError as exc:
+            read_error = SettingsLoadError(list(exc.errors))
+            resolved.clear()
+            file_inputs.clear()
+            break
+    if read_error is not None:
+        raise read_error
     return resolved
 
 

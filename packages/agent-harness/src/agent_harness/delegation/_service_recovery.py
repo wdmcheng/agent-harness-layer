@@ -116,6 +116,32 @@ class DelegationRecoveryMixin:
         ):
             raise DelegationError("delegation.execution_failed")
 
+        try:
+            async with self._storage.uow() as uow:
+                replay_seed = await uow.delegations.replay_identity_seed(
+                    tenant_id=parent.tenant_id,
+                    parent_run_id=parent.id,
+                    idempotency_key=delegation.idempotency_key,
+                    request_hash=delegation.request_hash,
+                )
+                replay = (
+                    None
+                    if replay_seed is None
+                    else await uow.delegations.replay_existing(
+                        tenant_id=parent.tenant_id,
+                        parent_run_id=parent.id,
+                        idempotency_key=delegation.idempotency_key,
+                        request_hash=delegation.request_hash,
+                        expected_identity=replay_seed.budget_identity,
+                    )
+                )
+                if replay is None or replay.delegation.id != delegation.id:
+                    raise DelegationStorageConflict("delegation.execution_failed")
+                delegation = replay.delegation
+                await uow.commit()
+        except DelegationStorageConflict as exc:
+            raise DelegationError(exc.code) from exc
+
         await self._event_bus.reconcile_local_capacity(run_id=parent.id)
         await self._publish_claimed(delegation=delegation, identity=identity)
         if delegation.status == "failed" and delegation.child_run_id is None:

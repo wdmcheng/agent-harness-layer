@@ -66,32 +66,40 @@ def _non_negative_decimal(value: Decimal | None) -> Decimal | None:
         return None
     if not value.is_finite() or value < 0:
         raise ValueError("cost value must be finite and non-negative")
-    return value
+    return Decimal(format(value.normalize(), "f"))
 
 
 class OperationIdentity(HarnessDTO):
     """与余额及首次执行结果无关的版本化 operation identity。"""
 
     identity_schema_version: str = "budget-operation-v1"
-    ownership_kind: Literal["direct", "allocation"]
+    ownership_kind: Literal["direct", "allocation", "delegation"]
     run_id: str
     agent_id: str
     delegation_claim_id: str | None = None
-    usage_kind: Literal["model", "embedding"]
+    source_agent_id: str | None = None
+    target_agent_id: str | None = None
+    usage_kind: Literal["model", "embedding", "delegation"]
     operation_slot: str
     request_fingerprint: str
     fingerprint_key_version: str
     tree_snapshot_id: str
     agent_sub_snapshot_id: str
-    provider: str
-    model: str
+    provider: str | None
+    model: str | None
     price_source_ref: str | None = None
     price_source_version: str | None = None
     cache_key_digest: str | None = None
+    target_route_catalog_digest: str | None = None
     cost_enabled: bool
     trusted_token_bound: int
     trusted_cost_bound: Decimal | None = None
     identity_hash: str
+
+    def to_payload(self) -> dict[str, Any]:
+        """Identity canonical JSON 必须显式保留固定为 null 的封闭字段。"""
+
+        return self.model_dump(mode="json", exclude_none=False)
 
     @field_validator("trusted_token_bound")
     @classmethod
@@ -107,10 +115,42 @@ class OperationIdentity(HarnessDTO):
 
     @model_validator(mode="after")
     def validate_shape(self) -> OperationIdentity:
-        if self.ownership_kind == "allocation" and not self.delegation_claim_id:
-            raise ValueError("allocation identity requires delegation_claim_id")
-        if self.ownership_kind == "direct" and self.delegation_claim_id is not None:
-            raise ValueError("direct identity forbids delegation_claim_id")
+        if self.ownership_kind == "delegation":
+            if (
+                self.identity_schema_version != "budget-delegation-v1"
+                or not self.delegation_claim_id
+                or self.usage_kind != "delegation"
+                or not self.source_agent_id
+                or not self.target_agent_id
+                or self.agent_id != self.source_agent_id
+                or not self.target_route_catalog_digest
+                or self.provider is not None
+                or self.model is not None
+                or self.price_source_ref is not None
+                or self.price_source_version is not None
+                or self.cache_key_digest is not None
+            ):
+                raise ValueError("delegation identity shape is invalid")
+        else:
+            if self.identity_schema_version != "budget-operation-v1":
+                raise ValueError("usage identity schema version is invalid")
+            if self.usage_kind not in {"model", "embedding"}:
+                raise ValueError("usage identity kind is invalid")
+            if not self.provider or not self.model:
+                raise ValueError("usage identity requires provider and model")
+            if any(
+                value is not None
+                for value in (
+                    self.source_agent_id,
+                    self.target_agent_id,
+                    self.target_route_catalog_digest,
+                )
+            ):
+                raise ValueError("usage identity forbids delegation catalog fields")
+            if self.ownership_kind == "allocation" and not self.delegation_claim_id:
+                raise ValueError("allocation identity requires delegation_claim_id")
+            if self.ownership_kind == "direct" and self.delegation_claim_id is not None:
+                raise ValueError("direct identity forbids delegation_claim_id")
         if self.cost_enabled != (self.trusted_cost_bound is not None):
             raise ValueError("cost-enabled identity requires exactly one trusted cost bound")
         expected = self._calculate_hash()
@@ -126,6 +166,7 @@ class OperationIdentity(HarnessDTO):
 
     def rehashed(self) -> OperationIdentity:
         payload = self.model_dump(exclude={"identity_hash"})
+        payload["trusted_cost_bound"] = _non_negative_decimal(self.trusted_cost_bound)
         payload["identity_hash"] = hashlib.sha256(_canonical_bytes(payload)).hexdigest()
         return OperationIdentity.model_validate(payload)
 
@@ -164,12 +205,15 @@ class OperationIdentity(HarnessDTO):
             _canonical_bytes(semantic_request),
             hashlib.sha256,
         ).hexdigest()
+        normalized_cost_bound = _non_negative_decimal(trusted_cost_bound)
         payload: dict[str, Any] = {
             "identity_schema_version": "budget-operation-v1",
             "ownership_kind": ownership_kind,
             "run_id": run_id,
             "agent_id": agent_id,
             "delegation_claim_id": delegation_claim_id,
+            "source_agent_id": None,
+            "target_agent_id": None,
             "usage_kind": usage_kind,
             "operation_slot": operation_slot,
             "request_fingerprint": request_fingerprint,
@@ -181,9 +225,68 @@ class OperationIdentity(HarnessDTO):
             "price_source_ref": price_source_ref,
             "price_source_version": price_source_version,
             "cache_key_digest": cache_key_digest,
+            "target_route_catalog_digest": None,
             "cost_enabled": cost_enabled,
             "trusted_token_bound": trusted_token_bound,
-            "trusted_cost_bound": trusted_cost_bound,
+            "trusted_cost_bound": normalized_cost_bound,
+        }
+        payload["identity_hash"] = hashlib.sha256(_canonical_bytes(payload)).hexdigest()
+        return cls.model_validate(payload)
+
+    @classmethod
+    def from_delegation_request(
+        cls,
+        *,
+        tenant_id: str,
+        fingerprint_key: bytes,
+        fingerprint_key_version: str,
+        canonical_request_bytes: bytes,
+        parent_run_id: str,
+        source_agent_id: str,
+        target_agent_id: str,
+        delegation_claim_id: str,
+        operation_slot: str,
+        tree_snapshot_id: str,
+        target_sub_snapshot_id: str,
+        target_route_catalog_digest: str,
+        cost_enabled: bool,
+        trusted_token_bound: int,
+        trusted_cost_bound: Decimal | None,
+    ) -> OperationIdentity:
+        """以 0015 同一 canonical request bytes 生成独立 top-level budget identity。"""
+
+        if not fingerprint_key:
+            raise ValueError("fingerprint_key must not be empty")
+        tenant_key = hmac.new(fingerprint_key, tenant_id.encode("utf-8"), hashlib.sha256).digest()
+        request_fingerprint = hmac.new(
+            tenant_key,
+            canonical_request_bytes,
+            hashlib.sha256,
+        ).hexdigest()
+        normalized_cost_bound = _non_negative_decimal(trusted_cost_bound)
+        payload: dict[str, Any] = {
+            "identity_schema_version": "budget-delegation-v1",
+            "ownership_kind": "delegation",
+            "run_id": parent_run_id,
+            "agent_id": source_agent_id,
+            "delegation_claim_id": delegation_claim_id,
+            "source_agent_id": source_agent_id,
+            "target_agent_id": target_agent_id,
+            "usage_kind": "delegation",
+            "operation_slot": operation_slot,
+            "request_fingerprint": request_fingerprint,
+            "fingerprint_key_version": fingerprint_key_version,
+            "tree_snapshot_id": tree_snapshot_id,
+            "agent_sub_snapshot_id": target_sub_snapshot_id,
+            "provider": None,
+            "model": None,
+            "price_source_ref": None,
+            "price_source_version": None,
+            "cache_key_digest": None,
+            "target_route_catalog_digest": target_route_catalog_digest,
+            "cost_enabled": cost_enabled,
+            "trusted_token_bound": trusted_token_bound,
+            "trusted_cost_bound": normalized_cost_bound,
         }
         payload["identity_hash"] = hashlib.sha256(_canonical_bytes(payload)).hexdigest()
         return cls.model_validate(payload)
@@ -315,6 +418,17 @@ class BudgetOperationOwnership(HarnessDTO):
     kind: Literal["direct", "allocation"]
     budget_owner_run_id: str
     delegation_id: str | None = None
+
+
+class BudgetOperationReplaySeed(HarnessDTO):
+    """不依赖当前 ledger/snapshot 的稳定 usage replay 身份。"""
+
+    operation_kind: Literal["direct", "allocation"]
+    ownership: BudgetOperationOwnership
+    identity: OperationIdentity
+    state: OperationState
+    side_effect_state: SideEffectState
+    result: dict[str, Any] | None
 
 
 def validate_actual_usage(

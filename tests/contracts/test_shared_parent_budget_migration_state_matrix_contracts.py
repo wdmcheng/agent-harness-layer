@@ -98,6 +98,26 @@ def test_0016_backfills_0015_delegation_four_state_matrix(
     }
     result = {"outcome": "completed", "delegation_id": "delegation-a"}
     settled = settled_tokens is not None
+    target_routes = cast(dict[str, Any], cast(dict[str, Any], snapshot["agents"])["agent-b"])[
+        "routes"
+    ]
+    top_identity = OperationIdentity.from_delegation_request(
+        tenant_id="tenant-a",
+        fingerprint_key=b"legacy-test-key",
+        fingerprint_key_version="legacy-key-v1",
+        canonical_request_bytes=b"legacy-delegation-request-a",
+        parent_run_id="root-a",
+        source_agent_id="agent-a",
+        target_agent_id="agent-b",
+        delegation_claim_id="delegation-a",
+        operation_slot="key-a",
+        tree_snapshot_id="snapshot:legacy-four-state",
+        target_sub_snapshot_id="snapshot:legacy-four-state:agent-b",
+        target_route_catalog_digest=f"budget-routes-v1:{canonical_hash(target_routes)}",
+        cost_enabled=False,
+        trusted_token_bound=10,
+        trusted_cost_bound=None,
+    ).to_payload()
     claim = {
         "id": "claim-delegation-a",
         "operation_kind": "delegation",
@@ -105,8 +125,8 @@ def test_0016_backfills_0015_delegation_four_state_matrix(
         "delegation_id": "delegation-a",
         "run_id": "root-a",
         "agent_id": "agent-a",
-        "usage_kind": None,
-        "identity_json": None,
+        "usage_kind": "delegation",
+        "identity_json": top_identity,
         "request_hash": "request-hash-a",
         "reserved_tokens": 10,
         "reserved_cost": None,
@@ -305,10 +325,21 @@ def test_0016_backfills_0015_delegation_four_state_matrix(
                 ),
             )
         if not terminal_case:
-            connection.execute(
-                "insert into checkpoints(id,tenant_id,run_id,sequence,resume_token,state_json) "
-                "values ('checkpoint-a','tenant-a','root-a',1,'resume-a',?)",
-                (json.dumps({"shared_budget_backfill_v1": bundle}),),
+            seed_backfill_records(
+                connection,
+                tenant_id="tenant-a",
+                run_id="root-a",
+                bundle=bundle,
+                delegation_fingerprint_proofs=(
+                    {}
+                    if release_case == "checkpoint-missing-reservation"
+                    else delegation_fingerprint_proofs(
+                        top_identity,
+                        delegation_id="delegation-a",
+                        request_hash="request-hash-a",
+                    )
+                ),
+                prefix="checkpoint-a",
             )
         connection.commit()
 

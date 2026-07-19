@@ -67,6 +67,45 @@ class EmbeddingCacheRepository:
             mark_hit=True,
         )
 
+    async def peek(
+        self,
+        *,
+        tenant_id: str,
+        provider: str,
+        model: str,
+        input_hash: str,
+    ) -> EmbeddingCacheRecord | None:
+        """只读 tenant-scoped cache，不在预检事务外提交 hit evidence。"""
+
+        return await self._get(
+            tenant_id=tenant_id,
+            provider=provider,
+            model=model,
+            input_hash=input_hash,
+            mark_hit=False,
+        )
+
+    async def mark_hit(
+        self,
+        *,
+        tenant_id: str,
+        provider: str,
+        model: str,
+        input_hash: str,
+    ) -> EmbeddingCacheRecord:
+        """在调用方 UoW 内提交 hit evidence，缺失记录视为完整性损坏。"""
+
+        record = await self._get(
+            tenant_id=tenant_id,
+            provider=provider,
+            model=model,
+            input_hash=input_hash,
+            mark_hit=True,
+        )
+        if record is None:
+            raise LookupError("embedding cache hit record is missing")
+        return record
+
     async def _get(
         self,
         *,

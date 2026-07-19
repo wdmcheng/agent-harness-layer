@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import os
 from decimal import Decimal
 
@@ -15,6 +17,7 @@ from tests.contracts.embedding_cache_postgresql_migration_contract_helpers impor
 )
 from tests.contracts.run_trace_migration_test_helpers import migration_config
 
+from agent_harness.delegation.models import delegation_relation_id
 from agent_harness.storage import SQLAlchemyStorage, run_migrations
 from agent_harness.storage.delegation_repositories import (
     DelegationBudgetExceeded,
@@ -23,7 +26,7 @@ from agent_harness.storage.delegation_repositories import (
     DelegationStorageConflict,
 )
 from agent_harness.storage.repositories import RunCreate, SessionCreate
-from agent_harness.storage.shared_budget import LedgerCreate
+from agent_harness.storage.shared_budget import LedgerCreate, OperationIdentity
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("AGENT_HARNESS_TEST_POSTGRES_DSN"),
@@ -140,10 +143,39 @@ def _claim(
     request_hash: str,
     reserved_tokens: int,
     parent_limit: int = 100,
-    parent_cost_limit: float | None = None,
-    requested_cost_reservation: float | None = None,
+    parent_cost_limit: float | None = 10.0,
+    requested_cost_reservation: float | None = 10.0,
+    trusted_token_bound: int = 60,
 ) -> DelegationClaimCreate:
+    delegation_id = delegation_relation_id(
+        tenant_id=f"tenant-{suffix}",
+        parent_run_id=parent_run_id,
+        idempotency_key=key,
+    )
+    routes = [
+        {
+            "usage_kind": "model",
+            "provider": "fake",
+            "model": "fake-basic",
+            "price_source_ref": "price:fake",
+            "price_source_version": "v1",
+            "input_token_price_usd": "0",
+            "output_token_price_usd": "0",
+            "soft_max_tokens_per_call": parent_limit,
+        }
+    ]
+    catalog_digest = hashlib.sha256(
+        json.dumps(
+            routes,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    trusted_cost = None if parent_cost_limit is None else Decimal(str(parent_cost_limit))
     return DelegationClaimCreate(
+        delegation_id=delegation_id,
         tenant_id=f"tenant-{suffix}",
         parent_run_id=parent_run_id,
         source_agent_id="agent-source",
@@ -158,6 +190,23 @@ def _claim(
         requested_token_reservation=reserved_tokens,
         parent_cost_limit=parent_cost_limit,
         requested_cost_reservation=requested_cost_reservation,
+        budget_identity=OperationIdentity.from_delegation_request(
+            tenant_id=f"tenant-{suffix}",
+            fingerprint_key=b"postgres-delegation-contract-key",
+            fingerprint_key_version="postgres-delegation-v1",
+            canonical_request_bytes=request_hash.encode("utf-8"),
+            parent_run_id=parent_run_id,
+            source_agent_id="agent-source",
+            target_agent_id="agent-target",
+            delegation_claim_id=delegation_id,
+            operation_slot=key,
+            tree_snapshot_id=f"snapshot:{parent_run_id}",
+            target_sub_snapshot_id=f"snapshot:{parent_run_id}:agent-target",
+            target_route_catalog_digest=f"budget-routes-v1:{catalog_digest}",
+            cost_enabled=parent_cost_limit is not None,
+            trusted_token_bound=trusted_token_bound,
+            trusted_cost_bound=trusted_cost,
+        ),
     )
 
 

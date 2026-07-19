@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Protocol
+from typing import Any
 
+from agent_harness.embeddings._invocation_replay import (
+    _EmbeddingReplayMixin,
+    _EmbeddingSettlement,
+    _IdentityRuntime,
+)
 from agent_harness.embeddings.provider import (
     EmbeddingProvider,
     EmbeddingRequest,
@@ -30,15 +34,7 @@ from agent_harness.storage.shared_budget import (
     BudgetOperationOwnership,
     BudgetReservationRejected,
     DirectBudgetClaim,
-    OperationIdentity,
 )
-
-
-@dataclass(frozen=True)
-class _EmbeddingSettlement:
-    usage: UsageSettlementClaim
-    ownership: BudgetOperationOwnership | None
-    safe_to_start: bool = False
 
 
 class EmbeddingProviderInvocationError(RuntimeError):
@@ -47,20 +43,7 @@ class EmbeddingProviderInvocationError(RuntimeError):
     code = "embedding.provider_failed"
 
 
-class _IdentityRuntime(Protocol):
-    def operation_identity(self, **values: Any) -> OperationIdentity: ...
-
-    def embedding_price_config(
-        self,
-        *,
-        snapshot: dict[str, Any],
-        agent_id: str,
-        provider: str,
-        model: str,
-    ) -> tuple[Decimal | None, str, str]: ...
-
-
-class _EmbeddingSettlementMixin:
+class _EmbeddingSettlementMixin(_EmbeddingReplayMixin):
     """承载 cache/provider 调用前后必须保持原子一致的 usage 生命周期。"""
 
     _provider: EmbeddingProvider
@@ -152,6 +135,12 @@ class _EmbeddingSettlementMixin:
                         )
                     )
                     if ledger.cost_limit is not None and trusted_cost is None:
+                        # 当前请求没有 durable claim 时，sequence 完整性高于所有
+                        # hard-budget eligibility；失败不得进入拒绝 evidence 路径。
+                        await uow.event_capacity.assert_sequence_state_valid(
+                            tenant_id=context.tenant_id,
+                            run_id=context.run_id,
+                        )
                         raise BudgetReservationRejected(reason="intent_unbounded")
                     identity = self._shared_budget.operation_identity(
                         tenant_id=context.tenant_id,
@@ -161,7 +150,7 @@ class _EmbeddingSettlementMixin:
                         delegation_claim_id=resolved.delegation_id,
                         usage_kind="embedding",
                         operation_slot=usage_call_id,
-                        semantic_request={"input": request.input},
+                        semantic_request=self._semantic_request(request),
                         tree_snapshot_id=ledger.snapshot_id,
                         agent_sub_snapshot_id=f"{ledger.snapshot_id}:{context.agent_id}",
                         provider=self._provider.provider,
@@ -242,6 +231,14 @@ class _EmbeddingSettlementMixin:
                     usage_call_id=usage_call_id,
                     result=zero_result,
                     error_code=None,
+                )
+                # 预检 lookup 必须保持只读；只有 shared claim、usage result 与
+                # capacity 都已成功时，才在同一 UoW 内把 cache evidence 标记为 hit。
+                await uow.embedding_cache.mark_hit(
+                    tenant_id=context.tenant_id,
+                    provider=cached.provider,
+                    model=cached.model,
+                    input_hash=cached.cache.input_hash,
                 )
             await uow.commit()
             return _EmbeddingSettlement(

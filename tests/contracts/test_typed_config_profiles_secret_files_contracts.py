@@ -180,6 +180,85 @@ def test_secret_file_maps_to_existing_typed_field_and_strips_one_line_ending(
     assert settings.storage.dsn == "postgresql+asyncpg://service:token@db/app "
 
 
+def test_budget_fingerprint_key_is_typed_secret_and_excluded_from_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """预算指纹 key 只存在于类型化 settings 内存边界，不进入通用 payload。"""
+
+    secret_fixture = "  budget-fingerprint-secret  "
+    monkeypatch.setenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY", secret_fixture)
+    monkeypatch.delenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE", raising=False)
+
+    settings = load_settings(profile="local", profiles_dir=PROFILES)
+
+    assert settings.budget.fingerprint_key.get_secret_value() == secret_fixture
+    assert "fingerprint_key" not in settings.budget.model_dump()
+    assert "fingerprint_key" not in settings.budget.to_payload()
+    assert secret_fixture not in repr(settings)
+    assert secret_fixture not in repr(settings.budget)
+
+
+def test_budget_fingerprint_key_file_preserves_content_except_one_line_ending(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Runtime 不得再 strip 已由 CFG-001 精确解析的 secret 内容。"""
+
+    trusted_root = tmp_path / "secrets"
+    trusted_root.mkdir()
+    secret_path = trusted_root / "budget-fingerprint"
+    secret_path.write_text("  file-budget-secret  \n", encoding="utf-8")
+    monkeypatch.delenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY", raising=False)
+    monkeypatch.setenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE", str(secret_path))
+
+    settings = load_settings(
+        profile="local",
+        profiles_dir=PROFILES,
+        secret_root=trusted_root,
+    )
+
+    assert settings.budget.fingerprint_key.get_secret_value() == "  file-budget-secret  "
+
+
+def test_budget_fingerprint_key_missing_fails_at_typed_settings_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY", raising=False)
+    monkeypatch.delenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE", raising=False)
+
+    with pytest.raises(SettingsLoadError) as exc_info:
+        load_settings(profile="local", profiles_dir=PROFILES)
+
+    error = exc_info.value.errors[0]
+    assert error.code == "config.invalid"
+    assert error.field_path == "budget.fingerprint_key"
+
+
+def test_budget_fingerprint_direct_and_file_conflict_uses_cfg001_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trusted_root = tmp_path / "secrets"
+    trusted_root.mkdir()
+    secret_path = trusted_root / "budget-fingerprint"
+    secret_path.write_text("file-budget-secret", encoding="utf-8")
+    monkeypatch.setenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY", "direct-budget-secret")
+    monkeypatch.setenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE", str(secret_path))
+
+    with pytest.raises(SettingsLoadError) as exc_info:
+        load_settings(
+            profile="local",
+            profiles_dir=PROFILES,
+            secret_root=trusted_root,
+        )
+
+    error = exc_info.value.errors[0]
+    assert error.code == "config.secret_file_conflict"
+    assert error.field_path == "budget.fingerprint_key"
+    assert "direct-budget-secret" not in str(exc_info.value)
+    assert "file-budget-secret" not in str(exc_info.value)
+
+
 def test_direct_and_secret_file_conflict_fails_before_reading_secret(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

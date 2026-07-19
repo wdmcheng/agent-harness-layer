@@ -113,13 +113,26 @@ async def test_delegation_sequence_state_invalid_precedes_budget(tmp_path: Path)
                 .where(RunEventCapacityModel.run_id == parent_run_id)
                 .values(terminal_reservation=0)
             )
+            await uow.session.execute(
+                update(ParentBudgetLedgerModel)
+                .where(ParentBudgetLedgerModel.budget_owner_run_id == parent_run_id)
+                .values(state="needs_review")
+            )
             await uow.commit()
         async with storage.uow() as uow:
             with pytest.raises(DelegationStorageConflict) as rejected:
-                await uow.delegations.claim_and_reserve(
-                    _claim(parent_run_id, requested_token_reservation=150)
-                )
+                await uow.delegations.claim_and_reserve(_claim(parent_run_id))
         assert rejected.value.code == "event.sequence_state_invalid"
+        async with storage.uow() as uow:
+            await uow.session.execute(
+                update(RunEventCapacityModel)
+                .where(RunEventCapacityModel.run_id == parent_run_id)
+                .values(terminal_reservation=1)
+            )
+            await uow.commit()
+        async with storage.uow() as uow:
+            with pytest.raises(DelegationBudgetExceeded):
+                await uow.delegations.claim_and_reserve(_claim(parent_run_id))
     finally:
         await storage.dispose()
 
@@ -288,6 +301,7 @@ async def test_new_claim_rejects_when_worst_case_exceeds_parent_remaining_budget
                         request_hash="b" * 64,
                         requested_token_reservation=60,
                         requested_cost_reservation=None,
+                        _trusted_cost_bound=4.0,
                     )
                 )
         async with storage.uow() as uow:
@@ -322,6 +336,7 @@ async def test_finite_parent_cost_uses_owner_ceiling_for_null_target_ceiling(
                     parent_run_id,
                     requested_token_reservation=10,
                     requested_cost_reservation=None,
+                    _trusted_token_bound=60,
                 )
             )
             await uow.commit()
@@ -386,6 +401,8 @@ async def test_frozen_cost_disabled_mode_ignores_current_config_enablement(
                     requested_token_reservation=10,
                     parent_cost_limit=1.0,
                     requested_cost_reservation=1.0,
+                    _cost_enabled=False,
+                    _trusted_cost_bound=None,
                 )
             )
             ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)

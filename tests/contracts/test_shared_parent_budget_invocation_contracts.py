@@ -50,6 +50,7 @@ from agent_harness.storage.event_capacity_repositories import (
 from agent_harness.storage.models import RunEventCapacityModel
 from agent_harness.storage.repositories import EmbeddingCacheCreate
 from agent_harness.storage.shared_budget import (
+    BudgetOperationConflict,
     BudgetOperationOwnership,
     BudgetReservationRejected,
     DirectBudgetClaim,
@@ -303,6 +304,7 @@ async def resolve_trace(**_: object) -> str:
 __all__ = [
     "Any",
     "ApprovalGrant",
+    "BudgetOperationConflict",
     "BudgetOperationClaimModel",
     "BudgetOperationOwnership",
     "BudgetReservationRejected",

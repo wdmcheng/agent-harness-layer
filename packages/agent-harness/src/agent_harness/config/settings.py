@@ -60,10 +60,22 @@ def load_settings(
         for key, value in os.environ.items()
         if key.startswith(ENV_PREFIX) and key not in {"AGENT_HARNESS_CONFIG"}
     }
-    secret_env = load_secret_file_env(
-        process_env,
-        secret_root=secret_root or DEFAULT_SECRET_ROOT,
-    )
+    secret_env: dict[str, str] = {}
+    secret_load_errors: list[ErrorDetail] | None = None
+    try:
+        secret_env = load_secret_file_env(
+            process_env,
+            secret_root=secret_root or DEFAULT_SECRET_ROOT,
+        )
+    except SettingsLoadError as exc:
+        # secret loader 的原异常 traceback 会保留调用参数；只提取不含输入值的
+        # 结构化错误，并在离开 except 后重新抛出干净异常。
+        secret_load_errors = list(exc.errors)
+    if secret_load_errors is not None:
+        for sensitive_values in (data, agent_data, env_values, process_env, secret_env):
+            sensitive_values.clear()
+        del overrides
+        raise SettingsLoadError(secret_load_errors)
     data = _deep_merge(data, _env_values_to_nested(secret_env))
 
     # direct 进程环境变量覆盖 secret file，用于非冲突字段和非 secret 配置；
