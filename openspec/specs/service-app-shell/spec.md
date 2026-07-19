@@ -245,3 +245,14 @@ Local app、service API 与 worker composition SHALL 为 model、embedding、del
 #### Scenario: Local 与 service 使用相同组合错误优先级
 - **WHEN** local/SQLite 与 service/PostgreSQL 对相同 stable key、relation/snapshot、budget 与 event-capacity 组合执行新 claim 或 replay
 - **THEN** 两条入口都按 exact replay/identity conflict、integrity、`event.sequence_state_invalid`、budget、`event.sequence_exhausted`、unique-race重读的顺序收敛；capacity-only逐值返回`event.sequence_exhausted`，budget+capacity返回对应budget code，数据库异常不进入公开消息
+
+### Requirement: Service app 注册 RUN-006 精确契约
+service app SHALL 注册 RUN-006，并在 OpenAPI 中精确声明 header/query、`text/event-stream` success content、JSON error envelope 与允许的 response status。route MUST 复用现有 run ownership、tenant、policy、event sink 和 request/trace correlation，不得创建第二套事件存储。
+
+#### Scenario: OpenAPI 包含精确 RUN-006
+- **WHEN** 生成 service app OpenAPI
+- **THEN** RUN-006 path、parameters、success media type 与错误状态集合和 `API-Contract.md` 一致，不缺失也不暴露额外状态
+
+#### Scenario: 不存在或跨租户 run 不建立 stream
+- **WHEN** 调用方请求不存在或不属于当前租户的 run
+- **THEN** API 在发送 SSE headers 前返回稳定 404 envelope，不泄漏其他租户事件

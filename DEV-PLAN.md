@@ -7,11 +7,11 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-19 的 v1.9。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-19 的 v1.10。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-13.8A 的已完成 changes 均已归档并同步主规格。当前仅 `sse-event-streaming` 保持 active，任务为 17/17，状态为 `ready-to-archive`；按约束不自动归档。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-13.9 的已完成 changes 均已归档并同步主规格，当前无 active change。
 - 代码状态: Phase 1-13.8A 已完成计划内实现、验证、fresh Stage 1/2 审查与归档。Phase 13.9 已实现 RUN-006、CLI-EVT-001、统一授权 EventSink reader/capacity 边界和首 frame P95，并通过完整门禁及最终 3 名 fresh reviewer；Phase 14、15 均未开始。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
@@ -19,20 +19,20 @@
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | Phase 1-13.9 已实现、验证并审查；13.9 待用户决定归档 | 七个补缺 change 已于 2026-07-19 同步主规格并归档；`sse-event-streaming` 保持 active、`ready-to-archive`，Phase 14、15 未开始。 |
-| 当前 Phase | Phase 13.9 SSE transport 已完成 | `sse-event-streaming` 为唯一 active change，当前 17/17。 |
+| 总体状态 | Phase 1-13.9 已实现、验证、审查并归档 | Phase 13.5-13.9 的八个补缺 change 已于 2026-07-19 同步主规格并归档；Phase 14、15 未开始。 |
+| 当前 Phase | Phase 14 待开始 | Phase 13.9 的 `sse-event-streaming` 已以 17/17 归档。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13 | Phase 13 三个 change 已按 queue → split runtime → deployment proof 顺序同步主规格并归档。 |
-| 当前 OpenSpec change | `sse-event-streaming` | 17/17；保持 active、`ready-to-archive`，未归档。 |
+| 当前 OpenSpec change | 无 | `openspec list --json` 返回空列表；`sse-event-streaming` 已归档到 `openspec/changes/archive/2026-07-19-sse-event-streaming/`。 |
 | 当前验证基线 | Phase 13.9 完整门禁与最终 3-review 已通过 | 真实 PostgreSQL 定向 `63 passed`；全量 `996 passed, 222 skipped`；30 样本首 frame P95 `4.059ms`；quality、eval `11/11`、local smoke、真实 PostgreSQL/Redis service smoke、build、license、strict 与 diff check 均通过。 |
 | 当前阻塞项 | 无 | 阶段标签收口改动按用户显式裁决无需重新 review；其余受审实现、契约与测试保持冻结。 |
-| 当前建议下一步 | 等待用户决定是否归档 active change | 不自动 push、不 archive、不发布或部署。 |
+| 当前建议下一步 | 进入 Phase 14 深度文档、ADR 与维护者指南 | 不自动 push、发布或部署。 |
 
 ## 剩余工作
 
 ### 立即下一步
 
 - Phase 13 三个历史 change 已按依赖顺序归档；不自动 push 或发布。
-- Phase 13.5-13.8A 的七个已实现 change 已同步主规格并归档；当前只保留 Phase 13.9 SSE active。
+- Phase 13.5-13.9 的八个已实现 change 已同步主规格并归档，当前无 active change。
 - Phase 14 只能在上述 P0 gap 闭环后开始，Phase 15 仍保持未开始。
 
 ### 后续 Phase
@@ -46,13 +46,13 @@
 - Phase 13.7: Model/Embedding usage evidence、durable settlement 与 local latency 已完成 17/17 tasks、审查，并于 2026-07-19 归档；依赖 Phase 13.6A。
 - Phase 13.8: 真实受控 delegation 与 parent aggregation 已完成 14/14 tasks、联合审查，并于 2026-07-19 归档；依赖 Phase 13.7。
 - Phase 13.8A: Parent execution-tree shared budget、typed fingerprint secret 与 `0016` 历史迁移修正已完成 27/27 tasks、联合审查，并于 2026-07-19 归档；依赖 Phase 13.8。
-- Phase 13.9: SSE transport、Last-Event-ID、CLI stream 与首 frame 性能已实现并通过完整门禁及最终 3-review；当前 active change 为 17/17、`ready-to-archive`，未归档。
+- Phase 13.9: SSE transport、Last-Event-ID、CLI stream 与首 frame 性能已实现并通过完整门禁及最终 3-review，并于 2026-07-19 归档。
 - Phase 14: 深度文档、ADR 与维护者指南。
 - Phase 15: CI/CD、Release Automation 与合规收口。
 
 ### 关键验收状态
 
-- AC-017：RUN-001 至 RUN-006 已全部进入运行时 OpenAPI，并由 path/header/query/media type/status 双向精确合同覆盖；Phase 13.9 的最终 3-review 仍单独按 active change 门禁收口。
+- AC-017：RUN-001 至 RUN-006 已全部进入运行时 OpenAPI，并由 path/header/query/media type/status 双向精确合同覆盖；Phase 13.9 的最终 3-review 与归档均已收口。
 - AC-008、AC-063：Phase 13.6 已实现并提交 application startup fail-closed、受控 Docker secret file 加载和公开 evidence 脱敏；异常链与 frame locals 泄漏已修复，对应 change 已归档。
 - FLOW-003 / ApprovalRecord trace：Phase 13.6A 已切换为 canonical run trace 非空生成、传播与历史 backfill；跨 tenant/不同 idempotency key 的同 trace 竞争由全局 trace 锁覆盖锁内复检、guardrail/audit 与 root claim，相同 event-id 仅允许除 seq/timestamp 外完整稳定语义一致的重试，terminal/approval 恢复先复用既有确定性 evidence。对应 changes 已归档。
 - AC-064、AC-065：model/embedding evidence、stable semantic slot、queued run 执行前 recovery 与 local fake run `<5s` 已实现，完整门禁与阶段独立代码 1+2 已通过，对应 change 已归档。
@@ -851,7 +851,7 @@ Phase 1 Monorepo / quality spine
 - P0 不增加 event 清理、TTL 或 retention job；run 存续期间 CanonicalEvent evidence 保留。未来 retention 必须另建 behavior change 定义 expired cursor，不能在 Phase 13.9 中隐式加入。
 - 已存在可见 event 时首 frame 小于 1 秒；局部 OpenAPI drift、HTTP/CLI transport contracts、local/service transport smoke 和断线重连通过。
 
-**状态**：实现、完整验证与最终 3-review 已完成，OpenSpec 任务 17/17；定向合同、local smoke、真实 PostgreSQL reader、PostgreSQL/Redis service smoke 与 30 样本首 frame P95 均通过，active change 为 `ready-to-archive`，按约束不自动归档。
+**状态**：实现、完整验证与最终 3-review 已完成，OpenSpec 任务 17/17；定向合同、local smoke、真实 PostgreSQL reader、PostgreSQL/Redis service smoke 与 30 样本首 frame P95 均通过，并于 2026-07-19 同步主规格后归档。
 
 ---
 
@@ -982,7 +982,7 @@ Phase 1 Monorepo / quality spine
 - 包管理器只用 `uv`；不使用 poetry、pipenv、npm 作为 Python 依赖主流程。
 - 每个 Phase 必须先有失败测试或 contract test，再实现代码；不接受先堆代码后补测试作为 Phase 完成方式。
 - 新增或修改 HTTP endpoint 必须先更新 `API-Contract.md`，再新增局部 OpenAPI drift contract test，最后实现 route；发布前全量复扫只做证据汇总，不作为第一次发现契约问题的入口。
-- 同一目标的多个 OpenSpec change 只要共享 run/event/config/测试或验收，就必须在任何实现开始前完成逐 change 严格校验，并由 3 个 fresh code-reviewer 按 1+2 执行同一冻结范围的联合审查：第 1 名对每个 change 及组合范围给出 Stage 1/2 PASS 后，才并行派第 2、3 名；三名都必须同时给出逐 change 与联合 PASS。任一 finding、修复或受审 diff 都使既有 PASS 失效并从第 1 名重启，不再重复建立一套与联合审查分离的逐 change reviewer 队列。本轮 13.5-13.9 包含七个归档候选 change 与一个保持 active 的 `sse-event-streaming`，八者不得声称彼此独立，其中 `embedding-cache-tenant-isolation` 是 Phase 13.6A 的强制前置。
+- 同一目标的多个 OpenSpec change 只要共享 run/event/config/测试或验收，就必须在任何实现开始前完成逐 change 严格校验，并由 3 个 fresh code-reviewer 按 1+2 执行同一冻结范围的联合审查：第 1 名对每个 change 及组合范围给出 Stage 1/2 PASS 后，才并行派第 2、3 名；三名都必须同时给出逐 change 与联合 PASS。任一 finding、修复或受审 diff 都使既有 PASS 失效并从第 1 名重启，不再重复建立一套与联合审查分离的逐 change reviewer 队列。本轮 13.5-13.9 的八个关联 change 已按依赖顺序完成并归档，其中 `embedding-cache-tenant-isolation` 是 Phase 13.6A 的强制前置。
 - Phase 13.5-13.9 实现严格按 `13.5 -> 13.6 -> 13.6A -> 13.7 -> 13.8 -> 13.8A -> 13.9` 串行。后序 change 在前序未归档 diff 上继续工作并必须重跑全部受影响合同；不得并行编辑共享文件，也不得用后序 change 覆盖前序已通过行为。
 - 共享文件按接力所有权收口：`app/api/routes/runs.py` 由 13.5 建立精确 response map、13.6A 固定 trace header/生成、13.8 扩展 detail、13.9 最终加入 SSE并保留累计合同；`app/api/schemas.py` 由 13.8 建立 delegation schema、13.9 只追加 SSE 所需 schema；`app/runtime.py` 依次承接 13.6 startup、13.6A trace、13.7 usage、13.8 delegation；`app/main.py` 由 13.5 先接入窄化 OpenAPI factory、13.6 固定 startup、13.6A 接入 trace normalizer、13.9 再装配 SSE；`scripts/smoke_local.py` 由 13.6A 先固定 run trace、13.7 再固定 fake latency、13.9 最终追加首 frame 门禁。每次 Phase 接力后的 1+2 审查覆盖累计行为。
 - 共享 storage/event 文件同样按串行接力：`storage/models.py`、`storage/repositories.py`、`storage/migrations/versions` 与 migration contracts 先以 `0012a_embedding_cache_tenant_scope` 闭环 Phase 6 cache 租户隔离并把物理表切换为 `tenant_embedding_cache`；再由 13.6A 的 `0013` 建立 trace binding/backfill，并以 `0013a_run_trace_event_hardening` 在不改写已应用 revision 的前提下统一旧/fresh 事件 shape；13.7 的 `0014` 必须直接依赖 `0013a`，增加 durable evidence outbox/usage settlement与 event capacity reservation并把 approval resolution/terminal 纳入有序恢复，13.8 在 `0015` 追加 delegation/aggregation/budget reservation，13.8A 的 `0016` 再引入 shared owner ledger/top-level claim/child allocation并在 DDL 前完成全拓扑和独立历史证据 preflight。`0013a -> 0013` 只回退 stamp并保留硬化 schema；其余破坏性 downgrade 仍必须满足 evidence 全空和精确 Alembic opt-in。

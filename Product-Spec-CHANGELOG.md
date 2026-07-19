@@ -1,5 +1,11 @@
 # 变更记录
 
+## [v1.10] - 2026-07-19
+### Phase 13.9 归档
+
+- 将 `sse-event-streaming` 的三个 delta specs 精确同步到 `canonical-events-artifacts`、`service-app-shell` 与新增的 `sse-event-streaming` 主规格，保留既有主规格内容。
+- `sse-event-streaming` 已以 17/17 tasks 归档到 `openspec/changes/archive/2026-07-19-sse-event-streaming/`；当前无 active change，不代表 push、发布或部署。
+
 ## [v1.9] - 2026-07-19
 ### Phase 13.9 状态同步
 
