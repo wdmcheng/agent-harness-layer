@@ -1,13 +1,13 @@
 # Phase 15 关联 change 矩阵
 
-本矩阵记录三个 active change 的依赖、共享验收和本地收口边界。三者共享 Phase 15 验收和实现范围，因此不主张独立；默认审查规则保持不变。本次 Phase 15 的 Reviewer 2/3 已由用户明确作出一次性最终审查豁免，该豁免记录为 `owner-waived`，不构成联合 Reviewer PASS，也不适用于后续 Phase。
+本矩阵记录 Phase 15 三个 change 的依赖、共享验收和本地收口边界。三者共享 Phase 15 验收和实现范围，因此不主张独立；默认审查规则保持不变。本次 Phase 15 的 Reviewer 2/3 已由用户明确作出一次性最终审查豁免，该豁免记录为 `owner-waived`，不构成联合 Reviewer PASS，也不适用于后续 Phase。三个 change 已于 2026-07-22 同步主规格并归档。
 
 ## 当前收口状态
 
 - 审查确认的 `2 HIGH + 1 MEDIUM + 1 LOW` 已按最小范围修复，fresh Reviewer 1 对四项修复给出 Stage 1/2 PASS。
 - 受影响 quality/test/OpenSpec strict 已通过；真实 PostgreSQL 18.4/Redis 7.2.14 `smoke-service` 在 uv `0.11.29` 且 localhost 绕过宿主代理时完整退出 0，用户已裁决该门禁按 PASS 处理。
-- 用户明确取消最终 Reviewer 2/3，并对本次 Phase 15 作出一次性 `owner-waived` 裁决。三个 change 的本地任务均完成，可标记 `ready-to-archive`；这不是 Reviewer 2/3 PASS。
-- 三个 change 继续保持 active。GitHub/GitLab hosted runner、artifact service、远端 reviewer/protected ref/secret 与真实 provider/registry 执行仍为 `hosted-unverified`，AC-053/054 保持未勾选；不声明已归档或已发布。
+- 用户明确取消最终 Reviewer 2/3，并对本次 Phase 15 作出一次性 `owner-waived` 裁决。三个 change 的本地任务均完成并已归档；这不是 Reviewer 2/3 PASS。
+- 当前无 active change。GitHub/GitLab hosted runner、artifact service、远端 reviewer/protected ref/secret 与真实 provider/registry 执行仍为 `hosted-unverified`，AC-053/054 保持未勾选；不声明已发布。
 
 ## 依赖与允许顺序
 

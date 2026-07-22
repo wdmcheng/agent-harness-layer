@@ -107,7 +107,7 @@ Registry upload/check endpoint 只接受不含 userinfo、query 或 fragment 的
 
 本轮 macOS arm64 本地边界为：act `0.2.88` 的 checkout、setup-uv `0.11.29` 和 `make ci-lock` 已执行通过，故 GitHub 仓库 gate 的本地证据为 PASS；整个 job 仍因 act artifact server 不支持 upload-artifact v4 `mime_type` 而失败，该上传不再作为本地收口验收项。GitLab 使用 `gitlab-ci-local 4.73.0`，在隔离副本中按其只同步 tracked files 的官方约束纳入当前 dirty 内容后，固定 Debian trixie arm64 镜像已完成 bootstrap、uv `0.11.29`、`make ci-lock` 与 artifact 导出并退出 0。GitHub/GitLab hosted execution、远端 protected environment、secret/artifact service 和 provider/registry side effect 仍是未验证边界，不能用本地 contract 或静态 YAML 解析宣称通过。
 
-Phase 15 的本地实现和验证任务已完成。用户明确取消最终 Reviewer 2/3，并对本次 Phase 作出一次性 `owner-waived` 裁决，因此三个 active change 可记录本地 `ready-to-archive`；这不构成 Reviewer 2/3 PASS，也不改变后续 Phase 的默认审查规则。AC-053/054 继续保持 `hosted-unverified`，只有真实 hosted pipeline 与远端保护证据才能关闭。
+Phase 15 的本地实现和验证任务已完成，三个 change 已于 2026-07-22 同步主规格并归档。用户明确取消最终 Reviewer 2/3，并对本次 Phase 作出一次性 `owner-waived` 裁决；这不构成 Reviewer 2/3 PASS，也不改变后续 Phase 的默认审查规则。AC-053/054 继续保持 `hosted-unverified`，只有真实 hosted pipeline 与远端保护证据才能关闭。
 
 ## 排障
 
