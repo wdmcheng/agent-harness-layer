@@ -32,7 +32,7 @@
         <mxCell id="access-fastapi" value="FastAPI Routes&#xa;HTTP API / OpenAPI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2563eb;fontSize=11;fontStyle=1;" vertex="1" parent="layer-access">
           <mxGeometry x="25" y="52" width="140" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="access-ws" value="P0 待实现 SSE Adapter&#xa;当前 JSON seam；P1 可选 WS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;dashed=1;" vertex="1" parent="layer-access">
+        <mxCell id="access-ws" value="HTTP SSE 已实现&#xa;Last-Event-ID；CLI NDJSON；P1 可选 WS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontSize=11;fontStyle=1;" vertex="1" parent="layer-access">
           <mxGeometry x="179" y="52" width="140" height="70" as="geometry" />
         </mxCell>
         <mxCell id="access-cli" value="CLI / Batch Trigger&#xa;离线任务 / 自动化入口" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2563eb;fontSize=11;fontStyle=1;" vertex="1" parent="layer-access">
@@ -74,10 +74,10 @@
         <mxCell id="layer-engine" value="3. 引擎与认知层 Engine" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;fillColor=#fef3c7;strokeColor=#d97706;fontSize=15;fontStyle=1;swimlaneFillColor=#fef3c7;" vertex="1" parent="core-zone">
           <mxGeometry x="40" y="535" width="960" height="180" as="geometry" />
         </mxCell>
-        <mxCell id="engine-core" value="Agent Core&#xa;Pydantic AI Agent · 预留 Sub-Agent 委派位" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d97706;fontSize=12;fontStyle=1;" vertex="1" parent="layer-engine">
+        <mxCell id="engine-core" value="Agent Core&#xa;Pydantic AI Agent · 受控 Sub-Agent 委派" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d97706;fontSize=12;fontStyle=1;" vertex="1" parent="layer-engine">
           <mxGeometry x="25" y="50" width="280" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="engine-router" value="Model Router&#xa;便宜/旗舰/本地 · 失败与超预算降级链" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d97706;fontSize=12;fontStyle=1;" vertex="1" parent="layer-engine">
+        <mxCell id="engine-router" value="Model Router&#xa;路由/降级 · model/embedding usage evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d97706;fontSize=12;fontStyle=1;" vertex="1" parent="layer-engine">
           <mxGeometry x="340" y="50" width="280" height="50" as="geometry" />
         </mxCell>
         <mxCell id="engine-output" value="Structured Output&#xa;Result Schema / Validator / Retry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d97706;fontSize=12;fontStyle=1;" vertex="1" parent="layer-engine">
@@ -89,7 +89,7 @@
         <mxCell id="engine-compact" value="当前 Context Compact seam&#xa;历史裁剪 / 上下文收敛" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=12;fontStyle=1;" vertex="1" parent="layer-engine">
           <mxGeometry x="255" y="112" width="210" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="engine-budget" value="Budget Policy&#xa;Token / Cost / Timeout 熔断" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=12;fontStyle=1;" vertex="1" parent="layer-engine">
+        <mxCell id="engine-budget" value="Budget Policy&#xa;Token / Cost / Timeout · shared parent tree" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=12;fontStyle=1;" vertex="1" parent="layer-engine">
           <mxGeometry x="485" y="112" width="210" height="50" as="geometry" />
         </mxCell>
         <mxCell id="engine-async-compact" value="未来复杂 memory 策略&#xa;长期记忆 / 异步后台压缩" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontStyle=1;dashed=1;" vertex="1" parent="layer-engine">
@@ -173,7 +173,7 @@
         <mxCell id="l-evals-tools" value="RAG / Tool Evals&#xa;当前：Mock / Safety&#xa;未来可选：Ragas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c7efff;strokeColor=#0288d1;fontSize=11;fontStyle=1;" vertex="1" parent="left-zone">
           <mxGeometry x="20" y="758" width="200" height="74" as="geometry" />
         </mxCell>
-        <mxCell id="l-evals-infra" value="待实现 Phase 15&#xa;Release Gate / CI 阈值门禁" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontStyle=1;" vertex="1" parent="left-zone">
+        <mxCell id="l-evals-infra" value="Phase 15 已实现&#xa;双 CI / Release / License Gate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontSize=12;fontStyle=1;" vertex="1" parent="left-zone">
           <mxGeometry x="20" y="992" width="200" height="56" as="geometry" />
         </mxCell>
         <mxCell id="r-log-access" value="Access Trace&#xa;入口请求 / 会话 / 错误率" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0ddff;strokeColor=#7b1fa2;fontSize=12;fontStyle=1;" vertex="1" parent="right-zone">
@@ -221,7 +221,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-stream-return" value="■ P0 待实现 SSE；P1 可选 WS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontColor=#9a6700;fontStyle=1;spacing=4;align=left;" vertex="1" parent="core-zone">
+        <mxCell id="label-stream-return" value="■ HTTP SSE / CLI NDJSON 已实现；WS 为 P1 可选" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontSize=11;fontColor=#1e3a8a;fontStyle=1;spacing=4;align=left;" vertex="1" parent="core-zone">
           <mxGeometry x="20" y="252" width="170" height="26" as="geometry" />
         </mxCell>
         <mxCell id="label-hitl-return" value="■ HITL 审批回路" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=11;fontColor=#ea580c;fontStyle=1;spacing=4;align=left;" vertex="1" parent="core-zone">
@@ -239,7 +239,7 @@
         <mxCell id="e-left-tools" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;endArrow=block;endFill=1;dashed=1;strokeColor=#0288d1;strokeWidth=2;" edge="1" parent="1" source="l-evals-tools" target="layer-tools">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-left-infra" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.65;endArrow=block;endFill=1;dashed=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" parent="1" source="l-evals-infra" target="layer-infra">
+        <mxCell id="e-left-infra" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.65;endArrow=block;endFill=1;strokeColor=#2f5597;strokeWidth=2;" edge="1" parent="1" source="l-evals-infra" target="layer-infra">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e-right-access" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;endArrow=block;endFill=1;dashed=1;strokeColor=#7b1fa2;strokeWidth=2;" edge="1" parent="1" source="layer-access" target="r-log-access">
