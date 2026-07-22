@@ -46,7 +46,7 @@ uv run pre-commit run --all-files
 
 失败即停止。不要在 service smoke 失败时用 local 结果替代；不要在 license check 通过后声称完成了依赖许可证法律审计。
 
-本地执行必须使用仓库固定的 uv `0.11.29`。若宿主设置了 HTTP 代理，`127.0.0.1`/`localhost` 必须进入 `NO_PROXY` 与 `no_proxy`；否则 service smoke 的宿主 HTTP 请求可能被代理截获并返回 HTML 503，而容器内 API 仍健康。2026-07-22 的 Phase 15 候选已在 `NO_PROXY=127.0.0.1,localhost` 下完整通过真实 service smoke 并生成 service trace；这证明本地 service gate，不证明 hosted runner 或生产网络配置。
+本地执行必须使用仓库固定的 uv `0.11.29`。若宿主设置了 HTTP 代理，`127.0.0.1`/`localhost` 必须进入 `NO_PROXY` 与 `no_proxy`；否则 service smoke 的宿主 HTTP 请求可能被代理截获并返回 HTML 503，而容器内 API 仍健康。2026-07-22 的归档候选已在 `NO_PROXY=127.0.0.1,localhost` 下完整通过真实 service smoke 并生成 service trace；这证明本地 service gate，不证明 hosted runner 或生产网络配置。
 
 ## 版本真相
 
@@ -97,9 +97,9 @@ act 对 GitHub artifact service 的模拟并不等同 hosted service；本轮若
 
 Redis server `7.2.14` 按其版本化官方 [`COPYING`](https://raw.githubusercontent.com/redis/redis/7.2.14/COPYING) 记录为 BSD-3-Clause，redis-py client 独立记录为 MIT；二者都不等同于本仓库的 Apache-2.0。Redis 7.4+ 进入不同许可证体系，升级 Redis、改变分发/托管用途或准备生产发布前，必须按 [Redis 官方许可说明](https://redis.io/legal/licenses/) 和 [ADR-0003](adr/0003-redis-runtime-license-policy.md) 重新复核 NOTICE。本文不提供法律意见。
 
-## Phase 15 当前边界
+## 当前发布边界
 
-`.github/workflows/ci.yml` 与 `.gitlab-ci.yml` 复用同一组 `make ci-*` 入口，覆盖 lock/install、独立质量项、unit/contract、integration、eval、local/service smoke、build、license 和 release dry-run，并以独立 result/log 与 artifact 归档失败诊断。两套 CI 的独立 `p0-validate` clean-runner job 显式下载或继承矩阵所需的全部 producer evidence，其中包括不会自动存在于新 runner 的 `install`、`integration` 与 `build` 结果。`docs/p0-acceptance-matrix.md` 将 92 个 P0 REQ/AC 逐项映射到仓库内存在的具体生产文件、精确 pytest node、CI job 和实际证据路径；validator 会拒绝目录、文件级测试映射、缺失/越界路径、空壳节点及已列明验收的 producer/行为节点错配。经独立审查点名的 import 扫描、fake adapter/eval、默认 tenant、deny audit、MCP allowlist 与 API/worker/tool/model/Event 关联传播均固定到实际执行相应行为的节点，不能退回只检查常量或无关 happy path 的测试。AC-001 的 `uv sync --frozen` 由 `install` 证据证明，AC-002 的 `uv build` 由 `build` 证据证明，AC-003/006 的 workspace 外 wheel 与复制模板运行由 `integration` 和实际集成测试证明；AC-012/068 明确由 `test-aggregate` 的 SQLite 节点与真实 PostgreSQL `smoke-service` 两部分共同证明，不能拿会跳过的 PostgreSQL pytest 冒充完整后端闭环。AC-065 映射到从公开入口完成 single-agent fake run 的正向节点，并由 `smoke-local` 证明总时延 `<5s`。
+`.github/workflows/ci.yml` 与 `.gitlab-ci.yml` 复用同一组 `make ci-*` 入口，覆盖 lock/install、独立质量项、unit/contract、integration、eval、local/service smoke、build、license 和 release dry-run，并以独立 result/log 与 artifact 归档失败诊断。两套 CI 的独立 `acceptance-validate` clean-runner job 显式下载或继承矩阵所需的全部 producer evidence，其中包括不会自动存在于新 runner 的 `install`、`integration` 与 `build` 结果。`docs/acceptance-matrix.md` 显式选择需要长期保障的 REQ，并将所选 REQ 及其全部 AC（当前共 92 项）逐项映射到仓库内存在的具体生产文件、精确 pytest node、CI job 和实际证据路径；validator 不从开发阶段或优先级标签推断范围，并会拒绝孤立 AC、目录、文件级测试映射、缺失/越界路径、空壳节点及已列明验收的 producer/行为节点错配。经独立审查点名的 import 扫描、fake adapter/eval、默认 tenant、deny audit、MCP allowlist 与 API/worker/tool/model/Event 关联传播均固定到实际执行相应行为的节点，不能退回只检查常量或无关 happy path 的测试。AC-001 的 `uv sync --frozen` 由 `install` 证据证明，AC-002 的 `uv build` 由 `build` 证据证明，AC-003/006 的 workspace 外 wheel 与复制模板运行由 `integration` 和实际集成测试证明；AC-012/068 明确由 `test-aggregate` 的 SQLite 节点与真实 PostgreSQL `smoke-service` 两部分共同证明，不能拿会跳过的 PostgreSQL pytest 冒充完整后端闭环。AC-065 映射到从公开入口完成 single-agent fake run 的正向节点，并由 `smoke-local` 证明总时延 `<5s`。
 
 `make release-dry-run` 使用 Conventional Commits 和固定 `python-semantic-release==10.6.1` 计算下一 SemVer；有 releasable commits 时生成 `release-preview/v1`，无 releasable commits 时成功退出且不创建 tag/release。`make release-promote-plan` 同时生成版本化 plan 与 GitLab child config：GitHub 依据 plan output 在无凭据 `promote-no-release` 和 protected execute 间二选一；GitLab 的动态 child 对 `no-release` 只实例化无 environment/secret 的回执 job，对 `planned` 才实例化四阶段人工门禁。`make registry-publish-plan` 只接受已 promotion 的正式 build；只有 protected job 在 `make release-promote-execute` / `make registry-publish-execute` 注入显式授权、匹配的 preview/promotion receipt、受限 credential 和固定 HTTPS endpoint 后才可能执行副作用；本 checkout 不执行真实 promotion/publish。
 
@@ -107,7 +107,7 @@ Registry upload/check endpoint 只接受不含 userinfo、query 或 fragment 的
 
 本轮 macOS arm64 本地边界为：act `0.2.88` 的 checkout、setup-uv `0.11.29` 和 `make ci-lock` 已执行通过，故 GitHub 仓库 gate 的本地证据为 PASS；整个 job 仍因 act artifact server 不支持 upload-artifact v4 `mime_type` 而失败，该上传不再作为本地收口验收项。GitLab 使用 `gitlab-ci-local 4.73.0`，在隔离副本中按其只同步 tracked files 的官方约束纳入当前 dirty 内容后，固定 Debian trixie arm64 镜像已完成 bootstrap、uv `0.11.29`、`make ci-lock` 与 artifact 导出并退出 0。GitHub/GitLab hosted execution、远端 protected environment、secret/artifact service 和 provider/registry side effect 仍是未验证边界，不能用本地 contract 或静态 YAML 解析宣称通过。
 
-Phase 15 的本地实现和验证任务已完成，三个 change 已于 2026-07-22 同步主规格并归档。用户明确取消最终 Reviewer 2/3，并对本次 Phase 作出一次性 `owner-waived` 裁决；这不构成 Reviewer 2/3 PASS，也不改变后续 Phase 的默认审查规则。AC-053/054 继续保持 `hosted-unverified`，只有真实 hosted pipeline 与远端保护证据才能关闭。
+release、license 与双 CI 的三个历史 change 已于 2026-07-22 同步主规格并归档；当时记录的一次性 `owner-waived` 只描述该冻结候选的历史审查边界，不构成后续 reviewer PASS 或默认规则。AC-053/054 继续保持 `hosted-unverified`，只有真实 hosted pipeline 与远端保护证据才能关闭。
 
 ## 排障
 

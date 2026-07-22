@@ -33,6 +33,8 @@ def validate(repo: Path, expected_tag: str | None) -> None:
 
 
 def main() -> int:
+    """解析 history guard 参数，并以机器稳定消息报告完整性结果。"""
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--expected-tag")

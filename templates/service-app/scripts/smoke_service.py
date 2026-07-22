@@ -7,67 +7,30 @@ import os
 import re
 import secrets
 import shutil
-import time
 from pathlib import Path
-from typing import Any, cast
 from uuid import uuid4
 
-from service_approval_smoke import run_approval_smoke
-from service_budget_crash_smoke import shared_budget_crash_smoke as _shared_budget_crash_smoke
-from service_http_smoke import (
-    request as _request,
-)
-from service_http_smoke import (
-    submit as _submit,
-)
-from service_http_smoke import (
-    wait_for as _wait_for,
-)
-from service_http_smoke import (
-    wait_run_status as _wait_run_status,
-)
 from service_secret_smoke import (
-    assert_configuration_secret_absent,
     verify_secret_failure_cases,
 )
 from service_smoke_operations import (
-    assert_stale_receipt,
-    inspect_run,
     parse_args,
     prepare_core_wheel,
 )
+from service_smoke_scenarios import run_service_smoke
 from service_smoke_support import (
     cleanup_credential_at_boundary,
     cleanup_project,
     compose,
-    compose_result,
     failure_diagnostic,
     free_port,
-    last_json_line,
-    latest_stream_message,
-    postgres_counts,
-    postgres_terminal_evidence,
     preserve_postgres_volume,
-    reclaim_receipts_match,
-    redis_json,
     run,
-    stream_length,
 )
-from service_sse_smoke import run_sse_smoke
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 STREAM = "agent-harness:service:runs:stream"
 GROUP = "agent-harness-workers"
-
-
-def _stream_length(env: dict[str, str]) -> int:
-    """读取本 service 队列 stream 的长度，避免调用方重复传递固定名称。"""
-    return stream_length(env, STREAM)
-
-
-def _latest_message(env: dict[str, str]) -> tuple[str, dict[str, Any]]:
-    """读取本轮最新队列消息，忽略前置 crash-window 检查留下的历史消息。"""
-    return latest_stream_message(env, STREAM)
 
 
 def _server_versions(env: dict[str, str]) -> dict[str, str]:
@@ -80,341 +43,6 @@ def _server_versions(env: dict[str, str]) -> dict[str, str]:
     if postgres_match is None or redis_match is None:
         raise RuntimeError("service smoke did not report database server versions")
     return {"postgres": postgres_match.group(1), "redis": redis_match.group(1)}
-
-
-def _write_service_trace(env: dict[str, str], completed: dict[str, Any]) -> None:
-    """把 PostgreSQL inspect 的真实事件导出为受限 service trace JSONL。
-
-    Service profile 的事件 sink 是 PostgreSQL，配置中的 observability path 不会产生
-    local JSONL；CI trace 必须从已经过相关性核验的持久化事件导出，不能伪造空文件。
-    """
-
-    raw_events = completed.get("events")
-    if not isinstance(raw_events, list) or not raw_events:
-        raise RuntimeError("service smoke PostgreSQL trace is empty")
-    events = cast(list[object], raw_events)
-    if any(not isinstance(event, dict) for event in events):
-        raise RuntimeError("service smoke PostgreSQL trace contains an invalid event")
-
-    trace_path = Path(env["SERVICE_APP_SMOKE_DIR"]) / "trace.jsonl"
-    temporary = trace_path.with_name(f".{trace_path.name}.{uuid4().hex}.tmp")
-    records = [
-        {
-            "schema_version": "service-smoke-trace/v1",
-            "source": "postgresql",
-            "run_id": completed["run_id"],
-            "tenant_id": completed["tenant_id"],
-            "event": cast(dict[str, Any], event),
-        }
-        for event in events
-    ]
-    try:
-        temporary.write_text(
-            "".join(
-                json.dumps(
-                    record,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    allow_nan=False,
-                )
-                + "\n"
-                for record in records
-            ),
-            encoding="utf-8",
-        )
-        temporary.chmod(0o600)
-        temporary.replace(trace_path)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
-def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, object]:
-    """执行完整 service 冒烟链路，并返回跨组件可复核的脱敏证据。
-
-    链路按镜像、依赖、迁移、认证、预算崩溃窗口、消息重领、SSE、用量、
-    幂等重放与审批恢复的因果顺序推进。每一段先写入稳定边界名称，失败时
-    外层仅暴露该边界和隔离 project，避免敏感配置或 Provider 内容进入日志。
-    """
-    base_url = f"http://127.0.0.1:{env['SERVICE_APP_API_PORT']}"
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "image-build"
-    compose(env, "build", "migration")
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "redis-readiness"
-    compose(env, "up", "-d", "--wait", "postgres", "redis")
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "secret-failure-contracts"
-    secret_failures = verify_secret_failure_cases(env)
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "migration"
-    compose(env, "run", "--rm", "migration")
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "postgres-budget-race"
-    budget_race_result = compose_result(
-        env,
-        "run",
-        "--rm",
-        "migration",
-        "python",
-        "scripts/service_admin.py",
-        "assert-budget-race",
-    )
-    if budget_race_result.returncode != 0:
-        try:
-            diagnostic = last_json_line(budget_race_result.stdout)
-        except (RuntimeError, ValueError, json.JSONDecodeError):
-            diagnostic = {}
-        error_type = str(diagnostic.get("error_type") or "unknown")
-        error_code = str(diagnostic.get("error_code") or "none")
-        env["SERVICE_APP_SMOKE_BOUNDARY"] = f"postgres-budget-race-{error_type}-{error_code}"
-        raise RuntimeError("PostgreSQL budget race failed")
-    budget_race = last_json_line(budget_race_result.stdout)
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "postgres-budget-topology"
-    budget_topology_result = compose_result(
-        env,
-        "run",
-        "--rm",
-        "migration",
-        "python",
-        "scripts/service_admin.py",
-        "assert-budget-topology",
-    )
-    if budget_topology_result.returncode != 0:
-        try:
-            diagnostic = last_json_line(budget_topology_result.stdout)
-        except (RuntimeError, ValueError, json.JSONDecodeError):
-            diagnostic = {}
-        error_type = str(diagnostic.get("error_type") or "unknown")
-        error_code = str(diagnostic.get("error_code") or "none")
-        env["SERVICE_APP_SMOKE_BOUNDARY"] = f"postgres-budget-topology-{error_type}-{error_code}"
-        raise RuntimeError("PostgreSQL budget topology failed")
-    budget_topology = last_json_line(budget_topology_result.stdout)
-
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "credential-bootstrap"
-    bootstrap_env = {**env, "SERVICE_APP_BOOTSTRAP_TOKEN": token}
-    last_json_line(
-        compose(
-            bootstrap_env,
-            "run",
-            "--rm",
-            "-e",
-            "SERVICE_APP_BOOTSTRAP_TOKEN",
-            "-e",
-            "SERVICE_APP_BOOTSTRAP_TENANT",
-            "migration",
-            "python",
-            "scripts/service_admin.py",
-            "bootstrap",
-        )
-    )
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "api-readiness"
-    compose(env, "up", "-d", "--wait", "api")
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "api-auth"
-    if env.get("SERVICE_APP_SMOKE_FAIL_AFTER_BOOTSTRAP") == "1":
-        raise RuntimeError("deterministic smoke failure after credential bootstrap")
-
-    before_counts = postgres_counts(env)
-    before_stream = _stream_length(env)
-    missing_status, _ = _request(
-        base_url,
-        "POST",
-        "/api/v1/agents/examples.basic/runs",
-        body={"input": {}},
-    )
-    invalid_status, _ = _request(
-        base_url,
-        "POST",
-        "/api/v1/agents/examples.basic/runs",
-        token="invalid-service-smoke-token",
-        body={"input": {}},
-    )
-    if (missing_status, invalid_status) != (401, 401):
-        raise RuntimeError("service verifier did not reject missing/invalid credential")
-    if postgres_counts(env) != before_counts or _stream_length(env) != before_stream:
-        raise RuntimeError("rejected credential created run, audit, or queue side effects")
-
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "shared-budget-crash-windows"
-    budget_crash_windows = _shared_budget_crash_smoke(
-        env,
-        base_url=base_url,
-        token=token,
-    )
-
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "pickup-reclaim"
-    request_id = f"request-{uuid4()}"
-    idempotency_key = f"smoke-{uuid4()}"
-    submitted = _submit(
-        base_url,
-        token,
-        agent_id="examples.ticket_triage",
-        input_payload={"text": "production outage: checkout is down"},
-        idempotency_key=idempotency_key,
-        request_id=request_id,
-    )
-    run_id = cast(str, submitted["run_id"])
-    message_id, message = _latest_message(env)
-    expected = {
-        "request_id": request_id,
-        "idempotency_key": idempotency_key,
-        "tenant_id": tenant_id,
-        "run_id": run_id,
-    }
-    if any(message.get(key) != value for key, value in expected.items()):
-        raise RuntimeError(f"Redis queue correlation mismatch: {message}")
-
-    worker_a = f"{env['SERVICE_APP_COMPOSE_PROJECT']}-worker-a"
-    compose(
-        env,
-        "run",
-        "-d",
-        "--name",
-        worker_a,
-        "--no-deps",
-        "-e",
-        "SERVICE_APP_SMOKE_CRASH_AFTER_OWNER=1",
-        "-e",
-        "SERVICE_APP_READY_FILE=",
-        "-e",
-        "SERVICE_APP_SMOKE_CRASH_MARKER=/smoke/crash-owner.json",
-        "-e",
-        "SERVICE_APP_SMOKE_RECEIPT_MARKER=/smoke/worker-a-receipt.json",
-        "-e",
-        "SERVICE_APP_SMOKE_RECLAIM_RELEASE=",
-        "worker",
-    )
-
-    def crashed() -> bool:
-        """判断注入 owner 后崩溃的 worker 是否以约定退出码结束。"""
-        result = run(
-            ["docker", "inspect", "-f", "{{.State.Status}}|{{.State.ExitCode}}", worker_a],
-            env=env,
-            check=False,
-        )
-        return result.stdout.strip() == "exited|23"
-
-    _wait_for("worker A hard crash", crashed)
-    marker = json.loads((Path(env["SERVICE_APP_SMOKE_DIR"]) / "crash-owner.json").read_text())
-    worker_a_receipt = json.loads(
-        (Path(env["SERVICE_APP_SMOKE_DIR"]) / "worker-a-receipt.json").read_text()
-    )
-    crashed_state = inspect_run(env, run_id)
-    if crashed_state["status"] != "running" or crashed_state["owner_id"] != marker["owner_id"]:
-        raise RuntimeError("worker A exited before application owner was durable")
-    execution_expected = {**expected, "message_id": message_id}
-    if any(crashed_state.get(key) != value for key, value in execution_expected.items()):
-        raise RuntimeError("PostgreSQL execution correlation mismatch after worker A crash")
-    pending = cast(list[list[object]], redis_json(env, "XPENDING", STREAM, GROUP, "-", "+", "10"))
-    if (
-        not pending
-        or pending[0][0] != worker_a_receipt["message_id"]
-        or pending[0][1] != worker_a_receipt["consumer_id"]
-        or int(cast(int, pending[0][3])) != worker_a_receipt["delivery_count"]
-    ):
-        raise RuntimeError(f"worker A did not leave the original fenced receipt pending: {pending}")
-
-    time.sleep(float(env["SERVICE_APP_RECLAIM_IDLE_SECONDS"]) + 0.25)
-    compose(env, "up", "-d", "--wait", "worker")
-    worker_b_receipt_path = Path(env["SERVICE_APP_SMOKE_DIR"]) / "worker-b-receipt.json"
-    _wait_for("worker B reclaim receipt", worker_b_receipt_path.exists)
-    worker_b_receipt = json.loads(worker_b_receipt_path.read_text(encoding="utf-8"))
-    if not reclaim_receipts_match(message_id, worker_a_receipt, worker_b_receipt):
-        raise RuntimeError(f"worker B reclaim receipt mismatch: {worker_b_receipt}")
-    reclaimed_pending = cast(
-        list[list[object]], redis_json(env, "XPENDING", STREAM, GROUP, "-", "+", "10")
-    )
-    if (
-        not reclaimed_pending
-        or reclaimed_pending[0][1] != worker_b_receipt["consumer_id"]
-        or int(cast(int, reclaimed_pending[0][3])) != worker_b_receipt["delivery_count"]
-    ):
-        raise RuntimeError("worker B reclaim ownership was not pending during fencing check")
-    if not assert_stale_receipt(
-        env,
-        stream=worker_a_receipt["stream"],
-        group=worker_a_receipt["group"],
-        message_id=worker_a_receipt["message_id"],
-        consumer_id=worker_a_receipt["consumer_id"],
-        delivery_count=worker_a_receipt["delivery_count"],
-    ):
-        raise RuntimeError("worker A stale receipt was not rejected")
-    (Path(env["SERVICE_APP_SMOKE_DIR"]) / "reclaim-release").touch()
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "dbos-event-wait-completed"
-    _wait_run_status(base_url, token, run_id, "completed")
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "dbos-event-inspect"
-    try:
-        completed = inspect_run(env, run_id)
-    except RuntimeError as exc:
-        if str(exc).startswith("service.inspect."):
-            env["SERVICE_APP_SMOKE_BOUNDARY"] = str(exc)
-        raise
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "postgres-sse-transport"
-    sse_evidence = run_sse_smoke(
-        env,
-        base_url=base_url,
-        token=token,
-        run_id=run_id,
-    )
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "dbos-event-usage"
-    try:
-        postgres_evidence = postgres_terminal_evidence(
-            execution_expected,
-            completed,
-            workflow_id=marker["workflow_id"],
-        )
-    except RuntimeError as exc:
-        if str(exc).startswith("service.evidence."):
-            env["SERVICE_APP_SMOKE_BOUNDARY"] = str(exc)
-        raise
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "idempotency-replay"
-    replay = _submit(
-        base_url,
-        token,
-        agent_id="examples.ticket_triage",
-        input_payload={"text": "production outage: checkout is down"},
-        idempotency_key=idempotency_key,
-        request_id=f"retry-{uuid4()}",
-    )
-    if replay["run_id"] != run_id:
-        raise RuntimeError("idempotent HTTP retry created another run")
-
-    approval_evidence = run_approval_smoke(env, base_url=base_url, token=token)
-
-    evidence: dict[str, object] = {
-        "migration": "0016_shared_parent_budget_ledger",
-        "secret_file": {
-            "consumers": ["migration", "api", "worker"],
-            "postgres_password_file": True,
-            "compose_config_redacted": True,
-            "redacted": True,
-            "failure_cases": secret_failures,
-        },
-        "auth": {"missing": 401, "invalid": 401, "side_effects": 0},
-        "queue": {
-            **expected,
-            "message_id": message_id,
-            "delivery_count": worker_b_receipt["delivery_count"],
-            "stale_receipt_rejected": True,
-        },
-        "dbos": {
-            "executor_id": marker["executor_id"],
-            "owner_id": marker["owner_id"],
-            "workflow_id": marker["workflow_id"],
-            "hard_crash_exit": 23,
-        },
-        "run": {"run_id": run_id, "status": "completed", "terminal_count": 1},
-        "sse": sse_evidence,
-        "postgresql": postgres_evidence,
-        "postgresql_budget_race": budget_race,
-        "postgresql_budget_topology": budget_topology,
-        "shared_budget_crash_windows": budget_crash_windows,
-        **approval_evidence,
-    }
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "trace-export"
-    _write_service_trace(env, completed)
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "secret-evidence-scan"
-    assert_configuration_secret_absent(
-        env,
-        base_url=base_url,
-        evidence=evidence,
-        request=_request,
-    )
-    return evidence
 
 
 def main() -> int:
@@ -490,7 +118,7 @@ def main() -> int:
             }
         else:
             credential_cleanup_needed = True
-            evidence = _run_smoke(env, token, tenant_id)
+            evidence = run_service_smoke(env, token, tenant_id)
             env["SERVICE_APP_SMOKE_BOUNDARY"] = "credential-cleanup"
             if not cleanup_credential_at_boundary(env, token):
                 raise RuntimeError("service smoke credential cleanup did not delete one record")

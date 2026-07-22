@@ -203,4 +203,4 @@ templates/service-app/
 
 ## Release Process
 
-本模板在源仓库中是 workspace 成员，复制后则是独立项目；两种模式都不代表生产部署已经完成。当前仓库只提供人工 quality/test/eval/smoke/build/license 门禁，自动版本、tag、CHANGELOG、CI workflow 和 registry publish 仍属 Phase 15。不要把 `make dev` 当作生产启动方案；发布前按仓库级 [release process](../../docs/release-process.md) 复核当前缺口。
+本模板在源仓库中是 workspace 成员，复制后则是独立项目；两种模式都不代表生产部署已经完成。当前仓库已提供统一 quality/test/eval/smoke/build/license 门禁、双 CI 合同、自动版本与 CHANGELOG 预演，以及受保护的 promotion/private registry plan/execute seam；本地验证保持零外部副作用。GitHub/GitLab hosted runner、远端 reviewer/protected ref/secret、artifact service 和真实 provider/registry 执行仍为 `hosted-unverified`。不要把 `make dev` 当作生产启动方案；发布前按仓库级 [release process](../../docs/release-process.md) 复核远端保护与凭据边界。

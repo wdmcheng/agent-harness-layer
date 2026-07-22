@@ -1,7 +1,7 @@
-# dual-ci-p0-evidence Specification
+# dual-ci-acceptance-evidence Specification
 
 ## Purpose
-TBD - created by archiving change ci-p0-evidence-closure. Update Purpose after archive.
+定义 GitHub Actions 与 GitLab CI 的等价质量门禁、可追溯证据、受保护发布流程，以及由需求验收矩阵显式选择的长期 REQ/AC 覆盖契约。
 ## Requirements
 ### Requirement: 两套 CI 使用等价稳定入口
 GitHub Actions 与 GitLab CI SHALL 调用同一组仓库 Make targets，等价覆盖 lock/install、ruff format、ruff lint、pyright、import boundary、unit/contract、integration、eval、smoke-local、真实 PostgreSQL/Redis smoke-service、build、license 和 release dry-run。
@@ -30,7 +30,7 @@ GitHub Actions 与 GitLab CI SHALL 调用同一组仓库 Make targets，等价�
 ### Requirement: CI artifacts 可复现并可诊断失败
 每个 gate SHALL 保留 result/log；pipeline MUST 归档 JUnit/coverage、trace、eval、smoke logs、wheel/sdist、checksum、license report 和 release preview，并用相对路径与受审 commit/diff identity 绑定。
 
-Evidence producer 与 P0 matrix validator SHALL 复用同一个输入身份实现；该身份 MUST 覆盖 tracked binary diff 以及所有未忽略的 untracked 文件路径、mode 和 bytes，生成目录不得污染身份。
+Evidence producer 与 acceptance matrix validator SHALL 复用同一个输入身份实现；该身份 MUST 覆盖 tracked binary diff 以及所有未忽略的 untracked 文件路径、mode 和 bytes，生成目录不得污染身份。
 
 通用 result MUST 遵循 `ci-result/v1`；release 原生 artifact MUST 遵循 `release-preview/v1`、`release-promotion-plan/v1`、`release-build/v1`、`release-promotion/v1` 与 `registry-publish-plan/v1`，license 原生 artifact MUST 遵循 `license-report/v1`。消费者遇到未知 major、缺必填字段、非法状态枚举、绝对路径或 checksum 不一致时必须失败；registry plan consumer 只接受 `status: planned`，promotion plan consumer 只接受完整 `planned` 或零授权 `no-release`，正式 build consumer 只接受 `status: built`。
 
@@ -51,7 +51,7 @@ eval 与 smoke gate MUST 生成稳定原生产物：`.artifacts/eval/scores.json
 
 #### Scenario: 原生产物占位或归档集合漂移时失败
 - **WHEN** job contract 出现 `native_artifacts_pending`、稳定原生产物缺失，或 manifest、`ci-result/v1`、GitHub 与 GitLab 任一归档集合不一致
-- **THEN** CI contract validator 非零失败，P0 matrix 不得把该 gate 标为已有可归档证据
+- **THEN** CI contract validator 非零失败，acceptance matrix 不得把该 gate 标为已有可归档证据
 
 ### Requirement: pipeline 语义由合同测试和实际 runner 共同证明
 系统 MUST 同时验证 YAML 触发/依赖/artifact/权限合同与 `act`、`gitlab-ci-local` 中仓库 Make gate 的真实执行；任一层未运行不得表述为 hosted CI PASS。artifact 上传路径、权限和失败保留语义由静态 pipeline 合同继续 fail closed；本地 artifact service 不属于仓库 gate 的验收依赖，也不能用于证明 hosted artifact 可下载。
@@ -84,11 +84,11 @@ GitHub release 相关 checkout MUST 使用 `fetch-depth: 0`，GitLab 对应 jobs
 - **THEN** 未补全 history/tags 时 wrapper 非零失败；按两套 CI 合同补全后 `git rev-parse --is-shallow-repository` 为 `false`、历史 tag 可见并使用正确版本基线
 
 ### Requirement: 本地 ready-to-archive 不冒充 hosted PASS
-仓库实现、合同测试、local runner 中的仓库 Make gates 与本地验证证据全部完成时，change 默认还需 frozen review 才可标记为本地授权范围内 `ready-to-archive`。若仓库 owner 对本次 Phase 明确作出一次性最终审查豁免，change MAY 记录 `owner-waived` 后进入本地 `ready-to-archive`，但 MUST NOT 把豁免写成 reviewer PASS，也不得把它扩展为后续 Phase 的默认规则。本地 artifact service 不属于该仓库 gate 的验收依赖。若未 push 触发 hosted runner，AC-053/054 的 hosted execution、artifact service 与远端 environment protection MUST 保持未验证，Product-Spec 不得勾选为通过。
+仓库实现、合同测试、local runner 中的仓库 Make gates 与本地验证证据全部完成时，change 默认还需 frozen review 才可标记为本地授权范围内 `ready-to-archive`。若仓库 owner 对本次变更明确作出一次性最终审查豁免，change MAY 记录 `owner-waived` 后进入本地 `ready-to-archive`，但 MUST NOT 把豁免写成 reviewer PASS，也不得把它扩展为后续变更的默认规则。本地 artifact service 不属于该仓库 gate 的验收依赖。若未 push 触发 hosted runner，AC-053/054 的 hosted execution、artifact service 与远端 environment protection MUST 保持未验证，Product-Spec 不得勾选为通过。
 
 #### Scenario: 本地证据完成但 hosted 未运行
-- **WHEN** 两套 pipeline 合同和 local runner 仓库 gates 均通过，frozen review 已完成或 owner 已明确记录本 Phase 的一次性审查豁免，但本轮按约束没有 push 或远端配置变更
-- **THEN** change 可记录本地 ready-to-archive；若采用豁免则同时记录 `owner-waived` 而非 reviewer PASS。P0 matrix 将 hosted execution、artifact service、远端 reviewer/protected ref/secret 标为 `hosted-unverified`，且不声明已发布或已归档
+- **WHEN** 两套 pipeline 合同和 local runner 仓库 gates 均通过，frozen review 已完成或 owner 已明确记录本次变更的一次性审查豁免，但本轮按约束没有 push 或远端配置变更
+- **THEN** change 可记录本地 ready-to-archive；若采用豁免则同时记录 `owner-waived` 而非 reviewer PASS。acceptance matrix 将 hosted execution、artifact service、远端 reviewer/protected ref/secret 标为 `hosted-unverified`，且不声明已发布或已归档
 
 ### Requirement: 发布权限遵循最小权限和人工门禁
 普通 CI MUST 只有只读仓库权限且不能访问 promotion/publish credential。可发布输入的真实发布 DAG MUST 固定为 `promote-plan -> promote-execute -> publish-plan -> publish-execute`；无版本变化输入 MUST 从同一 promotion plan 分流到无 environment、无 credential 的 no-release 终止节点，且不得调度任何 registry job。plan job MUST 只读、不得读取任何 push/provider/registry credential；registry plan 原子生成状态为 `planned` 的 `registry-publish-plan/v1`，promotion plan 对可发布输入生成 `planned`，对无版本变化输入生成零授权 `no-release`。planned execute job MUST 显式手动触发、依赖全部质量门禁、绑定受保护 environment/ref 并下载同一 plan artifact，在任何副作用前重新计算动态 `approval_sha256`；no-release 节点只消费同一 plan 并生成零副作用回执。`promote-execute` MUST 在 release commit/tag/release notes 后从 tag target 生成状态为 `built` 的 `release-build/v1`，`publish-plan` 与 `publish-execute` 不得使用 preview wheel/sdist。GitHub MUST 通过 plan output 条件化 planned/no-release jobs；GitLab MUST 由无凭据 plan 生成只实例化对应节点的动态 child pipeline。GitHub `promote-execute` MAY 单独使用 `contents: write`，但在 checkout `persist-credentials: false` 时 MUST 由 protected environment 注入与冻结 HTTPS host 绑定的短期 push credential，且不得读取 registry credential；`publish-execute` 恢复 `contents: read`。GitLab planned child 的 execute jobs MUST 使用受保护、分权、短期或最小 scoped credential，不得假定普通 `CI_JOB_TOKEN` 默认拥有 Git push 权限。
@@ -121,19 +121,27 @@ GitHub release 相关 checkout MUST 使用 `fetch-depth: 0`，GitLab 对应 jobs
 - **WHEN** YAML 引用了 environment/manual gate 但远端 reviewer、protected ref 或 secret 未经 hosted 验证
 - **THEN** acceptance evidence 只记录配置合同与本地执行通过，并列出平台管理员必须完成的前置条件，不宣称 hosted publish ready
 
-### Requirement: P0 acceptance matrix 覆盖全部需求
-系统 SHALL 将 Product-Spec 中每个 P0 REQ 和 AC 唯一映射到仓库内存在的具体生产文件、实际执行该验收行为的一个或多个 CI job、至少一个以 `path.py::test_name` 或 `path.py::TestClass::test_name` 表示且真实验证该行为的精确 pytest node，以及各 job 产生的实际 evidence path，并用 validator 阻止遗漏、重复、文件级测试映射、共享 helper 或仅含 `pass`/`assert True` 的空壳冒充测试、producer 错配、泛化目录或虚假完成状态。复合验收使用等长的 `<br>` 分隔 job/evidence 列表，不得用其中任一绿色 gate 代替其余行为。GitHub/GitLab MUST 各自包含独立的 required `p0-validate` 终端 job，下载或继承矩阵声明的全部 producer evidence，包括 clean runner 默认不会拥有的 `install`、`integration` 与 `build` evidence，并让后续 promotion 等待该门禁；`test-aggregate` 内部仅在已有证据时执行的自检不得代替该 job。
+### Requirement: 需求验收矩阵完整覆盖显式选择的需求
+系统 SHALL 由需求验收矩阵显式选择需要持续保障的 Product-Spec REQ；validator MUST 要求每个所选 REQ 及其全部 AC 唯一映射到仓库内存在的具体生产文件、实际执行该验收行为的一个或多个 CI job、至少一个以 `path.py::test_name` 或 `path.py::TestClass::test_name` 表示且真实验证该行为的精确 pytest node，以及各 job 产生的实际 evidence path。validator MUST 拒绝没有父 REQ 的孤立 AC，并且不得根据开发阶段或优先级标签推断验收范围。它还必须阻止遗漏、重复、文件级测试映射、共享 helper 或仅含 `pass`/`assert True` 的空壳冒充测试、producer 错配、泛化目录或虚假完成状态。复合验收使用等长的 `<br>` 分隔 job/evidence 列表，不得用其中任一绿色 gate 代替其余行为。GitHub/GitLab MUST 各自包含独立的 required `acceptance-validate` 终端 job，下载或继承矩阵声明的全部 producer evidence，包括 clean runner 默认不会拥有的 `install`、`integration` 与 `build` evidence，并让后续 promotion 等待该门禁；`test-aggregate` 内部仅在已有证据时执行的自检不得代替该 job。
 
-#### Scenario: P0 validator 是 hosted required terminal gate
+#### Scenario: 需求验收 validator 是 hosted required terminal gate
 - **WHEN** GitHub 或 GitLab 在 clean runner 完成矩阵所需的 install、quality、test、integration、eval、smoke、license、build、release dry-run 与 CI contract producers
-- **THEN** 独立 `p0-validate` job 消费全部对应 `ci-result/v1` 后才允许 pipeline 成功，GitLab promotion 显式等待该 job，任一 producer evidence 缺失或 identity 漂移均阻断后续发布
+- **THEN** 独立 `acceptance-validate` job 消费全部对应 `ci-result/v1` 后才允许 pipeline 成功，GitLab promotion 显式等待该 job，任一 producer evidence 缺失或 identity 漂移均阻断后续发布
 
-#### Scenario: P0 matrix 完整
+#### Scenario: acceptance matrix 完整
 - **WHEN** matrix validator 读取 Product-Spec 与验收矩阵
-- **THEN** 每个 P0 REQ/AC 均有状态、存在的具体生产文件、CI job、存在且非空壳的精确 pytest node 和 evidence，且未验证边界不会被标成通过
+- **THEN** 矩阵显式选择的每个 REQ 及其全部 AC 均有状态、存在的具体生产文件、CI job、存在且非空壳的精确 pytest node 和 evidence，且未验证边界不会被标成通过
+
+#### Scenario: 矩阵范围不依赖阶段标签
+- **WHEN** Product-Spec 的 REQ 没有开发阶段或优先级标签，或者标签后续发生变化
+- **THEN** validator 只按矩阵中显式列出的 REQ 决定持续验收范围，并要求该 REQ 的全部 AC 同时存在
+
+#### Scenario: 孤立 AC 不能扩张验收范围
+- **WHEN** 矩阵列出某个 AC 但没有列出它所属的 REQ
+- **THEN** matrix validator 非零失败并指出必须先显式选择父 REQ
 
 #### Scenario: 泛化目录映射不能冒充追踪关系
-- **WHEN** 任一 P0 REQ/AC 的生产映射或测试映射只指向目录、路径不存在或越出仓库
+- **WHEN** 任一矩阵 REQ/AC 的生产映射或测试映射只指向目录、路径不存在或越出仓库
 - **THEN** matrix validator 非零失败并指出对应 ID 与字段
 
 #### Scenario: 文件、共享 helper 或空壳节点不能冒充验收测试
@@ -141,9 +149,9 @@ GitHub release 相关 checkout MUST 使用 `fetch-depth: 0`，GitLab 对应 jobs
 - **THEN** matrix validator 非零失败并指出该 ID 缺少可收集且非空壳的精确 pytest node
 
 #### Scenario: CI 与 evidence producer 必须匹配实际验收行为
-- **WHEN** P0 条目要求真实 service smoke、eval 或 quality/test 复合行为，却映射到没有执行全部行为的 gate/evidence，或者 `ci-result/v1.command` 不是该 gate 的 allowlisted Make target
-- **THEN** matrix 必须拒绝该追踪结论；`AC-001` 要求执行 `uv sync --frozen` 的 `install`，`AC-002` 要求执行 `uv build` 的 `build`，`AC-003`/`AC-006` 要求 `integration` 并映射到 wheel 在 workspace 外安装、复制模板启动的集成测试；`AC-004`/`AC-061` 绑定实际 import 扫描，`AC-005` 绑定真实 fake adapter，`AC-019` 绑定 run/session/trace/eval 默认 tenant，`AC-023` 绑定 deny 零副作用及 audit，`AC-026` 绑定 MCP allowlist 拒绝，`AC-029`/`AC-052` 绑定无真实 key 的 fake-model eval，`AC-062` 分别绑定 API、worker、tool/model adapter 与 CanonicalEvent 关联交换；`AC-007`/`AC-011`/`AC-012`/`AC-060`/`AC-068` 同时要求 `test-aggregate` 的精确合同节点与执行真实服务行为的 `smoke-service`，其中 `AC-012`/`AC-068` 的 SQLite 节点与 PostgreSQL producer 必须分别列出；`AC-050` 要求独立终态 `p0-validate` 而不能由 `test-aggregate` 替代，`AC-051` 同时要求 `quality-aggregate`/`test-aggregate`，`AC-052` 要求 `eval`，`AC-053`/`AC-054` 同时要求 `quality-aggregate`/`eval`/`smoke-local`/`smoke-service`，`AC-065` 的完整 local fake run 时延要求 `smoke-local` 并映射到从公开入口完成 single-agent run 的正向节点；`p0-validate` 生成自身 result 时只允许跳过尚未落盘的 AC-050 自身 evidence 内容校验，映射和 producer 约束仍必须先通过
+- **WHEN** 矩阵条目要求真实 service smoke、eval 或 quality/test 复合行为，却映射到没有执行全部行为的 gate/evidence，或者 `ci-result/v1.command` 不是该 gate 的 allowlisted Make target
+- **THEN** matrix 必须拒绝该追踪结论；`AC-001` 要求执行 `uv sync --frozen` 的 `install`，`AC-002` 要求执行 `uv build` 的 `build`，`AC-003`/`AC-006` 要求 `integration` 并映射到 wheel 在 workspace 外安装、复制模板启动的集成测试；`AC-004`/`AC-061` 绑定实际 import 扫描，`AC-005` 绑定真实 fake adapter，`AC-019` 绑定 run/session/trace/eval 默认 tenant，`AC-023` 绑定 deny 零副作用及 audit，`AC-026` 绑定 MCP allowlist 拒绝，`AC-029`/`AC-052` 绑定无真实 key 的 fake-model eval，`AC-062` 分别绑定 API、worker、tool/model adapter 与 CanonicalEvent 关联交换；`AC-007`/`AC-011`/`AC-012`/`AC-060`/`AC-068` 同时要求 `test-aggregate` 的精确合同节点与执行真实服务行为的 `smoke-service`，其中 `AC-012`/`AC-068` 的 SQLite 节点与 PostgreSQL producer 必须分别列出；`AC-050` 要求独立终态 `acceptance-validate` 而不能由 `test-aggregate` 替代，`AC-051` 同时要求 `quality-aggregate`/`test-aggregate`，`AC-052` 要求 `eval`，`AC-053`/`AC-054` 同时要求 `quality-aggregate`/`eval`/`smoke-local`/`smoke-service`，`AC-065` 的完整 local fake run 时延要求 `smoke-local` 并映射到从公开入口完成 single-agent run 的正向节点；`acceptance-validate` 生成自身 result 时只允许跳过尚未落盘的 AC-050 自身 evidence 内容校验，映射和 producer 约束仍必须先通过
 
 #### Scenario: 状态文档只按证据更新
-- **WHEN** Phase 15 本地验证完成，且 frozen review 完成或 owner 的一次性审查豁免已明确记录
+- **WHEN** 当前维护目标的本地验证完成，且 frozen review 完成或 owner 的一次性审查豁免已明确记录
 - **THEN** Product-Spec、changelog、DEV-PLAN、README 和 release 文档只声明已实现及本地 ready-to-archive；采用豁免时明确写为 `owner-waived`，不声明 reviewer PASS、hosted PASS、已归档或已发布

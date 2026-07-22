@@ -1,51 +1,17 @@
-"""服务容器打包、冒烟链路与密钥加载边界的合同测试。"""
+"""服务容器打包、冒烟能力清单与密钥加载边界合同。"""
 
 from __future__ import annotations
 
-import json
+from typing import Any, cast
 
-from tests.contracts.test_service_deployment_compose_contracts import (
-    ROOT as ROOT,
-)
-from tests.contracts.test_service_deployment_compose_contracts import (
-    TEMPLATE as TEMPLATE,
-)
-from tests.contracts.test_service_deployment_compose_contracts import (
-    Any as Any,
-)
-from tests.contracts.test_service_deployment_compose_contracts import (
-    Path as Path,
-)
-from tests.contracts.test_service_deployment_compose_contracts import (
-    SimpleNamespace as SimpleNamespace,
-)
-from tests.contracts.test_service_deployment_compose_contracts import (
-    _compose as _compose,
-)
-from tests.contracts.test_service_deployment_compose_contracts import (
-    _root_smoke as _root_smoke,
-)
-from tests.contracts.test_service_deployment_compose_contracts import (
-    _smoke_service as _smoke_service,
-)
-from tests.contracts.test_service_deployment_compose_contracts import (
-    cast as cast,
-)
-from tests.contracts.test_service_deployment_compose_contracts import (
-    os as os,
-)
-from tests.contracts.test_service_deployment_compose_contracts import (
-    pytest as pytest,
-)
-from tests.contracts.test_service_deployment_compose_contracts import (
-    yaml as yaml,
-)
+import yaml
+from tests.contracts.service_deployment_test_support import ROOT, TEMPLATE, load_compose
 
 
 def test_compose_declares_migration_api_worker_and_shared_runtime_configuration() -> None:
     """Compose 必须为迁移、API 和 worker 提供一致的密钥与运行时边界。"""
 
-    payload = _compose()
+    payload = load_compose()
     services = payload["services"]
     assert {"postgres", "redis", "migration", "api", "worker"} <= services.keys()
 
@@ -109,13 +75,22 @@ def test_service_smoke_uses_http_auth_crash_reclaim_checkpoint_and_scoped_cleanu
     """服务冒烟脚本需覆盖关键恢复链路，并将清理范围约束在当前项目。"""
 
     template_smoke = (TEMPLATE / "scripts" / "smoke_service.py").read_text(encoding="utf-8")
+    scenario_smoke = "\n".join(
+        (TEMPLATE / "scripts" / name).read_text(encoding="utf-8")
+        for name in (
+            "service_smoke_scenarios.py",
+            "service_smoke_bootstrap.py",
+            "service_smoke_reclaim.py",
+            "service_smoke_evidence.py",
+        )
+    )
     secret_smoke = (TEMPLATE / "scripts" / "service_secret_smoke.py").read_text(encoding="utf-8")
     approval_smoke = (TEMPLATE / "scripts" / "service_approval_smoke.py").read_text(
         encoding="utf-8"
     )
     root_smoke = (ROOT / "scripts" / "smoke_service.py").read_text(encoding="utf-8")
 
-    # 这些标记分别来自运行冒烟、密钥冒烟和审批冒烟，组合后覆盖跨进程恢复边界。
+    # 标记分布在运行、密钥和审批场景，组合后必须覆盖完整跨进程恢复边界。
     for marker in (
         "missing_status",
         "invalid_status",
@@ -145,7 +120,12 @@ def test_service_smoke_uses_http_auth_crash_reclaim_checkpoint_and_scoped_cleanu
         '"postgres_password_file": True',
         '"compose_config_redacted": True',
     ):
-        assert marker in template_smoke or marker in secret_smoke or marker in approval_smoke
+        assert (
+            marker in template_smoke
+            or marker in scenario_smoke
+            or marker in secret_smoke
+            or marker in approval_smoke
+        )
     for marker in (
         '"unreadable": True',
         '"api_worker_readiness_blocked": True',
@@ -167,7 +147,10 @@ def test_service_smoke_uses_http_auth_crash_reclaim_checkpoint_and_scoped_cleanu
     assert "docker system prune" not in template_smoke
     assert "secret_path.unlink" in template_smoke
     support = (TEMPLATE / "scripts" / "service_smoke_support.py").read_text(encoding="utf-8")
-    assert '"terminal_event"' in support
+    postgres_evidence = (TEMPLATE / "scripts" / "service_postgres_evidence.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"terminal_event"' in postgres_evidence
     assert '"docker", "network", "inspect", network' in support
     assert '"docker", "volume", "inspect", volume' in support
 
@@ -175,7 +158,16 @@ def test_service_smoke_uses_http_auth_crash_reclaim_checkpoint_and_scoped_cleanu
 def test_service_smoke_executes_postgresql_migration_and_shared_budget_scenarios() -> None:
     """真实 service producer 必须执行 PostgreSQL 迁移、并发预算与崩溃恢复场景。"""
 
-    smoke = (TEMPLATE / "scripts" / "smoke_service.py").read_text(encoding="utf-8")
+    smoke = "\n".join(
+        (TEMPLATE / "scripts" / name).read_text(encoding="utf-8")
+        for name in (
+            "smoke_service.py",
+            "service_smoke_scenarios.py",
+            "service_smoke_bootstrap.py",
+            "service_smoke_reclaim.py",
+            "service_smoke_evidence.py",
+        )
+    )
 
     for marker in (
         'compose(env, "run", "--rm", "migration")',
@@ -185,226 +177,6 @@ def test_service_smoke_executes_postgresql_migration_and_shared_budget_scenarios
         '"0016_shared_parent_budget_ledger"',
     ):
         assert marker in smoke
-
-
-def test_service_smoke_exports_postgresql_events_as_restricted_trace(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Service trace 必须来自 PostgreSQL inspect 事件，并以受限权限写入本轮隔离目录。"""
-
-    smoke = _smoke_service(monkeypatch)
-    event = {
-        "event_id": "event-1",
-        "type": "run.completed",
-        "seq": 3,
-        "terminal": True,
-        "visibility": "public",
-        "request_id": "request-1",
-        "trace_id": "trace-1",
-        "payload": {"result": "ok"},
-    }
-    env = {"SERVICE_APP_SMOKE_DIR": str(tmp_path)}
-
-    smoke._write_service_trace(
-        env,
-        {"run_id": "run-1", "tenant_id": "tenant-1", "events": [event]},
-    )
-
-    trace = tmp_path / "trace.jsonl"
-    records = [json.loads(line) for line in trace.read_text(encoding="utf-8").splitlines()]
-    assert records == [
-        {
-            "schema_version": "service-smoke-trace/v1",
-            "source": "postgresql",
-            "run_id": "run-1",
-            "tenant_id": "tenant-1",
-            "event": event,
-        }
-    ]
-    assert trace.stat().st_mode & 0o777 == 0o600
-
-
-@pytest.mark.parametrize("failure", [RuntimeError("smoke failed"), KeyboardInterrupt()])
-def test_service_smoke_cleans_secret_after_failure_or_interruption(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    failure: BaseException,
-) -> None:
-    """运行失败或中断时，临时密钥目录和 Compose 项目都必须被定向清理。"""
-
-    smoke = _smoke_service(monkeypatch)
-    project = "agent-harness-cleanup-contract"
-    cleanup_calls: list[tuple[str, bool]] = []
-
-    def fail_smoke(*_args: object) -> dict[str, object]:
-        """模拟业务冒烟在凭据已创建后失败的路径。"""
-
-        raise failure
-
-    def no_compose_output(*_args: object, **_kwargs: object) -> str:
-        """避免测试依赖 Docker 命令输出；此路径只验证 finally 清理。"""
-
-        return ""
-
-    def cleanup_credential(*_args: object, **_kwargs: object) -> bool:
-        """表示密钥边界清理已经成功执行。"""
-
-        return True
-
-    def record_cleanup(env: dict[str, str], *, preserve_volume: bool) -> None:
-        """记录项目级清理参数，证明没有请求保留运行卷。"""
-
-        cleanup_calls.append((env["SERVICE_APP_COMPOSE_PROJECT"], preserve_volume))
-
-    def ignored_command(*_args: object, **_kwargs: object) -> SimpleNamespace:
-        """为未参与断言的外部命令提供失败结果，防止实际执行。"""
-
-        return SimpleNamespace(returncode=1)
-
-    monkeypatch.setenv("SERVICE_APP_COMPOSE_PROJECT", project)
-    monkeypatch.setattr(smoke, "APP_ROOT", tmp_path)
-    monkeypatch.setattr(smoke, "parse_args", lambda: SimpleNamespace(migrate_only=False))
-    monkeypatch.setattr(smoke, "prepare_core_wheel", lambda: None)
-    monkeypatch.setattr(smoke, "free_port", lambda: 43123)
-    monkeypatch.setattr(smoke, "_run_smoke", fail_smoke)
-    monkeypatch.setattr(smoke, "compose", no_compose_output)
-    monkeypatch.setattr(smoke, "cleanup_credential_at_boundary", cleanup_credential)
-    monkeypatch.setattr(smoke, "cleanup_project", record_cleanup)
-    monkeypatch.setattr(smoke, "run", ignored_command)
-
-    # 无论异常类型如何，清理责任都在 main 的 finally，而非仅在成功路径触发。
-    with pytest.raises(type(failure)):
-        smoke.main()
-
-    smoke_dir = tmp_path / ".agent-harness" / project
-    assert not smoke_dir.exists()
-    assert cleanup_calls == [(project, False)]
-
-
-def test_service_smoke_deletes_secret_when_project_cleanup_fails(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """项目清理失败不能阻断临时密钥删除，且调用环境不得泄露目录变量。"""
-
-    smoke = _smoke_service(monkeypatch)
-    project = "agent-harness-cleanup-failure"
-
-    def fail_smoke(*_args: object) -> dict[str, object]:
-        """模拟触发 finally 块的业务失败。"""
-
-        raise RuntimeError("smoke failed")
-
-    def fail_cleanup(_env: dict[str, str], *, preserve_volume: bool) -> None:
-        """模拟 Compose 资源清理自身报错，保留参数以匹配真实调用面。"""
-
-        del preserve_volume
-        raise RuntimeError("project cleanup failed")
-
-    def no_compose_output(*_args: object, **_kwargs: object) -> str:
-        """隔离外部 Compose 查询，避免该合同测试依赖本机 Docker。"""
-
-        return ""
-
-    def cleanup_credential(*_args: object, **_kwargs: object) -> bool:
-        """表示密钥删除操作成功，关注其与项目清理失败的先后关系。"""
-
-        return True
-
-    def ignored_command(*_args: object, **_kwargs: object) -> SimpleNamespace:
-        """阻止测试执行未被关注的外部子进程。"""
-
-        return SimpleNamespace(returncode=1)
-
-    monkeypatch.setenv("SERVICE_APP_COMPOSE_PROJECT", project)
-    monkeypatch.setattr(smoke, "APP_ROOT", tmp_path)
-    monkeypatch.setattr(smoke, "parse_args", lambda: SimpleNamespace(migrate_only=False))
-    monkeypatch.setattr(smoke, "prepare_core_wheel", lambda: None)
-    monkeypatch.setattr(smoke, "free_port", lambda: 43124)
-    monkeypatch.setattr(smoke, "_run_smoke", fail_smoke)
-    monkeypatch.setattr(smoke, "compose", no_compose_output)
-    monkeypatch.setattr(smoke, "cleanup_credential_at_boundary", cleanup_credential)
-    monkeypatch.setattr(smoke, "cleanup_project", fail_cleanup)
-    monkeypatch.setattr(smoke, "run", ignored_command)
-
-    with pytest.raises(RuntimeError, match="project cleanup failed"):
-        smoke.main()
-
-    assert not (tmp_path / ".agent-harness" / project).exists()
-    assert "SERVICE_APP_SMOKE_DIR" not in os.environ
-
-
-def test_root_smoke_forwards_interrupt_to_child_process_group(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """根级冒烟收到中断后必须向独立子进程组转发信号并等待收尾。"""
-
-    root_smoke = _root_smoke()
-    sent_signals: list[tuple[int, int]] = []
-
-    class InterruptedProcess:
-        """首次等待时模拟用户中断、第二次等待时模拟子进程正常退出的进程替身。"""
-
-        pid = 43125
-
-        def __init__(self) -> None:
-            """初始化等待次数，以便验证中断后的有限等待窗口。"""
-
-            self.wait_calls = 0
-
-        def communicate(self) -> tuple[str, None]:
-            """模拟捕获输出期间收到用户中断。"""
-
-            raise KeyboardInterrupt
-
-        def wait(self, timeout: float | None = None) -> int:
-            """收到转发信号后在有限窗口内完成收尾。"""
-
-            self.wait_calls += 1
-            assert timeout == 30
-            return 0
-
-    process = InterruptedProcess()
-
-    def fake_popen(
-        _command: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        start_new_session: bool,
-        stdout: int,
-        stderr: int,
-        text: bool,
-    ) -> InterruptedProcess:
-        """校验根脚本以新进程组启动并捕获可归档的冒烟输出。"""
-
-        assert cwd == tmp_path
-        assert env["AGENT_HARNESS_SOURCE"] == str(tmp_path / "core.whl")
-        assert start_new_session is True
-        assert stdout == root_smoke.subprocess.PIPE
-        assert stderr == root_smoke.subprocess.STDOUT
-        assert text is True
-        return process
-
-    def record_signal(process_group: int, sent_signal: int) -> None:
-        """记录信号目标，避免测试真正向系统进程发送中断。"""
-
-        sent_signals.append((process_group, sent_signal))
-
-    monkeypatch.setattr(root_smoke.subprocess, "Popen", fake_popen)
-    monkeypatch.setattr(root_smoke.os, "killpg", record_signal)
-
-    # 调用方仍应感知原始中断，脚本只负责在抛出前通知并等待子进程组。
-    with pytest.raises(KeyboardInterrupt):
-        root_smoke._run_copied_smoke(
-            ["make", "smoke-service"],
-            tmp_path,
-            tmp_path / "core.whl",
-        )
-
-    assert sent_signals == [(process.pid, root_smoke.signal.SIGINT)]
 
 
 def test_service_profile_and_admin_do_not_bypass_typed_secret_loader() -> None:

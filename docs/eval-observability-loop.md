@@ -172,7 +172,7 @@ Phase 12.5 的真相源是：
 - `DEV-PLAN.md` Phase 12.5
 - 本文的操作和维护边界
 
-本阶段按 `foundation -> comparison -> API acceptance` 的依赖顺序交付，并于 2026-07-11 归档为 `2026-07-11-eval-dataset-split-foundation`、`2026-07-11-eval-harness-experiment-comparison`、`2026-07-11-eval-experiment-api-acceptance`。对应 main specs 已同步；后续维护不得把 Phase 13 API/worker split 或 Phase 15 release automation 混回本闭环。
+该能力按 `foundation -> comparison -> API acceptance` 的依赖顺序交付，并于 2026-07-11 归档为 `2026-07-11-eval-dataset-split-foundation`、`2026-07-11-eval-harness-experiment-comparison`、`2026-07-11-eval-experiment-api-acceptance`。对应 main specs 已同步；后续 API/worker 拆分或 release automation 变更不得反向改变本闭环的公开 seam 与证据语义。
 
 ## 公开 seam、验证与排障
 
@@ -188,4 +188,4 @@ make smoke-service
 
 证据入口包括 `tests/contracts/test_eval_gate_trace_loop_contracts.py`、`tests/contracts/test_eval_execution_contracts.py`、`tests/contracts/test_eval_experiment_api_contracts.py`、`tests/contracts/test_eval_experiment_evidence_boundaries_contracts.py`、`tests/contracts/test_observability_local_first_fanout_contracts.py` 和 `templates/service-app/eval-cases/`。
 
-常见故障：`no-approved-cases` 表示没有可执行的已审核样本；provider degraded 时先确认 local score/event 已提交；comparison 不接受时检查 holdout、critical regression、metric version 和安全 refs，而非只看总分；`needs_review` 表示执行副作用无法被证明，必须人工核对 claim 与外部 evidence，当前没有强制重跑入口。Phase 15 才负责把这些证据接入自动 release gate；本 checkout 没有该自动化。
+常见故障：`no-approved-cases` 表示没有可执行的已审核样本；provider degraded 时先确认 local score/event 已提交；comparison 不接受时检查 holdout、critical regression、metric version 和安全 refs，而非只看总分；`needs_review` 表示执行副作用无法被证明，必须人工核对 claim 与外部 evidence，当前没有强制重跑入口。当前双 CI 和 release dry-run 已把 `eval` producer evidence 纳入需求验收与 promotion 前置门禁；本地合同与预演不会证明 hosted artifact service、远端保护或真实发布副作用已经通过。

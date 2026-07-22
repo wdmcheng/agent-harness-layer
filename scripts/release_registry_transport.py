@@ -159,6 +159,8 @@ class RegistryRelay:
         expected_filename: str,
         expected_sha256: str,
     ) -> None:
+        """冻结外部端点和目标 artifact 身份；网络监听仅在上下文进入后创建。"""
+
         self.upload_endpoint = upload_endpoint
         self.check_endpoint = check_endpoint
         self.expected_filename = expected_filename

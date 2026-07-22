@@ -1,7 +1,7 @@
 # release-dry-run-private-registry Specification
 
 ## Purpose
-TBD - created by archiving change release-dry-run-private-registry. Update Purpose after archive.
+定义 Conventional Commits 版本预演、受保护 promotion、正式构建与私有 registry 发布的身份交接、授权边界和零副作用失败语义。
 ## Requirements
 ### Requirement: Conventional Commits 产生可解释版本预演
 系统 SHALL 使用固定版本的 Python Semantic Release noop 路径读取 Conventional Commits，输出当前版本、下一 SemVer、tag 名称、扫描基线、提交分类和 bump 理由；无 tag 首版本计算 MUST 显式设置 `allow_zero_version = true`，不得依赖 PSR 10.6.1 默认的 `false`。

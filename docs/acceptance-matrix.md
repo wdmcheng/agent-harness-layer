@@ -1,6 +1,6 @@
-# P0 验收矩阵
+# 需求验收矩阵
 
-本表把 `Product-Spec.md` 中每个 P0 REQ 与 AC 唯一映射到生产实现、CI job、精确 pytest node 和证据路径；复合行为用 `<br>` 列出全部测试或 producer。`partial` 表示本地实现或证据仍有明确边界；`hosted-unverified` 仅表示本轮未执行 GitHub/GitLab hosted runner，不把本地结果冒充远端通过。
+本表显式选择需要持续保障的 `Product-Spec.md` REQ，并把每个所选 REQ 及其全部 AC 唯一映射到生产实现、CI job、精确 pytest node 和证据路径。复合行为用 `<br>` 列出全部测试或 producer。新增需求是否进入长期门禁由本表明确表达，不从开发阶段或优先级标签推断。`partial` 表示本地实现或证据仍有明确边界；`hosted-unverified` 仅表示本轮未执行 GitHub/GitLab hosted runner，不把本地结果冒充远端通过。
 
 | ID | 状态 | 生产路径 | CI job | 测试 | Evidence |
 |---|---|---|---|---|---|
@@ -78,8 +78,8 @@
 | AC-048 | pass | `README.md` | `test-aggregate` | `tests/contracts/test_service_app_template_maintenance_contracts.py::test_root_readme_preserves_product_overview_and_delegation_boundary` | `.artifacts/ci/test-aggregate/result.json` |
 | AC-049 | pass | `docs/architecture/README.md` | `test-aggregate` | `tests/contracts/test_service_app_template_maintenance_contracts.py::test_service_boundary_adr_links_back_to_maintainer_navigation` | `.artifacts/ci/test-aggregate/result.json` |
 | REQ-019 | partial | `scripts/ci_contract.py` | `ci-contract` | `tests/contracts/test_ci_pipeline_contracts.py::test_repository_pipeline_contract_is_equivalent_and_fail_closed` | `.artifacts/ci/ci-contract/result.json` |
-| AC-050 | pass | `scripts/ci_p0_matrix.py` | `p0-validate` | `tests/contracts/test_ci_p0_matrix_validator_contracts.py::test_current_repository_matrix_is_complete_and_valid` | `.artifacts/ci/p0-validate/result.json` |
-| AC-051 | pass | `Makefile` | `quality-aggregate`<br>`test-aggregate` | `tests/contracts/test_ci_pipeline_contracts.py::test_repository_pipeline_contract_is_equivalent_and_fail_closed` | `.artifacts/ci/quality-aggregate/result.json`<br>`.artifacts/ci/test-aggregate/result.json` |
+| AC-050 | pass | `scripts/acceptance_matrix.py` | `acceptance-validate` | `tests/contracts/test_acceptance_matrix_validator_contracts.py::test_current_repository_matrix_is_complete_and_valid` | `.artifacts/ci/acceptance-validate/result.json` |
+| AC-051 | pass | `Makefile` | `lock`<br>`ruff-format`<br>`ruff-lint`<br>`pyright`<br>`import-boundary`<br>`quality-aggregate`<br>`unit-contract`<br>`integration`<br>`test-aggregate` | `tests/contracts/test_ci_pipeline_contracts.py::test_repository_pipeline_contract_is_equivalent_and_fail_closed` | `.artifacts/ci/lock/result.json`<br>`.artifacts/ci/ruff-format/result.json`<br>`.artifacts/ci/ruff-lint/result.json`<br>`.artifacts/ci/pyright/result.json`<br>`.artifacts/ci/import-boundary/result.json`<br>`.artifacts/ci/quality-aggregate/result.json`<br>`.artifacts/ci/unit-contract/result.json`<br>`.artifacts/ci/integration/result.json`<br>`.artifacts/ci/test-aggregate/result.json` |
 | AC-052 | pass | `packages/agent-harness/src/agent_harness/evals/runner.py` | `eval` | `tests/contracts/test_example_eval_migration_contracts.py::test_example_eval_uses_fake_model_without_real_provider_keys` | `.artifacts/ci/eval/result.json` |
 | REQ-020 | partial | `scripts/release_dry_run.py` | `ci-release-dry-run` | `tests/contracts/test_release_preview_contracts.py::test_releasable_history_generates_explained_version_and_isolated_artifacts` | `.artifacts/ci/release-dry-run/result.json` |
 | AC-053 | hosted-unverified | `.github/workflows/ci.yml` | `quality-aggregate`<br>`eval`<br>`smoke-local`<br>`smoke-service` | `tests/contracts/test_ci_pipeline_contracts.py::test_repository_pipeline_contract_is_equivalent_and_fail_closed` | `.artifacts/ci/quality-aggregate/result.json`<br>`.artifacts/ci/eval/result.json`<br>`.artifacts/ci/smoke-local/result.json`<br>`.artifacts/ci/smoke-service/result.json` |

@@ -1,7 +1,7 @@
 # license-compliance-gate Specification
 
 ## Purpose
-TBD - created by archiving change license-compliance-gate. Update Purpose after archive.
+定义 runtime 依赖、容器与 vendored source 的许可证身份、策略依据、NOTICE 和可复核报告门禁，使未知、冲突或越界来源默认失败。
 ## Requirements
 ### Requirement: 依赖许可证清单与 lock 保持一致
 系统 SHALL 对两个可发布 runtime package 的普通依赖、全部 `optional-dependencies` 及其传递闭包维护版本化 license inventory；lock package 必须以 `name`、`version` 和 `source` 的组合身份唯一表示，并将自动 metadata 观察与仓库允许、拒绝或复核判断分开记录。`registry`、`git`、`url`、`path`、`editable` 和 `virtual` source 均必须形成稳定、可区分的 identity，不得把受支持的非 registry source 坍缩为 `unknown`。

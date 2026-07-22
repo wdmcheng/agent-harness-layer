@@ -3,7 +3,7 @@ UV ?= uv
 # 0016 不允许把缺少 immutable snapshot 的旧 active eval tree 猜值升级；
 # revision-scoped 目录保留旧状态供人工 drain，同时保证验收可重复运行。
 EVAL_STATE_DIR ?= $(CURDIR)/templates/service-app/.agent-harness/eval/0016
-RELEASE_PREVIEW_DIR ?= $(CURDIR)/.artifacts/release-preview/phase15-current
+RELEASE_PREVIEW_DIR ?= $(CURDIR)/.artifacts/release-preview/current
 RELEASE_MANIFEST ?= $(RELEASE_PREVIEW_DIR)/manifest.json
 RELEASE_PROMOTION_PLAN ?= $(CURDIR)/.artifacts/release-promotion/plan.json
 RELEASE_GITLAB_CHILD ?= $(CURDIR)/.artifacts/release-promotion/gitlab-child.yml
@@ -17,7 +17,7 @@ REGISTRY_OUTPUT ?= $(CURDIR)/.artifacts/registry-publish/receipt.json
 	unit-contract integration quality-aggregate test-aggregate test smoke-local \
 	smoke-service eval build license-check release-dry-run release-promote-plan \
 	release-promote-execute registry-publish-plan registry-publish-execute format \
-	ci-run ci-contract ci-contract-check p0-validate-check ci-p0-validate ci-history \
+	ci-run ci-contract ci-contract-check acceptance-validate-check ci-acceptance-validate ci-history \
 	ci-lock ci-install ci-ruff-format ci-ruff-lint ci-pyright ci-import-boundary \
 	ci-unit-contract ci-integration ci-quality-aggregate ci-test-aggregate ci-eval \
 	ci-smoke-local ci-smoke-service ci-build ci-license ci-release-dry-run \
@@ -188,11 +188,11 @@ ci-contract:
 ci-contract-check:
 	$(UV) run python scripts/ci_contract.py
 
-p0-validate-check:
-	$(UV) run python scripts/ci_p0_matrix.py
+acceptance-validate-check:
+	$(UV) run python scripts/acceptance_matrix.py
 
-ci-p0-validate:
-	$(MAKE) ci-run GATE=p0-validate
+ci-acceptance-validate:
+	$(MAKE) ci-run GATE=acceptance-validate
 
 ci-history:
 	$(UV) run python scripts/ci_history.py $(if $(EXPECTED_TAG),--expected-tag "$(EXPECTED_TAG)",)
@@ -243,7 +243,7 @@ ci-license:
 	$(MAKE) ci-run GATE=license CI_ARTIFACTS="--artifact license-report=.artifacts/license/license-report.json --artifact smoke-evidence=.artifacts/license/smoke-service.log"
 
 ci-release-dry-run: ci-history
-	$(MAKE) ci-run GATE=release-dry-run CI_ARTIFACTS="--artifact release-preview=.artifacts/release-preview/phase15-current/manifest.json"
+	$(MAKE) ci-run GATE=release-dry-run CI_ARTIFACTS="--artifact release-preview=.artifacts/release-preview/current/manifest.json"
 
 ci-release-promote-plan:
 	$(MAKE) ci-run GATE=release-promote-plan CI_ARTIFACTS="--artifact promotion-plan=.artifacts/release-promotion/plan.json"

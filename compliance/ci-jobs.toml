@@ -164,8 +164,8 @@ requires_complete_history = true
 native_artifacts = [".artifacts/release-preview"]
 
 [[jobs]]
-id = "p0-validate"
-target = "ci-p0-validate"
+id = "acceptance-validate"
+target = "ci-acceptance-validate"
 needs = [
   "install",
   "quality-aggregate",
@@ -179,7 +179,7 @@ needs = [
   "release-dry-run",
   "ci-contract",
 ]
-artifact = ".artifacts/ci/p0-validate"
+artifact = ".artifacts/ci/acceptance-validate"
 
 [release]
 github_trigger = "workflow_dispatch"

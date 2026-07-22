@@ -18,7 +18,7 @@ def test_dry_run_writes_the_manifest_at_the_ci_consumption_path() -> None:
     """dry-run 的输出目录必须和 promotion/publish 默认输入保持一致。"""
 
     makefile = _makefile()
-    assert "RELEASE_PREVIEW_DIR ?= $(CURDIR)/.artifacts/release-preview/phase15-current" in makefile
+    assert "RELEASE_PREVIEW_DIR ?= $(CURDIR)/.artifacts/release-preview/current" in makefile
     assert (
         "release-dry-run:\n\t$(UV) run --group release python "
         'scripts/release_dry_run.py --output-dir "$(RELEASE_PREVIEW_DIR)"' in makefile
@@ -66,10 +66,10 @@ def test_gitlab_dynamic_release_artifacts_match_make_defaults() -> None:
         value is not None
         for value in (manifest, promotion_plan, receipt, build_manifest, registry_plan)
     )
-    assert "RELEASE_MANIFEST: .artifacts/release-preview/phase15-current/manifest.json" in parent
+    assert "RELEASE_MANIFEST: .artifacts/release-preview/current/manifest.json" in parent
     assert ".artifacts/release-promotion/plan.json" in parent
     assert ".artifacts/release-promotion/gitlab-child.yml" in parent
-    assert "RELEASE_MANIFEST: .artifacts/release-preview/phase15-current/manifest.json" in child
+    assert "RELEASE_MANIFEST: .artifacts/release-preview/current/manifest.json" in child
     assert ".artifacts/release-promotion" in child
     assert ".artifacts/release-build" in child
     assert ".artifacts/registry-publish/plan.json" in child

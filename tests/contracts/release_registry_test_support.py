@@ -34,6 +34,8 @@ class RegistryHandler(BaseHTTPRequestHandler):
     simple_index_json: ClassVar[bool] = False
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler 固定公开方法名
+        """解析上传/provider 请求并按夹具状态注入持久化、断连、截断或重定向。"""
+
         length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(length)
         content_type = self.headers.get("Content-Type", "")

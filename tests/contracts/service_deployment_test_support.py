@@ -38,25 +38,33 @@ def _script_module(module_name: str, filename: str) -> Any:
     spec = importlib.util.spec_from_file_location(module_name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # dataclass 等运行期装饰器会按 ``__module__`` 回查模块表；加载期间先注册，
+    # 执行完再由调用方决定是否把该模板模块保留在隔离表中。
+    with patch.dict(sys.modules, {module_name: module}):
+        spec.loader.exec_module(module)
     return module
 
 
-def _smoke_support() -> Any:
+def load_smoke_support() -> Any:
     """按文件路径加载 smoke 辅助模块，使静态部署合同能调用真实模板逻辑而非复制实现。"""
 
+    evidence = _script_module(
+        "service_postgres_evidence",
+        "service_postgres_evidence.py",
+    )
     path = TEMPLATE / "scripts" / "service_smoke_support.py"
     spec = importlib.util.spec_from_file_location("service_smoke_support_contract", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    with patch.dict(sys.modules, {"service_postgres_evidence": evidence}):
+        spec.loader.exec_module(module)
     return module
 
 
-def _smoke_service(monkeypatch: pytest.MonkeyPatch) -> Any:
+def load_smoke_service(monkeypatch: pytest.MonkeyPatch) -> Any:
     """装配 smoke 主脚本及其拆分模块到隔离模块表，避免测试依赖全局导入顺序。"""
 
-    support = _smoke_support()
+    support = load_smoke_support()
     monkeypatch.setitem(sys.modules, "service_smoke_support", support)
     operations_path = TEMPLATE / "scripts" / "service_smoke_operations.py"
     operations_spec = importlib.util.spec_from_file_location(
@@ -108,15 +116,43 @@ def _smoke_service(monkeypatch: pytest.MonkeyPatch) -> Any:
         "service_budget_crash_smoke.py",
     )
     monkeypatch.setitem(sys.modules, "service_budget_crash_smoke", crash_module)
+    trace_module = _script_module(
+        "service_smoke_trace",
+        "service_smoke_trace.py",
+    )
+    monkeypatch.setitem(sys.modules, "service_smoke_trace", trace_module)
+    bootstrap_module = _script_module(
+        "service_smoke_bootstrap",
+        "service_smoke_bootstrap.py",
+    )
+    monkeypatch.setitem(sys.modules, "service_smoke_bootstrap", bootstrap_module)
+    reclaim_module = _script_module(
+        "service_smoke_reclaim",
+        "service_smoke_reclaim.py",
+    )
+    monkeypatch.setitem(sys.modules, "service_smoke_reclaim", reclaim_module)
+    evidence_module = _script_module(
+        "service_smoke_evidence",
+        "service_smoke_evidence.py",
+    )
+    monkeypatch.setitem(sys.modules, "service_smoke_evidence", evidence_module)
+    scenarios_module = _script_module(
+        "service_smoke_scenarios",
+        "service_smoke_scenarios.py",
+    )
+    monkeypatch.setitem(sys.modules, "service_smoke_scenarios", scenarios_module)
     path = TEMPLATE / "scripts" / "smoke_service.py"
     spec = importlib.util.spec_from_file_location("service_smoke_contract", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module
+    # 测试通过显式 seam 调用证据写入逻辑，不把内部函数重新暴露到主入口。
+    test_module = cast(Any, module)
+    test_module.trace = trace_module
+    return test_module
 
 
-def _service_admin() -> Any:
+def load_service_admin() -> Any:
     """加载 service admin 及预算子命令模块，保留生产脚本的动态导入边界供合同验证。"""
 
     race_module = _script_module(
@@ -142,7 +178,7 @@ def _service_admin() -> Any:
     return module
 
 
-def _root_smoke() -> Any:
+def load_root_smoke() -> Any:
     """加载仓库根 smoke 入口，用于比对模板脚本与发布入口的责任分工。"""
 
     path = ROOT / "scripts" / "smoke_service.py"
@@ -153,7 +189,7 @@ def _root_smoke() -> Any:
     return module
 
 
-def _compose() -> dict[str, Any]:
+def load_compose() -> dict[str, Any]:
     """解析模板 Compose 配置为字典，调用方只断言声明性部署契约而不启动容器。"""
 
     return cast(
@@ -174,15 +210,15 @@ __all__ = [
     "SessionCreate",
     "SimpleNamespace",
     "TEMPLATE",
-    "_compose",
-    "_root_smoke",
-    "_service_admin",
-    "_smoke_service",
-    "_smoke_support",
     "cast",
     "hash_token",
     "importlib",
     "isolated_database",
+    "load_compose",
+    "load_root_smoke",
+    "load_service_admin",
+    "load_smoke_service",
+    "load_smoke_support",
     "os",
     "pytest",
     "run_migrations",

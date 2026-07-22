@@ -18,7 +18,7 @@ variables:
     - pipeline: $PARENT_PIPELINE_ID
       job: promote-plan
   variables:
-    RELEASE_MANIFEST: .artifacts/release-preview/phase15-current/manifest.json
+    RELEASE_MANIFEST: .artifacts/release-preview/current/manifest.json
   script: ["make ci-release-promote-execute"]
   artifacts:
     when: always
@@ -37,7 +37,7 @@ variables:
   variables:
     RELEASE_PROVIDER_URL: $RELEASE_PROVIDER_URL
     RELEASE_PROTECTED_DEFAULT_BRANCH: $CI_DEFAULT_BRANCH
-    RELEASE_MANIFEST: .artifacts/release-preview/phase15-current/manifest.json
+    RELEASE_MANIFEST: .artifacts/release-preview/current/manifest.json
     RELEASE_PROMOTION_APPROVED: "true"
     RELEASE_PROTECTED_REF: "true"
     RELEASE_PUSH_TOKEN: $RELEASE_PUSH_TOKEN
@@ -63,7 +63,7 @@ variables:
   variables:
     UV_PUBLISH_URL: $PRIVATE_REGISTRY_URL
     UV_PUBLISH_CHECK_URL: $PRIVATE_REGISTRY_CHECK_URL
-    RELEASE_MANIFEST: .artifacts/release-preview/phase15-current/manifest.json
+    RELEASE_MANIFEST: .artifacts/release-preview/current/manifest.json
   script: ["make ci-registry-publish-plan"]
   artifacts:
     when: always
@@ -83,7 +83,7 @@ variables:
     UV_PUBLISH_URL: $PRIVATE_REGISTRY_URL
     UV_PUBLISH_CHECK_URL: $PRIVATE_REGISTRY_CHECK_URL
     UV_PUBLISH_TOKEN: $PRIVATE_REGISTRY_TOKEN
-    RELEASE_MANIFEST: .artifacts/release-preview/phase15-current/manifest.json
+    RELEASE_MANIFEST: .artifacts/release-preview/current/manifest.json
     REGISTRY_PUBLISH_APPROVED: "true"
     RELEASE_PROTECTED_REF: "true"
   script: ["make ci-registry-publish-execute"]

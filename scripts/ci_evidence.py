@@ -35,7 +35,7 @@ GATE_TARGETS = {
     "license": "license-check",
     "release-dry-run": "release-dry-run",
     "ci-contract": "ci-contract-check",
-    "p0-validate": "p0-validate-check",
+    "acceptance-validate": "acceptance-validate-check",
     "release-promote-plan": "release-promote-plan",
     "release-promote-execute": "release-promote-execute",
     "registry-publish-plan": "registry-publish-plan",
@@ -114,6 +114,8 @@ def _redact(text: str) -> str:
 
 
 def _artifact_path(repo: Path, raw: str) -> Path:
+    """把产物路径约束在仓库内，并拒绝明显指向凭据的路径形状。"""
+
     candidate = Path(raw)
     if candidate.is_absolute():
         resolved = candidate.resolve()
@@ -130,6 +132,8 @@ def _artifact_path(repo: Path, raw: str) -> Path:
 
 
 def _parse_artifacts(repo: Path, values: list[str]) -> list[tuple[str, Path]]:
+    """解析可重复的 ``kind=path`` 参数，保留 glob 到受限展开阶段处理。"""
+
     parsed: list[tuple[str, Path]] = []
     for value in values:
         kind, separator, raw_path = value.partition("=")
@@ -268,6 +272,8 @@ def run_gate(repo: Path, gate: str, artifact_specs: list[str]) -> int:
 
 
 def main() -> int:
+    """执行一个 CI gate 并把参数或合同错误收口为稳定退出码。"""
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--gate", required=True)

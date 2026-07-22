@@ -322,7 +322,7 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
-  p0-validate:
+  acceptance-validate:
     needs: [install, quality-aggregate, test-aggregate, integration, eval, smoke-local, smoke-service, license, build, release-dry-run, ci-contract]
     runs-on: ubuntu-latest
     steps:
@@ -374,12 +374,12 @@ jobs:
         with:
           name: ci-contract-${{ github.run_id }}
           path: .artifacts/ci/ci-contract
-      - run: make ci-p0-validate
+      - run: make ci-acceptance-validate
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: ci-p0-validate-${{ github.run_id }}
-          path: .artifacts/ci/p0-validate
+          name: ci-acceptance-validate-${{ github.run_id }}
+          path: .artifacts/ci/acceptance-validate
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 14

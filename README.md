@@ -4,7 +4,7 @@
 
 Agent Harness Layer is a Python scaffold and core package for enterprise backend agent applications. It provides the repository shape, package boundary, verification commands, and future extension points needed to build agent services with backend engineering discipline.
 
-The current scaffold proves the workspace and package boundary, a copyable FastAPI/CLI/worker service app, typed configuration and identity, durable run and approval continuation, policy-controlled tools, retrieval, observability adapters, the trace-to-eval gate, four runnable example agents, a safe agent scaffold command, and a Compose service profile with physically separate API and runtime-worker processes. The maintainer documentation is available under `docs/`. Phase 15 now includes repository-local GitHub/GitLab pipeline definitions, release preview and protected promotion seams, and a versioned compliance report; hosted runner execution and real promotion remain explicitly unverified and are not performed by this checkout.
+The current scaffold proves the workspace and package boundary, a copyable FastAPI/CLI/worker service app, typed configuration and identity, durable run and approval continuation, policy-controlled tools, retrieval, observability adapters, the trace-to-eval gate, four runnable example agents, a safe agent scaffold command, and a Compose service profile with physically separate API and runtime-worker processes. The maintainer documentation is available under `docs/`. Repository-local GitHub/GitLab pipeline definitions, release preview and protected promotion seams, and a versioned compliance report are implemented; hosted runner execution and real promotion remain explicitly unverified and are not performed by this checkout.
 
 ## Quick Start
 
@@ -53,7 +53,7 @@ project/
 ```
 
 - `packages/agent-harness` is the buildable core package. It exposes public configuration, identity, DTO, error, trust, and boundary contracts. It must not depend on `templates/*` or `examples/*`.
-- `templates/service-app` is the backend service application template. It depends on `agent-harness` through the package boundary and contains the runnable P0 examples under `agents/examples`.
+- `templates/service-app` is the backend service application template. It depends on `agent-harness` through the package boundary and contains the four runnable examples under `agents/examples`.
 - The root `examples` directory remains reserved for package-level examples; the maintained service-app examples live with the template they exercise.
 - `docs` contains the architecture, extension, adapter, context/trust, security, eval/observability, release-boundary, and ADR documentation.
 - `scripts` contains local quality, boundary, smoke, and compliance checks.
@@ -100,9 +100,9 @@ Run `make smoke-local` to verify the packaged local CLI seam with isolated state
 
 The detailed maintainer contracts are [architecture](docs/architecture/README.md), [adapter contracts](docs/adapter-contracts.md), [eval and observability](docs/eval-observability-loop.md), [release process](docs/release-process.md), and the [current ADRs](docs/adr/0001-p0-service-boundaries.md). `make quality` enforces core/template/import boundaries; vendor integrations are only allowed behind the locations documented in the adapter contracts.
 
-## P0 Deployment Boundaries
+## Deployment Boundaries
 
-P0 keeps the service-app profile deployable as a backend template without pretending every logical boundary is already a microservice. The local profile is single-process. The service profile now runs PostgreSQL, Redis, migration, FastAPI, and the runtime worker as separate Compose services. `make smoke-service` copies the template outside the workspace, installs only the built core wheel, then proves authenticated HTTP enqueue, Redis receipt fencing and reclaim, DBOS hard-crash recovery, shared PostgreSQL checkpoint/event evidence, approval continuation, deny-without-continuation, and scoped cleanup.
+The service-app profile remains deployable as a backend template without pretending every logical boundary is already a microservice. The local profile is single-process. The service profile runs PostgreSQL, Redis, migration, FastAPI, and the runtime worker as separate Compose services. `make smoke-service` copies the template outside the workspace, installs only the built core wheel, then proves authenticated HTTP enqueue, Redis receipt fencing and reclaim, DBOS hard-crash recovery, shared PostgreSQL checkpoint/event evidence, approval continuation, deny-without-continuation, and scoped cleanup.
 
 Future split paths are:
 
@@ -152,4 +152,4 @@ make build
 
 This creates local wheel/sdist artifacts and `dist/SHA256SUMS`; it does not publish them. `make release-dry-run` creates an ignored `release-preview/v1` manifest for releasable and no-release histories without changing Git history or a registry. Promotion and private-registry publishing are protected plan-only-by-default seams; hosted GitHub/GitLab execution, external provider calls, and real publish remain unverified. See the [release process](docs/release-process.md) for the exact gate and evidence boundary.
 
-The Phase 15 implementation passed the real local PostgreSQL/Redis service smoke with the repository-pinned uv `0.11.29` and localhost excluded from the host proxy. Fresh Reviewer 1 passed the four scoped fixes; the owner explicitly waived the final Reviewer 2/3 gate for this Phase without claiming reviewer PASS. All three OpenSpec changes were synced to the main specifications and archived on 2026-07-22. Hosted execution is still unverified.
+Repository-local verification uses the pinned uv `0.11.29`; the real PostgreSQL/Redis service smoke also excludes localhost from the host proxy. The related OpenSpec changes were synced to the main specifications and archived on 2026-07-22. Hosted execution is still unverified.

@@ -2,25 +2,25 @@
 
 from __future__ import annotations
 
-from tests.contracts.test_service_deployment_compose_contracts import (
+from tests.contracts.service_deployment_test_support import (
     ApiKeyCreate as ApiKeyCreate,
 )
-from tests.contracts.test_service_deployment_compose_contracts import (
+from tests.contracts.service_deployment_test_support import (
     ApiKeyVerifier as ApiKeyVerifier,
 )
-from tests.contracts.test_service_deployment_compose_contracts import (
+from tests.contracts.service_deployment_test_support import (
     Path as Path,
 )
-from tests.contracts.test_service_deployment_compose_contracts import (
+from tests.contracts.service_deployment_test_support import (
     SQLAlchemyStorage as SQLAlchemyStorage,
 )
-from tests.contracts.test_service_deployment_compose_contracts import (
+from tests.contracts.service_deployment_test_support import (
     hash_token as hash_token,
 )
-from tests.contracts.test_service_deployment_compose_contracts import (
+from tests.contracts.service_deployment_test_support import (
     pytest as pytest,
 )
-from tests.contracts.test_service_deployment_compose_contracts import (
+from tests.contracts.service_deployment_test_support import (
     run_migrations as run_migrations,
 )
 

@@ -12,7 +12,7 @@
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
 - OpenSpec: 仓库存在 `openspec/`；Phase 1-15 的已完成 changes 均已归档并同步主规格。Phase 15 的 `release-dry-run-private-registry`、`license-compliance-gate`、`ci-p0-evidence-closure` 已于 2026-07-22 归档。审查确认的 `2 HIGH + 1 MEDIUM + 1 LOW` 已按最小范围修复，fresh Reviewer 1 对四项修复给出 Stage 1/2 PASS；随后 `make smoke-service` 在仓库要求的 uv `0.11.29` 且 localhost 绕过宿主代理的环境中完整退出 0，用户已裁决该门禁按 PASS 处理。用户已明确取消最终 Reviewer 2/3，并对本次 Phase 15 作出一次性 `owner-waived` 裁决；当前无 active change。
-- 代码状态: Phase 1-15 已完成计划内实现或文档交付并归档；Phase 15 已建立双 CI、release preview/promotion seam、覆盖可发布 root 普通/optional 依赖的 124 项 `name/version/source` license inventory/report，以及 92 项具体生产文件与精确 pytest node 的 P0 matrix。validator 拒绝文件级/空壳节点，并固定审查确认的语义节点；AC-004/061 真实扫描 import，AC-019/023/026/029/052/062 分别验证默认 tenant、deny audit、MCP allowlist、无真实 key 的 fake eval 与跨边界关联传播。AC-012/068 分别列出 SQLite `test-aggregate` 与真实 PostgreSQL `smoke-service`，AC-065 映射公开 CLI 正向 single-agent fake run。GitHub release 多路径 artifact 下载根固定为 `.artifacts` 并纳入 `ci_contract`，registry endpoint 在 plan/network 前拒绝 userinfo/query/fragment。artifact 服务本身按用户裁决不执行上传或下载验证，hosted 服务保持未验证；本地收口记录为 `owner-waived`，不写成 Reviewer 2/3 PASS 或已发布。
+- 代码状态: Phase 1-15 已完成计划内实现或文档交付并归档；Phase 15 已建立双 CI、release preview/promotion seam、覆盖可发布 root 普通/optional 依赖的 124 项 `name/version/source` license inventory/report，以及 92 项具体生产文件与精确 pytest node 的 acceptance matrix。validator 拒绝文件级/空壳节点，并固定审查确认的语义节点；AC-004/061 真实扫描 import，AC-019/023/026/029/052/062 分别验证默认 tenant、deny audit、MCP allowlist、无真实 key 的 fake eval 与跨边界关联传播。AC-012/068 分别列出 SQLite `test-aggregate` 与真实 PostgreSQL `smoke-service`，AC-065 映射公开 CLI 正向 single-agent fake run。GitHub release 多路径 artifact 下载根固定为 `.artifacts` 并纳入 `ci_contract`，registry endpoint 在 plan/network 前拒绝 userinfo/query/fragment。artifact 服务本身按用户裁决不执行上传或下载验证，hosted 服务保持未验证；本地收口记录为 `owner-waived`，不写成 Reviewer 2/3 PASS 或已发布。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
@@ -23,7 +23,7 @@
 | 当前 Phase | Phase 15 已归档 | 三个 change 已同步主规格并归档；不执行 Reviewer 2/3，不代表 hosted PASS 或发布。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14, Phase 15 | Phase 13-15 的 changes 均已同步主规格并归档。 |
 | 当前 OpenSpec change | 无 active change | Phase 15 三份 tasks 全部完成并已归档；本次以明确的 `owner-waived` 代替未执行的最终 Reviewer 2/3。 |
-| 当前验证基线 | Phase 15 当前候选证据已覆盖受影响路径 | quality/ruff/pyright/import-boundary PASS，unit-contract `1266 passed, 200 skipped`，test-aggregate `1278 passed, 223 skipped`，integration `11 passed, 23 skipped`，eval 与 `smoke-local` PASS；真实 PostgreSQL 18.4/Redis 7.2.14 `smoke-service` 在 uv `0.11.29`、`NO_PROXY=127.0.0.1,localhost` 下完整退出 0并生成 service trace。旧 `ci-result/v1` 失败记录不再作为门禁结论，最终证据说明保留宿主 uv/proxy 条件。 |
+| 当前验证基线 | 当前候选证据已覆盖受影响路径 | quality/ruff/pyright/import-boundary 与 unit-contract PASS，test-aggregate `1279 passed, 223 skipped`，integration `11 passed, 23 skipped`，eval 与 `smoke-local` PASS；真实 PostgreSQL 18.4/Redis 7.2.14 `smoke-service` 在 uv `0.11.29`、`NO_PROXY=127.0.0.1,localhost` 下完整退出 0并生成 service trace。旧 `ci-result/v1` 失败记录不再作为门禁结论，最终证据说明保留宿主 uv/proxy 条件。 |
 | 当前阻塞项 | 无本地收口阻塞 | GitHub/GitLab hosted runner、远端保护、secret/artifact service 仍未验证；AC-053/054 因此保持未勾选。 |
 | 当前建议下一步 | 等待后续任务 | AC-053/054 仍需真实 hosted 证据才能关闭；除非用户另行授权，不 push、tag、release、真实 publish 或部署。 |
 
@@ -33,7 +33,7 @@
 
 - Phase 13.5-13.9 的已实现 changes 已同步主规格并归档。
 - Phase 14 的交付、验证、主规格同步与归档已完成；归档路径为 `openspec/changes/archive/2026-07-19-maintainer-deep-documentation/`。
-- Phase 15 的 release、license 与双 CI/P0 evidence 实现已完成；审查确认的四项最小修复已有 fresh Reviewer 1 Stage 1/2 PASS，真实 `smoke-service` 也已在正确 uv 与 localhost 直连环境中通过。用户已明确取消最终 Reviewer 2/3，并对本次 Phase 作出一次性 `owner-waived` 裁决；三个 change 已于 2026-07-22 同步主规格并归档。
+- Phase 15 的 release、license 与双 CI/需求验收 evidence 实现已完成；审查确认的四项最小修复已有 fresh Reviewer 1 Stage 1/2 PASS，真实 `smoke-service` 也已在正确 uv 与 localhost 直连环境中通过。用户已明确取消最终 Reviewer 2/3，并对本次 Phase 作出一次性 `owner-waived` 裁决；三个 change 已于 2026-07-22 同步主规格并归档。
 
 ### 后续 Phase
 
@@ -59,7 +59,7 @@
 - AC-015、AC-016：真实受控 delegation、child run、durable parent aggregation 与 local/service recovery 已实现并通过完整门禁及与 Phase 13.8A 的联合代码 1+2。
 - AC-068：shared parent ledger、typed secret、0016 topology/source/price、错误优先级及审查追加项均已修复，并通过完整门禁、代码 1+2 与审查后收口。
 - AC-038、AC-066：RUN-006 HTTP transport、Last-Event-ID 恢复与固定 30 样本首 frame P95 已实现并验证；WebSocket 仍为 P1。
-- AC-050：Phase 15 P0 matrix 已将全部 P0 REQ/AC 绑定到具体 production path、精确 pytest node、实际 CI producer 与 evidence path；新 change 仍需保留 red evidence。
+- AC-050：需求验收矩阵已将显式选择的全部 REQ/AC 绑定到具体 production path、精确 pytest node、实际 CI producer 与 evidence path；新 change 仍需保留 red evidence。
 - Phase 14 深度文档已交付并通过完整门禁；Phase 15 release automation 已建立并完成本地 seam，hosted 执行仍未验证。
 - GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 已实现仓库本地 seam；hosted runner 和真实外部副作用未验证。
 - Phase 14 已补齐扩展指南、安全策略、维护者手册与当前/未来边界明确的 release 文档。
@@ -889,7 +889,7 @@ Phase 1 Monorepo / quality spine
 **交付内容**：
 - 建立 GitHub Actions 和 GitLab CI 等价质量门禁：install、ruff、pyright、unit/contract tests、integration、eval、smoke-local、smoke-service、build、license check、release dry-run。
 - 实现 python-semantic-release dry-run、版本计算、tag 名称、CHANGELOG preview、release notes、wheel/sdist artifact，以及受保护的 version/CHANGELOG/release commit/tag/release promotion 和私有 registry 分权发布路径；本 Phase 本地验收不对当前仓库或真实远端执行 promotion/publish。
-- 完成 license check、NOTICE 追踪、CI artifacts 归档和 P0 acceptance matrix 最终证据。
+- 完成 license check、NOTICE 追踪、CI artifacts 归档和 需求验收矩阵 最终证据。
 
 **关键文件**：
 - `.github/workflows/ci.yml` - GitHub CI。
@@ -904,7 +904,7 @@ Phase 1 Monorepo / quality spine
 - `scripts/release_promote.py` - 受保护的 version/CHANGELOG/release commit/tag/release notes promotion；默认 plan-only。
 - `CHANGELOG.md` - generated changelog 输出。
 - `docs/release-process.md` - release 操作文档。
-- `docs/p0-acceptance-matrix.md` - P0 验收矩阵和证据链接。
+- `docs/acceptance-matrix.md` - 需求验收矩阵和证据链接。
 
 **验收标准**：
 - AC-050、AC-051、AC-053、AC-054：GitHub CI 和 GitLab CI 都分别运行 `make quality` 与 `make test`，并运行 `make integration`、`make eval`、`make smoke-local`、`make smoke-service`、`make build`、`make license-check`；各门禁有独立结果并产出 test report、coverage、trace sample、eval result、smoke logs、wheel/sdist、release preview artifact。
@@ -914,7 +914,7 @@ Phase 1 Monorepo / quality spine
 - 模板依赖声明使用可发布的兼容版本范围，例如 `agent-harness>=0.1,<0.2`，不得把 workspace path 依赖带入发布产物。
 - `ReleaseRecord` 以 `release-preview/v1` JSON manifest 作为 CI artifact，关联 commit、版本决策、tag 计划、CHANGELOG preview、release notes、wheel/sdist 与 checksum；不创建运行时数据库表，不新增 migration/repository/UoW，也不让 dry-run 连接应用数据库。
 
-**当前状态**：Phase 15 审查确认的 `2 HIGH + 1 MEDIUM + 1 LOW` 已按最小范围修复，fresh Reviewer 1 对四项修复给出 Stage 1/2 PASS。冻结证据包含 quality/ruff/pyright/import-boundary PASS、unit-contract `1266 passed, 200 skipped`、test-aggregate `1278 passed, 223 skipped`、integration `11 passed, 23 skipped`、eval 与 `smoke-local` PASS；真实 PostgreSQL 18.4/Redis 7.2.14 `smoke-service` 在 uv `0.11.29` 且 `NO_PROXY=127.0.0.1,localhost` 下完整退出 0并生成 service trace。此前 `api-auth` 失败已由宿主代理返回 HTML 503、localhost 直连返回预期 JSON 401 的对照证据定位为环境问题；更早的 `result_committed` receipt 超时在完整重跑中未复现，用户已裁决 `smoke-service` 按 PASS 处理。用户明确取消最终 Reviewer 2/3，并对本次 Phase 15 作出一次性 `owner-waived` 裁决；三个 change 的 tasks 已全部完成，并于 2026-07-22 同步主规格和归档。AC-050/051/055/056/058 已按本地证据勾选，AC-053/054 因 hosted runner 未执行保持未勾选；不声明 Reviewer 2/3 PASS、hosted PASS 或已发布。
+**当前状态**：既有发布与 CI 收口修复已完成。冻结证据包含 quality/ruff/pyright/import-boundary 与 unit-contract PASS、test-aggregate `1279 passed, 223 skipped`、integration `11 passed, 23 skipped`、eval 与 `smoke-local` PASS；真实 PostgreSQL 18.4/Redis 7.2.14 `smoke-service` 在 uv `0.11.29` 且 `NO_PROXY=127.0.0.1,localhost` 下完整退出 0并生成 service trace。此前 `api-auth` 失败已由宿主代理返回 HTML 503、localhost 直连返回预期 JSON 401 的对照证据定位为环境问题；更早的 `result_committed` receipt 超时在完整重跑中未复现。三个相关 change 的 tasks 已全部完成，并于 2026-07-22 同步主规格和归档。AC-050/051/055/056/058 已按本地证据勾选，AC-053/054 因 hosted runner 未执行保持未勾选；不声明 hosted PASS 或已发布。
 
 ---
 

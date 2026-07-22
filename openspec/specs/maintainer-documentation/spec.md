@@ -44,7 +44,7 @@
 系统 SHALL 使文档中的内部路径、锚点、外部引用和技术版本可从当前 checkout 复核。Python dependency 的声明与解析版本 MUST 分别与对应 `pyproject.toml` 和 `uv.lock` 一致；Docker runtime MUST 按 Compose image reference 描述 pin 粒度；仓库未锁定的外部 CLI MUST 标明未锁定并记录本次验证版本，不得冒充 lock 内容。vendor isolation 与 Redis runtime/license policy MUST 由独立 ADR 记录背景、决策、替代方案、后果和复审触发条件。
 
 #### Scenario: 当前 checkout 执行文档核验
-- **WHEN** 维护者对 Phase 14 文档运行链接、路径、命令与版本核验
+- **WHEN** 维护者对当前维护文档运行链接、路径、命令与版本核验
 - **THEN** 所有内部目标存在、文档命令可执行或明确标注 service 前置，dependency/Compose/外部 CLI 分别按其权威来源核验，已知上游表述冲突被纠正，外部事实有官方来源
 
 #### Scenario: 外部 provider 或 Redis 版本变化
@@ -52,15 +52,15 @@
 - **THEN** 其能从 ADR 找到必须保持的隔离边界、license/NOTICE 复审条件和需要重新验证的证据
 
 ### Requirement: 完成状态只由冻结证据驱动
-系统 MUST 在文档交付、命令/链接/版本核验和 OpenSpec strict validation 通过后，先把 `AC-049` 与 Phase 14 状态更新进候选最终 diff，再冻结该 diff 交 fresh reviewer。只有包含状态更新的同一冻结 diff 达到 Stage 1/2 PASS，Phase 14 才可声明完成。任何审查后实质变更 MUST 使旧 review 结论失效并触发重新审查。
+系统 MUST 在文档交付、命令/链接/版本核验和 OpenSpec strict validation 通过后，先把相关验收与维护状态更新进候选最终 diff，再冻结该 diff 交 fresh reviewer。只有包含状态更新的同一冻结 diff 达到 Stage 1/2 PASS，对应维护目标才可声明完成。任何审查后实质变更 MUST 使旧 review 结论失效并触发重新审查。
 
 #### Scenario: 验证通过后形成候选最终状态
-- **WHEN** Phase 14 文档交付、命令/链接/版本核验和 OpenSpec strict validation 已通过
-- **THEN** Product-Spec 与 DEV-PLAN 在 fresh review 前更新进候选最终 diff，标记文档交付完成且 Phase 15 仍未开始
+- **WHEN** 文档交付、命令/链接/版本核验和 OpenSpec strict validation 已通过
+- **THEN** Product-Spec 与 DEV-PLAN 的相关状态在 fresh review 前更新进候选最终 diff，且只声明已有证据支持的完成边界
 
 #### Scenario: 状态更新包含在最终审查基线
 - **WHEN** 包含 Product-Spec 与 DEV-PLAN 状态更新的候选最终 diff 被 fresh reviewer 审查
-- **THEN** 只有该同一冻结内容达到 Stage 1/2 PASS 才能用于 Phase 14 完成声明
+- **THEN** 只有该同一冻结内容达到 Stage 1/2 PASS 才能用于对应维护目标的完成声明
 
 #### Scenario: 审查后文档发生实质变更
 - **WHEN** fresh review 后任一受审文档、契约、测试或配置发生实质变化
