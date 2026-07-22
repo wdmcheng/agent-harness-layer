@@ -101,7 +101,7 @@ def test_service_app_declares_core_dependency_without_member_only_workspace_sour
 
     dependencies = project["dependencies"]
     assert isinstance(dependencies, list)
-    assert "agent-harness==0.1.0" in dependencies
+    assert "agent-harness==0.1.*" in dependencies
     template_uv: Mapping[str, object] = (
         as_mapping(tool["uv"]) if "uv" in tool else cast(Mapping[str, object], {})
     )

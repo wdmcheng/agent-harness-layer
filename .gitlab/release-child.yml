@@ -1,0 +1,100 @@
+# 父 pipeline 的无凭据 plan 只实例化其中一种 child 形态；隐藏模板本身不会调度。
+stages: [promote, publish]
+
+default:
+  image: ghcr.io/astral-sh/uv:0.11.29-python3.12-trixie-slim@sha256:36cdfbf910c8b0f651355c013e7ece9678f4ecbf030a9fd9e6779de421189805
+  before_script:
+    - apt-get update
+    - apt-get install --yes --no-install-recommends ca-certificates git make
+    - rm -rf /var/lib/apt/lists/*
+    - uv --version
+
+variables:
+  GIT_DEPTH: "0"
+
+.release-promote-no-release:
+  stage: promote
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: promote-plan
+  variables:
+    RELEASE_MANIFEST: .artifacts/release-preview/phase15-current/manifest.json
+  script: ["make ci-release-promote-execute"]
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths:
+      - .artifacts/ci/release-promote-execute
+      - .artifacts/release-preview
+      - .artifacts/release-promotion
+
+.release-promote-execute:
+  stage: promote
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: promote-plan
+  environment: {name: release}
+  variables:
+    RELEASE_PROVIDER_URL: $RELEASE_PROVIDER_URL
+    RELEASE_PROTECTED_DEFAULT_BRANCH: $CI_DEFAULT_BRANCH
+    RELEASE_MANIFEST: .artifacts/release-preview/phase15-current/manifest.json
+    RELEASE_PROMOTION_APPROVED: "true"
+    RELEASE_PROTECTED_REF: "true"
+    RELEASE_PUSH_TOKEN: $RELEASE_PUSH_TOKEN
+    RELEASE_PROVIDER_TOKEN: $RELEASE_PROVIDER_TOKEN
+  script:
+    # push seam 只看到无凭据 HTTPS endpoint；credential helper 由 Make target 临时安装并清理。
+    - git remote set-url --push origin "https://${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - make ci-release-promote-execute
+  when: manual
+  allow_failure: false
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths:
+      - .artifacts/ci/release-promote-execute
+      - .artifacts/release-preview
+      - .artifacts/release-promotion
+      - .artifacts/release-build
+
+.release-publish-plan:
+  stage: publish
+  needs: [promote-execute]
+  variables:
+    UV_PUBLISH_URL: $PRIVATE_REGISTRY_URL
+    UV_PUBLISH_CHECK_URL: $PRIVATE_REGISTRY_CHECK_URL
+    RELEASE_MANIFEST: .artifacts/release-preview/phase15-current/manifest.json
+  script: ["make ci-registry-publish-plan"]
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths:
+      - .artifacts/ci/registry-publish-plan
+      - .artifacts/release-preview
+      - .artifacts/release-promotion
+      - .artifacts/release-build
+      - .artifacts/registry-publish/plan.json
+
+.release-publish-execute:
+  stage: publish
+  needs: [publish-plan]
+  environment: {name: private-registry}
+  variables:
+    UV_PUBLISH_URL: $PRIVATE_REGISTRY_URL
+    UV_PUBLISH_CHECK_URL: $PRIVATE_REGISTRY_CHECK_URL
+    UV_PUBLISH_TOKEN: $PRIVATE_REGISTRY_TOKEN
+    RELEASE_MANIFEST: .artifacts/release-preview/phase15-current/manifest.json
+    REGISTRY_PUBLISH_APPROVED: "true"
+    RELEASE_PROTECTED_REF: "true"
+  script: ["make ci-registry-publish-execute"]
+  when: manual
+  allow_failure: false
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths:
+      - .artifacts/ci/registry-publish-execute
+      - .artifacts/release-preview
+      - .artifacts/release-promotion
+      - .artifacts/release-build
+      - .artifacts/registry-publish

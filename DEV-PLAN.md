@@ -7,25 +7,25 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-20 的 v1.11。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-21 的 v1.13。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-14 的已完成 changes 均已归档并同步主规格，当前无 active change。
-- 代码状态: Phase 1-14 已完成计划内实现或文档交付、验证、fresh Stage 1/2 审查与归档；Phase 15 未开始。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-14 的已完成 changes 均已归档并同步主规格。Phase 15 当前有 `release-dry-run-private-registry`、`license-compliance-gate`、`ci-p0-evidence-closure` 三个 active changes。审查确认的 `2 HIGH + 1 MEDIUM + 1 LOW` 已按最小范围修复，fresh Reviewer 1 对四项修复给出 Stage 1/2 PASS；随后 `make smoke-service` 在仓库要求的 uv `0.11.29` 且 localhost 绕过宿主代理的环境中完整退出 0，用户已裁决该门禁按 PASS 处理。用户已明确取消最终 Reviewer 2/3，并对本次 Phase 15 作出一次性 `owner-waived` 裁决；三个 change 已到本地 `ready-to-archive`，但仍未归档。
+- 代码状态: Phase 1-14 已完成计划内实现或文档交付、验证、fresh Stage 1/2 审查与归档；Phase 15 已建立双 CI、release preview/promotion seam、覆盖可发布 root 普通/optional 依赖的 124 项 `name/version/source` license inventory/report，以及 92 项具体生产文件与精确 pytest node 的 P0 matrix。validator 拒绝文件级/空壳节点，并固定审查确认的语义节点；AC-004/061 真实扫描 import，AC-019/023/026/029/052/062 分别验证默认 tenant、deny audit、MCP allowlist、无真实 key 的 fake eval 与跨边界关联传播。AC-012/068 分别列出 SQLite `test-aggregate` 与真实 PostgreSQL `smoke-service`，AC-065 映射公开 CLI 正向 single-agent fake run。GitHub release 多路径 artifact 下载根固定为 `.artifacts` 并纳入 `ci_contract`，registry endpoint 在 plan/network 前拒绝 userinfo/query/fragment。artifact 服务本身按用户裁决不执行上传或下载验证，hosted 服务保持未验证；本地收口记录为 `owner-waived`，不写成 Reviewer 2/3 PASS、已发布或已归档。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | Phase 1-14 已完成并归档 | `maintainer-deep-documentation` 已同步主规格并归档；Phase 15 未开始。 |
-| 当前 Phase | Phase 15 未开始 | 是否进入 CI/CD、Release Automation 与合规收口由用户另行决定。 |
+| 总体状态 | Phase 1-14 已完成并归档；Phase 15 本地 ready-to-archive | 四项最小修复的 fresh Reviewer 1 Stage 1/2 PASS，真实 `smoke-service` 已在正确 uv/localhost 直连环境中退出 0；最终 Reviewer 2/3 由用户一次性 `owner-waived`。 |
+| 当前 Phase | Phase 15 本地收口完成 | 三个 change 保持 active，等待用户决定是否 sync/archive；不再执行 Reviewer 2/3。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14 | Phase 13 与 Phase 14 的 changes 均已同步主规格并归档。 |
-| 当前 OpenSpec change | 无 | `openspec list --json` 返回空 active changes。 |
-| 当前验证基线 | Phase 14 完整门禁通过 | quality 通过；全量 `1001 passed, 222 skipped`；eval `11/11`、local smoke、复制模板的 fingerprint/migration/smoke/run/dev-health Quick Start、真实 PostgreSQL/Redis/DBOS service smoke、build、license、链接/锚点/外链/版本、strict 与 diff check 均通过。 |
-| 当前阻塞项 | 无 | Phase 14 归档差异仍需通过 fresh Stage 1/2 review 后才可写入 `clean`。 |
-| 当前建议下一步 | 等待用户决定是否启动 Phase 15 | 不自动创建 Phase 15 change，不 commit、push、发布或部署。 |
+| 当前 OpenSpec change | 3 个 active，均 ready-to-archive | 三份 tasks 已全部完成；本次以明确的 `owner-waived` 代替未执行的最终 Reviewer 2/3，不 sync/archive。 |
+| 当前验证基线 | Phase 15 当前候选证据已覆盖受影响路径 | quality/ruff/pyright/import-boundary PASS，unit-contract `1266 passed, 200 skipped`，test-aggregate `1278 passed, 223 skipped`，integration `11 passed, 23 skipped`，eval 与 `smoke-local` PASS；真实 PostgreSQL 18.4/Redis 7.2.14 `smoke-service` 在 uv `0.11.29`、`NO_PROXY=127.0.0.1,localhost` 下完整退出 0并生成 service trace。旧 `ci-result/v1` 失败记录不再作为门禁结论，最终证据说明保留宿主 uv/proxy 条件。 |
+| 当前阻塞项 | 无本地收口阻塞 | GitHub/GitLab hosted runner、远端保护、secret/artifact service 仍未验证；AC-053/054 因此保持未勾选。 |
+| 当前建议下一步 | 等待用户决定是否归档 | 归档前仍不得把本地结果写成 hosted PASS；除非用户另行授权，不 commit、push、tag、release、真实 publish、部署、sync 或 archive。 |
 
 ## 剩余工作
 
@@ -33,7 +33,7 @@
 
 - Phase 13.5-13.9 的已实现 changes 已同步主规格并归档。
 - Phase 14 的交付、验证、主规格同步与归档已完成；归档路径为 `openspec/changes/archive/2026-07-19-maintainer-deep-documentation/`。
-- Phase 15 仍保持未开始，不因 Phase 14 文档中的未来合同自动开工。
+- Phase 15 已由用户显式启动。release、license 与双 CI/P0 evidence 实现已完成；审查确认的四项最小修复已有 fresh Reviewer 1 Stage 1/2 PASS，真实 `smoke-service` 也已在正确 uv 与 localhost 直连环境中通过。用户已明确取消最终 Reviewer 2/3，并对本次 Phase 作出一次性 `owner-waived` 裁决；当前已到本地 `ready-to-archive`，但尚未 sync/archive。
 
 ### 后续 Phase
 
@@ -59,19 +59,19 @@
 - AC-015、AC-016：真实受控 delegation、child run、durable parent aggregation 与 local/service recovery 已实现并通过完整门禁及与 Phase 13.8A 的联合代码 1+2。
 - AC-068：shared parent ledger、typed secret、0016 topology/source/price、错误优先级及审查追加项均已修复，并通过完整门禁、代码 1+2 与审查后收口。
 - AC-038、AC-066：RUN-006 HTTP transport、Last-Event-ID 恢复与固定 30 样本首 frame P95 已实现并验证；WebSocket 仍为 P1。
-- AC-050：由各 change 的 `tasks.md`、Phase 本地提交以及 review/test 命令证据持续维护 REQ/AC -> production -> test 追溯；Phase 15 release matrix 必须汇总并重新校验，新 change 仍需保留 red evidence。
-- Phase 14 深度文档已交付并通过完整门禁；Phase 15 release automation 尚未实现。
-- GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 尚未实现。
+- AC-050：Phase 15 P0 matrix 已将全部 P0 REQ/AC 绑定到具体 production path、精确 pytest node、实际 CI producer 与 evidence path；新 change 仍需保留 red evidence。
+- Phase 14 深度文档已交付并通过完整门禁；Phase 15 release automation 已建立并完成本地 seam，hosted 执行仍未验证。
+- GitHub Actions / GitLab CI、CHANGELOG/tag/release dry-run 已实现仓库本地 seam；hosted runner 和真实外部副作用未验证。
 - Phase 14 已补齐扩展指南、安全策略、维护者手册与当前/未来边界明确的 release 文档。
 
 ## 技术栈决策
 
-Python dependency 的声明范围以各 `pyproject.toml` 为准，实际解析版本以 `uv.lock` 为准；Docker runtime 以 Compose image reference 为准。uv、Docker、Compose 等外部 CLI 未由仓库锁定，只能记录某次验证环境，不能冒充 lock 内容。本表给出当前受控事实和仍属后续 Phase 的目标。
+Python dependency 的声明范围以各 `pyproject.toml` 为准，实际解析版本以 `uv.lock` 为准；Docker runtime 以 Compose image reference 为准。Phase 15 通过根 `[tool.uv].required-version`、GitHub setup action 和 GitLab image 将 uv 固定为 `0.11.29`；Docker、Compose 等宿主 CLI 仍只记录某次验证环境，不能冒充 lock 内容。本表区分仓库 pin、解析真相与运行观察值。
 
 | 层级 | 技术 | 版本 | 说明 |
 |------|------|------|------|
 | 运行语言 | Python | `>=3.12` | 由 `pyproject.toml` 声明；2026-07-20 Phase 14 本机验证为 3.14.5。Phase 15 才定义并证明 CI Python matrix。 |
-| 包管理 / Workspace | uv | 仓库未锁定；2026-07-20 本机验证 `0.11.19` | 负责 workspace、lock 与 build；publish 命令虽由工具提供，但本仓库发布流程尚未实现。 |
+| 包管理 / Workspace | uv | `==0.11.29` | 根 `[tool.uv].required-version`、GitHub setup action 与 GitLab OCI image 共同固定；负责 workspace、lock、preview/tag 后正式 build 和受保护 publish，真实外部发布本轮不执行。 |
 | Build backend | hatchling | `1.30.1` | 现代 Python build backend，配合 `uv build` 产出 wheel/sdist。 |
 | Agent runtime 底座 | pydantic-ai / pydantic-ai-slim | `2.5.0` | 默认底座，但业务 agent 只依赖 `agent_harness` 公共接口；优先使用 slim + extras 降低依赖面。 |
 | Agent capability library | pydantic-ai-harness | 不作为 P0 必选依赖；按能力块引入时重新核验并锁版本 | 官方 capability library，用于 CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等可选能力；进入实现前必须走受控 integration boundary。 |
@@ -84,8 +84,8 @@ Python dependency 的声明范围以各 `pyproject.toml` 为准，实际解析�
 | Migration | Alembic | `1.18.5` | 统一 SQLite/PostgreSQL schema migration。 |
 | PostgreSQL driver | asyncpg | `0.31.0` | service profile async driver；repository contract tests 以 async 路径为准。 |
 | SQLite async bridge | aiosqlite | `0.22.1` | local profile 和 CI 使用 SQLite async adapter。 |
-| Service database | PostgreSQL | Compose 默认 `postgres:18` | 只固定 major tag；具体 server patch/digest 由每次真实 service smoke 记录，不能写成仓库已 pin `18.4`。 |
-| Durable queue | Redis server | `8.0.1` for Docker Compose | 当前只承担 Streams/XAUTOCLAIM RunQueue；session cache 属于 P1 可选能力。Phase 15 发布前重新核验镜像与许可证材料。 |
+| Service database | PostgreSQL | Compose 默认 `18.4` + OCI index digest | 由 `templates/service-app/docker-compose.yml` 与 `compliance/third-party.toml` 固定构建输入；实际 server patch 仍由每次真实 service smoke 记录。 |
+| Durable queue | Redis server | `7.2.14` + OCI index digest | 固定在仍采用 BSD-3-Clause 的 7.2 安全补丁线，当前只承担 Streams/XAUTOCLAIM RunQueue；7.4+ 不在 P0 批准范围，升级须重新走 ADR/license/真实 service smoke。 |
 | Redis client | redis-py | `8.0.1` | Durable queue 只依赖 Redis Streams consumer group、claim/ack 与幂等状态 seam。 |
 | Observability 底座 | OpenTelemetry Python | `observability` extra 解析为 `1.42.1` SDK/exporter | 以 `uv.lock` 为当前解析真相；OTel API/SDK 作为 provider adapter 前的统一协议。升级需重新解析 Logfire/Phoenix/Langfuse 组合。 |
 | 推荐观测 provider | Logfire | `4.37.0` | 推荐 adapter；业务代码不直接 import。 |
@@ -99,7 +99,7 @@ Python dependency 的声明范围以各 `pyproject.toml` 为准，实际解析�
 | Async tests | pytest-asyncio | `1.4.0` | runtime、storage、API、event stream 的 async tests。 |
 | Coverage | coverage.py | `7.15.0` | 产出 CI coverage artifact；和 pytest 分离配置。 |
 | Git hooks | pre-commit | `4.6.0` | 本地 quality hook 和 license/header check 入口。 |
-| Release automation | 待 Phase 15 决策 | 尚未引入或锁定 | 当前没有 SemVer/tag/CHANGELOG/release artifact dry-run 或 publish automation；Phase 15 重新选型并验证 GitHub/GitLab 等价门禁。 |
+| Release automation | Python Semantic Release + 仓库 wrapper | `python-semantic-release==10.6.1`、CI uv `0.11.29` | PSR 只用全局 `--noop` 的版本计算；wrapper 负责无副作用 preview、隔离构建、checksum 与私有 registry 安全门禁。真实 promotion/publish 不执行。 |
 | 部署目标 | Docker Compose | Compose v2 | P0 只做本地 service profile，验证 PostgreSQL + Redis + API + worker 协作；不引入 Kubernetes。 |
 
 ## 技术栈验证来源
@@ -111,7 +111,7 @@ Python dependency 的声明范围以各 `pyproject.toml` 为准，实际解析�
 - FastAPI / Uvicorn / Typer: https://pypi.org/project/fastapi/ , https://pypi.org/project/uvicorn/ , https://pypi.org/project/typer/
 - SQLAlchemy / Alembic: https://pypi.org/project/SQLAlchemy/ , https://pypi.org/project/alembic/
 - PostgreSQL releases: https://www.postgresql.org/
-- Redis release/license/client: https://github.com/redis/redis/releases , https://hub.docker.com/_/redis , https://pypi.org/project/redis/
+- Redis release/license/client: https://github.com/redis/redis/releases/tag/7.2.14 , https://raw.githubusercontent.com/redis/redis/7.2.14/COPYING , https://hub.docker.com/_/redis , https://pypi.org/project/redis/
 - OpenTelemetry / Logfire / Phoenix / Langfuse: https://pypi.org/project/opentelemetry-api/ , https://pypi.org/project/logfire/ , https://pypi.org/project/arize-phoenix/ , https://github.com/langfuse/langfuse-python
 - MCP Python SDK: https://pypi.org/project/mcp/
 - Quality / release tools: https://pypi.org/project/ruff/ , https://pypi.org/project/pyright/ , https://pypi.org/project/pytest/ , https://pypi.org/project/pytest-asyncio/ , https://pypi.org/project/coverage/ , https://pypi.org/project/pre-commit/ , https://pypi.org/project/python-semantic-release/
@@ -240,7 +240,7 @@ Phase 1 Monorepo / quality spine
 
 **实现状态**：
 - 已实现 `agent_harness.storage` SQLAlchemy async adapter、Alembic `0001_core_schema`、Repository/UoW、local SQLite 和 service PostgreSQL migration。
-- 已通过 `tests/contracts/test_storage_migration_uow_contracts.py`；service profile 通过 `make smoke-service`，PostgreSQL 镜像 `postgres:18`，Redis 本机 smoke 复用 `redis:8`，migration revision 为 `0001_core_schema`。
+- 已通过 `tests/contracts/test_storage_migration_uow_contracts.py`；service profile 通过 `make smoke-service`，当前固定并验证 PostgreSQL `18.4`、Redis Server `7.2.14`，migration revision 为 `0001_core_schema`。Python 客户端 `redis-py 8.0.1` 独立管理，不代表服务端主版本。
 
 ---
 
@@ -657,7 +657,7 @@ Phase 1 Monorepo / quality spine
 - Compose 以 PostgreSQL、Redis、migration、API、worker 协作；API 与 worker 共享 storage/queue/DBOS/PostgreSQL event 配置，镜像只安装已构建 core wheel，不读取仓库源码。
 - `make smoke-service` 已在 workspace 外复制模板中证明真实认证、RUN-001 四字段、worker A hard crash、worker B `XAUTOCLAIM`/同 DBOS workflow 恢复、唯一 terminal、approval enqueue 补投/checkpoint continuation、deny 零 continuation 与临时 credential 清理。
 - 默认 smoke 不留随机 Compose container/volume；`SERVICE_APP_KEEP_DATA=1` 只保留指定 PostgreSQL volume，数据库复核临时 credential 为 0 后可用输出的精确命令删除。
-- 架构 `.drawio`/`.excalidraw`/PNG、根/模板 README、API contract 与 `docs/adr/0001-p0-service-boundaries.md` 已同步；Phase 14/15 仍明确为待实现。
+- 架构 `.drawio`/`.excalidraw`/PNG、根/模板 README、API contract 与 `docs/adr/0001-p0-service-boundaries.md` 已同步；该历史阶段记录时 Phase 14/15 尚未开始，当前状态以本文件顶部与 Phase 15 小节为准。
 - 验证证据：Phase 13 聚焦合同 `54 passed`、真实 PostgreSQL/Redis/DBOS 集成 `12 passed`、离线全量 `325 passed, 13 skipped`、真实服务全量 `338 passed, 0 skipped`；quality、smoke-local、smoke-service、eval、build、license、pre-commit、OpenSpec strict 与 diff check 全通过。
 
 ---
@@ -870,7 +870,7 @@ Phase 1 Monorepo / quality spine
 - `docs/context-and-trust-boundary.md` - Agent Loop、HITL 回边、SSE/WS 回传、ContextAssembler 和 untrusted input 处理。
 - `docs/eval-observability-loop.md` - trace -> eval -> score -> provider 闭环。
 - `docs/security-policy.md` - auth、policy、approval、workspace、secret redaction。
-- `docs/release-process.md` - 当前人工质量/构建/license 边界，以及 Phase 15 的 SemVer、tag、CHANGELOG、private publish 未来合同。
+- `docs/release-process.md` - 当前人工质量/构建/license 边界、Phase 15 的 SemVer/tag/CHANGELOG preview/private publish seam，以及 hosted 未验证边界。
 - `docs/adr/0002-vendor-adapter-isolation.md` - 上游隔离决策。
 - `docs/adr/0003-redis-runtime-license-policy.md` - Redis runtime pin 与 license review 决策。
 
@@ -888,18 +888,20 @@ Phase 1 Monorepo / quality spine
 
 **交付内容**：
 - 建立 GitHub Actions 和 GitLab CI 等价质量门禁：install、ruff、pyright、unit/contract tests、integration、eval、smoke-local、smoke-service、build、license check、release dry-run。
-- 实现 python-semantic-release dry-run、版本计算、tag 名称、CHANGELOG preview、release notes、wheel/sdist artifact、私有 registry 发布路径。
+- 实现 python-semantic-release dry-run、版本计算、tag 名称、CHANGELOG preview、release notes、wheel/sdist artifact，以及受保护的 version/CHANGELOG/release commit/tag/release promotion 和私有 registry 分权发布路径；本 Phase 本地验收不对当前仓库或真实远端执行 promotion/publish。
 - 完成 license check、NOTICE 追踪、CI artifacts 归档和 P0 acceptance matrix 最终证据。
 
 **关键文件**：
 - `.github/workflows/ci.yml` - GitHub CI。
 - `.github/workflows/release.yml` - GitHub release dry-run / publish path。
-- `.gitlab-ci.yml` - GitLab 等价 pipeline。
+- `.gitlab-ci.yml`、`.gitlab/release-child.yml` - GitLab required pipeline 与按 promotion plan 生成的动态 release child 模板。
 - `Makefile` - `quality`、`test`、`integration`、`eval`、`smoke-local`、`smoke-service`、`build`、`license-check` 的稳定入口。
 - `templates/service-app/pyproject.toml` - 声明兼容的 `agent-harness` 版本范围，例如 `>=0.1,<0.2`。
-- `scripts/license_check.py` - license / NOTICE / vendoring 检查。
+- `scripts/license_check.py` - license / NOTICE / vendoring 检查；来源 URL 的 userinfo/query/fragment credential fail closed 并脱敏。
+- `scripts/release_gitlab_pipeline.py` - 从已验证 promotion plan 生成只实例化 planned 或 no-release 对应节点的 GitLab child config。
 - `scripts/import_boundary_check.py` - import boundary CI 检查。
 - `scripts/release_dry_run.py` - release preview wrapper。
+- `scripts/release_promote.py` - 受保护的 version/CHANGELOG/release commit/tag/release notes promotion；默认 plan-only。
 - `CHANGELOG.md` - generated changelog 输出。
 - `docs/release-process.md` - release 操作文档。
 - `docs/p0-acceptance-matrix.md` - P0 验收矩阵和证据链接。
@@ -910,6 +912,9 @@ Phase 1 Monorepo / quality spine
 - AC-056：无 releasable commits 时 release dry-run 不创建 tag 或 release。
 - AC-058：`LICENSE` 为 Apache-2.0，`NOTICE` 可追踪第三方声明，license check 能阻止未声明 vendoring 或不兼容 license。
 - 模板依赖声明使用可发布的兼容版本范围，例如 `agent-harness>=0.1,<0.2`，不得把 workspace path 依赖带入发布产物。
+- `ReleaseRecord` 以 `release-preview/v1` JSON manifest 作为 CI artifact，关联 commit、版本决策、tag 计划、CHANGELOG preview、release notes、wheel/sdist 与 checksum；不创建运行时数据库表，不新增 migration/repository/UoW，也不让 dry-run 连接应用数据库。
+
+**当前状态**：Phase 15 审查确认的 `2 HIGH + 1 MEDIUM + 1 LOW` 已按最小范围修复，fresh Reviewer 1 对四项修复给出 Stage 1/2 PASS。冻结证据包含 quality/ruff/pyright/import-boundary PASS、unit-contract `1266 passed, 200 skipped`、test-aggregate `1278 passed, 223 skipped`、integration `11 passed, 23 skipped`、eval 与 `smoke-local` PASS；真实 PostgreSQL 18.4/Redis 7.2.14 `smoke-service` 在 uv `0.11.29` 且 `NO_PROXY=127.0.0.1,localhost` 下完整退出 0并生成 service trace。此前 `api-auth` 失败已由宿主代理返回 HTML 503、localhost 直连返回预期 JSON 401 的对照证据定位为环境问题；更早的 `result_committed` receipt 超时在完整重跑中未复现，用户已裁决 `smoke-service` 按 PASS 处理。用户明确取消最终 Reviewer 2/3，并对本次 Phase 15 作出一次性 `owner-waived` 裁决；三个 change 的 tasks 已全部完成并达到本地 `ready-to-archive`。AC-050/051/055/056/058 已按本地证据勾选，AC-053/054 因 hosted runner 未执行保持未勾选；三个 change 仍 active，不声明 Reviewer 2/3 PASS、hosted PASS、已归档或已发布。
 
 ---
 
@@ -950,7 +955,6 @@ Phase 1 Monorepo / quality spine
 | `eval_dataset_splits` | Phase 12.5 | behavior tag、optimization / holdout / regression subset 和 case membership。 |
 | `eval_experiments` | Phase 12.5 | baseline/candidate harness experiment、score delta、holdout result 和 comparison evidence。 |
 | `harness_acceptance_records` | Phase 12.5 | 人工 acceptance decision、policy decision、audit ref 和 accepted harness version。 |
-| `release_records` | Phase 15 | version、tag、CHANGELOG、artifact、commit sha。 |
 
 ## Spec 覆盖矩阵
 
@@ -1007,7 +1011,7 @@ Phase 1 Monorepo / quality spine
 | Pydantic AI 2.5.0 刚发布，上游 API 和包边界可能变化。 | 核心 runtime、registry、model adapter 和业务 agent import 边界。 | Phase 2、Phase 6、Phase 10 | 已缓解 | Phase 2 已定义 `agent_harness` 公共契约和 vendor import 边界；Phase 6 已锁定 `pydantic-ai==2.5.0`，并把 `Agent.run_sync()` 调用隔离在 `agent_harness.adapters.models.pydantic_ai`。 |
 | Pydantic AI Harness 是独立可选 capability library，过早设为必选会扩大依赖面。 | CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等未来 capability integration。 | Phase 8、Phase 10、Phase 14 | 未处理 | P0 不直接依赖 `pydantic-ai-harness`；只有具体能力块需要时才新增 adapter/integration seam、锁定版本并扩展 import boundary 检查。 |
 | DBOS 2.26.0 是关键 service runtime 依赖，过早耦合会污染领域模型。 | Durable runtime、checkpoint、worker lifecycle。 | Phase 5、Phase 13 | 已缓解 | Phase 13 通过 `DBOSRuntimeAdapter`、稳定 executor/workflow identity 与 shared checkpoint 隔离；内部 run/checkpoint DTO 不依赖 DBOS 类型。 |
-| Redis runtime 版本与许可证变化影响 Apache-2.0 发布合规判断。 | Docker Compose service profile、durable queue adapter、发布合规。 | Phase 13、Phase 15 | 已缓解 | Phase 13 Compose 与 client 固定 `8.0.1` 并通过 license check；后续升级与发布仍必须走 ADR、NOTICE 与 license review。 |
+| Redis runtime 版本与许可证变化影响 Apache-2.0 发布合规判断。 | Docker Compose service profile、durable queue adapter、发布合规。 | Phase 13、Phase 15 | 已缓解 | Phase 15 已把 Compose server 固定为 BSD-3-Clause 的 `7.2.14` digest，client `redis-py 8.0.1` 作为独立 MIT 依赖管理；Redis 7.4+/8.x 不得因 client 同版本而混用，后续升级与发布仍必须走 ADR、NOTICE 与 license review。 |
 | PGroonga 和 pgvector 是 optional adapter，可能拖累 local profile 或 CI。 | Retrieval、embedding cache、service profile smoke。 | Phase 9、Phase 13 | 已缓解 | Phase 9 已把 PGroonga/pgvector 作为 optional capability probe；local profile 不硬依赖扩展，service smoke 输出缺失降级提示并继续走 PostgreSQL native FTS fallback。 |
 | P0 只做可拆边界，不做完整微服务；如果 API/worker/storage/tool 边界不清，后续会重构。 | API、runtime worker、model/tool gateway、storage、event/observability。 | Phase 2、Phase 4、Phase 5、Phase 13、Phase 14 | 已缓解 | Phase 13 已物理拆分 API/worker并用 DTO、CanonicalEvent、repository/provider seam 固定当前所有权；tool/model、event pipeline、storage 仍按文档顺序保留为未来边界。 |
 | Phoenix、Langfuse、Logfire 的 dataset/score/workflow 能力差异大。 | Observability adapter、Eval Gate、score sink。 | Phase 10、Phase 11 | 未处理 | P0 先做 provider-neutral contract 和 local/jsonl fallback；复杂 provider-native workflow 放 P1。 |

@@ -314,7 +314,10 @@ def test_redis_runtime_adr_records_triggered_security_review_before_release() ->
     assert "重新选择补丁版本" in redis_adr
     assert "SERVICE_APP_REDIS_IMAGE" in redis_adr
     assert "SERVICE_APP_REDIS_VERSION" not in redis_adr
-    assert "${SERVICE_APP_REDIS_IMAGE:-redis:8.0.1}" in compose
+    assert (
+        "${SERVICE_APP_REDIS_IMAGE:-redis:7.2.14@sha256:f0707c78ea880b293ccdeb410c9c0a8ccae93fe7128799b751333a698b0a39a7}"
+        in compose
+    )
 
 
 def test_cli_inventory_keeps_core_and_template_ownership_separate() -> None:

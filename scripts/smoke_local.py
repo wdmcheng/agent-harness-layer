@@ -57,6 +57,27 @@ def _smoke_env() -> dict[str, str]:
     }
 
 
+def _publish_trace(source: Path) -> None:
+    """原子导出本轮已验证的 canonical events，供 CI checksum 归档。"""
+
+    destination = ROOT / ".artifacts/smoke/local/trace.jsonl"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=destination.parent,
+        prefix=f".{destination.name}.",
+        suffix=".tmp",
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(source.read_bytes())
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def check_import() -> int:
     """通过安装后的 package seam 验证核心包可 import 并暴露版本。"""
 
@@ -249,6 +270,7 @@ def check_fake_run() -> int:
             )
         except RuntimeError as exc:
             return _fail(str(exc))
+        _publish_trace(events_path)
         print(
             "smoke-local: event_transports "
             f"run_id={terminal['run_id']} "
@@ -271,6 +293,8 @@ def check_fake_run() -> int:
 def main() -> int:
     """依次运行 local smoke 检查。"""
 
+    # 先撤下旧 trace；本轮任一检查失败都不能让 CI 误收上次成功证据。
+    (ROOT / ".artifacts/smoke/local/trace.jsonl").unlink(missing_ok=True)
     checks = [
         check_import,
         check_template_layout,

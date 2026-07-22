@@ -1,0 +1,209 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+
+default:
+  image: ghcr.io/astral-sh/uv:0.11.29-python3.12-trixie-slim@sha256:36cdfbf910c8b0f651355c013e7ece9678f4ecbf030a9fd9e6779de421189805
+  before_script:
+    # uv slim 固定运行时不含 make/git；每个 job 先显式建立仓库入口与完整 history 所需工具。
+    - apt-get update
+    - apt-get install --yes --no-install-recommends ca-certificates git make
+    - rm -rf /var/lib/apt/lists/*
+    - uv --version
+
+variables:
+  # release versioning 必须看到完整 history/tags；不能继承项目默认 depth 20。
+  GIT_DEPTH: "0"
+
+stages: [prepare, quality, test, verify, build, release, acceptance, promote, publish]
+
+lock:
+  stage: prepare
+  script: ["make ci-lock"]
+  artifacts: {when: always, expire_in: "14 days", paths: [".artifacts/ci/lock"]}
+
+install:
+  stage: prepare
+  needs: [lock]
+  script: ["make ci-install"]
+  artifacts: {when: always, expire_in: "14 days", paths: [".artifacts/ci/install"]}
+
+ruff-format:
+  stage: quality
+  needs: [install]
+  script: ["make ci-ruff-format"]
+  artifacts: {when: always, expire_in: "14 days", paths: [".artifacts/ci/ruff-format"]}
+
+ruff-lint:
+  stage: quality
+  needs: [install]
+  script: ["make ci-ruff-lint"]
+  artifacts: {when: always, expire_in: "14 days", paths: [".artifacts/ci/ruff-lint"]}
+
+pyright:
+  stage: quality
+  needs: [install]
+  script: ["make ci-pyright"]
+  artifacts: {when: always, expire_in: "14 days", paths: [".artifacts/ci/pyright"]}
+
+import-boundary:
+  stage: quality
+  needs: [install]
+  script: ["make ci-import-boundary"]
+  artifacts: {when: always, expire_in: "14 days", paths: [".artifacts/ci/import-boundary"]}
+
+quality-aggregate:
+  stage: quality
+  needs: [install]
+  script: ["make ci-quality-aggregate"]
+  artifacts: {when: always, expire_in: "14 days", paths: [".artifacts/ci/quality-aggregate"]}
+
+unit-contract:
+  stage: test
+  needs: [install]
+  script: ["make ci-unit-contract"]
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths:
+      - .artifacts/ci/unit-contract
+      - .artifacts/tests/unit-contract-junit.xml
+      - .artifacts/tests/coverage.xml
+    reports:
+      junit: .artifacts/tests/unit-contract-junit.xml
+
+integration:
+  stage: test
+  needs: [install]
+  script: ["make ci-integration"]
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths:
+      - .artifacts/ci/integration
+      - .artifacts/tests/integration-junit.xml
+    reports:
+      junit: .artifacts/tests/integration-junit.xml
+
+test-aggregate:
+  stage: test
+  needs: [install]
+  script: ["make ci-test-aggregate"]
+  artifacts: {when: always, expire_in: "14 days", paths: [".artifacts/ci/test-aggregate"]}
+
+eval:
+  stage: verify
+  needs: [install]
+  script: ["make ci-eval"]
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths: [".artifacts/ci/eval", ".artifacts/eval/scores.jsonl", ".artifacts/eval/traces.jsonl"]
+
+smoke-local:
+  stage: verify
+  needs: [install]
+  script: ["make ci-smoke-local"]
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths: [".artifacts/ci/smoke-local", ".artifacts/smoke/local/trace.jsonl"]
+
+smoke-service:
+  stage: verify
+  needs: [install]
+  before_script:
+    # service smoke 只复用受保护 runner 提供的 daemon；job 自身仅补 Docker CLI/Compose。
+    - apt-get update
+    - apt-get install --yes --no-install-recommends ca-certificates git make docker.io docker-compose
+    - rm -rf /var/lib/apt/lists/*
+    - uv --version
+    - docker --version
+    - docker compose version
+  script: ["make ci-smoke-service"]
+  # hosted runner 仍需管理员提供受控 Docker daemon/privileged capability；YAML 不降级为 SQLite。
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths: [".artifacts/ci/smoke-service", ".artifacts/license/smoke-service.log", ".artifacts/smoke/service/trace.jsonl"]
+
+license:
+  stage: verify
+  needs: [install, smoke-service]
+  script: ["make ci-license"]
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths: [".artifacts/ci/license", ".artifacts/license", ".artifacts/license/license-report.json", ".artifacts/license/smoke-service.log"]
+
+ci-contract:
+  stage: verify
+  needs: [install]
+  script: ["make ci-contract"]
+  artifacts: {when: always, expire_in: "14 days", paths: [".artifacts/ci/ci-contract"]}
+
+build:
+  stage: build
+  needs: [ruff-format, ruff-lint, pyright, import-boundary, quality-aggregate, unit-contract, integration, test-aggregate, eval, smoke-local, smoke-service, license]
+  script: ["make ci-build"]
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths: [".artifacts/ci/build", "dist", "dist/*.whl", "dist/*.tar.gz", "dist/SHA256SUMS"]
+
+release-dry-run:
+  stage: release
+  needs: [ruff-format, ruff-lint, pyright, import-boundary, quality-aggregate, unit-contract, integration, test-aggregate, eval, smoke-local, smoke-service, license, build]
+  script: ["make ci-release-dry-run"]
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths: [".artifacts/ci/release-dry-run", ".artifacts/release-preview"]
+
+p0-validate:
+  stage: acceptance
+  needs: [install, quality-aggregate, test-aggregate, integration, eval, smoke-local, smoke-service, license, build, release-dry-run, ci-contract]
+  script: ["make ci-p0-validate"]
+  artifacts: {when: always, expire_in: "14 days", paths: [".artifacts/ci/p0-validate"]}
+
+# environment protection、受保护变量与 default branch protection 必须由 GitLab 管理员在远端配置；
+# plan job 不声明 environment，因此拿不到 environment-scoped credential；execute 才进入人工审批边界。
+promote-plan:
+  stage: promote
+  needs: [p0-validate]
+  script: ["make ci-release-promote-plan"]
+  variables:
+    RELEASE_PROVIDER_URL: $RELEASE_PROVIDER_URL
+    RELEASE_PROTECTED_DEFAULT_BRANCH: $CI_DEFAULT_BRANCH
+    RELEASE_MANIFEST: .artifacts/release-preview/phase15-current/manifest.json
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: on_success
+    - when: never
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths:
+      - .artifacts/ci/release-promote-plan
+      - .artifacts/release-preview
+      - .artifacts/release-promotion/plan.json
+      - .artifacts/release-promotion/gitlab-child.yml
+
+# plan artifact 决定 child pipeline 的节点集合：no-release 只实例化无凭据 receipt job；
+# planned 才实例化 release/private-registry environment 的人工执行链。
+promote-dispatch:
+  stage: promote
+  needs: [promote-plan]
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+  trigger:
+    include:
+      - artifact: .artifacts/release-promotion/gitlab-child.yml
+        job: promote-plan
+    strategy: mirror
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: on_success
+    - when: never

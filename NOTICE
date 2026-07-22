@@ -4,4 +4,15 @@ Copyright 2026 Agent Harness Layer contributors
 This product includes software developed by the Agent Harness Layer contributors.
 
 Third-party notices and source attributions required by dependency licenses or copied materials
-must be recorded here before release. The current scaffold does not vendor third-party source code.
+must be recorded here before release. The versioned runtime dependency policy and source/license
+basis are tracked in `compliance/third-party.toml`; the current scaffold does not vendor third-party
+source code. The generated `.artifacts/license/license-report.json` is an automated evidence report,
+not legal advice.
+
+Service runtime evidence and license boundary:
+- PostgreSQL actual server version: 18.4
+- PostgreSQL security basis: https://www.postgresql.org/support/security/
+- Redis actual server version: 7.2.14
+- Redis security advisory basis: https://github.com/redis/redis/releases/tag/7.2.14
+- Redis server license boundary: BSD-3-Clause
+- redis-py client license boundary: MIT

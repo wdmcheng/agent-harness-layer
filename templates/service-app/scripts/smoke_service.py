@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import shutil
 import time
@@ -67,6 +68,65 @@ def _stream_length(env: dict[str, str]) -> int:
 def _latest_message(env: dict[str, str]) -> tuple[str, dict[str, Any]]:
     """读取本轮最新队列消息，忽略前置 crash-window 检查留下的历史消息。"""
     return latest_stream_message(env, STREAM)
+
+
+def _server_versions(env: dict[str, str]) -> dict[str, str]:
+    """从运行中的容器读取实际 server version，避免用策略版本冒充 smoke 事实。"""
+
+    postgres_output = compose(env, "exec", "-T", "postgres", "postgres", "--version")
+    redis_output = compose(env, "exec", "-T", "redis", "redis-server", "--version")
+    postgres_match = re.search(r"\b(\d+\.\d+(?:\.\d+)?)\b", postgres_output)
+    redis_match = re.search(r"Redis server v=?([0-9]+\.[0-9]+(?:\.[0-9]+)?)", redis_output)
+    if postgres_match is None or redis_match is None:
+        raise RuntimeError("service smoke did not report database server versions")
+    return {"postgres": postgres_match.group(1), "redis": redis_match.group(1)}
+
+
+def _write_service_trace(env: dict[str, str], completed: dict[str, Any]) -> None:
+    """把 PostgreSQL inspect 的真实事件导出为受限 service trace JSONL。
+
+    Service profile 的事件 sink 是 PostgreSQL，配置中的 observability path 不会产生
+    local JSONL；CI trace 必须从已经过相关性核验的持久化事件导出，不能伪造空文件。
+    """
+
+    raw_events = completed.get("events")
+    if not isinstance(raw_events, list) or not raw_events:
+        raise RuntimeError("service smoke PostgreSQL trace is empty")
+    events = cast(list[object], raw_events)
+    if any(not isinstance(event, dict) for event in events):
+        raise RuntimeError("service smoke PostgreSQL trace contains an invalid event")
+
+    trace_path = Path(env["SERVICE_APP_SMOKE_DIR"]) / "trace.jsonl"
+    temporary = trace_path.with_name(f".{trace_path.name}.{uuid4().hex}.tmp")
+    records = [
+        {
+            "schema_version": "service-smoke-trace/v1",
+            "source": "postgresql",
+            "run_id": completed["run_id"],
+            "tenant_id": completed["tenant_id"],
+            "event": cast(dict[str, Any], event),
+        }
+        for event in events
+    ]
+    try:
+        temporary.write_text(
+            "".join(
+                json.dumps(
+                    record,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                )
+                + "\n"
+                for record in records
+            ),
+            encoding="utf-8",
+        )
+        temporary.chmod(0o600)
+        temporary.replace(trace_path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, object]:
@@ -345,6 +405,8 @@ def _run_smoke(env: dict[str, str], token: str, tenant_id: str) -> dict[str, obj
         "shared_budget_crash_windows": budget_crash_windows,
         **approval_evidence,
     }
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "trace-export"
+    _write_service_trace(env, completed)
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "secret-evidence-scan"
     assert_configuration_secret_absent(
         env,
@@ -392,6 +454,8 @@ def main() -> int:
     worker_a = f"{project}-worker-a"
     approval_write_worker = f"{project}-approval-write-fail"
     approval_ack_worker = f"{project}-approval-ack-fail"
+    trace_export = APP_ROOT / ".agent-harness/service-smoke-trace.jsonl"
+    trace_export.unlink(missing_ok=True)
     try:
         smoke_dir.mkdir(parents=True, exist_ok=True)
         (smoke_dir / "workspace").mkdir(exist_ok=True)
@@ -427,11 +491,25 @@ def main() -> int:
         else:
             credential_cleanup_needed = True
             evidence = _run_smoke(env, token, tenant_id)
+            env["SERVICE_APP_SMOKE_BOUNDARY"] = "credential-cleanup"
             if not cleanup_credential_at_boundary(env, token):
                 raise RuntimeError("service smoke credential cleanup did not delete one record")
             credential_cleanup_confirmed = True
             credential_cleanup_needed = False
             evidence["credential_cleanup"] = {"deleted": 1}
+            env["SERVICE_APP_SMOKE_BOUNDARY"] = "server-version-evidence"
+            evidence["server_versions"] = _server_versions(env)
+            env["SERVICE_APP_SMOKE_BOUNDARY"] = "trace-export"
+            trace_source = smoke_dir / "trace.jsonl"
+            if not trace_source.is_file() or trace_source.stat().st_size == 0:
+                raise RuntimeError("service smoke runtime trace is missing")
+            trace_export.parent.mkdir(parents=True, exist_ok=True)
+            temporary_trace = trace_export.with_name(f".{trace_export.name}.{project}.tmp")
+            try:
+                shutil.copyfile(trace_source, temporary_trace)
+                temporary_trace.replace(trace_export)
+            finally:
+                temporary_trace.unlink(missing_ok=True)
         print("smoke-service: " + json.dumps(evidence, ensure_ascii=False, sort_keys=True))
         print("smoke-service: ok")
         return 0

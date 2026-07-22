@@ -138,7 +138,7 @@ def cleanup_project(env: dict[str, str], *, preserve_volume: bool) -> None:
         if not containers_left and network_left.returncode != 0 and volume_ok:
             return
         time.sleep(0.25)
-    raise RuntimeError(failure_diagnostic("cleanup", env))
+    raise RuntimeError(failure_diagnostic("project-cleanup", env))
 
 
 def failure_diagnostic(
@@ -256,7 +256,7 @@ def cleanup_credential_at_boundary(
 ) -> bool:
     """先切换到 cleanup 边界，再删除临时 credential 或执行静默重试。"""
 
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "cleanup"
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "credential-cleanup"
     return cleanup_credential(env, token, check=check)
 
 

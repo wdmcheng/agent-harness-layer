@@ -136,6 +136,46 @@ async def test_fake_agent_run_is_idempotent_and_has_one_terminal_event(tmp_path:
 
 
 @pytest.mark.asyncio
+async def test_default_identity_propagates_to_run_session_trace_and_eval(tmp_path: Path) -> None:
+    """单租户默认身份必须贯穿 run、session、CanonicalEvent trace 与 eval 记录。"""
+
+    from agent_harness.storage import EvalRunCreate
+
+    orchestrator, storage, events_path = await build_orchestrator(tmp_path)
+    try:
+        result = await orchestrator.start_run(
+            agent_id="fake-agent",
+            input={"prompt": "default tenant propagation"},
+            request_id="req-default-tenant",
+            trace_id="trace-default-tenant",
+        )
+        events = await LocalJsonlEventSink(events_path).read(run_id=result.run_id)
+        async with storage.uow() as uow:
+            run = await uow.runs.get(result.run_id)
+            assert run is not None
+            session = await uow.sessions.get(run.session_id)
+            eval_run = await uow.eval_runs.create(
+                EvalRunCreate(
+                    tenant_id=run.tenant_id,
+                    agent_id=run.agent_id,
+                    run_id=run.id,
+                    status="completed",
+                )
+            )
+            await uow.commit()
+    finally:
+        await storage.dispose()
+
+    assert run.tenant_id == "default"
+    assert session is not None and session.tenant_id == "default"
+    assert events and all(event.tenant_id == "default" for event in events)
+    assert all(event.trace_id == run.trace_id for event in events)
+    assert eval_run.tenant_id == "default"
+    assert eval_run.run_id == run.id
+    assert eval_run.trace_id == run.trace_id
+
+
+@pytest.mark.asyncio
 async def test_checkpoint_resume_survives_orchestrator_recreation(tmp_path: Path) -> None:
     """验证 checkpoint 只依赖 durable 存储，重建 orchestrator 后仍能安全恢复。"""
 

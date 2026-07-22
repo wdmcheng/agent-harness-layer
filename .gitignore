@@ -4,6 +4,7 @@
 /.agents/evolution/signals.jsonl
 /.agents/evolution/proposals.md
 /.agents/.needs-review
+/.artifacts/
 
 # Local code index
 .codegraph/

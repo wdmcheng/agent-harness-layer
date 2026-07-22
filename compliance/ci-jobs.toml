@@ -1,0 +1,195 @@
+schema_version = "ci-job-contract/v1"
+
+[platform]
+github_workflow = ".github/workflows/ci.yml"
+github_release_workflow = ".github/workflows/release.yml"
+gitlab_pipeline = ".gitlab-ci.yml"
+gitlab_release_child_template = ".gitlab/release-child.yml"
+gitlab_release_child_artifact = ".artifacts/release-promotion/gitlab-child.yml"
+github_checkout = "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+github_setup_uv = "astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b"
+github_upload_artifact = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+github_download_artifact = "actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e"
+uv_version = "0.11.29"
+gitlab_image = "ghcr.io/astral-sh/uv:0.11.29-python3.12-trixie-slim@sha256:36cdfbf910c8b0f651355c013e7ece9678f4ecbf030a9fd9e6779de421189805"
+gitlab_base_packages = ["ca-certificates", "git", "make"]
+gitlab_smoke_packages = ["docker.io", "docker-compose"]
+
+[triggers]
+github = ["push", "pull_request", "workflow_dispatch"]
+gitlab = ["push", "merge_request_event", "web"]
+
+[[jobs]]
+id = "lock"
+target = "ci-lock"
+needs = []
+artifact = ".artifacts/ci/lock"
+
+[[jobs]]
+id = "install"
+target = "ci-install"
+needs = ["lock"]
+artifact = ".artifacts/ci/install"
+
+[[jobs]]
+id = "ruff-format"
+target = "ci-ruff-format"
+needs = ["install"]
+artifact = ".artifacts/ci/ruff-format"
+
+[[jobs]]
+id = "ruff-lint"
+target = "ci-ruff-lint"
+needs = ["install"]
+artifact = ".artifacts/ci/ruff-lint"
+
+[[jobs]]
+id = "pyright"
+target = "ci-pyright"
+needs = ["install"]
+artifact = ".artifacts/ci/pyright"
+
+[[jobs]]
+id = "import-boundary"
+target = "ci-import-boundary"
+needs = ["install"]
+artifact = ".artifacts/ci/import-boundary"
+
+[[jobs]]
+id = "quality-aggregate"
+target = "ci-quality-aggregate"
+needs = ["install"]
+artifact = ".artifacts/ci/quality-aggregate"
+
+[[jobs]]
+id = "unit-contract"
+target = "ci-unit-contract"
+needs = ["install"]
+artifact = ".artifacts/ci/unit-contract"
+native_artifacts = [".artifacts/tests/unit-contract-junit.xml", ".artifacts/tests/coverage.xml"]
+
+[[jobs]]
+id = "integration"
+target = "ci-integration"
+needs = ["install"]
+artifact = ".artifacts/ci/integration"
+native_artifacts = [".artifacts/tests/integration-junit.xml"]
+
+[[jobs]]
+id = "test-aggregate"
+target = "ci-test-aggregate"
+needs = ["install"]
+artifact = ".artifacts/ci/test-aggregate"
+
+[[jobs]]
+id = "eval"
+target = "ci-eval"
+needs = ["install"]
+artifact = ".artifacts/ci/eval"
+native_artifacts = [
+  ".artifacts/eval/scores.jsonl",
+  ".artifacts/eval/traces.jsonl",
+]
+
+[[jobs]]
+id = "smoke-local"
+target = "ci-smoke-local"
+needs = ["install"]
+artifact = ".artifacts/ci/smoke-local"
+native_artifacts = [".artifacts/smoke/local/trace.jsonl"]
+
+[[jobs]]
+id = "smoke-service"
+target = "ci-smoke-service"
+needs = ["install"]
+artifact = ".artifacts/ci/smoke-service"
+native_artifacts = [".artifacts/smoke/service/trace.jsonl"]
+
+[[jobs]]
+id = "license"
+target = "ci-license"
+needs = ["install", "smoke-service"]
+artifact = ".artifacts/ci/license"
+native_artifacts = [
+  ".artifacts/license/license-report.json",
+  ".artifacts/license/smoke-service.log",
+]
+
+[[jobs]]
+id = "ci-contract"
+target = "ci-contract"
+needs = ["install"]
+artifact = ".artifacts/ci/ci-contract"
+
+[[jobs]]
+id = "build"
+target = "ci-build"
+needs = [
+  "ruff-format",
+  "ruff-lint",
+  "pyright",
+  "import-boundary",
+  "quality-aggregate",
+  "unit-contract",
+  "integration",
+  "test-aggregate",
+  "eval",
+  "smoke-local",
+  "smoke-service",
+  "license",
+]
+artifact = ".artifacts/ci/build"
+native_artifacts = ["dist/*.whl", "dist/*.tar.gz", "dist/SHA256SUMS"]
+
+[[jobs]]
+id = "release-dry-run"
+target = "ci-release-dry-run"
+needs = [
+  "ruff-format",
+  "ruff-lint",
+  "pyright",
+  "import-boundary",
+  "quality-aggregate",
+  "unit-contract",
+  "integration",
+  "test-aggregate",
+  "eval",
+  "smoke-local",
+  "smoke-service",
+  "license",
+  "build",
+]
+artifact = ".artifacts/ci/release-dry-run"
+requires_complete_history = true
+native_artifacts = [".artifacts/release-preview"]
+
+[[jobs]]
+id = "p0-validate"
+target = "ci-p0-validate"
+needs = [
+  "install",
+  "quality-aggregate",
+  "test-aggregate",
+  "integration",
+  "eval",
+  "smoke-local",
+  "smoke-service",
+  "license",
+  "build",
+  "release-dry-run",
+  "ci-contract",
+]
+artifact = ".artifacts/ci/p0-validate"
+
+[release]
+github_trigger = "workflow_dispatch"
+github_dry_run_job = "dry-run"
+github_promote_environment = "release"
+github_publish_environment = "private-registry"
+gitlab_promote_environment = "release"
+gitlab_publish_environment = "private-registry"
+promote_plan_target = "ci-release-promote-plan"
+promote_execute_target = "ci-release-promote-execute"
+publish_plan_target = "ci-registry-publish-plan"
+publish_execute_target = "ci-registry-publish-execute"
+implementation = "scripts/release_promote.py + scripts/registry_publish.py via Make targets"

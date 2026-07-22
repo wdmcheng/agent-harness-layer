@@ -152,6 +152,24 @@ def main() -> int:
         if "cp .env.example .env" not in bootstrap.stdout:
             raise RuntimeError(f"bootstrap did not emit the missing .env hint:\n{bootstrap.stdout}")
 
+        state.mkdir(exist_ok=True)
+        storage_dsn = f"sqlite+aiosqlite:///{state / 'agent_harness.db'}"
+        _run(
+            [
+                "uv",
+                "run",
+                "python",
+                "app/migrate.py",
+                "--profile",
+                "local",
+                "--profiles-dir",
+                str(copied / "configs" / "profiles"),
+                "--storage-dsn",
+                storage_dsn,
+            ],
+            cwd=copied,
+            env=env,
+        )
         port = _free_port()
         log_path = temp_root / "dev.log"
         with log_path.open("w", encoding="utf-8") as log_file:
@@ -199,7 +217,6 @@ def main() -> int:
         if str(ROOT) in (copied / "pyproject.toml").read_text(encoding="utf-8"):
             raise RuntimeError("copied pyproject retained a monorepo source path")
 
-        state.mkdir(exist_ok=True)
         scaffold_result = _run(
             ["uv", "run", "agent-harness", "scaffold", "agent", "generated.smoke"],
             cwd=copied,
@@ -215,6 +232,22 @@ def main() -> int:
         scaffold_dsn = f"sqlite+aiosqlite:///{state / 'scaffold.db'}"
         profiles_dir = copied / "configs" / "profiles"
         agents_dir = copied / "agents"
+        _run(
+            [
+                "uv",
+                "run",
+                "python",
+                "app/migrate.py",
+                "--profile",
+                "local",
+                "--profiles-dir",
+                str(profiles_dir),
+                "--storage-dsn",
+                scaffold_dsn,
+            ],
+            cwd=copied,
+            env=env,
+        )
         list_result = _run(
             [
                 "uv",

@@ -2,6 +2,8 @@ name: agent-harness-service-app
 
 x-runtime-environment: &runtime-environment
   AGENT_HARNESS_PROFILE: service
+  # runtime trace 写入本轮隔离的 /smoke bind mount，供根 smoke 在清理前导出。
+  AGENT_HARNESS_OBSERVABILITY__PATH: /smoke/trace.jsonl
   AGENT_HARNESS_STORAGE__DSN_FILE: /run/secrets/agent_harness_storage_dsn
   AGENT_HARNESS_QUEUE__DSN: redis://redis:6379/0
   AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE: /run/secrets/agent_harness_budget_fingerprint_key
@@ -23,7 +25,7 @@ x-runtime-service: &runtime-service
 
 services:
   postgres:
-    image: ${SERVICE_APP_POSTGRES_IMAGE:-postgres:18}
+    image: ${SERVICE_APP_POSTGRES_IMAGE:-postgres:18.4@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a}
     profiles: ["service"]
     environment:
       POSTGRES_DB: agent_harness
@@ -40,7 +42,7 @@ services:
       retries: 30
 
   redis:
-    image: ${SERVICE_APP_REDIS_IMAGE:-redis:8.0.1}
+    image: ${SERVICE_APP_REDIS_IMAGE:-redis:7.2.14@sha256:f0707c78ea880b293ccdeb410c9c0a8ccae93fe7128799b751333a698b0a39a7}
     profiles: ["service"]
     tmpfs:
       - /data

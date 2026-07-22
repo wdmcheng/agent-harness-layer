@@ -23,7 +23,6 @@ repos:
         pass_filenames: false
       - id: license-check
         name: license check
-        entry: uv run python scripts/license_check.py
+        entry: uv run --group license python scripts/license_check.py
         language: system
         pass_filenames: false
-

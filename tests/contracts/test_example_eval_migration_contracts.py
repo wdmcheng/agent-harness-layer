@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -84,6 +85,50 @@ def test_four_approved_datasets_run_deterministically(tmp_path: Path) -> None:
     assert "example-eval: status=ok failures=0" in result.stdout
     assert (state_dir / "scores.jsonl").exists()
     assert (state_dir / "traces.jsonl").exists()
+
+
+def test_example_eval_uses_fake_model_without_real_provider_keys(tmp_path: Path) -> None:
+    """真实示例 eval 在清空外部 provider key 后仍调用 fake model 并通过。"""
+
+    state_dir = tmp_path / "fake-eval-state"
+    state_dir.mkdir()
+    run_migrations(_dsn(state_dir / "eval.db"))
+    environment = os.environ.copy()
+    for name in (
+        "ANTHROPIC_API_KEY",
+        "AZURE_OPENAI_API_KEY",
+        "GOOGLE_API_KEY",
+        "OPENAI_API_KEY",
+    ):
+        environment.pop(name, None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SERVICE_APP / "scripts" / "run_example_evals.py"),
+            "--state-dir",
+            str(state_dir),
+            "--agent",
+            "examples.ticket_triage",
+        ],
+        cwd=ROOT,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "agent=examples.ticket_triage status=completed cases=2" in result.stdout
+    trace_payloads = [
+        json.loads(line)
+        for line in (state_dir / "traces.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    model_usage = [
+        item for item in trace_payloads if item.get("event_type") == "model.usage.updated"
+    ]
+    assert model_usage
+    assert all(item["payload"]["usage"]["provider"] == "fake" for item in model_usage)
 
 
 def test_nested_default_shaped_eval_state_replays_with_one_explicit_manifest(

@@ -197,12 +197,17 @@ async def test_dev_deny_and_known_tool_failure_keep_approval_semantics(tmp_path:
                 failed_approval.approval_id
             )
             failed_private = await uow.approvals.get_resolution(failed_approval.approval_id)
+            audit_records = await uow.audit_logs.list_for_tenant("default")
     finally:
         await components.close()
 
     assert denied.approval.status == "denied"
     assert denied.run is not None and denied.run.status == RunStatus.FAILED
     assert not (workspace / "denied.txt").exists()
+    denied_audits = [record for record in audit_records if record.action == "approval.denied"]
+    assert len(denied_audits) == 1
+    assert denied_audits[0].payload["run_id"] == denied_run.run_id
+    assert denied_audits[0].payload["evidence"]["approval_id"] == denied_approval.approval_id
     assert failed.approval.status == "approved"
     assert failed.run is not None and failed.run.status == RunStatus.FAILED
     assert failed_claim is not None and failed_claim.execution_state == "failed"

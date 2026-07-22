@@ -114,7 +114,7 @@ def test_failed_credential_cleanup_routes_to_redacted_cleanup_boundary(
         env,
         raw_detail="postgresql://agent:plain-password@postgres/db /Users/private",
     )
-    assert "boundary=cleanup" in diagnostic
+    assert "boundary=credential-cleanup" in diagnostic
     assert "secret-smoke-token" not in diagnostic
     assert "plain-password" not in diagnostic
     assert "/Users/private" not in diagnostic

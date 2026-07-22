@@ -1,0 +1,107 @@
+schema_version = "pypi-license-observations/v1"
+
+# 这些条目只补足 licensecheck 的空值或 UNKNOWN。每项均绑定 PyPI 精确版本
+# JSON 的原始字段；已有工具观察优先，且与本快照冲突时门禁必须失败。
+[[packages]]
+name = "arize-phoenix"
+version = "17.21.0"
+source = "registry:https://pypi.org/simple"
+field = "license"
+license = "Elastic-2.0"
+basis = "https://pypi.org/pypi/arize-phoenix/17.21.0/json"
+
+[[packages]]
+name = "arize-phoenix-client"
+version = "2.12.0"
+source = "registry:https://pypi.org/simple"
+field = "license"
+license = "Apache-2.0"
+basis = "https://pypi.org/pypi/arize-phoenix-client/2.12.0/json"
+
+[[packages]]
+name = "arize-phoenix-evals"
+version = "3.1.0"
+source = "registry:https://pypi.org/simple"
+field = "license"
+license = "Elastic-2.0"
+basis = "https://pypi.org/pypi/arize-phoenix-evals/3.1.0/json"
+
+[[packages]]
+name = "bashkit"
+version = "0.13.0"
+source = "registry:https://pypi.org/simple"
+field = "license"
+license = "MIT"
+basis = "https://pypi.org/pypi/bashkit/0.13.0/json"
+
+[[packages]]
+name = "langfuse"
+version = "4.13.2"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "MIT"
+basis = "https://pypi.org/pypi/langfuse/4.13.2/json"
+
+[[packages]]
+name = "narwhals"
+version = "2.23.0"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "MIT"
+basis = "https://pypi.org/pypi/narwhals/2.23.0/json"
+
+[[packages]]
+name = "opentelemetry-exporter-otlp"
+version = "1.42.1"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "Apache-2.0"
+basis = "https://pypi.org/pypi/opentelemetry-exporter-otlp/1.42.1/json"
+
+[[packages]]
+name = "opentelemetry-exporter-otlp-proto-grpc"
+version = "1.42.1"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "Apache-2.0"
+basis = "https://pypi.org/pypi/opentelemetry-exporter-otlp-proto-grpc/1.42.1/json"
+
+[[packages]]
+name = "pyarrow"
+version = "24.0.0"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "Apache-2.0"
+basis = "https://pypi.org/pypi/pyarrow/24.0.0/json"
+
+[[packages]]
+name = "rich"
+version = "14.3.4"
+source = "registry:https://pypi.org/simple"
+field = "license"
+license = "MIT"
+basis = "https://pypi.org/pypi/rich/14.3.4/json"
+
+[[packages]]
+name = "sqlean-py"
+version = "3.49.1"
+source = "registry:https://pypi.org/simple"
+field = "license"
+license = "zlib/libpng"
+basis = "https://pypi.org/pypi/sqlean-py/3.49.1/json"
+
+[[packages]]
+name = "strawberry-graphql"
+version = "0.319.0"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "MIT"
+basis = "https://pypi.org/pypi/strawberry-graphql/0.319.0/json"
+
+[[packages]]
+name = "tzdata"
+version = "2026.2"
+source = "registry:https://pypi.org/simple"
+field = "license"
+license = "Apache-2.0"
+basis = "https://pypi.org/pypi/tzdata/2026.2/json"

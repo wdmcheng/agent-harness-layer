@@ -1,0 +1,183 @@
+name: Protected release
+
+"on":
+  workflow_dispatch:
+    inputs:
+      promote:
+        description: "生成 promotion plan，并在 release environment 审批后执行"
+        required: true
+        default: false
+        type: boolean
+      publish:
+        description: "生成 registry plan，并在 private-registry environment 审批后执行"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  # 复用普通 CI 的完整细粒度 DAG；其中 release-dry-run 失败时，后续计划不会调度。
+  dry-run:
+    uses: ./.github/workflows/ci.yml
+
+  promote-plan:
+    if: ${{ inputs.promote }}
+    needs: [dry-run]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      release_required: ${{ steps.promotion-plan.outputs.release_required }}
+    env:
+      RELEASE_PROVIDER_URL: ${{ vars.RELEASE_PROVIDER_URL }}
+      RELEASE_PROTECTED_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with: {name: "ci-release-dry-run-${{ github.run_id }}", path: .artifacts}
+      - id: promotion-plan
+        run: make ci-release-promote-plan
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-promotion-plan-${{ github.run_id }}
+          path: |
+            .artifacts/ci/release-promote-plan
+            .artifacts/release-preview
+            .artifacts/release-promotion/plan.json
+            .artifacts/release-promotion/gitlab-child.yml
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  promote-no-release:
+    if: ${{ inputs.promote && needs.promote-plan.outputs.release_required == 'false' }}
+    needs: [promote-plan]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with: {name: "release-promotion-plan-${{ github.run_id }}", path: .artifacts}
+      - run: make ci-release-promote-execute
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-promotion-no-release-${{ github.run_id }}
+          path: |
+            .artifacts/ci/release-promote-execute
+            .artifacts/release-preview
+            .artifacts/release-promotion
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  promote-execute:
+    if: ${{ inputs.promote && needs.promote-plan.outputs.release_required == 'true' }}
+    needs: [promote-plan]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    env:
+      RELEASE_PROVIDER_URL: ${{ vars.RELEASE_PROVIDER_URL }}
+      RELEASE_PROTECTED_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      RELEASE_PROMOTION_APPROVED: "true"
+      RELEASE_PROTECTED_REF: "true"
+      RELEASE_PUSH_TOKEN: ${{ secrets.RELEASE_PUSH_TOKEN }}
+      RELEASE_PROVIDER_TOKEN: ${{ secrets.RELEASE_PROVIDER_TOKEN }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with: {name: "release-promotion-plan-${{ github.run_id }}", path: .artifacts}
+      - run: make ci-release-promote-execute
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-promotion-execute-${{ github.run_id }}
+          path: |
+            .artifacts/ci/release-promote-execute
+            .artifacts/release-preview
+            .artifacts/release-promotion
+            .artifacts/release-build
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  publish-plan:
+    if: ${{ inputs.promote && inputs.publish && needs.promote-plan.outputs.release_required == 'true' }}
+    needs: [promote-plan, promote-execute]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      UV_PUBLISH_URL: ${{ vars.PRIVATE_REGISTRY_URL }}
+      UV_PUBLISH_CHECK_URL: ${{ vars.PRIVATE_REGISTRY_CHECK_URL }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with: {name: "release-promotion-execute-${{ github.run_id }}", path: .artifacts}
+      - run: make ci-registry-publish-plan
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: registry-publish-plan-${{ github.run_id }}
+          path: |
+            .artifacts/ci/registry-publish-plan
+            .artifacts/release-preview
+            .artifacts/release-promotion
+            .artifacts/release-build
+            .artifacts/registry-publish/plan.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  publish-execute:
+    if: ${{ inputs.promote && inputs.publish && needs.promote-plan.outputs.release_required == 'true' }}
+    needs: [promote-plan, publish-plan]
+    runs-on: ubuntu-latest
+    environment: private-registry
+    permissions:
+      contents: read
+    env:
+      UV_PUBLISH_URL: ${{ vars.PRIVATE_REGISTRY_URL }}
+      UV_PUBLISH_CHECK_URL: ${{ vars.PRIVATE_REGISTRY_CHECK_URL }}
+      REGISTRY_PUBLISH_APPROVED: "true"
+      RELEASE_PROTECTED_REF: "true"
+      UV_PUBLISH_TOKEN: ${{ secrets.PRIVATE_REGISTRY_TOKEN }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with: {name: "registry-publish-plan-${{ github.run_id }}", path: .artifacts}
+      - run: make ci-registry-publish-execute
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: registry-publish-execute-${{ github.run_id }}
+          path: |
+            .artifacts/ci/registry-publish-execute
+            .artifacts/release-preview
+            .artifacts/release-promotion
+            .artifacts/release-build
+            .artifacts/registry-publish
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14

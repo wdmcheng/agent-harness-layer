@@ -1,0 +1,385 @@
+name: CI
+
+"on":
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+# 普通 CI 只读源码；任何写 release/tag 的权限只能出现在独立人工 job。
+permissions:
+  contents: read
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.29"
+      - run: make ci-lock
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-lock-${{ github.run_id }}
+          path: .artifacts/ci/lock
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  install:
+    needs: [lock]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.29"
+      - run: make ci-install
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-install-${{ github.run_id }}
+          path: .artifacts/ci/install
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  ruff-format:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-ruff-format
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with: {name: "ci-ruff-format-${{ github.run_id }}", path: .artifacts/ci/ruff-format, if-no-files-found: error, include-hidden-files: true, retention-days: 14}
+
+  ruff-lint:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-ruff-lint
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with: {name: "ci-ruff-lint-${{ github.run_id }}", path: .artifacts/ci/ruff-lint, if-no-files-found: error, include-hidden-files: true, retention-days: 14}
+
+  pyright:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-pyright
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with: {name: "ci-pyright-${{ github.run_id }}", path: .artifacts/ci/pyright, if-no-files-found: error, include-hidden-files: true, retention-days: 14}
+
+  import-boundary:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-import-boundary
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with: {name: "ci-import-boundary-${{ github.run_id }}", path: .artifacts/ci/import-boundary, if-no-files-found: error, include-hidden-files: true, retention-days: 14}
+
+  quality-aggregate:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-quality-aggregate
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with: {name: "ci-quality-aggregate-${{ github.run_id }}", path: .artifacts/ci/quality-aggregate, if-no-files-found: error, include-hidden-files: true, retention-days: 14}
+
+  unit-contract:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-unit-contract
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-unit-contract-${{ github.run_id }}
+          path: |
+            .artifacts/ci/unit-contract
+            .artifacts/tests/unit-contract-junit.xml
+            .artifacts/tests/coverage.xml
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  integration:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-integration
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-integration-${{ github.run_id }}
+          path: |
+            .artifacts/ci/integration
+            .artifacts/tests/integration-junit.xml
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  test-aggregate:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-test-aggregate
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with: {name: "ci-test-aggregate-${{ github.run_id }}", path: .artifacts/ci/test-aggregate, if-no-files-found: error, include-hidden-files: true, retention-days: 14}
+
+  eval:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-eval
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-eval-${{ github.run_id }}
+          path: |
+            .artifacts/ci/eval
+            .artifacts/eval/scores.jsonl
+            .artifacts/eval/traces.jsonl
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  smoke-local:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-smoke-local
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-smoke-local-${{ github.run_id }}
+          path: |
+            .artifacts/ci/smoke-local
+            .artifacts/smoke/local/trace.jsonl
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  smoke-service:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-smoke-service
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-smoke-service-${{ github.run_id }}
+          path: |
+            .artifacts/ci/smoke-service
+            .artifacts/license/smoke-service.log
+            .artifacts/smoke/service/trace.jsonl
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  license:
+    needs: [install, smoke-service]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-smoke-service-${{ github.run_id }}
+          path: .
+      - run: make ci-license
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-license-${{ github.run_id }}
+          path: |
+            .artifacts/ci/license
+            .artifacts/license
+            .artifacts/license/license-report.json
+            .artifacts/license/smoke-service.log
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  ci-contract:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-contract
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-contract-${{ github.run_id }}
+          path: .artifacts/ci/ci-contract
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  build:
+    needs: [ruff-format, ruff-lint, pyright, import-boundary, quality-aggregate, unit-contract, integration, test-aggregate, eval, smoke-local, smoke-service, license]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-build
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-build-${{ github.run_id }}
+          path: |
+            .artifacts/ci/build
+            dist
+            dist/*.whl
+            dist/*.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  release-dry-run:
+    needs: [ruff-format, ruff-lint, pyright, import-boundary, quality-aggregate, unit-contract, integration, test-aggregate, eval, smoke-local, smoke-service, license, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-release-dry-run
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-release-dry-run-${{ github.run_id }}
+          path: |
+            .artifacts/ci/release-dry-run
+            .artifacts/release-preview
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+  p0-validate:
+    needs: [install, quality-aggregate, test-aggregate, integration, eval, smoke-local, smoke-service, license, build, release-dry-run, ci-contract]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-install-${{ github.run_id }}
+          path: .artifacts/ci/install
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-quality-aggregate-${{ github.run_id }}
+          path: .artifacts/ci/quality-aggregate
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-test-aggregate-${{ github.run_id }}
+          path: .artifacts/ci/test-aggregate
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-integration-${{ github.run_id }}
+          path: .artifacts
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-eval-${{ github.run_id }}
+          path: .artifacts
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-smoke-local-${{ github.run_id }}
+          path: .artifacts
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-smoke-service-${{ github.run_id }}
+          path: .artifacts
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-license-${{ github.run_id }}
+          path: .artifacts
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-build-${{ github.run_id }}
+          path: .
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-release-dry-run-${{ github.run_id }}
+          path: .artifacts
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-contract-${{ github.run_id }}
+          path: .artifacts/ci/ci-contract
+      - run: make ci-p0-validate
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-p0-validate-${{ github.run_id }}
+          path: .artifacts/ci/p0-validate
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14

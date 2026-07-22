@@ -10,6 +10,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.import_boundary_check import (
+    check_python_imports,
+    check_sqlalchemy_session_boundaries,
+)
+
 from agent_harness.contracts.boundaries import (
     BANNED_VENDOR_IMPORTS,
     is_vendor_import_allowed,
@@ -30,6 +35,30 @@ def test_boundary_contract_lists_banned_vendors_and_adapter_allowlist() -> None:
     assert not is_vendor_import_allowed(
         ROOT / "templates" / "service-app" / "app" / "api" / "run.py"
     )
+
+
+def test_example_agents_have_no_direct_vendor_sdk_imports() -> None:
+    """对示例 Agent 源码实际执行 vendor import 门禁，而非只检查禁止集合。"""
+
+    example_files = sorted((ROOT / "templates" / "service-app" / "agents").rglob("*.py"))
+    assert example_files, "示例 Agent 源码目录不得为空"
+    issues = check_python_imports()
+
+    assert not [
+        issue
+        for issue in issues
+        if issue.startswith("templates/service-app/agents/") or issue.startswith("examples/")
+    ]
+
+
+def test_business_agents_have_no_vendor_or_orm_session_imports() -> None:
+    """业务 Agent 同时经过 vendor SDK 与 ORM session 的生产静态扫描。"""
+
+    business_files = sorted((ROOT / "templates" / "service-app" / "agents").rglob("*.py"))
+    assert business_files, "业务 Agent 源码目录不得为空"
+
+    assert check_python_imports() == []
+    assert check_sqlalchemy_session_boundaries() == []
 
 
 def test_doctor_cli_reports_local_profile_without_provider_keys() -> None:

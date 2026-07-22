@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from tests.contracts.test_service_deployment_compose_contracts import (
     ROOT as ROOT,
 )
@@ -135,6 +137,9 @@ def test_service_smoke_uses_http_auth_crash_reclaim_checkpoint_and_scoped_cleanu
         "SERVICE_APP_POSTGRES_PASSWORD_FILE",
         "storage-dsn.secret",
         "verify_secret_failure_cases",
+        '"credential-cleanup"',
+        '"server-version-evidence"',
+        '"trace-export"',
         '"symlink": True',
         '"conflict": True',
         '"postgres_password_file": True',
@@ -165,6 +170,59 @@ def test_service_smoke_uses_http_auth_crash_reclaim_checkpoint_and_scoped_cleanu
     assert '"terminal_event"' in support
     assert '"docker", "network", "inspect", network' in support
     assert '"docker", "volume", "inspect", volume' in support
+
+
+def test_service_smoke_executes_postgresql_migration_and_shared_budget_scenarios() -> None:
+    """真实 service producer 必须执行 PostgreSQL 迁移、并发预算与崩溃恢复场景。"""
+
+    smoke = (TEMPLATE / "scripts" / "smoke_service.py").read_text(encoding="utf-8")
+
+    for marker in (
+        'compose(env, "run", "--rm", "migration")',
+        '"assert-budget-race"',
+        '"assert-budget-topology"',
+        '"shared-budget-crash-windows"',
+        '"0016_shared_parent_budget_ledger"',
+    ):
+        assert marker in smoke
+
+
+def test_service_smoke_exports_postgresql_events_as_restricted_trace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Service trace 必须来自 PostgreSQL inspect 事件，并以受限权限写入本轮隔离目录。"""
+
+    smoke = _smoke_service(monkeypatch)
+    event = {
+        "event_id": "event-1",
+        "type": "run.completed",
+        "seq": 3,
+        "terminal": True,
+        "visibility": "public",
+        "request_id": "request-1",
+        "trace_id": "trace-1",
+        "payload": {"result": "ok"},
+    }
+    env = {"SERVICE_APP_SMOKE_DIR": str(tmp_path)}
+
+    smoke._write_service_trace(
+        env,
+        {"run_id": "run-1", "tenant_id": "tenant-1", "events": [event]},
+    )
+
+    trace = tmp_path / "trace.jsonl"
+    records = [json.loads(line) for line in trace.read_text(encoding="utf-8").splitlines()]
+    assert records == [
+        {
+            "schema_version": "service-smoke-trace/v1",
+            "source": "postgresql",
+            "run_id": "run-1",
+            "tenant_id": "tenant-1",
+            "event": event,
+        }
+    ]
+    assert trace.stat().st_mode & 0o777 == 0o600
 
 
 @pytest.mark.parametrize("failure", [RuntimeError("smoke failed"), KeyboardInterrupt()])
@@ -296,13 +354,15 @@ def test_root_smoke_forwards_interrupt_to_child_process_group(
 
             self.wait_calls = 0
 
+        def communicate(self) -> tuple[str, None]:
+            """模拟捕获输出期间收到用户中断。"""
+
+            raise KeyboardInterrupt
+
         def wait(self, timeout: float | None = None) -> int:
-            """按预设顺序暴露中断和收尾完成，验证父进程的信号处理分支。"""
+            """收到转发信号后在有限窗口内完成收尾。"""
 
             self.wait_calls += 1
-            if self.wait_calls == 1:
-                assert timeout is None
-                raise KeyboardInterrupt
             assert timeout == 30
             return 0
 
@@ -314,12 +374,18 @@ def test_root_smoke_forwards_interrupt_to_child_process_group(
         cwd: Path,
         env: dict[str, str],
         start_new_session: bool,
+        stdout: int,
+        stderr: int,
+        text: bool,
     ) -> InterruptedProcess:
-        """校验根脚本以新进程组启动复制后的冒烟命令。"""
+        """校验根脚本以新进程组启动并捕获可归档的冒烟输出。"""
 
         assert cwd == tmp_path
         assert env["AGENT_HARNESS_SOURCE"] == str(tmp_path / "core.whl")
         assert start_new_session is True
+        assert stdout == root_smoke.subprocess.PIPE
+        assert stderr == root_smoke.subprocess.STDOUT
+        assert text is True
         return process
 
     def record_signal(process_group: int, sent_signal: int) -> None:

@@ -1116,8 +1116,8 @@ make quality
 ```
 
 **验收标准：**
-- [ ] AC-050: Given P0 能力块, when 审查当前基线, then REQ/AC 可追踪到生产实现和至少一种 unit/contract/integration/eval/smoke evidence；新 change 仍必须在实现前保留失败测试或未满足 contract 的 red 证据。
-- [ ] AC-051: Given CI quality job, when pipeline 执行, then `make quality` 与 `make test` 分别通过，且 ruff、pyright、import boundary、unit/contract tests 均有独立结果。
+- [x] AC-050: Given P0 能力块, when 审查当前基线, then 每个 REQ/AC 可追踪到仓库内存在的具体生产文件、至少一个以 `path.py::test_name` 或 `path.py::TestClass::test_name` 表示且真实验证该行为的精确 pytest node、实际执行该验收行为的一个或多个 CI job，以及各 job 产生的 unit/contract/integration/eval/smoke evidence；validator 必须核验精确 node 存在并拒绝仅含 `pass` 或 `assert True` 的空壳，复合 AC 必须列出全部 producer，且 evidence command 必须执行对应 allowlisted Make target，其中 AC-001 的真实 `uv sync --frozen` 行为由 `install` producer 证明，AC-002 的真实 `uv build` 行为由 `build` producer 证明，AC-003/006 的 workspace 外 wheel 安装与复制模板运行由 `integration` producer 和对应集成测试证明，AC-004/061 必须执行示例/业务 Agent 的 vendor 与 ORM import 扫描，AC-005 必须实际构造 fake model adapter，AC-019 必须贯穿 run/session/CanonicalEvent trace/eval 的默认 tenant，AC-023 必须同时证明 deny 零动作副作用与拒绝 audit，AC-026 必须调用未入 allowlist 的 MCP tool 且不触网，AC-029/052 必须在无真实 provider key 时执行真实 fake-model eval，AC-062 必须分别覆盖 API、worker、tool/model adapter 与 CanonicalEvent 关联字段交换；AC-012/068 的 SQLite 行为由 `test-aggregate` 中的精确合同测试证明、PostgreSQL 行为由 `smoke-service` 证明，AC-011/060 的静态 smoke 合同与真实 PostgreSQL/service 行为分别由 `test-aggregate` 和 `smoke-service` 证明，AC-065 必须映射到从公开入口完成 single-agent fake run 并执行五秒门禁的正向测试，泛化目录、文件级测试映射、不存在 node、只提供 helper 的伪测试文件或 CI/evidence producer 错配均不得算映射；GitHub/GitLab 还必须各自用独立 required `p0-validate` 终端 job 下载或继承包括 `install`、`integration`、`build` 在内的全部 producer evidence 并阻断后续 promotion，不能依赖 `test-aggregate` 对已有证据的条件式自检；新 change 仍必须在实现前保留失败测试或未满足 contract 的 red 证据。
+- [x] AC-051: Given CI quality job, when pipeline 执行, then `make quality` 与 `make test` 分别通过，且 ruff、pyright、import boundary、unit/contract tests 均有独立结果。
 - [x] AC-052: Given `make eval`, when 未配置真实模型 key, then fake model eval 可通过。
 
 ### REQ-020: CI/CD 与 Release Automation
@@ -1170,13 +1170,14 @@ make quality
 - MUST 无 releasable commit 时不发版。
 - MUST release process 写入 `docs/release-process.md`。
 - MUST template 声明兼容的 `agent-harness` 版本范围，例如 `>=0.1,<0.2`。
+- MUST 将每次发布预演记录为版本化、机器可读的 `ReleaseRecord` CI artifact；该记录不是运行时业务实体，不写入应用数据库。
 - MUST 破坏性变更写 ADR。
 
 **验收标准：**
 - [ ] AC-053: Given GitHub CI, when push/PR, then `make quality`、`make eval`、`make smoke-local`、`make smoke-service` 执行。
 - [ ] AC-054: Given GitLab CI, when pipeline, then 与 GitHub 等价命令通过。
-- [ ] AC-055: Given releasable commits, when release workflow dry-run, then 生成下一版本、CHANGELOG 预览、tag 名称和 wheel/sdist artifact。
-- [ ] AC-056: Given no releasable commits, when release workflow dry-run, then 不创建 tag 或 release。
+- [x] AC-055: Given releasable commits, when release workflow dry-run, then 生成下一版本、CHANGELOG 预览、tag 名称和 wheel/sdist artifact。
+- [x] AC-056: Given no releasable commits, when release workflow dry-run, then 不创建 tag 或 release。
 
 ### REQ-021: 开源合规与许可证
 
@@ -1200,7 +1201,7 @@ make quality
 
 **验收标准：**
 - [x] AC-057: Given 仓库根目录, when 检查 license 文件, then `LICENSE` 存在且为 Apache-2.0。
-- [ ] AC-058: Given 引入第三方片段, when review, then NOTICE/来源/license/修改说明可追踪。
+- [x] AC-058: Given 引入第三方片段, when review, then NOTICE/来源/license/修改说明可追踪。
 
 ### REQ-022: 部署边界与未来微服务拆分基础
 
@@ -1282,7 +1283,7 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | HarnessAcceptance | 每个 experiment 唯一且不可变的人工决策 | acceptance_id, tenant_id, experiment_id, reviewer_id, decision, reason, audit_ref, evidence_refs |
 | Artifact | 大内容和产物引用 | artifact_id, tenant_id, run_id, kind, uri, checksum |
 | Workspace | per-run 或 per-agent 工作区 | workspace_id, tenant_id, run_id, root_path, policy_ref |
-| ReleaseRecord | release automation 记录 | version, tag, changelog_ref, artifacts, commit_sha |
+| ReleaseRecord | 版本化 release preview CI artifact；非运行时数据库实体 | schema_version, status, current_version, next_version, tag, changelog_ref, artifacts, commit_sha, decision |
 
 ### 6.2 实体关系
 
@@ -1302,6 +1303,7 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | EvalDatasetSplit has many EvalExperiments | 固定 membership 可复用于 baseline/candidate 对比 |
 | EvalExperiment has at most one HarnessAcceptance | 人工验收决策唯一且不可变 |
 | Artifact belongs to Tenant and optionally Run/EvalCase | 大内容和证据统一引用 |
+| ReleaseRecord references git/release artifacts | 通过版本化 manifest 关联 commit、tag 计划、CHANGELOG preview、release notes、wheel/sdist 与 checksum；不关联运行时 tenant 或数据库表 |
 
 ### 6.3 数据规则
 
@@ -1317,7 +1319,7 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - 外部输入、MCP output、tool output、retrieval chunk MUST 在进入模型上下文前带 `source_ref` 和 `trust_level`。
 - ContextAssembly MUST 记录截断、压缩、检索注入和 fallback 决策摘要，完整大内容只能通过 Artifact 引用。
 - `PolicyDecision` 和 approval 结果 MUST 写 audit log。
-- ReleaseRecord MUST 可关联 git tag、commit sha、CHANGELOG 和 artifacts。
+- ReleaseRecord MUST 以版本化 JSON manifest 关联 git tag 计划、commit sha、CHANGELOG preview、release notes 和带 checksum 的 artifacts；`no-release` 路径必须显式记录无发布决策。它只作为 CI/release evidence 归档，不创建 `release_records` 表，也不要求发布预演连接应用数据库。
 
 ## 7. 外部依赖
 
@@ -1409,10 +1411,9 @@ P0 完成条件：
 
 | 编号 | 问题 | 是否阻塞 | 备注 |
 |---|---|---:|---|
-| Q-001 | release automation 具体选择 python-semantic-release、release-please，还是双 CI 分别适配 | No | DEV-PLAN 阶段决策；P0 能力已确定 |
 | Q-002 | package registry 是私有 PyPI、GitHub Packages、GitLab Package Registry 还是公开 PyPI | No | P0 支持私有发布路径；公开发布后定 |
 
-已从待确认列表移除的既定事项：SQLAlchemy 已采用 async ORM + asyncpg seam；local retrieval 已采用 SQLite FTS/BM25 路径；Logfire/Phoenix/Langfuse 已固定为 provider-neutral adapter contract，外部深集成可分层演进。
+已从待确认列表移除的既定事项：Release automation 已选择 `python-semantic-release==10.6.1` 作为 GitHub/GitLab 共用的 Conventional Commits 版本真相，仓库 wrapper 负责 dry-run、promotion 与 registry 安全边界；SQLAlchemy 已采用 async ORM + asyncpg seam；local retrieval 已采用 SQLite FTS/BM25 路径；Logfire/Phoenix/Langfuse 已固定为 provider-neutral adapter contract，外部深集成可分层演进。
 
 ## 11. Agent 系统规格
 

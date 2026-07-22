@@ -4,7 +4,7 @@
 
 Agent Harness Layer is a Python scaffold and core package for enterprise backend agent applications. It provides the repository shape, package boundary, verification commands, and future extension points needed to build agent services with backend engineering discipline.
 
-The current scaffold proves the workspace and package boundary, a copyable FastAPI/CLI/worker service app, typed configuration and identity, durable run and approval continuation, policy-controlled tools, retrieval, observability adapters, the trace-to-eval gate, four runnable example agents, a safe agent scaffold command, and a Compose service profile with physically separate API and runtime-worker processes. The maintainer documentation is available under `docs/`. CI and release automation remain Phase 15 work and do not exist in this checkout.
+The current scaffold proves the workspace and package boundary, a copyable FastAPI/CLI/worker service app, typed configuration and identity, durable run and approval continuation, policy-controlled tools, retrieval, observability adapters, the trace-to-eval gate, four runnable example agents, a safe agent scaffold command, and a Compose service profile with physically separate API and runtime-worker processes. The maintainer documentation is available under `docs/`. Phase 15 now includes repository-local GitHub/GitLab pipeline definitions, release preview and protected promotion seams, and a versioned compliance report; hosted runner execution and real promotion remain explicitly unverified and are not performed by this checkout.
 
 ## Quick Start
 
@@ -30,7 +30,7 @@ make license-check
 | `make smoke-local` | SQLite/in-memory/fake model | local runtime；不替代 service profile |
 | `make smoke-service` | Docker Compose、PostgreSQL、Redis | wheel-only API/worker 跨进程和恢复证据 |
 | `make build` | uv build | 本地 wheel/sdist；不发布 |
-| `make license-check` | repository files | LICENSE/NOTICE/vendoring 基础检查；不是 SBOM |
+| `make license-check` | repository files plus `uv.lock` and `compliance/third-party.toml` | fail-closed license inventory/report、NOTICE、vendoring 和 pinned service image identity；不是法律意见或完整 SBOM |
 
 ## Project Structure
 
@@ -125,7 +125,7 @@ Cross-boundary data should move through Pydantic DTOs, context refs, identity/pe
 | How are untrusted inputs assembled, governed, approved, and returned? | [Context and trust boundary](docs/context-and-trust-boundary.md) |
 | How do auth, permissions, policy, workspace controls, secrets, and audit interact? | [Security policy](docs/security-policy.md) |
 | How do traces become reviewed eval evidence? | [Eval and observability loop](docs/eval-observability-loop.md) |
-| What can be verified and built now, and what still belongs to Phase 15? | [Release process](docs/release-process.md) |
+| What can be verified locally, and what remains hosted/unverified? | [Release process](docs/release-process.md) |
 | Why were the service, vendor, and Redis boundaries chosen? | [ADR-0001](docs/adr/0001-p0-service-boundaries.md), [ADR-0002](docs/adr/0002-vendor-adapter-isolation.md), [ADR-0003](docs/adr/0003-redis-runtime-license-policy.md) |
 
 All command examples in these guides are either runnable in this checkout or explicitly marked as requiring the Docker Compose service profile. They distinguish repository-controlled dependency versions, Compose image tags, external CLI versions observed during verification, and runtime versions reported by a concrete smoke run.
@@ -140,14 +140,16 @@ Run:
 make license-check
 ```
 
-The current codebase does not vendor third-party source. Do not copy third-party code into the repository without recording source, license, and modification details.
+The current codebase does not vendor third-party source. The runtime dependency inventory and policy are tracked in [`compliance/third-party.toml`](compliance/third-party.toml); do not copy third-party code into the repository without recording source, license, and modification details there and in the required ADR/NOTICE entries.
 
 ## Release Process
 
-The current checkout supports manual quality, test, eval, local/service smoke, build, and license verification. The core package can be built locally with:
+The current checkout supports manual quality, test, eval, local/service smoke, build, license verification, CI-contract validation, and release dry-run. The core package can be built locally with:
 
 ```bash
 make build
 ```
 
-This creates local wheel/sdist artifacts; it does not publish them. Automated version calculation, tags, CHANGELOG generation, CI workflows, release dry-run, and registry publishing are Phase 15 work and are not implemented. See the [release process](docs/release-process.md) for the exact current gate and evidence boundary.
+This creates local wheel/sdist artifacts and `dist/SHA256SUMS`; it does not publish them. `make release-dry-run` creates an ignored `release-preview/v1` manifest for releasable and no-release histories without changing Git history or a registry. Promotion and private-registry publishing are protected plan-only-by-default seams; hosted GitHub/GitLab execution, external provider calls, and real publish remain unverified. See the [release process](docs/release-process.md) for the exact gate and evidence boundary.
+
+The current Phase 15 candidate passed the real local PostgreSQL/Redis service smoke with the repository-pinned uv `0.11.29` and localhost excluded from the host proxy. Fresh Reviewer 1 passed the four scoped fixes; the owner explicitly waived the final Reviewer 2/3 gate for this Phase without claiming reviewer PASS. All three OpenSpec changes are locally `ready-to-archive` and remain active. Hosted execution is still unverified.

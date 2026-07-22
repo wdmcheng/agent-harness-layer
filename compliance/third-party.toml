@@ -1,0 +1,1151 @@
+schema_version = "third-party/v1"
+
+[project]
+license_expression = "Apache-2.0"
+allowed_expressions = [
+  "MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC",
+  "0BSD", "CC0-1.0", "Elastic-2.0", "LGPL-3.0-only", "LGPL-3.0-or-later", "MIT-0",
+  "MPL-2.0", "PSF-2.0", "Python-2.0", "Unlicense", "Zlib",
+  "MIT OR Python-2.0", "Apache-2.0 OR BSD-3-Clause",
+  "Apache-2.0 OR BSD-2-Clause", "Apache-2.0 AND BSD-2-Clause",
+  "MPL-2.0 AND MIT", "MPL-2.0 AND (Apache-2.0 OR MIT)",
+  "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+]
+denied_expressions = ["GPL-3.0-only", "AGPL-3.0-only", "SSPL-1.0"]
+
+[tool.licensecheck]
+version = "2026.0.8"
+source = "licensecheck metadata observation filtered to uv.lock runtime closure"
+
+[[packages]]
+name = "aiosqlite"
+version = "0.22.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/aiosqlite/0.22.1/"
+
+[[packages]]
+name = "alembic"
+version = "1.18.5"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/alembic/1.18.5/"
+
+[[packages]]
+name = "annotated-doc"
+version = "0.0.4"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/annotated-doc/0.0.4/"
+
+[[packages]]
+name = "annotated-types"
+version = "0.7.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/annotated-types/0.7.0/"
+
+[[packages]]
+name = "anyio"
+version = "4.14.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/anyio/4.14.1/"
+
+[[packages]]
+name = "asyncpg"
+version = "0.31.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/asyncpg/0.31.0/"
+
+[[packages]]
+name = "attrs"
+version = "26.1.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/attrs/26.1.0/"
+
+[[packages]]
+name = "certifi"
+version = "2026.6.17"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Mozilla Public License 2.0 _MPL 2.0_"
+license_expression = "MPL-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/certifi/2026.6.17/"
+
+[[packages]]
+name = "click"
+version = "8.4.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/click/8.4.2/"
+
+[[packages]]
+name = "colorama"
+version = "0.4.6"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD License"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/colorama/0.4.6/"
+
+[[packages]]
+name = "dbos"
+version = "2.26.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/dbos/2.26.0/"
+
+[[packages]]
+name = "fastapi"
+version = "0.139.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/fastapi/0.139.0/"
+
+[[packages]]
+name = "genai-prices"
+version = "0.0.70"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/genai-prices/0.0.70/"
+
+[[packages]]
+name = "greenlet"
+version = "3.3.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT;; Python-2.0"
+license_expression = "MIT OR Python-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/greenlet/3.3.0/"
+
+[[packages]]
+name = "griffelib"
+version = "2.1.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "ISC"
+license_expression = "ISC"
+decision = "allow"
+basis = "https://pypi.org/project/griffelib/2.1.0/"
+
+[[packages]]
+name = "h11"
+version = "0.16.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/h11/0.16.0/"
+
+[[packages]]
+name = "httpcore"
+version = "1.0.9"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/httpcore/1.0.9/"
+
+[[packages]]
+name = "httpcore2"
+version = "2.5.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/httpcore2/2.5.0/"
+
+[[packages]]
+name = "httpx"
+version = "0.28.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD License"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/httpx/0.28.1/"
+
+[[packages]]
+name = "httpx-sse"
+version = "0.4.3"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/httpx-sse/0.4.3/"
+
+[[packages]]
+name = "httpx2"
+version = "2.5.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/httpx2/2.5.0/"
+
+[[packages]]
+name = "idna"
+version = "3.18"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/idna/3.18/"
+
+[[packages]]
+name = "jsonschema"
+version = "4.26.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/jsonschema/4.26.0/"
+
+[[packages]]
+name = "jsonschema-specifications"
+version = "2025.9.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/jsonschema-specifications/2025.9.1/"
+
+[[packages]]
+name = "logfire-api"
+version = "4.37.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/logfire-api/4.37.0/"
+
+[[packages]]
+name = "mako"
+version = "1.3.12"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/mako/1.3.12/"
+
+[[packages]]
+name = "markdown-it-py"
+version = "4.2.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/markdown-it-py/4.2.0/"
+
+[[packages]]
+name = "markupsafe"
+version = "3.0.3"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/markupsafe/3.0.3/"
+
+[[packages]]
+name = "mcp"
+version = "1.28.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/mcp/1.28.1/"
+
+[[packages]]
+name = "mdurl"
+version = "0.1.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/mdurl/0.1.2/"
+
+[[packages]]
+name = "opentelemetry-api"
+version = "1.42.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/opentelemetry-api/1.42.1/"
+
+[[packages]]
+name = "psycopg"
+version = "3.3.4"
+source = "registry:https://pypi.org/simple"
+metadata_license = "LGPL-3.0-only"
+license_expression = "LGPL-3.0-only"
+decision = "allow"
+basis = "https://pypi.org/project/psycopg/3.3.4/"
+
+[[packages]]
+name = "pydantic"
+version = "2.13.4"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/pydantic/2.13.4/"
+
+[[packages]]
+name = "pydantic-ai"
+version = "2.5.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/pydantic-ai/2.5.0/"
+
+[[packages]]
+name = "pydantic-ai-slim"
+version = "2.5.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/pydantic-ai-slim/2.5.0/"
+
+[[packages]]
+name = "pydantic-core"
+version = "2.46.4"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/pydantic-core/2.46.4/"
+
+[[packages]]
+name = "pydantic-graph"
+version = "2.5.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/pydantic-graph/2.5.0/"
+
+[[packages]]
+name = "pydantic-settings"
+version = "2.14.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/pydantic-settings/2.14.2/"
+
+[[packages]]
+name = "pygments"
+version = "2.20.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-2-Clause"
+license_expression = "BSD-2-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/pygments/2.20.0/"
+
+[[packages]]
+name = "pyjwt"
+version = "2.13.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/pyjwt/2.13.0/"
+
+[[packages]]
+name = "python-dateutil"
+version = "2.9.0.post0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache Software License;; BSD License"
+license_expression = "Apache-2.0 OR BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/python-dateutil/2.9.0.post0/"
+
+[[packages]]
+name = "python-dotenv"
+version = "1.2.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/python-dotenv/1.2.2/"
+
+[[packages]]
+name = "python-multipart"
+version = "0.0.32"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/python-multipart/0.0.32/"
+
+[[packages]]
+name = "pywin32"
+version = "312"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Python Software Foundation License"
+license_expression = "PSF-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/pywin32/312/"
+
+[[packages]]
+name = "pyyaml"
+version = "6.0.3"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/pyyaml/6.0.3/"
+
+[[packages]]
+name = "redis"
+version = "8.0.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/redis/8.0.1/"
+
+[[packages]]
+name = "referencing"
+version = "0.37.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/referencing/0.37.0/"
+
+[[packages]]
+name = "rich"
+version = "14.3.4"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/rich/14.3.4/"
+
+[[packages]]
+name = "rich"
+version = "15.0.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/rich/15.0.0/"
+
+[[packages]]
+name = "rpds-py"
+version = "2026.6.3"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/rpds-py/2026.6.3/"
+
+[[packages]]
+name = "shellingham"
+version = "1.5.4"
+source = "registry:https://pypi.org/simple"
+metadata_license = "ISC License _ISCL_"
+license_expression = "ISC"
+decision = "allow"
+basis = "https://pypi.org/project/shellingham/1.5.4/"
+
+[[packages]]
+name = "six"
+version = "1.17.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/six/1.17.0/"
+
+[[packages]]
+name = "sqlalchemy"
+version = "2.0.51"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/sqlalchemy/2.0.51/"
+
+[[packages]]
+name = "sse-starlette"
+version = "3.4.5"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/sse-starlette/3.4.5/"
+
+[[packages]]
+name = "starlette"
+version = "1.3.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/starlette/1.3.1/"
+
+[[packages]]
+name = "truststore"
+version = "0.10.4"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/truststore/0.10.4/"
+
+[[packages]]
+name = "typer"
+version = "0.26.8"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/typer/0.26.8/"
+
+[[packages]]
+name = "typer-slim"
+version = "0.24.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/typer-slim/0.24.0/"
+
+[[packages]]
+name = "typing-extensions"
+version = "4.16.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "PSF-2.0"
+license_expression = "PSF-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/typing-extensions/4.16.0/"
+
+[[packages]]
+name = "typing-inspection"
+version = "0.4.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/typing-inspection/0.4.2/"
+
+[[packages]]
+name = "tzdata"
+version = "2026.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/tzdata/2026.2/"
+
+[[packages]]
+name = "uvicorn"
+version = "0.50.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/uvicorn/0.50.2/"
+
+[[packages]]
+name = "websockets"
+version = "16.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/websockets/16.0/"
+
+[[packages]]
+name = "aioitertools"
+version = "0.13.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/aioitertools/0.13.0/"
+
+[[packages]]
+name = "arize-phoenix"
+version = "17.21.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Elastic-2.0"
+license_expression = "Elastic-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/arize-phoenix/17.21.0/"
+
+[[packages]]
+name = "arize-phoenix-client"
+version = "2.12.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/arize-phoenix-client/2.12.0/"
+
+[[packages]]
+name = "arize-phoenix-evals"
+version = "3.1.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Elastic-2.0"
+license_expression = "Elastic-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/arize-phoenix-evals/3.1.0/"
+
+[[packages]]
+name = "arize-phoenix-otel"
+version = "0.16.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/arize-phoenix-otel/0.16.1/"
+
+[[packages]]
+name = "authlib"
+version = "1.7.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD License"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/authlib/1.7.2/"
+
+[[packages]]
+name = "backoff"
+version = "2.2.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/backoff/2.2.1/"
+
+[[packages]]
+name = "bashkit"
+version = "0.13.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/bashkit/0.13.0/"
+
+[[packages]]
+name = "cachetools"
+version = "7.1.4"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/cachetools/7.1.4/"
+
+[[packages]]
+name = "cffi"
+version = "2.1.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT-0"
+license_expression = "MIT-0"
+decision = "allow"
+basis = "https://pypi.org/project/cffi/2.1.0/"
+
+[[packages]]
+name = "charset-normalizer"
+version = "3.4.9"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/charset-normalizer/3.4.9/"
+
+[[packages]]
+name = "cross-web"
+version = "0.7.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/cross-web/0.7.0/"
+
+[[packages]]
+name = "cryptography"
+version = "49.0.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0;; BSD-3-Clause"
+license_expression = "Apache-2.0 OR BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/cryptography/49.0.0/"
+
+[[packages]]
+name = "dnspython"
+version = "2.8.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "ISC License _ISCL_"
+license_expression = "ISC"
+decision = "allow"
+basis = "https://pypi.org/project/dnspython/2.8.0/"
+
+[[packages]]
+name = "email-validator"
+version = "2.3.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "The Unlicense _Unlicense_"
+license_expression = "Unlicense"
+decision = "allow"
+basis = "https://pypi.org/project/email-validator/2.3.0/"
+
+[[packages]]
+name = "executing"
+version = "2.2.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/executing/2.2.1/"
+
+[[packages]]
+name = "googleapis-common-protos"
+version = "1.75.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache Software License"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/googleapis-common-protos/1.75.0/"
+
+[[packages]]
+name = "graphql-core"
+version = "3.2.11"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/graphql-core/3.2.11/"
+
+[[packages]]
+name = "grpc-interceptor"
+version = "0.15.4"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/grpc-interceptor/0.15.4/"
+
+[[packages]]
+name = "grpcio"
+version = "1.82.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/grpcio/1.82.1/"
+
+[[packages]]
+name = "jinja2"
+version = "3.1.6"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD License"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/jinja2/3.1.6/"
+
+[[packages]]
+name = "jmespath"
+version = "1.1.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/jmespath/1.1.0/"
+
+[[packages]]
+name = "joblib"
+version = "1.5.3"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/joblib/1.5.3/"
+
+[[packages]]
+name = "joserfc"
+version = "1.7.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD License"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/joserfc/1.7.2/"
+
+[[packages]]
+name = "jsonpath-ng"
+version = "1.8.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache Software License"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/jsonpath-ng/1.8.0/"
+
+[[packages]]
+name = "langfuse"
+version = "4.13.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/langfuse/4.13.2/"
+
+[[packages]]
+name = "ldap3"
+version = "2.9.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "GNU Lesser General Public License v3 _LGPLv3_"
+license_expression = "LGPL-3.0-or-later"
+decision = "allow"
+basis = "https://pypi.org/project/ldap3/2.9.1/"
+
+[[packages]]
+name = "logfire"
+version = "4.37.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/logfire/4.37.0/"
+
+[[packages]]
+name = "narwhals"
+version = "2.23.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/narwhals/2.23.0/"
+
+[[packages]]
+name = "numpy"
+version = "2.5.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "0BSD;; BSD-3-Clause;; CC0-1.0;; MIT;; Zlib"
+license_expression = "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0"
+decision = "allow"
+basis = "https://pypi.org/project/numpy/2.5.1/"
+
+[[packages]]
+name = "openinference-instrumentation"
+version = "0.1.54"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/openinference-instrumentation/0.1.54/"
+
+[[packages]]
+name = "openinference-instrumentation-openai"
+version = "0.1.52"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/openinference-instrumentation-openai/0.1.52/"
+
+[[packages]]
+name = "openinference-semantic-conventions"
+version = "0.1.30"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/openinference-semantic-conventions/0.1.30/"
+
+[[packages]]
+name = "opentelemetry-exporter-otlp"
+version = "1.42.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/opentelemetry-exporter-otlp/1.42.1/"
+
+[[packages]]
+name = "opentelemetry-exporter-otlp-proto-common"
+version = "1.42.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/opentelemetry-exporter-otlp-proto-common/1.42.1/"
+
+[[packages]]
+name = "opentelemetry-exporter-otlp-proto-grpc"
+version = "1.42.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/opentelemetry-exporter-otlp-proto-grpc/1.42.1/"
+
+[[packages]]
+name = "opentelemetry-exporter-otlp-proto-http"
+version = "1.42.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/opentelemetry-exporter-otlp-proto-http/1.42.1/"
+
+[[packages]]
+name = "opentelemetry-instrumentation"
+version = "0.63b1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/opentelemetry-instrumentation/0.63b1/"
+
+[[packages]]
+name = "opentelemetry-proto"
+version = "1.42.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/opentelemetry-proto/1.42.1/"
+
+[[packages]]
+name = "opentelemetry-sdk"
+version = "1.42.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/opentelemetry-sdk/1.42.1/"
+
+[[packages]]
+name = "opentelemetry-semantic-conventions"
+version = "0.63b1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/opentelemetry-semantic-conventions/0.63b1/"
+
+[[packages]]
+name = "orjson"
+version = "3.11.9"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT_;; MPL-2.0;; _Apache-2.0"
+license_expression = "MPL-2.0 AND (Apache-2.0 OR MIT)"
+decision = "allow"
+basis = "https://pypi.org/project/orjson/3.11.9/"
+
+[[packages]]
+name = "packaging"
+version = "26.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0;; BSD-2-Clause"
+license_expression = "Apache-2.0 OR BSD-2-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/packaging/26.2/"
+
+[[packages]]
+name = "pandas"
+version = "3.0.3"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD License"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/pandas/3.0.3/"
+
+[[packages]]
+name = "prometheus-client"
+version = "0.25.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0;; BSD-2-Clause"
+license_expression = "Apache-2.0 AND BSD-2-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/prometheus-client/0.25.0/"
+
+[[packages]]
+name = "protobuf"
+version = "6.33.6"
+source = "registry:https://pypi.org/simple"
+metadata_license = "3-Clause BSD License"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/protobuf/6.33.6/"
+
+[[packages]]
+name = "psutil"
+version = "7.2.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/psutil/7.2.2/"
+
+[[packages]]
+name = "pyarrow"
+version = "24.0.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache-2.0"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/pyarrow/24.0.0/"
+
+[[packages]]
+name = "pyasn1"
+version = "0.6.3"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-2-Clause"
+license_expression = "BSD-2-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/pyasn1/0.6.3/"
+
+[[packages]]
+name = "pycparser"
+version = "3.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/pycparser/3.0/"
+
+[[packages]]
+name = "pystache"
+version = "0.6.8"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT License"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/pystache/0.6.8/"
+
+[[packages]]
+name = "requests"
+version = "2.34.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "Apache Software License"
+license_expression = "Apache-2.0"
+decision = "allow"
+basis = "https://pypi.org/project/requests/2.34.2/"
+
+[[packages]]
+name = "scikit-learn"
+version = "1.9.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-3-Clause"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/scikit-learn/1.9.0/"
+
+[[packages]]
+name = "scipy"
+version = "1.18.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD License"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/scipy/1.18.0/"
+
+[[packages]]
+name = "sqlean-py"
+version = "3.49.1"
+source = "registry:https://pypi.org/simple"
+metadata_license = "zlib/libpng"
+license_expression = "Zlib"
+decision = "allow"
+basis = "https://raw.githubusercontent.com/nalgeon/sqlean.py/9b7e2d8d83c3cb3a75c0520de4977e49eb151781/LICENSE"
+
+[[packages]]
+name = "sqlean-py"
+version = "3.50.4.5"
+source = "registry:https://pypi.org/simple"
+metadata_license = "zlib/libpng"
+license_expression = "Zlib"
+decision = "allow"
+basis = "https://raw.githubusercontent.com/nalgeon/sqlean.py/79c9994b1ecb889c23cd73c5cc2a9d74e4fc5b94/LICENSE"
+
+[[packages]]
+name = "strawberry-graphql"
+version = "0.319.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/strawberry-graphql/0.319.0/"
+
+[[packages]]
+name = "threadpoolctl"
+version = "3.6.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD License"
+license_expression = "BSD-3-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/threadpoolctl/3.6.0/"
+
+[[packages]]
+name = "tqdm"
+version = "4.68.4"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT;; MPL-2.0"
+license_expression = "MPL-2.0 AND MIT"
+decision = "allow"
+basis = "https://pypi.org/project/tqdm/4.68.4/"
+
+[[packages]]
+name = "urllib3"
+version = "2.7.0"
+source = "registry:https://pypi.org/simple"
+metadata_license = "MIT"
+license_expression = "MIT"
+decision = "allow"
+basis = "https://pypi.org/project/urllib3/2.7.0/"
+
+[[packages]]
+name = "wrapt"
+version = "2.2.2"
+source = "registry:https://pypi.org/simple"
+metadata_license = "BSD-2-Clause"
+license_expression = "BSD-2-Clause"
+decision = "allow"
+basis = "https://pypi.org/project/wrapt/2.2.2/"
+
+[service_images.postgres]
+reference = "postgres:18.4@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a"
+server_version = "18.4"
+license_expression = "PostgreSQL"
+basis = "https://www.postgresql.org/support/security/"
+smoke_evidence = ".artifacts/license/smoke-service.log"
+
+[service_images.redis]
+reference = "redis:7.2.14@sha256:f0707c78ea880b293ccdeb410c9c0a8ccae93fe7128799b751333a698b0a39a7"
+server_version = "7.2.14"
+license_expression = "BSD-3-Clause"
+basis = "https://raw.githubusercontent.com/redis/redis/7.2.14/COPYING"
+security_basis = "https://github.com/redis/redis/releases/tag/7.2.14"
+smoke_evidence = ".artifacts/license/smoke-service.log"
+client_package = "redis"
+client_license_expression = "MIT"

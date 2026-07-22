@@ -17,6 +17,27 @@ dev = [
     "pytest-asyncio==1.4.0",
     "ruff==0.15.20",
 ]
+license = [
+    "licensecheck==2026.0.8",
+]
+release = [
+    "hatchling==1.30.1",
+    "python-semantic-release==10.6.1",
+]
+
+[tool.semantic_release]
+# PSR 只提供 Conventional Commits 版本真相；仓库 wrapper 负责隔离构建与副作用门禁。
+commit_parser = "conventional"
+tag_format = "agent-harness-v{version}"
+allow_zero_version = true
+version_toml = [
+    "pyproject.toml:project.version",
+    "packages/agent-harness/pyproject.toml:project.version",
+    "templates/service-app/pyproject.toml:project.version",
+]
+version_variables = [
+    "packages/agent-harness/src/agent_harness/__init__.py:__version__",
+]
 
 [tool.uv.workspace]
 # 根 workspace 只聚合核心包和可安装 service-app 模板；不要把生成产物或外部项目
@@ -24,6 +45,19 @@ dev = [
 members = [
     "packages/agent-harness",
     "templates/service-app",
+]
+
+[tool.uv]
+# release/CI 证据只接受经审查的 patch 版本；较旧或较新的本机 uv 都应 fail closed，
+# 维护者需显式使用 0.11.29，不能让环境漂移默默改变 lock/build/publish 语义。
+required-version = "==0.11.29"
+# 两个上游 exact pin 的 rich 主版本约束互斥；lock 同时记录两套工具环境，CI 按
+# `--group release` / `--group license` 独立执行，避免为求解而放松安全工具版本。
+conflicts = [
+    [
+        { group = "release" },
+        { group = "license" },
+    ],
 ]
 
 [tool.uv.sources]

@@ -10,7 +10,11 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.main import create_app
+# 该脚本从仓库根目录作为公开 smoke seam 执行；显式加入 template 根目录，
+# 避免把调用进程是否预先设置 PYTHONPATH 当成 local profile 的隐含前置条件。
+SERVICE_APP_ROOT = Path(__file__).resolve().parents[1] / "templates" / "service-app"
+if str(SERVICE_APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVICE_APP_ROOT))
 
 FINGERPRINT_ENV = "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY"
 
@@ -26,6 +30,8 @@ def validate_local_event_transports(
     events: list[dict[str, object]],
 ) -> dict[str, int]:
     """在同一 local event store 上验证 CLI NDJSON、SSE 与 terminal resume。"""
+
+    from app.main import create_app
 
     streamed = subprocess.run(
         [
