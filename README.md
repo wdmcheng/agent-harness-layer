@@ -34,11 +34,27 @@ It is not a hosted agent platform, a frontend administration product, or proof t
 |---|---|
 | Run an agent application for the first time | [Service-app first use](templates/service-app/README.md#first-use-local-profile) |
 | Create a business agent | [Create an agent](templates/service-app/README.md#create-an-agent) |
+| Ask an AI / Agent to initialize or implement a feature | [AI / Agent project guide](templates/service-app/docs/ai-agent-guide.md) |
 | Apply the five-layer, two-wing architecture | [Build an Agent guide](docs/building-an-agent.md) |
 | Call the HTTP API | [Service-app HTTP API](templates/service-app/README.md#http-api) |
 | Use the Python package | [Python API](#python-api) |
 | Understand architecture and safety boundaries | [Module design](#module-design) and [Deep documentation](#deep-documentation) |
 | Modify the reusable scaffold | [Developer guide](#developer-guide) and [Contributing](#contributing) |
+
+## Hand project work to an AI / Agent
+
+The copied template carries an ordinary, opt-in [AI / Agent project guide](templates/service-app/docs/ai-agent-guide.md). Give the AI that link or copy this starter prompt; the guide itself does not automatically configure a tool or impose directory-level instructions:
+
+```text
+Read templates/service-app/docs/ai-agent-guide.md first, then inspect this project and
+complete this task: <task and acceptance criteria>.
+
+Follow the guide's architecture, security, validation, and handoff rules. Do not commit,
+push, deploy, publish, use production credentials, or call a real provider unless I
+separately authorize that exact action.
+```
+
+After copying `templates/service-app` into its own project, the path becomes `docs/ai-agent-guide.md`.
 
 ## Build an Agent with five layers and two wings
 
@@ -428,6 +444,7 @@ See the [security policy](docs/security-policy.md) and [context/trust boundary](
 | Question | Document |
 |---|---|
 | How do five layers and two wings become one working Agent? | [Build an Agent guide](docs/building-an-agent.md) |
+| How can I hand project initialization or feature work to an AI / Agent? | [AI / Agent project guide](templates/service-app/docs/ai-agent-guide.md) |
 | What runs today, and what may split later? | [Architecture and deployment boundaries](docs/architecture/README.md) |
 | Where can I add an agent or capability? | [Extension guide](docs/extension-guide.md) |
 | Which DTO/protocol/facade/repository/UoW boundaries are stable? | [Adapter contracts](docs/adapter-contracts.md) |

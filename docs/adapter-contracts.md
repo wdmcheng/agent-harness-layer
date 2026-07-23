@@ -1,57 +1,59 @@
-# Adapter 合同
+# Adapter contracts
 
-适用读者：实现 provider、queue、runtime、storage 或 observability adapter 的 scaffold maintainer；需要判断业务代码可依赖什么的 app developer。
+[English](adapter-contracts.md) | [简体中文](adapter-contracts.zh-CN.md)
 
-导航：[根 README](../README.md) · [架构边界](architecture/README.md) · [扩展指南](extension-guide.md) · [安全策略](security-policy.md) · [ADR-0002](adr/0002-vendor-adapter-isolation.md)
+Audience: scaffold maintainers implementing provider, queue, runtime, storage, or observability adapters, and application developers deciding which dependencies business code may use.
 
-## 合同层级
+Navigation: [root README](../README.md) · [architecture boundaries](architecture/README.md) · [extension guide](extension-guide.md) · [security policy](security-policy.md) · [ADR-0002](adr/0002-vendor-adapter-isolation.md)
 
-| 层级 | 当前公开 seam | 维护边界 |
+## Contract levels
+
+| Level | Current public seam | Maintenance boundary |
 |---|---|---|
-| DTO | `HarnessDTO`、identity/trust DTO、run/queue/event/eval DTO | 可序列化、受校验、无 SDK/ORM object；跨进程保留 tenant/agent/run/request/trace refs |
-| Protocol | `ModelProvider`、`RetrievalProvider`、`EmbeddingProvider`、`RunQueue`、`EventSink`/`EventReader`、`TokenVerifier`、`PolicyProvider` | 调用方依赖行为合同，不依赖具体厂商类型 |
-| Facade/service | `TelemetryFacade`、model/embedding invocation service、policy/approval/context service | 统一 identity、policy、budget、redaction、local-first evidence 与错误语义 |
-| Repository | run、approval、audit、event、eval、retrieval、usage、delegation repositories | 返回/接收 DTO 或 record；隔离 SQLAlchemy query 和并发控制 |
-| UoW | `SQLAlchemyUnitOfWork` | transaction/commit/rollback 所有权集中；业务层不持有 `AsyncSession` |
-| Adapter | `adapters/models`、`adapters/mcp`、`adapters/queue`、`adapters/runtime`、`adapters/observability`、`storage/adapters` | 相应 vendor SDK 与 driver 的受控边界；ORM 还由 `storage` 内的 model、repository 与 migration 共同拥有 |
+| DTO | `HarnessDTO`, identity/trust DTOs, run/queue/event/eval DTOs | Serializable, validated, no SDK/ORM objects; preserve tenant/agent/run/request/trace refs across processes |
+| Protocol | `ModelProvider`, `RetrievalProvider`, `EmbeddingProvider`, `RunQueue`, `EventSink`/`EventReader`, `TokenVerifier`, `PolicyProvider` | Callers depend on behavioral contracts, not concrete vendor types |
+| Facade/service | `TelemetryFacade`, model/embedding invocation services, policy/approval/context services | Centralize identity, policy, budget, redaction, local-first evidence, and error semantics |
+| Repository | Run, approval, audit, event, eval, retrieval, usage, and delegation repositories | Accept/return DTOs or records; isolate SQLAlchemy queries and concurrency control |
+| UoW | `SQLAlchemyUnitOfWork` | Centralize transaction/commit/rollback ownership; business code never holds an `AsyncSession` |
+| Adapter | `adapters/models`, `adapters/mcp`, `adapters/queue`, `adapters/runtime`, `adapters/observability`, `storage/adapters` | Controlled boundary for the corresponding vendor SDK or driver; ORM ownership also includes models, repositories, and migrations under `storage` |
 
-公开 seam 以 `packages/agent-harness/src/agent_harness/` 的导出和 protocol 为准。文档列出的是稳定职责，不承诺每个私有 helper 的路径或签名。
+Exports and protocols under `packages/agent-harness/src/agent_harness/` define the public seam. This document describes stable responsibilities; it does not promise the path or signature of every private helper.
 
-## 调用与数据规则
+## Invocation and data rules
 
-1. 入口把不可信 HTTP/CLI 输入转成校验过的 DTO，并注入服务端 identity；body 不得覆盖 tenant、reviewer 或 permission。
-2. service/facade 在副作用前执行权限、policy、budget、approval、workspace 和 capacity 门禁。
-3. adapter 只接收完成前置校验的请求，返回 provider-neutral DTO 或封闭错误；raw SDK object 不得越界。
-4. durable evidence 先在 repository/UoW 提交，再执行可降级 fan-out；需要 exactly-once 语义时使用 idempotency、claim、lease、fencing 和 outbox，不靠进程内锁。
-5. 跨 API/worker queue 只传稳定 refs。worker 从 PostgreSQL 恢复 execution context，不信任 producer 拼出的可变对象。
+1. Entry points convert untrusted HTTP/CLI input into validated DTOs and inject server-side identity. A request body cannot override tenant, reviewer, or permission.
+2. Services/facades enforce permission, policy, budget, approval, workspace, and capacity gates before side effects.
+3. Adapters receive requests only after prerequisite checks and return provider-neutral DTOs or closed errors. Raw SDK objects cannot cross the boundary.
+4. Durable evidence is committed through a repository/UoW before degradable fan-out. Exactly-once behavior uses idempotency, claims, leases, fencing, and outbox—not in-process locks.
+5. API/worker queues carry stable refs only. Workers restore execution context from PostgreSQL rather than trusting mutable objects assembled by the producer.
 
-## 错误与降级
+## Errors and degradation
 
-- 输入、权限、policy、workspace、容量和合同错误 fail closed，并在外部副作用前返回结构化错误。
-- provider raw exception、credential、response body 和本机绝对路径不得进入 API、event 或 telemetry；只保留封闭 code、有界摘要和安全 evidence refs。
-- observability/eval provider fan-out 可降级，但 local DB/event evidence 失败不能伪装成 provider degradation。
-- Redis/DBOS/PostgreSQL 的 uncertain outcome 必须进入可恢复或 `needs_review` 状态，不能盲目重放。
-- approval deny 不创建 continuation；approve enqueue 失败保留可补投状态，handler 不重放。
+- Input, permission, policy, workspace, capacity, and contract errors fail closed with structured errors before external side effects.
+- Provider raw exceptions, credentials, response bodies, and host absolute paths cannot enter APIs, events, or telemetry. Retain only closed codes, bounded summaries, and safe evidence refs.
+- Observability/eval provider fan-out may degrade, but failure of local database/event evidence cannot be disguised as provider degradation.
+- Uncertain Redis/DBOS/PostgreSQL outcomes enter a recoverable or `needs_review` state; they are never replayed blindly.
+- Approval denial creates no continuation. If enqueue after approval fails, retain a state that can be re-enqueued without replaying the handler.
 
-## 主要 adapter 边界
+## Primary adapter boundaries
 
-### Model、embedding 与 MCP
+### Model, embedding, and MCP
 
-`ModelProvider`/`EmbeddingProvider` 屏蔽 vendor API；当前 Pydantic AI 和 OpenAI-compatible embedding 实现在 `adapters/models/`。MCP Python SDK 位于 `adapters/mcp/python_sdk.py`，对外保持 `MCPClient`/tool DTO。业务 agent、template API、eval runner 不直接 import 这些 SDK。
+`ModelProvider`/`EmbeddingProvider` isolate vendor APIs. Current Pydantic AI and OpenAI-compatible embedding implementations live in `adapters/models/`. The MCP Python SDK lives in `adapters/mcp/python_sdk.py` and exposes only `MCPClient`/tool DTOs. Business Agents, template APIs, and eval runners do not import those SDKs directly.
 
-### Queue 与 runtime
+### Queue and runtime
 
-`RunQueue` 定义 enqueue/receipt/ack/claim 合同；service profile 的 Redis Streams 实现在 `adapters/queue/redis.py`。DBOS 封装在 `adapters/runtime/dbos.py`。稳定 message refs、owner/lease/fencing 和 PostgreSQL checkpoint 是恢复依据，内存对象不是。
+`RunQueue` defines enqueue/receipt/ack/claim contracts. The service profile implements Redis Streams in `adapters/queue/redis.py`; DBOS is wrapped in `adapters/runtime/dbos.py`. Recovery relies on stable message refs, owner/lease/fencing, and PostgreSQL checkpoints—not in-memory objects.
 
-### Storage 与 UoW
+### Storage and UoW
 
-ORM 的受控实现边界包括 `storage` 下的 model、repository、migration，以及 `storage/adapters/sqlalchemy.py` 中的 engine/UoW。repository 可以封装 SQLAlchemy query 和并发控制，UoW 持有 transaction/commit/rollback；API、worker 和 service 只能组合 repository/UoW，业务 agent、路由 handler 和 provider adapter 不直接操作 session。storage service 仍是未来边界；当前 API/worker 共享 PostgreSQL 不代表已拆服务。
+The controlled ORM boundary includes models, repositories, and migrations under `storage`, plus engine/UoW composition in `storage/adapters/sqlalchemy.py`. Repositories encapsulate SQLAlchemy queries and concurrency control; the UoW owns transaction/commit/rollback. APIs, workers, and services compose repositories/UoW only. Business Agents, route handlers, and provider adapters never operate on sessions directly. A storage service remains a future boundary; a PostgreSQL database shared by the current API and worker is not an already-separated service.
 
-### Event 与 observability
+### Event and observability
 
-`EventSink`/`EventReader` 提供 local JSONL/PostgreSQL 持久化与授权读取；`TelemetryFacade` 在本地提交后 fan-out OTel/Logfire/Phoenix/Langfuse。SSE 使用同一授权 reader，不新建绕过可见性策略的读取路径。
+`EventSink`/`EventReader` provide local JSONL/PostgreSQL persistence and authorized reads. `TelemetryFacade` commits locally before fan-out to OTel/Logfire/Phoenix/Langfuse. SSE uses the same authorized reader rather than a new path that bypasses visibility policy.
 
-## Import boundary 证据
+## Import-boundary evidence
 
 ```bash
 make quality
@@ -59,21 +61,21 @@ uv run python scripts/import_boundary_check.py
 make test
 ```
 
-关键合同测试：
+Key contract tests:
 
-- model/provider：`tests/contracts/test_model_usage_invocation_contracts.py`
-- retrieval：`tests/contracts/test_retrieval_rag_contracts.py`
-- tools/MCP：`tests/contracts/test_tool_registry_public_seam_contracts.py`
-- observability：`tests/contracts/test_observability_local_first_fanout_contracts.py`
-- queue/runtime：`tests/contracts/test_durable_run_queue_contracts.py`、`tests/integration/test_redis_run_queue_contracts.py`
-- storage/event：`tests/contracts/test_postgresql_event_sink_contracts.py`、`tests/contracts/test_usage_execution_authority_contracts.py`
+- model/provider: `tests/contracts/test_model_usage_invocation_contracts.py`
+- retrieval: `tests/contracts/test_retrieval_rag_contracts.py`
+- tools/MCP: `tests/contracts/test_tool_registry_public_seam_contracts.py`
+- observability: `tests/contracts/test_observability_local_first_fanout_contracts.py`
+- queue/runtime: `tests/contracts/test_durable_run_queue_contracts.py`, `tests/integration/test_redis_run_queue_contracts.py`
+- storage/event: `tests/contracts/test_postgresql_event_sink_contracts.py`, `tests/contracts/test_usage_execution_authority_contracts.py`
 
-真实 Redis/PostgreSQL/DBOS 只由 `make smoke-service` 和 integration 证据证明，不能用 SQLite mock 替代。
+Only `make smoke-service` and integration evidence prove real Redis/PostgreSQL/DBOS behavior; SQLite mocks are not substitutes.
 
-## 常见故障
+## Common failures
 
-- import boundary 失败：移动依赖方向，别加 blanket ignore。只有 adapter/integration path 可拥有 vendor import。
-- DTO 序列化失败：检查是否夹带 SDK/ORM object、非有限数、绝对路径或过大 payload。
-- transaction 状态异常：确认 commit/rollback 属于 UoW，adapter 没有自行提交一半状态。
-- provider 降级吞掉主失败：先查 local repository/event 是否提交；主证据失败必须保持失败。
-- service 重放重复副作用：核对 idempotency key、claim owner、lease/fencing、outbox 和稳定 call id，不要增加进程内缓存掩盖问题。
+- Import-boundary failure: fix dependency direction instead of adding a blanket ignore. Only adapter/integration paths may own vendor imports.
+- DTO serialization failure: check for SDK/ORM objects, non-finite numbers, absolute paths, or oversized payloads.
+- Invalid transaction state: confirm that the UoW owns commit/rollback and no adapter commits half a state independently.
+- Provider degradation hides the main failure: first verify local repository/event commit. Main-evidence failure must remain a failure.
+- Service replay duplicates a side effect: inspect idempotency key, claim owner, lease/fencing, outbox, and stable call ID rather than adding an in-process cache that hides the issue.

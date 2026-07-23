@@ -1033,6 +1033,7 @@ README 是入口，深度文档解释架构和维护边界。
 
 **README MUST 包含：**
 - 根目录与 `templates/service-app` 都维护英文主入口 `README.md` 和中文入口 `README.zh-CN.md`；同目录两份文档互相链接，并保持命令、能力边界和已实现状态一致。
+- 同时服务英文和中文入口的新增实操文档也采用“英文主文件 + `.zh-CN.md` 中文文件”配对，互相提供语言切换入口，并保持步骤、命令、边界和已实现状态一致。
 - 项目定位、当前能力与明确的非目标，避免把本地验证、未来物理服务或 hosted-unverified 能力写成已部署事实。
 - 准备环境、第一次使用、日常使用指南和常见故障排查；首次路径必须给出可复制命令，并说明 fingerprint key、migration、local/service profile 与外部依赖前置。
 - CLI、HTTP/OpenAPI 与 Python 公共 API 的使用入口；如果提供 Make target、scaffold、profile/config、factory/helper 等便捷封装，必须说明它简化了什么、底层仍复用哪个公共 seam，并给出实际用法，不能只写“有语法糖”。
@@ -1043,10 +1044,21 @@ README 是入口，深度文档解释架构和维护边界。
 - `docs/architecture/README.md`
 - `docs/extension-guide.md`
 - `docs/adapter-contracts.md`
+- `docs/context-and-trust-boundary.md`
 - `docs/eval-observability-loop.md`
 - `docs/security-policy.md`
 - `docs/release-process.md`
 - `docs/adr/`
+- `docs/building-an-agent.md` 与 `docs/building-an-agent.zh-CN.md`，说明如何把五层两翼落实为可运行 Agent。
+- 上述被英文 README、英文 building guide 或英文模板入口直接引用的维护文档，均以原路径作为英文主文件，并在同目录维护 `.zh-CN.md` 中文版；两版互链且命令、合同、当前/未来边界和证据状态一致。该规则同时覆盖 `docs/architecture/README*`、3 份 ADR、6 份深度专题文档，以及模板内 `docs/README*` 和 `docs/examples*`。
+
+**AI / Agent 协作说明 MUST 包含：**
+- `templates/service-app/docs/ai-agent-guide.md` 作为复制模板后可通过链接或明确提示交给 AI / Agent 的英文主说明，并维护内容等价的 `templates/service-app/docs/ai-agent-guide.zh-CN.md`；两份文件必须互链，不得使用 `AGENTS.md` 等会自动施加目录级指令的特殊文件名。
+- 区分“框架源码仓库”和“已复制的 service-app”两种上下文：复制后的应用不得依赖只存在于源码仓库的 `Product-Spec.md`、`DEV-PLAN.md`、OpenSpec 或维护脚本；这些文件存在时可作为上游真相源，不存在时必须以模板内 README、配置、代码和测试为准。
+- 给出 AI / Agent 可执行的项目初始化流程：确认目标目录与现有改动、选择受信任的 `agent-harness` 安装源、执行 bootstrap、准备本地环境与 fingerprint key、迁移、local smoke 和首次运行；默认不得使用生产凭据或执行部署。
+- 给出功能实现流程：先把需求映射到五层两翼，按公共 seam 修改 Agent、工具、基础设施、Eval 与 Observability，并保持 `tenant_id`、`agent_id`、`run_id` 关联和业务 Agent 不直连厂商 SDK 的边界。
+- 按改动类型选择最小充分验证，文档改动不得默认触发无关的全量测试；提交、push、部署、真实 provider 或 registry 副作用必须由用户单独授权。
+- README 必须提供指南入口和一段可直接复制给 AI / Agent 的引导提示；指南提供可复制的“初始化项目”和“实现功能”任务模板，并要求交付时报告实际改动、已运行验证、结果与未验证边界，不能用“应该可用”代替证据。
 
 **目录边界 MUST 写入 README：**
 - `agents/*` 不直接 import 厂商 SDK，只走 `agent_harness`。
@@ -1058,8 +1070,8 @@ README 是入口，深度文档解释架构和维护边界。
 - 多 agent delegation 必须走 registry 和 policy。
 
 **验收标准：**
-- [x] AC-048: Given 根目录与 `templates/service-app` 的中英文 README, when 新开发者选择任一语言从零开始, then 能完成环境准备、首次运行、CLI/HTTP/Python API 定位，并能从 Project Structure、模块设计和五层两翼实战指南中识别目录职责、框架已提供能力、业务 Agent 必改部分、按需扩展部分、两翼使用方法、便捷封装与禁止跨边界规则。
-- [x] AC-049: Given scaffold maintainer, when 阅读 docs, then 能找到 adapter contract、release process、安全策略和 ADR。
+- [x] AC-048: Given 根目录、`templates/service-app` 的中英文 README、双语五层两翼指南和双语 AI / Agent 协作说明, when 新开发者或受托 AI / Agent 选择任一语言从零开始, then 能完成环境准备、项目初始化、首次运行、CLI/HTTP/Python API 定位和一个功能实现，并能识别目录职责、框架已提供能力、业务 Agent 必改部分、按需扩展部分、两翼使用方法、便捷封装、验证范围、授权边界与禁止跨边界规则。
+- [x] AC-049: Given scaffold maintainer, when 从中英文任一入口阅读 docs, then 能以同一语言找到 architecture、extension、adapter/context、安全、eval/observability、release、ADR 和模板 examples，并且两种语言描述相同的命令、合同与验证边界。
 
 ### REQ-019: TDD、测试与质量门禁
 

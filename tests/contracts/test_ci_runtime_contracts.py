@@ -21,12 +21,17 @@ def test_local_runner_acceptance_excludes_incompatible_artifact_service() -> Non
 
     spec = (ROOT / "openspec/specs/dual-ci-acceptance-evidence/spec.md").read_text(encoding="utf-8")
     release_process = (ROOT / "docs/release-process.md").read_text(encoding="utf-8")
+    release_process_zh = (ROOT / "docs/release-process.zh-CN.md").read_text(encoding="utf-8")
 
     assert "本地 artifact service 不属于仓库 gate 的验收依赖" in spec
     assert "artifact server 能力受限" in spec
     assert "不得把整个 job 记为 PASS" in spec
-    assert "artifact service 不属于本地 ready-to-archive 的验收依赖" in release_process
-    assert "仓库 Make gate" in release_process
+    assert (
+        "artifact-service behavior is outside local ready-to-archive acceptance" in release_process
+    )
+    assert "Repository Make gates that exited zero" in release_process
+    assert "artifact service 不属于本地 ready-to-archive 的验收依赖" in release_process_zh
+    assert "仓库 Make gate" in release_process_zh
 
 
 def test_contract_rejects_history_depth_target_and_permission_drift(tmp_path: Path) -> None:

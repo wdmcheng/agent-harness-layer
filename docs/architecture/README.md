@@ -1,64 +1,66 @@
-# 架构与部署边界
+# Architecture and deployment boundaries
 
-适用读者：需要理解当前运行边界的 app developer，以及维护 package、template 和 adapter 合同的 scaffold maintainer。
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-导航：[根 README](../../README.md) · [五层两翼开发 Agent](../building-an-agent.md) · [扩展指南](../extension-guide.md) · [Adapter 合同](../adapter-contracts.md) · [Context 与信任边界](../context-and-trust-boundary.md) · [安全策略](../security-policy.md) · [ADR](../adr/0001-p0-service-boundaries.md)
+Audience: application developers who need to understand current runtime boundaries, and scaffold maintainers responsible for package, template, and adapter contracts.
 
-本目录是项目架构图的固定位置。图稿用于解释关系，当前行为仍以 `Product-Spec.md`、`API-Contract.md`、公开 DTO/protocol、生产代码和测试为准；图与代码冲突时不能拿图替代证据。
+Navigation: [root README](../../README.md) · [Build an Agent](../building-an-agent.md) · [extension guide](../extension-guide.md) · [adapter contracts](../adapter-contracts.md) · [context/trust boundaries](../context-and-trust-boundary.md) · [security policy](../security-policy.md) · [ADR](../adr/0001-p0-service-boundaries.md)
 
-## 文件职责
+This directory is the fixed home for project architecture diagrams. Diagrams explain relationships; current behavior is still governed by `Product-Spec.md`, `API-Contract.md`, public DTOs/protocols, production code, and tests. A diagram cannot replace evidence when it conflicts with code.
 
-| 图 | 可编辑源 | PNG 预览 | 用途 |
+## File responsibilities
+
+| Diagram | Editable source | PNG preview | Purpose |
 |---|---|---|---|
-| 企业级 Pydantic AI 控制论全栈架构 | `pydantic-ai-agent-architecture.drawio` / `pydantic-ai-agent-architecture.excalidraw` | `pydantic-ai-agent-architecture.png` | 产品级全景图，说明 5 层运行链路、Agent Loop、治理面、观测面和 P0 可拆部署边界。 |
-| 技术架构图（Agent Harness Layer） | `agent-harness-technical-architecture.drawio` / `agent-harness-technical-architecture.excalidraw` | `agent-harness-technical-architecture.png` | 开发级结构图，说明核心包、template app、DTO、CanonicalEvent、Repository/UoW 和 provider/facade 边界。 |
-| 运行链路与信任边界图（Agent Harness Layer） | `agent-harness-runtime-trust-boundaries.drawio` / `agent-harness-runtime-trust-boundaries.excalidraw` | `agent-harness-runtime-trust-boundaries.png` | 运行级链路图，说明 CLI/API、RunOrchestrator、storage/checkpoint、EventBus/artifact 和不可信输入边界。 |
-| 部署边界图（Agent Harness Layer） | `agent-harness-deployment-boundaries.drawio` / `agent-harness-deployment-boundaries.excalidraw` | `agent-harness-deployment-boundaries.png` | 部署级边界图，说明 local/service profile、API/worker/PostgreSQL/Redis 协作和未来拆分路径。 |
+| Enterprise Pydantic AI cybernetic full-stack architecture | `pydantic-ai-agent-architecture.drawio` / `pydantic-ai-agent-architecture.excalidraw` | `pydantic-ai-agent-architecture.png` | Product overview of the five-layer runtime, Agent Loop, governance/observability planes, and separable P0 deployment boundaries |
+| Agent Harness Layer technical architecture | `agent-harness-technical-architecture.drawio` / `agent-harness-technical-architecture.excalidraw` | `agent-harness-technical-architecture.png` | Development view of the core package, template app, DTOs, `CanonicalEvent`, repository/UoW, and provider/facade boundaries |
+| Agent Harness Layer runtime and trust boundaries | `agent-harness-runtime-trust-boundaries.drawio` / `agent-harness-runtime-trust-boundaries.excalidraw` | `agent-harness-runtime-trust-boundaries.png` | Runtime flow across CLI/API, `RunOrchestrator`, storage/checkpoint, EventBus/artifacts, and untrusted input |
+| Agent Harness Layer deployment boundaries | `agent-harness-deployment-boundaries.drawio` / `agent-harness-deployment-boundaries.excalidraw` | `agent-harness-deployment-boundaries.png` | Local/service profiles, API/worker/PostgreSQL/Redis cooperation, and future separation |
 
-## 从五层两翼开始开发
+## Start with five layers and two wings
 
-架构图回答“能力属于哪里、边界如何连接”，不等于业务开发者要逐层重写。创建 Agent 的可执行路线、每层需要修改的文件、两翼接入方式和 `support.triage` 完整对照，统一放在[《用五层两翼开发一个 Agent》](../building-an-agent.md)。
+The diagrams answer where capabilities belong and how boundaries connect; they do not require business developers to rewrite every layer. The executable route, files changed per layer, wing integration, and complete `support.triage` mapping are in [Build an Agent with five layers and two wings](../building-an-agent.md).
 
-阅读产品级全景图时注意两点：
+When reading the product overview, remember:
 
-- `Graph Nodes`、`GraphState`、复杂长期 memory 和独立 tool/model gateway 标记为目标或未来扩展位，不是首次创建 Agent 的前置。
-- 图中的 `@agent.tool Registry` 是概念性工具注册标签；当前公共接口是类型化 `ToolRegistry` 和 descriptor/result DTO，不存在绕过 registry、policy、workspace 或 approval 的公共 decorator 捷径。
+- `Graph Nodes`, `GraphState`, complex long-term memory, and independent tool/model gateways are target or future extension points, not prerequisites for the first Agent.
+- The diagram's `@agent.tool Registry` is a conceptual tool-registration label. The public interface is the typed `ToolRegistry` plus descriptor/result DTOs; there is no public decorator that bypasses registry, policy, workspace, or approval.
 
-## 当前部署边界
+## Current deployment boundaries
 
-- local profile 仍是单进程 SQLite/in-memory/local JSONL 开发形态。
-- service profile 当前由 PostgreSQL、Redis、migration、FastAPI API 和 runtime worker 组成；run create 与 approve continuation 由 API 经 `RunQueue` 分派，查询、校验和 deny 等控制面操作仍在 API 进程完成；worker 持有稳定 DBOS executor id，并负责 run/checkpoint/approve continuation。
-- API 与 worker 只交换 queue DTO、repository DTO 和 `CanonicalEvent` refs；`source_ref`、`trust_level`、context trace、guardrail/audit、tenant/run/request/trace correlation 必须跨边界保留。
-- 未来物理拆分顺序固定为 runtime worker（已拆）→ tool/model gateway → observability/event pipeline；storage service 仅在 repository contract 稳定后再拆。图中的紫色虚线仍表示未来边界，不代表当前 Compose 服务。
+- The local profile remains a single-process SQLite/in-memory/local-JSONL development topology.
+- The service profile currently consists of PostgreSQL, Redis, migration, FastAPI API, and a runtime worker. The API dispatches run creation and approval continuation through `RunQueue`; query, validation, and denial control-plane operations stay in the API. The worker owns a stable DBOS executor ID and handles run/checkpoint/approved continuation.
+- API and worker exchange queue DTOs, repository DTOs, and `CanonicalEvent` refs only. `source_ref`, `trust_level`, context trace, guardrail/audit, and tenant/run/request/trace correlation must survive the boundary.
+- The future physical split order is runtime worker (already separate) → tool/model gateway → observability/event pipeline. A storage service comes only after repository contracts stabilize. Purple dashed lines still indicate future boundaries, not current Compose services.
 
-### 当前与未来所有权
+### Current and future ownership
 
-| 边界 | 当前事实 | 扩展时必须保持 | 尚未实现 |
+| Boundary | Current fact | Invariant for extension | Not implemented |
 |---|---|---|---|
-| Access/API | FastAPI/CLI 负责认证注入、请求校验、DTO 转换；service profile 的 API 只 enqueue run | 身份、permission、request/trace/run correlation 进入稳定 DTO | 独立 API gateway 产品 |
-| Runtime worker | service profile 已是独立进程；持有 DBOS executor、run/checkpoint 和 approve continuation | queue 只传稳定 refs，恢复以 PostgreSQL 真相为准 | 多 executor 并行协调 |
-| Model/tool | 当前在进程内经 provider、registry、policy 和 facade seam 调用 | vendor SDK 只能进入 adapter/integration boundary | 独立 model gateway、tool gateway |
-| Event/observability | `CanonicalEvent` 先写 local/PostgreSQL sink，再可选 fan-out provider | provider 失败不能删除本地 evidence；可见性走授权 reader | 独立 event pipeline |
-| Storage | API/worker 当前共享 PostgreSQL，local profile 使用 SQLite | 业务层只依赖 repository/UoW，不传 `AsyncSession` | 独立 storage service |
+| Access/API | FastAPI/CLI inject auth, validate requests, convert DTOs; the service-profile API only enqueues runs | Identity, permission, and request/trace/run correlation enter stable DTOs | Standalone API gateway product |
+| Runtime worker | Separate process in the service profile; owns DBOS executor, run/checkpoint, and approval continuation | Queue carries stable refs only; restore from PostgreSQL truth | Multi-executor coordination |
+| Model/tool | Called in-process through provider, registry, policy, and facade seams | Vendor SDKs stay in adapter/integration boundaries | Standalone model/tool gateways |
+| Event/observability | `CanonicalEvent` writes to local/PostgreSQL sink before optional provider fan-out | Provider failure cannot delete local evidence; visibility uses authorized readers | Standalone event pipeline |
+| Storage | API/worker share PostgreSQL; local uses SQLite | Business layers depend on repository/UoW and never pass `AsyncSession` | Standalone storage service |
 
-当前拆分决策见 [ADR-0001](../adr/0001-p0-service-boundaries.md)，vendor 隔离见 [ADR-0002](../adr/0002-vendor-adapter-isolation.md)，Redis runtime 与许可证复审边界见 [ADR-0003](../adr/0003-redis-runtime-license-policy.md)。
+See [ADR-0001](../adr/0001-p0-service-boundaries.md) for deployment separation, [ADR-0002](../adr/0002-vendor-adapter-isolation.md) for vendor isolation, and [ADR-0003](../adr/0003-redis-runtime-license-policy.md) for Redis runtime and license-review boundaries.
 
-## 验证与证据
+## Validation and evidence
 
 ```bash
 make quality       # format/lint/type/import boundary
-make test          # unit、contract、离线 integration
+make test          # unit, contract, offline integration
 make smoke-local   # SQLite/in-memory/fake model/local JSONL
-make smoke-service # 需要 Docker Compose；真实 PostgreSQL/Redis/API/worker
+make smoke-service # requires Docker Compose; real PostgreSQL/Redis/API/worker
 ```
 
-`make smoke-service` 才能证明真实 queue、跨进程恢复和 PostgreSQL event evidence；`make smoke-local` 不能替代它。HTTP/SSE 合同证据位于 `tests/contracts/`，真实 Redis/PostgreSQL/DBOS 合同位于 `tests/integration/`，服务级脚本位于 `templates/service-app/scripts/`。
+Only `make smoke-service` proves the real queue, cross-process recovery, and PostgreSQL event evidence. `make smoke-local` cannot replace it. HTTP/SSE contract evidence is under `tests/contracts/`; real Redis/PostgreSQL/DBOS contracts are under `tests/integration/`; service-level scripts are under `templates/service-app/scripts/`.
 
-常见故障：图中的边界与代码不一致时先检查图是否仍标有“未来”；API 能 health 但 run 不推进时检查 migration、Redis consumer group 和 worker 日志；local 通过而 service 失败时优先检查 Docker、secret file、PostgreSQL migration 与 Redis namespace，不要把问题降级成 SQLite 验证。
+Troubleshooting: if diagrams disagree with code, first check whether the diagram still marks the boundary as future. If API health passes but runs do not advance, inspect migration, Redis consumer group, and worker logs. If local passes while service fails, inspect Docker, secret files, PostgreSQL migration, and Redis namespace rather than downgrading the problem to SQLite validation.
 
-## 维护规则
+## Maintenance rules
 
-- `.drawio` 是首要可编辑源；`.excalidraw` 用于协作编辑；`.png` 只做审阅预览。
-- 修改图语义时，同步更新 `Product-Spec.md` 的“架构依据”、`API-Contract.md` 的上游依据，以及 `DEV-PLAN.md` 中受影响 Phase 的关键文件或状态。
-- 图中出现 “待实现 Phase N” 时，Phase 完成后必须同步更新图源和 PNG 预览，不能只更新代码和计划文档。
-- 修改边界时先更新对应产品/API/OpenSpec 契约，再改图源并重新导出 PNG；`.png` 不是可编辑真相源。
+- `.drawio` is the primary editable source; `.excalidraw` supports collaborative editing; `.png` is a review preview only.
+- A semantic diagram change also updates the architecture basis in `Product-Spec.md`, upstream basis in `API-Contract.md`, and affected key files or state in `DEV-PLAN.md`.
+- If a diagram says “to be implemented in Phase N,” completion of that phase must update both the diagram source and PNG preview—not only code and plans.
+- A boundary change first updates the applicable product/API/OpenSpec contract, then the diagram source and exported PNG. The PNG is not editable truth.

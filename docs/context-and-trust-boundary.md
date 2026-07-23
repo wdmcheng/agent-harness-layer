@@ -1,66 +1,68 @@
-# Context 与信任边界
+# Context and trust boundaries
 
-适用读者：编排 agent loop、检索、工具、审批和事件回传的 app developer；维护 trust DTO、guardrail、policy 和 runtime seam 的 scaffold maintainer。
+[English](context-and-trust-boundary.md) | [简体中文](context-and-trust-boundary.zh-CN.md)
 
-导航：[根 README](../README.md) · [架构图](architecture/README.md) · [Adapter 合同](adapter-contracts.md) · [安全策略](security-policy.md) · [Eval/Observability](eval-observability-loop.md)
+Audience: application developers orchestrating Agent loops, retrieval, tools, approvals, and event delivery; scaffold maintainers responsible for trust DTOs, guardrails, policy, and runtime seams.
 
-## 当前链路
+Navigation: [root README](../README.md) · [architecture](architecture/README.md) · [adapter contracts](adapter-contracts.md) · [security policy](security-policy.md) · [Eval/Observability](eval-observability-loop.md)
+
+## Current flow
 
 ```text
-HTTP/CLI input（不可信）
+HTTP/CLI input (untrusted)
   -> auth identity + permission
   -> InputGuardrail / PolicyEngine
   -> ContextInput + SourceRef/ContextRef
   -> retrieval/tool/history fragments
-  -> ContextAssembler（预算、优先级、截断、trace）
+  -> ContextAssembler (budget, priority, truncation, trace)
   -> model/tool invocation
   -> output guard / policy / HITL
   -> CanonicalEvent + audit + checkpoint
   -> authorized EventReader
-  -> CLI JSON stream 或 HTTP SSE
+  -> CLI JSON stream or HTTP SSE
 ```
 
-service profile 中，API 负责认证、校验和 enqueue；runtime worker 从 PostgreSQL 恢复 execution context 并执行 loop。Redis message 只携带稳定 refs。local profile 可以同进程运行，但信任语义不因此放宽。
+In the service profile, the API authenticates, validates, and enqueues; the runtime worker restores execution context from PostgreSQL and executes the loop. Redis messages carry stable refs only. The local profile may run in one process, but that does not relax trust semantics.
 
-## 信任对象与不变量
+## Trust objects and invariants
 
-- `SourceRef` 标识信息来源；`ContextRef` 把来源、信任级别和逻辑 evidence 关联起来。
-- `TrustLevel` 是封闭枚举，不允许用自由文本制造更高信任；外部输入、retrieval、tool output 必须按实际来源标级。
-- `ContextInput`/`ContextOutput` 是跨层 DTO；不得夹带 raw provider object、ORM model、credential 或宿主绝对路径。
-- `ContextAssembler` 对 fragments 做确定性排序、token budget、history 丢弃或 retrieval/tool 截断，并输出 `ContextFragmentTrace`/`ContextAssemblyResult`。被截断或丢弃的信息必须留决策 trace，不能静默消失。
-- tenant、agent、run、request、trace 与适用 parent/delegation refs 必须随 durable evidence 保留；跨 API/worker、approval resume 和 SSE resume 不能换身份。
+- `SourceRef` identifies the source. `ContextRef` associates source, trust level, and logical evidence.
+- `TrustLevel` is a closed enum; free text cannot manufacture a higher trust level. External input, retrieval, and tool output must be classified by their actual source.
+- `ContextInput`/`ContextOutput` are cross-layer DTOs. They cannot contain raw provider objects, ORM models, credentials, or host absolute paths.
+- `ContextAssembler` deterministically orders fragments, applies token budgets, drops history or truncates retrieval/tool results, and emits `ContextFragmentTrace`/`ContextAssemblyResult`. Dropped or truncated content must leave a decision trace; it cannot disappear silently.
+- Tenant, Agent, run, request, trace, and applicable parent/delegation refs remain in durable evidence. API/worker boundaries, approval resume, and SSE resume cannot change identity.
 
-## 不可信输入处理
+## Handling untrusted input
 
-1. HTTP/CLI body 只提供业务输入；tenant、reviewer、permission 和服务身份由可信入口注入。
-2. 在 retrieval、model、tool、filesystem 或 shell 副作用前执行 schema、input guardrail、permission、policy、workspace 和 budget/capacity 检查。
-3. 检索文档、网页、MCP/tool output 和历史消息都可能包含 prompt injection。它们是带 source/trust refs 的数据，不是系统指令，不能覆盖 policy、tool allowlist 或 approval requirement。
-4. 输出进入 event/telemetry/API 前执行 secret redaction、大小/有限数检查和可见性分类；超大 evidence 使用受控 artifact ref，而不是截断后冒充完整内容。
-5. 任何无法证明来源、tenant 或信任级别的输入 fail closed，不通过“默认 trusted”恢复服务。
+1. HTTP/CLI bodies contain business input only. Trusted entry points inject tenant, reviewer, permission, and service identity.
+2. Enforce schema, input guardrail, permission, policy, workspace, and budget/capacity checks before retrieval, model, tool, filesystem, or shell side effects.
+3. Retrieved documents, web pages, MCP/tool output, and history may contain prompt injection. They are data with source/trust refs, not system instructions, and cannot override policy, tool allowlists, or approval requirements.
+4. Before output enters events, telemetry, or APIs, apply secret redaction, size/finite-number validation, and visibility classification. Use a controlled artifact ref for large evidence instead of truncating it and claiming it is complete.
+5. Input whose source, tenant, or trust level cannot be proved fails closed; the system never restores service by defaulting it to trusted.
 
-## Guardrail、Policy 与 HITL 回边
+## Guardrail, policy, and HITL feedback
 
-Input guardrail 处理输入形态与显式拒绝；`PolicyEngine` 根据 identity、permission、agent/tool/action 和配置返回 allow、deny 或 require-approval。require-approval 必须持久化 approval、暂停 run，并在批准后从 checkpoint/continuation 恢复；拒绝产生终态证据但不创建 continuation。
+Input guardrails validate input shape and explicit refusal. `PolicyEngine` returns allow, deny, or require-approval from identity, permission, Agent/tool/action, and configuration. Require-approval persists the request, pauses the run, and resumes from checkpoint/continuation only after approval. Denial creates terminal evidence without a continuation.
 
-批准不是永久授权。`ApprovedToolExecutor` 在副作用前重新校验 grant、参数 hash、tenant/run/tool、lease 与执行状态；失去 lease 或结果不确定时进入可恢复/人工复核边界，不能重新执行“碰碰运气”。完整权限和 secret 规则见[安全策略](security-policy.md)。
+Approval is not permanent authority. Before a side effect, `ApprovedToolExecutor` revalidates the grant, argument hash, tenant/run/tool, lease, and execution state. A lost lease or uncertain result enters a recoverable/human-review boundary; the executor does not rerun “just to see.” See the [security policy](security-policy.md) for complete permission and secret rules.
 
-## 事件回传
+## Event delivery
 
-- 当前已实现：授权 `EventReader`、CLI `events stream --after-seq` 和 HTTP `GET /api/v1/runs/{run_id}/events/stream` SSE。
-- cursor 语义：CLI `--after-seq` 和 HTTP `Last-Event-ID` 都是 exclusive resume；terminal 后 EOF。
-- visibility：默认只读 public event；internal event 必须经同一授权策略。跨 tenant 与不存在统一收敛，避免枚举。
-- 读取是零副作用：resume、断线和慢客户端不能创建 event、修改 run 或预取无界页面。
-- WebSocket 是 P1 未来能力，当前没有 endpoint、协议或部署入口；不能把 SSE 客户端写成“WebSocket 已支持”。
+- Implemented today: authorized `EventReader`, CLI `events stream --after-seq`, and HTTP `GET /api/v1/runs/{run_id}/events/stream` SSE.
+- Cursor semantics: CLI `--after-seq` and HTTP `Last-Event-ID` both resume exclusively; terminal is followed by EOF.
+- Visibility: readers return public events by default. Internal events require the same authorization policy. Cross-tenant and missing resources converge to prevent enumeration.
+- Reads have no side effects. Resume, disconnects, and slow clients cannot create events, modify runs, or prefetch unbounded pages.
+- WebSocket is a future P1 capability. There is currently no endpoint, protocol, or deployment entry; an SSE client cannot be documented as “WebSocket supported.”
 
-## 验证与证据
+## Validation and evidence
 
 ```bash
 make test
 make smoke-local
-# 真实 API/worker/PostgreSQL/Redis、approval continuation 与 SSE resume：
+# Real API/worker/PostgreSQL/Redis, approval continuation, and SSE resume:
 make smoke-service
 ```
 
-关键证据：`tests/contracts/test_auth_policy_hitl_policy_contracts.py`、`tests/contracts/test_auth_policy_hitl_event_contracts.py`、`tests/contracts/test_retrieval_rag_contracts.py`、`tests/contracts/test_sse_authorized_reader_contracts.py`、`tests/contracts/test_sse_event_reader_postgresql_contracts.py`、`templates/service-app/scripts/service_approval_smoke.py`。
+Key evidence: `tests/contracts/test_auth_policy_hitl_policy_contracts.py`, `tests/contracts/test_auth_policy_hitl_event_contracts.py`, `tests/contracts/test_retrieval_rag_contracts.py`, `tests/contracts/test_sse_authorized_reader_contracts.py`, `tests/contracts/test_sse_event_reader_postgresql_contracts.py`, and `templates/service-app/scripts/service_approval_smoke.py`.
 
-常见故障：context 与预期不符时检查 assembly trace 的排序、budget 和 drop/truncate 决策；approval 后不恢复时检查 durable resolution、queue 补投和 worker owner；SSE 401/403/404 时检查 token/permission/tenant，不要绕过 reader；重复或缺失 event 时检查 stable event id、sequence reservation 和 terminal invariant。
+Troubleshooting: when context differs from expectation, inspect assembly trace ordering, budget, and drop/truncate decisions. If approval does not resume, inspect durable resolution, queue re-enqueue, and worker owner. For SSE 401/403/404, inspect token/permission/tenant rather than bypassing the reader. For missing or duplicate events, inspect stable event IDs, sequence reservation, and the terminal invariant.

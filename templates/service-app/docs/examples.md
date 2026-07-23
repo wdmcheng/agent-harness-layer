@@ -1,8 +1,10 @@
-# 四个示例 Agent
+# Four example Agents
 
-四个示例都使用 `AgentRegistry -> RunOrchestrator -> AgentExecutor` 公开链路；local profile 使用 fake model、SQLite、local JSONL，不需要真实 API key。它们是扩展点样例，不是完整产品，也不实现 eval experiment、harness comparison 或自动优化。
+[English](examples.md) | [简体中文](examples.zh-CN.md)
 
-## 运行与 Eval
+All four examples use the public `AgentRegistry -> RunOrchestrator -> AgentExecutor` path. The local profile uses a fake model, SQLite, and local JSONL with no real API key. They demonstrate extension points; they are not complete products and do not implement eval experiments, harness comparison, or automatic optimization.
+
+## Run and evaluate
 
 ```bash
 make run-rag
@@ -12,20 +14,20 @@ make run-dev
 make eval
 ```
 
-也可用 `make eval-rag`、`make eval-ticket`、`make eval-repo`、`make eval-dev` 分别运行 approved dataset。所有自动信号仍只能写 drafts；approved JSON 必须经过人工审核，`EvalRunner` 只计 approved case。
+Use `make eval-rag`, `make eval-ticket`, `make eval-repo`, or `make eval-dev` to run each approved dataset separately. Automated signals can write drafts only. Approved JSON requires human review, and `EvalRunner` scores approved cases only.
 
-## 能力与边界
+## Capabilities and boundaries
 
-| Agent | 真实验证链 | 安全降级 |
+| Agent | Real validation path | Safe degradation |
 |---|---|---|
-| `examples.rag_assistant` | query 先经过 `EmbeddingInvocationService` 留下 usage evidence，再执行 `RetrievalProvider -> ContextFragment -> ContextAssemblyService -> ModelInvocationService`，返回 citation 和 assembly trace | SQLite FTS5/BM25；无命中返回 `no_source`；retrieval chunk 始终为 `untrusted` |
-| `examples.ticket_triage` | typed schema、确定性分类规则、fake model evidence | 低 confidence 返回 `unknown`、`needs_review=true`，不伪造分类 |
-| `examples.repo_analyst` | 仅 allowlisted file read/search/list，经 `WorkspacePolicy` 与 artifact store | 越界或 `.agentignore` 命中返回 `tool.workspace_denied`；长结果只内联摘要并保留 `artifact_ref`；shell 不可见 |
-| `examples.dev_assistant` | file/shell `ToolRegistry`、PolicyEngine、checkpoint、ApprovalService、ApprovalGrant、唯一 execution claim、audit/trace | 危险动作先 waiting；公开 resume token 不能代替审批；deny 不执行；不确定 executing claim 进入人工复核 |
+| `examples.rag_assistant` | The query first passes `EmbeddingInvocationService` to record usage evidence, then `RetrievalProvider -> ContextFragment -> ContextAssemblyService -> ModelInvocationService`, returning citations and assembly trace | SQLite FTS5/BM25; no hit returns `no_source`; retrieval chunks are always `untrusted` |
+| `examples.ticket_triage` | Typed schema, deterministic classification rules, fake-model evidence | Low confidence returns `unknown`, `needs_review=true` instead of inventing a category |
+| `examples.repo_analyst` | Allowlisted file read/search/list through `WorkspacePolicy` and artifact store | Out-of-bound or `.agentignore` paths return `tool.workspace_denied`; long results inline a summary with `artifact_ref`; shell is unavailable |
+| `examples.dev_assistant` | File/shell `ToolRegistry`, `PolicyEngine`, checkpoint, `ApprovalService`, `ApprovalGrant`, unique execution claim, audit/trace | Dangerous action waits first; a public resume token is not approval; denial has no execution; uncertain executing claims require human review |
 
-## Approval 示例
+## Approval example
 
-下面的 shell 只允许 profile allowlist 中的命令，但仍会因 `shell.execute` 策略进入 waiting：
+The shell command below is allowlisted by the profile, but the `shell.execute` policy still moves the run to waiting:
 
 ```bash
 agent-harness run examples.dev_assistant \
@@ -44,17 +46,17 @@ agent-harness approvals approve <approval_id> \
   --agents-dir ./agents
 ```
 
-批准表示“允许执行”，不保证动作成功。handler 返回确定性失败时，run 为 failed、approval 仍为 approved；claim 已进入 executing 却没有 result 时，public approval 保持 waiting，系统不会自动重放外部副作用。
+Approval means “execution is allowed”; it does not guarantee success. A deterministic handler failure leaves the run failed while approval remains approved. If a claim entered executing without a result, public approval remains waiting and the system does not replay the external side effect automatically.
 
-## 新增自己的 Agent
+## Add your own Agent
 
-在 service-app 根目录执行：
+From the service-app root:
 
 ```bash
 agent-harness scaffold agent support.triage
 ```
 
-命令会生成 `agents/support/triage/`：
+The command creates:
 
 ```text
 agents/support/triage/
@@ -68,9 +70,9 @@ agents/support/triage/
     └── approved/
 ```
 
-默认 config 使用 fake model、安全预算、空 `tool_allowlist` 和空 `delegation_edges`；不会写 provider secret，也不会把示例 draft 自动放进 `approved/`。命令没有 `--force`，目标已存在、ID 非法、父路径 symlink 逃逸或发布前验证失败时都会非零退出，且不合并或覆盖已有文件。
+The default configuration uses the fake model, safe budgets, empty `tool_allowlist`, and empty `delegation_edges`. It writes no provider secret and does not move the example draft into `approved/`. There is no `--force`: an existing target, invalid ID, parent-path symlink escape, or failed pre-publication validation exits nonzero without merging or overwriting existing files.
 
-先验证 registry 与真实 executor：
+First validate registry discovery and the real executor:
 
 ```bash
 agent-harness agents list \
@@ -82,10 +84,10 @@ agent-harness run support.triage \
   --profile local \
   --profiles-dir ./configs/profiles \
   --agents-dir ./agents \
-  --prompt '验证 scaffold runtime'
+  --prompt 'validate scaffold runtime'
 ```
 
-`evals/drafts/example.yaml` 只是人工评审种子。根据真实 trace 创建 draft、检查 input/output/expected 后，再由明确 reviewer 批准：
+`evals/drafts/example.yaml` is a human-review seed only. Create a draft from real trace evidence, inspect input/output/expected, and let an explicit reviewer approve it:
 
 ```bash
 agent-harness eval draft support.triage \
@@ -93,20 +95,20 @@ agent-harness eval draft support.triage \
   --profile local \
   --profiles-dir ./configs/profiles \
   --trigger manual \
-  --prompt '已验证的输入' \
-  --output '已观察的输出' \
-  --expected '已确认的期望'
+  --prompt 'validated input' \
+  --output 'observed output' \
+  --expected 'confirmed expectation'
 
 agent-harness eval approve <case_id> \
   --dataset-dir ./agents/support/triage/evals \
   --profile local \
   --profiles-dir ./configs/profiles \
   --reviewer <reviewer_id> \
-  --reason '人工确认输入、期望和安全边界'
+  --reason 'human-reviewed input, expectation, and safety boundary'
 
 agent-harness eval run \
   --dataset-dir ./agents/support/triage/evals \
   --agent-id support.triage
 ```
 
-CLI 的 file dataset runner 只读取 `approved/`；需要每次 eval 都重新执行 Agent 时，由应用在 `EvalRunner.run_file_dataset` 注入受控 approved-case executor，不能让 scaffold 自动批准或执行 draft。扩展 `tools.py` 或 `tool_allowlist` 前，应先补 policy、workspace、approval、audit 和对应 contract tests。
+The CLI file-dataset runner reads `approved/` only. To execute the Agent for every eval, the application injects a controlled approved-case executor into `EvalRunner.run_file_dataset`; scaffold never auto-approves or executes a draft. Before extending `tools.py` or `tool_allowlist`, add policy, workspace, approval, audit, and corresponding contract tests.

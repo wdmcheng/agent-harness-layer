@@ -34,11 +34,26 @@ local profile 使用 SQLite、进程内队列、本地 JSONL 证据和 fake mode
 |---|---|
 | 第一次运行 Agent 应用 | [service-app 首次使用](templates/service-app/README.zh-CN.md#首次使用local-profile) |
 | 创建业务 Agent | [创建 Agent](templates/service-app/README.zh-CN.md#创建-agent) |
-| 把五层两翼落实为一个 Agent | [五层两翼开发 Agent 指南](docs/building-an-agent.md) |
+| 让 AI / Agent 初始化项目或实现功能 | [AI / Agent 项目操作指南](templates/service-app/docs/ai-agent-guide.zh-CN.md) |
+| 把五层两翼落实为一个 Agent | [五层两翼开发 Agent 指南](docs/building-an-agent.zh-CN.md) |
 | 调用 HTTP API | [service-app HTTP API](templates/service-app/README.zh-CN.md#http-api) |
 | 直接使用 Python 包 | [Python API](#python-api) |
 | 理解架构和安全边界 | [模块设计思路](#模块设计思路)和[深度文档](#深度文档) |
 | 维护可复用脚手架 | [开发者指南](#开发者指南)和[贡献指南](#贡献指南) |
+
+## 把项目任务交给 AI / Agent
+
+复制模板自带普通、按需使用的 [AI / Agent 项目操作指南](templates/service-app/docs/ai-agent-guide.zh-CN.md)。把链接交给 AI，或直接复制下面这段；指南本身不会自动配置工具，也不会施加目录级指令：
+
+```text
+先阅读 templates/service-app/docs/ai-agent-guide.zh-CN.md，再检查当前项目并完成这个任务：
+<任务和验收标准>。
+
+遵守指南中的架构、安全、验证和交付约束。除非我单独授权具体动作，否则不要
+commit、push、deploy、publish、使用生产凭据或调用真实 provider。
+```
+
+把 `templates/service-app` 复制成独立项目后，指南路径变为 `docs/ai-agent-guide.zh-CN.md`。
 
 ## 用五层两翼开发一个 Agent
 
@@ -54,7 +69,7 @@ local profile 使用 SQLite、进程内队列、本地 JSONL 证据和 fake mode
 | 左翼 Eval Gate | 把人工确认的行为变成 approved 回归证据；自动信号只能停在 draft |
 | 右翼 Observability | 先检查本地 event、usage 和 audit；外部 telemetry provider 只是可选 fan-out |
 
-完整的请求流、最小实现步骤、复杂度选择和 `support.triage` 对照见[五层两翼开发 Agent 指南](docs/building-an-agent.md)。图中的 Graph Nodes/GraphState 和独立 gateway 是未来扩展位，不是首次开发前置；概念性 `@agent.tool` 标签在当前实现中对应公共 `ToolRegistry`，项目没有绕过 registry、policy 或 approval 的 decorator。
+完整的请求流、最小实现步骤、复杂度选择和 `support.triage` 对照见[五层两翼开发 Agent 指南](docs/building-an-agent.zh-CN.md)。图中的 Graph Nodes/GraphState 和独立 gateway 是未来扩展位，不是首次开发前置；概念性 `@agent.tool` 标签在当前实现中对应公共 `ToolRegistry`，项目没有绕过 registry、policy 或 approval 的 decorator。
 
 ## 准备环境
 
@@ -419,24 +434,25 @@ local profile 先检查 run events 和本地 JSONL。service profile 检查 migr
 - 原始 resume token 不是审批权限；approval-gated continuation 必须经过 `ApprovalService`。
 - 除非未来契约明确新增，否则不要暴露远程 `/api/v1/tools` route。
 
-更多边界见[安全策略](docs/security-policy.md)与[上下文和信任边界](docs/context-and-trust-boundary.md)。
+更多边界见[安全策略](docs/security-policy.zh-CN.md)与[上下文和信任边界](docs/context-and-trust-boundary.zh-CN.md)。
 
 ## 深度文档
 
 | 你要回答的问题 | 文档 |
 |---|---|
-| 如何用五层两翼做出一个可运行 Agent？ | [五层两翼开发 Agent 指南](docs/building-an-agent.md) |
-| 今天实际运行什么，未来可能拆什么？ | [架构与部署边界](docs/architecture/README.md) |
-| 可以在哪里增加 Agent 或能力？ | [扩展指南](docs/extension-guide.md) |
-| 哪些 DTO/protocol/facade/repository/UoW 边界要稳定？ | [Adapter 合同](docs/adapter-contracts.md) |
-| 不可信输入如何组装和治理？ | [Context 与信任边界](docs/context-and-trust-boundary.md) |
-| 身份、policy、审批、secret、audit 如何协作？ | [安全策略](docs/security-policy.md) |
-| trace 如何变成经审核的 eval 证据？ | [Eval 与 Observability 闭环](docs/eval-observability-loop.md) |
-| 什么能在本地证明，什么仍是 hosted-unverified？ | [发布流程](docs/release-process.md) |
-| 为什么选择这些服务、vendor 和 Redis 边界？ | [ADR](docs/adr/0001-p0-service-boundaries.md) |
+| 如何用五层两翼做出一个可运行 Agent？ | [五层两翼开发 Agent 指南](docs/building-an-agent.zh-CN.md) |
+| 如何把项目初始化或功能实现交给 AI / Agent？ | [AI / Agent 项目操作指南](templates/service-app/docs/ai-agent-guide.zh-CN.md) |
+| 今天实际运行什么，未来可能拆什么？ | [架构与部署边界](docs/architecture/README.zh-CN.md) |
+| 可以在哪里增加 Agent 或能力？ | [扩展指南](docs/extension-guide.zh-CN.md) |
+| 哪些 DTO/protocol/facade/repository/UoW 边界要稳定？ | [Adapter 合同](docs/adapter-contracts.zh-CN.md) |
+| 不可信输入如何组装和治理？ | [Context 与信任边界](docs/context-and-trust-boundary.zh-CN.md) |
+| 身份、policy、审批、secret、audit 如何协作？ | [安全策略](docs/security-policy.zh-CN.md) |
+| trace 如何变成经审核的 eval 证据？ | [Eval 与 Observability 闭环](docs/eval-observability-loop.zh-CN.md) |
+| 什么能在本地证明，什么仍是 hosted-unverified？ | [发布流程](docs/release-process.zh-CN.md) |
+| 为什么选择这些服务、vendor 和 Redis 边界？ | [ADR](docs/adr/0001-p0-service-boundaries.zh-CN.md) |
 
 ## 许可证和发布边界
 
 项目使用 Apache-2.0，见 [`LICENSE`](LICENSE) 和 [`NOTICE`](NOTICE)。运行时依赖策略与观察记录位于 `compliance/`；新增或升级依赖、运行镜像前运行 `make license-check`。
 
-`make build` 只生成本地 wheel/sdist 和 checksum；`make release-dry-run` 只生成被忽略的本地预览。两者都不会 publish、push、tag、deploy，也不能证明 hosted CI。任何受保护 promotion 或私有 registry 执行前，先阅读[发布流程](docs/release-process.md)。
+`make build` 只生成本地 wheel/sdist 和 checksum；`make release-dry-run` 只生成被忽略的本地预览。两者都不会 publish、push、tag、deploy，也不能证明 hosted CI。任何受保护 promotion 或私有 registry 执行前，先阅读[发布流程](docs/release-process.zh-CN.md)。

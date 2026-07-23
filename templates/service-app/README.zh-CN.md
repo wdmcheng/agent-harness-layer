@@ -6,6 +6,20 @@
 
 如果你要开发 Agent 服务，从这个模板开始；只有在准备修改可复用核心包或模板本身时，才从仓库根目录开始。
 
+## 让 AI / Agent 操作项目
+
+模板自带普通、按需使用的 [AI / Agent 项目操作指南](docs/ai-agent-guide.zh-CN.md)，它不是自动生效的指令文件。需要 AI 初始化复制项目或实现功能时，可以把链接交给它，或者直接复制下面这段：
+
+```text
+先阅读 docs/ai-agent-guide.zh-CN.md，再检查当前项目并完成这个任务：
+<任务和验收标准>
+
+遵守指南中的架构、安全、验证和交付约束。除非我单独授权具体动作，否则不要
+commit、push、deploy、publish、使用生产凭据或调用真实 provider。
+```
+
+指南末尾还提供了更完整的“初始化项目”和“实现功能”提示词模板。
+
 ## 模板提供什么
 
 - `local` profile：SQLite、进程内队列、本地 JSONL 证据、fake model，无需外部 provider key；
@@ -405,7 +419,7 @@ uv run agent-harness run support.triage \
 
 正常链路是 `CLI/HTTP -> 接入层 -> 运行时层 -> 引擎层 <-> 工具层 -> 基础设施层`；Eval 对同一行为做回归，Observability 记录每个阶段。产品架构图里的 Graph Nodes/GraphState 和独立 gateway 是未来扩展位，不是首次开发前置；图中的概念性 `@agent.tool` 标签对应公共 `ToolRegistry`，不是 decorator 捷径。
 
-源仓库提供完整的[五层两翼开发 Agent 指南](../../docs/building-an-agent.md)。复制成独立项目后，这个仓库级链接不会随模板存在，因此本表保留了必要映射。
+源仓库提供完整的[五层两翼开发 Agent 指南](../../docs/building-an-agent.zh-CN.md)。复制成独立项目后，这个仓库级链接不会随模板存在，因此本表保留了必要映射。本地的 [AI / Agent 项目操作指南](docs/ai-agent-guide.zh-CN.md) 会随复制保留，并告诉 AI 如何遵守这些边界。
 
 ## Python 组合 API
 
@@ -486,7 +500,11 @@ service-app/
 │   ├── drafts/              # review queue，不作为 approved 评分
 │   └── approved/            # 人工审核的应用数据集
 ├── tests/                   # 复制模板后的公开 seam 测试
-├── docs/                    # 应用级运维和示例指南
+├── docs/
+│   ├── README.md / README.zh-CN.md
+│   ├── ai-agent-guide.md / ai-agent-guide.zh-CN.md
+│   ├── examples.md / examples.zh-CN.md
+│   └── ...                  # 应用级运维指南
 ├── scripts/                 # bootstrap、eval、service smoke、admin helper
 ├── Dockerfile               # API/worker 共用 wheel-only 镜像
 ├── docker-compose.yml
@@ -549,7 +567,7 @@ export AGENT_HARNESS_SERVICE__API_PROCESS__ENABLED=false
 | `examples.repo_analyst` | 通过 `ToolRegistry` 读取/搜索/列出 workspace 文件 | 无 shell；越界拒绝；长结果走 `artifact_ref` |
 | `examples.dev_assistant` | 受控 file/shell、policy、HITL continuation | 危险动作等待审批；deny 对目标零副作用 |
 
-命令、输入、预期输出和 eval 边界见 [`docs/examples.md`](docs/examples.md)。
+命令、输入、预期输出和 eval 边界见 [`docs/examples.zh-CN.md`](docs/examples.zh-CN.md)。
 
 ## 开发和测试
 
@@ -662,9 +680,9 @@ make dev PORT=8010
 
 ## 更多文档
 
-- [`docs/README.md`](docs/README.md)：复制应用的文档地图。
-- [`docs/examples.md`](docs/examples.md)：示例 Agent、输入、输出和 eval 命令。
-- 源仓库的[架构](../../docs/architecture/README.md)、[扩展指南](../../docs/extension-guide.md)、[adapter 合同](../../docs/adapter-contracts.md)、[context/trust boundary](../../docs/context-and-trust-boundary.md)、[安全策略](../../docs/security-policy.md)、[eval/observability 闭环](../../docs/eval-observability-loop.md)、[发布流程](../../docs/release-process.md)与 [ADR](../../docs/adr/0001-p0-service-boundaries.md)。
+- [`docs/README.zh-CN.md`](docs/README.zh-CN.md)：复制应用的中文文档地图。
+- [`docs/examples.zh-CN.md`](docs/examples.zh-CN.md)：示例 Agent、输入、输出和 eval 命令。
+- 源仓库的[架构](../../docs/architecture/README.zh-CN.md)、[扩展指南](../../docs/extension-guide.zh-CN.md)、[adapter 合同](../../docs/adapter-contracts.zh-CN.md)、[context/trust boundary](../../docs/context-and-trust-boundary.zh-CN.md)、[安全策略](../../docs/security-policy.zh-CN.md)、[eval/observability 闭环](../../docs/eval-observability-loop.zh-CN.md)、[发布流程](../../docs/release-process.zh-CN.md)与 [ADR](../../docs/adr/0001-p0-service-boundaries.zh-CN.md)。
 
 复制模板后，仓库级相对链接不会随之存在。请在复制项目自己的 `docs/` 记录应用专属的部署、provider、数据、隐私和恢复决策。
 

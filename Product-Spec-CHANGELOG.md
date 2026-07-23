@@ -1,5 +1,20 @@
 # 变更记录
 
+## [v1.16] - 2026-07-23
+### 深度维护文档引用链双语化
+
+- 将英文 README、英文五层两翼指南和英文模板入口直接引用的维护文档统一为“原路径英文主文件 + `.zh-CN.md` 中文版”，避免英文导航落入中文正文。
+- 双语范围覆盖 architecture、extension、adapter、context/trust、eval/observability、security、release、3 份 ADR，以及模板内文档地图和示例 Agent 指南；两版互链并保持命令、合同、当前/未来边界和证据状态一致。
+- 收紧 AC-049：scaffold maintainer 从任一语言入口都必须能沿同语言引用链找到完整维护资料，不改变 runtime、API、CLI、配置或发布行为。
+
+## [v1.15] - 2026-07-23
+### 双语实操文档与 AI / Agent 协作入口
+
+- 将新增实操文档纳入中英文配对规则：五层两翼开发指南维护英文主文件 `docs/building-an-agent.md` 与中文文件 `docs/building-an-agent.zh-CN.md`，两份内容互链并保持事实一致。
+- 要求 `templates/service-app` 随模板提供普通双语指南 `docs/ai-agent-guide.md` 与 `docs/ai-agent-guide.zh-CN.md`，通过 README 链接或用户明确提示交给 AI / Agent；不占用 `AGENTS.md` 这类会自动施加目录级规则的特殊文件。
+- 明确源码仓库与复制模板的上下文差异，避免 AI 依赖复制后不存在的根级真相源；同时增加可复制的初始化项目与实现功能任务模板。
+- 文档改动只要求最小充分的文档与契约验证，不把无关全量测试写成默认动作；提交、push、部署及真实外部副作用仍需用户单独授权。
+
 ## [v1.14] - 2026-07-23
 ### README 使用与维护契约细化
 

@@ -1,53 +1,55 @@
-# Eval 与 Observability 闭环
+# Eval and Observability loop
 
-适用读者：维护 trace-to-eval、experiment、provider fan-out 和人工 acceptance 的 app developer 与 scaffold maintainer。
+[English](eval-observability-loop.md) | [简体中文](eval-observability-loop.zh-CN.md)
 
-导航：[根 README](../README.md) · [五层两翼开发 Agent](building-an-agent.md) · [扩展指南](extension-guide.md) · [Adapter 合同](adapter-contracts.md) · [Context 与信任边界](context-and-trust-boundary.md) · [安全策略](security-policy.md) · [Release 边界](release-process.md)
+Audience: application developers and scaffold maintainers responsible for trace-to-eval, experiments, provider fan-out, and human acceptance.
 
-本文说明 Phase 11 approved-only 基础链路与 Phase 12.5 experiment 闭环，包括 case 准入、标签、split、harness manifest、comparison、人工 acceptance 和 provider 降级的真实运行边界。当前实现保持 provider-neutral；provider adapter 和 evaluator 都不能绕过本地证据、policy 或人工批准。
+Navigation: [root README](../README.md) · [Build an Agent](building-an-agent.md) · [extension guide](extension-guide.md) · [adapter contracts](adapter-contracts.md) · [context/trust boundaries](context-and-trust-boundary.md) · [security policy](security-policy.md) · [release boundaries](release-process.md)
 
-## 基础链路保持不变
+This document describes the approved-only base path and the experiment loop: case admission, tags, splits, harness manifests, comparison, human acceptance, provider degradation, and their actual runtime boundaries. The implementation is provider-neutral; neither provider adapters nor evaluators can bypass local evidence, policy, or human approval.
+
+## Base path remains unchanged
 
 ```text
 failed / low-score trace
   -> draft eval case
-  -> 人工 review
+  -> human review
   -> approved dataset
   -> eval run
   -> score sink
-  -> local/jsonl 和可选 provider evidence
+  -> local/JSONL and optional provider evidence
 ```
 
-自动 detector 只能写 draft，approved eval case 必须经过人工 review。`make eval` 仍只运行 approved cases；approved dataset 为空时返回稳定 `no-approved-cases`，不伪造分数。Experiment 是这条链路之后的只增不改能力，不允许 draft 绕过 review。
+Automated detectors write drafts only. An approved eval case requires human review. `make eval` runs approved cases only; an empty approved dataset produces stable `no-approved-cases`, not a fabricated score. Experiments extend this path without allowing drafts to bypass review.
 
-## Phase 12.5 experiment 闭环
+## Experiment loop
 
 ```text
 approved eval cases
-  -> behavior tags 与安全门禁
+  -> behavior tags and safety gates
   -> optimization / holdout / regression split
   -> baseline harness evaluation
-  -> candidate harness evaluation（可选）
+  -> candidate harness evaluation (optional)
   -> per-tag / holdout / failure comparison
-  -> 人工 reviewer + policy
+  -> human reviewer + policy
   -> immutable accepted/rejected decision + audit
 ```
 
-Optimization subset 用于观察目标行为改善；holdout 和 regression 是防止过拟合的独立门禁。总分上涨不是接受条件。省略 candidate 只创建不可变 baseline snapshot，不能在原 experiment 上后补 candidate。
+The optimization subset measures improvement in target behavior. Holdout and regression are independent overfitting gates; a higher aggregate score is not sufficient for acceptance. Omitting the candidate creates an immutable baseline snapshot only; a candidate cannot be added later to the same experiment.
 
-## Case 准入与 curation
+## Case admission and curation
 
-### 三类来源
+### Three sources
 
-- 手写 case：只用于明确、可复现的行为边界。输入、期望和标签必须由 reviewer 逐项确认，不得把实现细节写成唯一正确答案。
-- 生产 trace：先经过 secret/隐私脱敏和质量筛选，再进入 draft queue；失败、低分或人工标记只能触发 draft，不能自动 approved。
-- 外部数据集：必须记录来源许可、转换规则和逻辑 evidence ref；导入后仍走本项目人工 review，不因上游标签而自动可信。
+- Handwritten cases: use only for explicit, reproducible behavior boundaries. A reviewer confirms input, expectation, and tags individually; implementation details cannot become the only correct answer.
+- Production traces: redact secrets/private data and apply quality screening before entering the draft queue. Failure, low score, or a human flag can trigger a draft only, never automatic approval.
+- External datasets: record source license, transformation rules, and logical evidence refs. Imported cases still pass this project's human review; upstream labels do not make them trusted automatically.
 
-所有来源在进入 split 前都必须同时满足：当前 tenant/agent/dataset 可见、状态为 `approved`、`metadata.behavior_tags` 非空且属于封闭枚举、payload/metadata 不含 secret 或 `[REDACTED]` 标记、evidence ref 不是本机绝对路径。任一条件失败即 fail closed。
+Before entering a split, every source must be visible to the current tenant/Agent/dataset, have status `approved`, contain nonempty closed-enum `metadata.behavior_tags`, contain no secret or `[REDACTED]` marker in payload/metadata, and use no host absolute path as an evidence ref. Any failure is fail-closed.
 
-### 行为标签
+### Behavior tags
 
-初始封闭标签为：
+The initial closed set is:
 
 - `tool_selection`
 - `retrieval_quality`
@@ -55,32 +57,32 @@ Optimization subset 用于观察目标行为改善；holdout 和 regression 是�
 - `policy_approval`
 - `context_trust_boundary`
 
-标签写在 case 的 `metadata.behavior_tags`，不是文件名或自由文本注释。同一 case 可以有多个标签；comparison 使用 split 持久化的 `case_tags` 作为权威映射，不信任 evaluator 临时返回的标签。
+Tags live in `metadata.behavior_tags`, not filenames or free-text comments. A case may have multiple tags. Comparison trusts the split's persisted `case_tags`, never temporary tags returned by an evaluator.
 
-### 清理标准
+### Cleanup criteria
 
-定期按 tenant、agent、dataset、tag 检查：
+Periodically inspect by tenant, Agent, dataset, and tag:
 
-- 饱和：连续多个 harness version 都稳定满分、且不再区分候选行为的 case，应降为低频 regression 或替换成更有判别力的边界 case。
-- 重复：语义、期望、failure mode 和 evidence 都等价的 case 只保留一个权威版本，避免某一标签被重复样本放大。
-- 失真：生产行为、工具契约或 policy 已变化，导致期望不再成立的 case 必须回到 draft 重新 review，不得直接改 approved payload。
-- 污染：发现 secret、绝对路径、provider raw response 或来源许可不明时立即移出候选集合并走安全处置；不要只删除显示字段后继续使用。
+- Saturated: a case that remains perfect across multiple harness versions and no longer distinguishes candidates should become low-frequency regression or be replaced by a sharper boundary case.
+- Duplicate: retain one authoritative version when semantics, expectation, failure mode, and evidence are equivalent; duplicates must not overweight a tag.
+- Stale: if production behavior, tool contracts, or policy invalidate an expectation, return the case to draft for review. Never edit the approved payload directly.
+- Contaminated: if secrets, absolute paths, provider raw responses, or unclear source licensing appear, remove the case from candidates and follow incident response. Deleting display fields is not enough.
 
-## Split 与 regression policy
+## Split and regression policy
 
-`deterministic_multilabel_v1` 是当前唯一策略。相同请求和相同 eligible membership 产生同一 `split_id`；optimization 与 holdout 均必须非空。显式 `case_ids`、`critical_case_ids` 或命中 `metadata_flag` 的 case 进入 regression subset，不参与 optimization/holdout 抽样。
+`deterministic_multilabel_v1` is the only current strategy. The same request and eligible membership produce the same `split_id`; optimization and holdout must both be nonempty. Explicit `case_ids`, `critical_case_ids`, and cases matching `metadata_flag` enter regression rather than optimization/holdout sampling.
 
-`RegressionPolicy` 的关键语义：
+Key `RegressionPolicy` semantics:
 
-- `max_holdout_regression` 是允许的 aggregate score 绝对下降；`candidate - baseline` 小于其负值即失败。
-- `critical_case_ids` 与命中 `critical_tags` 的 regression cases 必须通过。
-- `case_ids` 用于命名 failure mode；candidate 修复其中任一项可作为目标改善依据，但不能覆盖 holdout 或关键 regression 失败。
+- `max_holdout_regression` is the allowed absolute aggregate-score decline. Failure occurs when `candidate - baseline` is below its negative value.
+- `critical_case_ids` and regression cases matching `critical_tags` must pass.
+- `case_ids` name target failure modes. Fixing one may support an improvement claim, but cannot override a holdout or critical-regression failure.
 
-Split 只持久化 case ID、权威标签、分布、拒绝计数和安全 refs，不复制完整 case payload。
+A split persists case IDs, authoritative tags, distribution, rejection counts, and safe refs—not full case payloads.
 
-## Harness version manifest
+## Harness-version manifest
 
-Manifest 必须精确覆盖六类会改变 agent 行为的输入：
+The manifest covers exactly six behavior-changing inputs:
 
 - `prompt_instruction`
 - `tool_descriptions`
@@ -89,55 +91,55 @@ Manifest 必须精确覆盖六类会改变 agent 行为的输入：
 - `policy_defaults`
 - `model_adapter_settings`
 
-构建器规范化 mapping/list 后计算每类 checksum 和整体 `version_id`。持久化 manifest 只保留 checksum、脱敏 diff summary 和逻辑 evidence ref，不保留原文、SDK object、secret 或绝对路径。Accepted record 只建立版本与 experiment evidence 的生产候选绑定，不自动改写 prompt、tool description 或配置文件。
+The builder normalizes mappings/lists and calculates per-category checksums plus an overall `version_id`. Persisted manifests contain checksums, redacted diff summaries, and logical evidence refs only—never source text, SDK objects, secrets, or absolute paths. An accepted record binds a version to experiment evidence as a production candidate; it does not edit prompts, tool descriptions, or configuration automatically.
 
-模板默认 `RecordedApprovedCaseEvaluator` 只能读取 approved case 的本地证据：优先使用 `metadata.experiment_scores[version_id][metric]`，`exact_match` 缺省时比较 payload 的 `output` 与 `expected`。它不会从 checksum 反推或执行生产配置。需要真实 harness executor 时，通过 `ExperimentEvaluator` protocol 注入 adapter，仍必须返回相同 split、profile、metric version 和安全 refs。
+The template's default `RecordedApprovedCaseEvaluator` reads local evidence from approved cases only. It prefers `metadata.experiment_scores[version_id][metric]`; when `exact_match` is absent, it compares payload `output` and `expected`. It cannot infer or execute production configuration from checksums. A real harness executor is injected through the `ExperimentEvaluator` protocol and must still return the same split, profile, metric version, and safe refs.
 
-Evaluator 成功结果也不被默认信任。每个 case/local evidence ref 都必须通过统一 secret、本机绝对路径、单项长度、列表数量和聚合大小门禁；DTO 构造后被 adapter 变异也会在 service 边界重新校验。各列表合法但 baseline/candidate/comparison 顶层或同一 case 的 failure diff 合并后超过公共 100 项或 16 KiB 时，DTO 构造与 terminal 写入前只保留 `db://eval-experiments/<id>` 真相引用，完整 refs 留在本地 score summary，create/show/compare/replay、CLI 与 provider payload 共用同一有界结果。非法输入失败时 experiment 记录 `eval.experiment.evidence_invalid` 的有界摘要，不把原始 ref 写入公共响应或 provider payload。
+Evaluator success is not trusted by default. Every case/local evidence ref passes unified secret, host-absolute-path, per-item length, list-count, and aggregate-size gates. The service boundary revalidates DTOs even after adapter mutation. If individually valid lists produce a top-level baseline/candidate/comparison or per-case failure diff exceeding the public 100-item or 16-KiB limits, DTO construction and terminal writes expose only a `db://eval-experiments/<id>` truth ref. Full refs remain in local score summaries; create/show/compare/replay, CLI, and provider payloads share the same bounded result. Invalid input records a bounded `eval.experiment.evidence_invalid` summary without writing raw refs to public responses or provider payloads.
 
-## Comparison 与 provider 降级
+## Comparison and provider degradation
 
-Baseline 和 candidate 必须使用同一 split、evaluator profile 与 metric versions。Comparison 返回 per-tag baseline/candidate/delta、holdout delta、regressions、new/fixed failures、非空封闭 reason codes 和 recommendation。
+Baseline and candidate use the same split, evaluator profile, and metric versions. Comparison returns per-tag baseline/candidate/delta, holdout delta, regressions, new/fixed failures, nonempty closed reason codes, and a recommendation.
 
-`accept` 只表示算法建议，`reject` 或 `needs_review` 都不能被入口层覆盖。Failure 明细超过 inline 上限时，只在响应中保留截断摘要和 `failure_details_ref`，完整内容仍在本地 experiment score summary。
+`accept` is an algorithmic recommendation only. Entry points cannot override `reject` or `needs_review`. When failure details exceed the inline limit, responses contain a truncated summary and `failure_details_ref`; complete data stays in local experiment score summaries.
 
-Local DB evidence 先提交，可选 provider 后 fan-out。Provider 写入失败只把状态改为 `*_with_degradation` 并返回脱敏摘要；不得删除 experiment/comparison、泄漏 provider raw response/credential，或把 local evidence 失败伪装成 provider degradation。
+Local database evidence commits before optional provider fan-out. Provider-write failure changes status to `*_with_degradation` with a redacted summary. It cannot delete experiments/comparisons, leak raw responses/credentials, or disguise local-evidence failure as provider degradation.
 
-### 执行 claim、重放与 `needs_review`
+### Execution claims, replay, and `needs_review`
 
-创建时，split、experiment 和首个私有 execution claim 在同一事务提交，避免并发同 key 产生 orphan split。协调器用 claim id 做结果写入 fencing，并在 evaluator 运行期间续租：
+Split, experiment, and the first private execution claim commit in one transaction, preventing concurrent identical keys from creating orphan splits. The coordinator fences result writes by claim ID and renews the lease during evaluation:
 
-- 有效 claim 下的同 key/body 重放只返回同一 `experiment_id` 与 `running`，不会再次调用 evaluator/provider。
-- heartbeat 续租返回失败或抛出异常即视为 claim 丢失；协调器停止可信终态写入，repository 也会原子拒绝 owner 匹配但租约已过期的续租与结果提交。
-- 确定性 evaluator failure 写 `failed`，错误只保留封闭 code、有界通用摘要和安全 evidence refs；原始异常、provider raw response 与大 payload 不入库。
-- 进程中断、claim 过期，或 evaluator 已返回但 terminal 写入失败时，系统无法证明外部副作用是否完成，因此转为 `needs_review` 并清除私有 claim。后续重放只返回该状态，不自动重跑。
-- 旧 `0009` 曾在 evaluator 前提交 `created`，因此升级或重放看到无 claim 的 legacy `created` 时也必须转 `needs_review`；它不能被解释成“肯定尚未执行”。
-- `needs_review` 不是 provider degraded。维护者必须对照 experiment id、split refs 和外部 evaluator evidence 人工判断；当前 Phase 12.5 不提供“强制重跑”入口，也不自动修改 harness 或生产配置。
+- Replay of the same key/body under a valid claim returns the same `experiment_id` and `running` without invoking evaluator/provider again.
+- A false or exceptional heartbeat means the claim is lost. The coordinator stops trusted terminal writes; the repository atomically rejects renewal or result submission after lease expiry even when owner matches.
+- Deterministic evaluator failure writes `failed` with a closed code, bounded generic summary, and safe evidence refs. Raw exceptions, provider responses, and large payloads are not persisted.
+- Process interruption, claim expiry, or terminal-write failure after evaluator return leaves external side effects unprovable. The experiment becomes `needs_review` and clears the private claim; future replay returns that state without automatic rerun.
+- Historical `0009` committed `created` before evaluator execution. A legacy `created` without a claim therefore becomes `needs_review`; it cannot be interpreted as “definitely not executed.”
+- `needs_review` is not provider degradation. Maintainers compare experiment ID, split refs, and external evaluator evidence manually. This scope has no force-rerun entry and never edits harness or production configuration automatically.
 
-## 人工 acceptance
+## Human acceptance
 
-Accepted decision 依次要求：
+An accepted decision requires, in order:
 
-1. comparison 完整且 recommendation 为 `accept`；
-2. `accepted_harness_version` 精确等于已比较 candidate；
-3. 认证 identity 提供 reviewer/tenant，body 不能覆盖；
-4. `eval.harness.accept` policy 返回 allow；deny 为 403，`require_approval` 为 409，且不隐式创建嵌套 approval；
-5. 唯一 immutable decision、production binding 和 decision audit 在同一 UoW/savepoint 内提交。
+1. complete comparison with recommendation `accept`;
+2. `accepted_harness_version` exactly matching the compared candidate;
+3. authenticated identity supplying reviewer/tenant; the body cannot override either;
+4. `eval.harness.accept` policy returning allow; deny is 403, `require_approval` is 409, and neither creates a nested approval implicitly;
+5. one immutable decision, production binding, and decision audit committed in one UoW/savepoint.
 
-Rejected decision 仍记录 reviewer、reason、policy、evidence 和 audit，但 `accepted_harness_version` 与 production binding 必须为空。同 reviewer、同规范化 body 重试返回同一 decision，不重复 audit；其他 reviewer 或不同 body/version 返回 409。
+A rejected decision still records reviewer, reason, policy, evidence, and audit, but has no `accepted_harness_version` or production binding. A retry by the same reviewer with the same normalized body returns the existing decision without duplicating audit. A different reviewer/body/version returns 409.
 
-## HTTP 与 CLI 操作
+## HTTP and CLI operations
 
-HTTP 使用 EVL-004 四个路径：
+HTTP exposes four EVL-004 paths:
 
-- `POST /api/v1/evals/experiments`，要求 `Idempotency-Key`；新建 201，安全重放 200。
-- `GET /api/v1/evals/experiments/{experiment_id}`。
-- `GET /api/v1/evals/experiments/{experiment_id}/comparison`。
-- `POST /api/v1/evals/experiments/{experiment_id}/accept`。
+- `POST /api/v1/evals/experiments`, requiring `Idempotency-Key`; create is 201 and safe replay is 200.
+- `GET /api/v1/evals/experiments/{experiment_id}`.
+- `GET /api/v1/evals/experiments/{experiment_id}/comparison`.
+- `POST /api/v1/evals/experiments/{experiment_id}/accept`.
 
-Service profile 使用 HTTPBearer；tenant 来自 identity。读取其他 tenant 与不存在统一返回 404。Create/read 分别要求 `eval.experiment.create` / `eval.experiment.read` 或 `*` 权限；accept 由 policy seam 判定。
+The service profile uses HTTP Bearer, and tenant comes from identity. Cross-tenant and missing resources both return 404. Create/read requires `eval.experiment.create` / `eval.experiment.read` or `*`; acceptance uses the policy seam.
 
-CLI 使用同一 service/DTO/persistence。以下 local 命令必须从 service-app 根目录运行，并先完成 [`templates/service-app` First use](../templates/service-app/README.md#first-use-local-profile) 的 fingerprint key、`STORAGE_DSN` 与 SQLite migration；`experiment.json` 必须按下文 DTO 说明准备，`EXPERIMENT_ID` 和 `CANDIDATE_VERSION` 分别取自 create 结果和 candidate manifest：
+CLI uses the same service/DTO/persistence. Run the local commands from a service-app root only after [service-app first use](../templates/service-app/README.md#first-use-local-profile): fingerprint key, `STORAGE_DSN`, and SQLite migration must be ready. Prepare `experiment.json` according to the DTO below; obtain `EXPERIMENT_ID` from create and `CANDIDATE_VERSION` from the candidate manifest.
 
 ```bash
 uv run agent-harness eval experiment create \
@@ -153,7 +155,7 @@ uv run agent-harness eval experiment compare "$EXPERIMENT_ID" \
   --profile local --profiles-dir ./configs/profiles --storage-dsn "$STORAGE_DSN"
 uv run agent-harness eval experiment accept "$EXPERIMENT_ID" \
   --decision accepted \
-  --reason "人工核对目标标签、holdout 和 regression 后通过" \
+  --reason "human-reviewed target tags, holdout, and regression" \
   --accepted-harness-version "$CANDIDATE_VERSION" \
   --reviewer local-reviewer \
   --profile local \
@@ -161,31 +163,31 @@ uv run agent-harness eval experiment accept "$EXPERIMENT_ID" \
   --storage-dsn "$STORAGE_DSN"
 ```
 
-`experiment.json` 对应 `EvalExperimentCreateRequest`，包含 agent、dataset、tags、split strategy、baseline manifest 和可选 candidate manifest；不要放 tenant、reviewer、secret 或 provider object。四个命令成功时输出单个稳定 JSON object，失败输出带 `code`、`message`、`request_id` 的脱敏 error object 并以非零状态退出。
+`experiment.json` is an `EvalExperimentCreateRequest` containing Agent, dataset, tags, split strategy, baseline manifest, and optional candidate manifest. Do not include tenant, reviewer, secrets, or provider objects. On success, each command prints one stable JSON object. Failure prints a redacted error object with `code`, `message`, and `request_id`, then exits nonzero.
 
-## 控制文档与变更边界
+## Controlling documents and change boundaries
 
-Phase 12.5 的真相源是：
+The truth sources for this capability are:
 
 - `Product-Spec.md` REQ-016
 - `API-Contract.md` EVL-004
 - `DEV-PLAN.md` Phase 12.5
-- 本文的操作和维护边界
+- the operation and maintenance boundaries in this document
 
-该能力按 `foundation -> comparison -> API acceptance` 的依赖顺序交付，并于 2026-07-11 归档为 `2026-07-11-eval-dataset-split-foundation`、`2026-07-11-eval-harness-experiment-comparison`、`2026-07-11-eval-experiment-api-acceptance`。对应 main specs 已同步；后续 API/worker 拆分或 release automation 变更不得反向改变本闭环的公开 seam 与证据语义。
+The capability was delivered in `foundation -> comparison -> API acceptance` dependency order and archived on 2026-07-11 as `2026-07-11-eval-dataset-split-foundation`, `2026-07-11-eval-harness-experiment-comparison`, and `2026-07-11-eval-experiment-api-acceptance`. Main specs are synchronized. Later API/worker separation or release automation cannot retroactively change this loop's public seams or evidence semantics.
 
-## 公开 seam、验证与排障
+## Public seams, validation, and troubleshooting
 
-公开扩展点是 `ApprovedCaseExecutor`、`ExperimentEvaluator`、`ExperimentEvidencePublisher`、case/dataset/experiment repository、score sink、`TelemetryFacade` 与 `ProviderTelemetryAdapter`。新增 evaluator/provider 时保持 DTO、split、metric version、local-first persistence、redaction 和 degradation 语义，不让 SDK object 或 raw response 越界。
+Public extension points are `ApprovedCaseExecutor`, `ExperimentEvaluator`, `ExperimentEvidencePublisher`, case/dataset/experiment repositories, score sink, `TelemetryFacade`, and `ProviderTelemetryAdapter`. A new evaluator/provider preserves DTO, split, metric-version, local-first persistence, redaction, and degradation semantics; SDK objects and raw responses do not cross the seam.
 
 ```bash
-make eval        # 只运行 approved cases
-make test        # eval、experiment、provider 与恢复合同
+make eval        # approved cases only
+make test        # eval, experiment, provider, and recovery contracts
 make smoke-local # fake model + local JSONL evidence
-# 真实 API/worker/PostgreSQL/Redis 组合才使用：
+# Use only for a real API/worker/PostgreSQL/Redis composition:
 make smoke-service
 ```
 
-证据入口包括 `tests/contracts/test_eval_gate_trace_loop_contracts.py`、`tests/contracts/test_eval_execution_contracts.py`、`tests/contracts/test_eval_experiment_api_contracts.py`、`tests/contracts/test_eval_experiment_evidence_boundaries_contracts.py`、`tests/contracts/test_observability_local_first_fanout_contracts.py` 和 `templates/service-app/eval-cases/`。
+Evidence includes `tests/contracts/test_eval_gate_trace_loop_contracts.py`, `tests/contracts/test_eval_execution_contracts.py`, `tests/contracts/test_eval_experiment_api_contracts.py`, `tests/contracts/test_eval_experiment_evidence_boundaries_contracts.py`, `tests/contracts/test_observability_local_first_fanout_contracts.py`, and `templates/service-app/eval-cases/`.
 
-常见故障：`no-approved-cases` 表示没有可执行的已审核样本；provider degraded 时先确认 local score/event 已提交；comparison 不接受时检查 holdout、critical regression、metric version 和安全 refs，而非只看总分；`needs_review` 表示执行副作用无法被证明，必须人工核对 claim 与外部 evidence，当前没有强制重跑入口。当前双 CI 和 release dry-run 已把 `eval` producer evidence 纳入需求验收与 promotion 前置门禁；本地合同与预演不会证明 hosted artifact service、远端保护或真实发布副作用已经通过。
+Troubleshooting: `no-approved-cases` means no reviewed executable sample exists. For provider degradation, verify local scores/events were committed first. When comparison rejects, inspect holdout, critical regressions, metric versions, and safe refs—not aggregate score alone. `needs_review` means execution side effects cannot be proved and requires manual claim/external-evidence review; there is no force-rerun entry. Current dual CI and release dry-run include eval producer evidence in acceptance and promotion gates, but local contracts and previews do not prove hosted artifact services, remote protections, or real release side effects.

@@ -1,80 +1,83 @@
-# 扩展指南
+# Extension guide
 
-适用读者：在 `templates/service-app` 增加业务能力的 app developer，以及维护公共 seam 的 scaffold maintainer。
+[English](extension-guide.md) | [简体中文](extension-guide.zh-CN.md)
 
-导航：[根 README](../README.md) · [五层两翼开发 Agent](building-an-agent.md) · [架构边界](architecture/README.md) · [Adapter 合同](adapter-contracts.md) · [Context 与信任边界](context-and-trust-boundary.md) · [安全策略](security-policy.md) · [Eval/Observability](eval-observability-loop.md)
+Audience: application developers adding business capabilities to `templates/service-app`, and scaffold maintainers evolving public seams.
 
-## 扩展原则
+Navigation: [root README](../README.md) · [Build an Agent](building-an-agent.md) · [architecture boundaries](architecture/README.md) · [adapter contracts](adapter-contracts.md) · [context/trust boundaries](context-and-trust-boundary.md) · [security policy](security-policy.md) · [Eval/Observability](eval-observability-loop.md)
 
-先选择已有公开 seam，再新增实现。`agents/*` 不直接 import vendor SDK；`app/*` 只做协议入口、依赖装配和响应转换；核心 `agent_harness/*` 不依赖 template 或具体 agent。外部 SDK 只允许进入 `agent_harness/adapters/*` 或经 import boundary 明确批准的 integration 模块。跨边界只传 Pydantic DTO、`CanonicalEvent`、protocol、facade、repository 或 UoW，不传 ORM session、SDK object 和进程内可变全局。
+## Extension principles
 
-`make quality` 会执行 `scripts/import_boundary_check.py`。绕过检查、把 SDK 放进业务 agent，或者为了过检查弱化规则，都不是扩展方式。
+Choose an existing public seam before adding an implementation. `agents/*` never imports vendor SDKs directly. `app/*` owns protocol entry points, dependency composition, and response conversion only. Core `agent_harness/*` does not depend on the template or a concrete Agent. External SDKs belong only in `agent_harness/adapters/*` or an integration module explicitly approved by the import boundary. Cross boundaries with Pydantic DTOs, `CanonicalEvent`, protocols, facades, repositories, or UoW—not ORM sessions, SDK objects, or mutable in-process globals.
 
-下文的 direct local CLI 命令都假设已经按 [`templates/service-app` First use](../templates/service-app/README.md#first-use-local-profile) 导出 `AGENT_HARNESS_BUDGET__FINGERPRINT_KEY`/storage DSN 并完成 SQLite migration。缺少任一前置时应 fail closed，不能把 `config.invalid` 或 `storage.migration_required` 当成工具故障。
+`make quality` runs `scripts/import_boundary_check.py`. Bypassing the check, moving an SDK into a business Agent, or weakening the rule to make a check green is not an extension pattern.
+
+The direct local CLI commands below assume that you completed [service-app first use](../templates/service-app/README.md#first-use-local-profile), exported `AGENT_HARNESS_BUDGET__FINGERPRINT_KEY` and the storage DSN, and migrated SQLite. Missing prerequisites must fail closed; do not misdiagnose `config.invalid` or `storage.migration_required` as a tool failure.
 
 ## Agent
 
-- 公开 seam：`AgentDescriptor`、`AgentRegistry`、`AgentExecutor`，以及每个 agent 的 `config.yaml`、`agent.py`、`schemas.py`。
-- 操作：从复制后的 service-app 根目录运行 `uv run agent-harness scaffold agent support.triage`；补 executor 和 schema；审核生成的 draft eval case；用 registry 列表确认加载。
-- 禁止：在 `app/*` 写业务 agent；从 agent 读取 profile YAML；绕过 registry/policy 发起 delegation；默认赋予工具权限。
-- 验证：`uv run agent-harness agents list --profile local --profiles-dir ./configs/profiles --agents-dir ./agents`，随后运行该 agent 和 approved eval。
-- 证据：`tests/contracts/test_agent_scaffold_cli_contracts.py`、`tests/contracts/test_agent_registry_router_model_contracts.py`、`templates/service-app/docs/examples.md`。
-- 排障：列表缺失时先检查点分小写 `agent_id`、配置 schema 和 executor import；scaffold 拒绝目标时检查 symlink、已存在目录和 root discovery，不要用 `--force`，该参数不存在。
+- Public seam: `AgentDescriptor`, `AgentRegistry`, `AgentExecutor`, and each Agent's `config.yaml`, `agent.py`, and `schemas.py`.
+- Action: from a copied service-app root, run `uv run agent-harness scaffold agent support.triage`; complete executor/schema; review the generated draft eval case; confirm registry discovery.
+- Forbidden: business Agent logic in `app/*`; reading profile YAML from an Agent; delegation outside registry/policy; default tool authority.
+- Validate: `uv run agent-harness agents list --profile local --profiles-dir ./configs/profiles --agents-dir ./agents`, then run that Agent and its approved eval.
+- Evidence: `tests/contracts/test_agent_scaffold_cli_contracts.py`, `tests/contracts/test_agent_registry_router_model_contracts.py`, `templates/service-app/docs/examples.md`.
+- Troubleshoot: if the Agent is missing, inspect the dotted lowercase `agent_id`, configuration schema, and executor import. If scaffold rejects the target, inspect symlinks, existing directories, and root discovery. There is no `--force` option.
 
-## Tool 与 MCP
+## Tools and MCP
 
-- 公开 seam：`ToolRegistry`、工具 descriptor/结果 DTO、`WorkspacePolicy`、`PolicyEngine`；MCP 通过 `MCPClient` 和 `MCPTool` 适配。`ApprovedToolExecutor` 是 registry 内部的审批执行实现，不是 `agent_harness.tools` 的公开导出，调用方不得直接依赖。
-- 操作：注册最小 schema 和权限；把 workspace root、路径规则和 environment allowlist 明确写入配置；危险调用必须由 policy 返回 allow/deny/require-approval。
-- 禁止：直接执行未经 registry 的 callable；把宿主环境完整传给 shell；让路径逃逸 workspace；在 approval 前产生外部副作用；把 MCP raw response 透传进公共事件。
-- 验证：完成 local 初始化后，从 service-app 根目录运行 `uv run agent-harness policy check --profile local --profiles-dir ./configs/profiles --storage-dsn "$STORAGE_DSN" --action run.read --resource run`，再执行相关 agent run 与 `make test`。
-- 证据：`tests/contracts/test_tool_registry_public_seam_contracts.py`、`tests/contracts/test_tool_registry_authorization_contracts.py`、`tests/contracts/test_approval_execution_contracts.py`。
-- 排障：工具不可见时先看 agent allowlist 与 identity permission；返回 409 时检查是否需要 approval；路径拒绝时检查规范化后的 workspace 相对路径，不要扩大 root。
+- Public seam: `ToolRegistry`, tool descriptor/result DTOs, `WorkspacePolicy`, and `PolicyEngine`; MCP is adapted through `MCPClient` and `MCPTool`. `ApprovedToolExecutor` is an internal registry approval executor, not a public `agent_harness.tools` export.
+- Action: register the smallest schema/permission set; configure workspace roots, path rules, and environment allowlists explicitly; dangerous calls must pass policy allow/deny/require-approval.
+- Forbidden: direct execution of an unregistered callable; forwarding the whole host environment to shell; path escape; side effects before approval; raw MCP responses in public events.
+- Validate: after local initialization, run `uv run agent-harness policy check --profile local --profiles-dir ./configs/profiles --storage-dsn "$STORAGE_DSN" --action run.read --resource run`, then the relevant Agent run and `make test`.
+- Evidence: `tests/contracts/test_tool_registry_public_seam_contracts.py`, `tests/contracts/test_tool_registry_authorization_contracts.py`, `tests/contracts/test_approval_execution_contracts.py`.
+- Troubleshoot: if a tool is invisible, inspect the Agent allowlist and identity permission. A 409 may require approval. For path denial, inspect the normalized workspace-relative path rather than widening the root.
 
-## Model 与 embedding
+## Model and embedding
 
-- 公开 seam：`ModelProvider`、`ModelRequest`、`ModelResponse`、`ModelRouter`、`ModelInvocationService`；embedding 使用 `EmbeddingProvider` 与 cache protocol。
-- 操作：在 `agent_harness/adapters/models/` 实现 provider；在 composition root 绑定；保持 fake provider 可用于确定性测试；为 usage/cost/latency 和重放补合同证据。
-- 禁止：业务 agent import Pydantic AI 或 provider SDK；把 provider object 放进 DTO；在调用前跳过 identity、budget、policy 或 approval；用虚构的零成本替代 unavailable。
-- 验证：`make test`、`make smoke-local`，涉及真实跨进程持久化再跑 `make smoke-service`。
-- 证据：`tests/contracts/test_agent_registry_router_model_contracts.py`、`tests/contracts/test_model_usage_invocation_contracts.py`、`tests/contracts/test_model_usage_runtime_composition_contracts.py`。
-- 排障：route 失败先查 profile 与 model policy；重复 usage 检查稳定 call id、outbox 和 settlement；provider 失败只保留结构化脱敏错误，不记录 raw response。
+- Public seam: `ModelProvider`, `ModelRequest`, `ModelResponse`, `ModelRouter`, `ModelInvocationService`; embeddings use `EmbeddingProvider` and a cache protocol.
+- Action: implement providers in `agent_harness/adapters/models/`, bind them in the composition root, retain a fake provider for deterministic tests, and cover usage/cost/latency and replay contracts.
+- Forbidden: vendor SDK imports in business Agents; provider objects in DTOs; skipping identity, budget, policy, or approval before invocation; inventing zero cost when cost is unavailable.
+- Validate: `make test`, `make smoke-local`; run `make smoke-service` only for real cross-process persistence.
+- Evidence: `tests/contracts/test_agent_registry_router_model_contracts.py`, `tests/contracts/test_model_usage_invocation_contracts.py`, `tests/contracts/test_model_usage_runtime_composition_contracts.py`.
+- Troubleshoot: inspect profile/model policy for routing failures. For duplicate usage, inspect stable call ID, outbox, and settlement. Retain only structured redacted provider errors, never raw responses.
 
 ## Retrieval
 
-- 公开 seam：`RetrievalProvider`、`RetrievalResult`、`ContextFragment`；当前实现包含 local SQLite BM25、PostgreSQL native FTS，以及可选 PGroonga/pgvector adapter。
-- 操作：实现 provider protocol，把结果经 `retrieval_result_to_context_fragment` 转为带 `source_ref`/`trust_level` 的 context，再由 `ContextAssembler` 做预算与 trace。
-- 禁止：把检索结果直接拼进 prompt 而丢失来源/信任；让 optional extension 成为 local profile 硬依赖；跨 tenant 读取索引。
-- 验证：完成上述 local 初始化后运行 `uv run agent-harness doctor --profile local --profiles-dir ./configs/profiles --storage-dsn "$STORAGE_DSN"`、RAG 示例和 `make test`；PostgreSQL 路径使用 `make smoke-service`。
-- 证据：`tests/contracts/test_retrieval_rag_contracts.py`、`tests/contracts/test_retrieval_doctor_example_contracts.py`。
-- 排障：extension 不可用时确认 capability probe 和 native FTS 降级；结果为空时检查 tenant、metadata 和 index，不要用无来源文本掩盖失败。
+- Public seam: `RetrievalProvider`, `RetrievalResult`, `ContextFragment`; current implementations include local SQLite BM25, PostgreSQL native FTS, and optional PGroonga/pgvector adapters.
+- Action: implement the provider protocol, convert results with `retrieval_result_to_context_fragment` so `source_ref`/`trust_level` survive, and let `ContextAssembler` own budget/trace.
+- Forbidden: prompt concatenation that loses source/trust; making an optional extension a local hard dependency; cross-tenant index reads.
+- Validate: after local initialization, run `uv run agent-harness doctor --profile local --profiles-dir ./configs/profiles --storage-dsn "$STORAGE_DSN"`, the RAG example, and `make test`; use `make smoke-service` for PostgreSQL.
+- Evidence: `tests/contracts/test_retrieval_rag_contracts.py`, `tests/contracts/test_retrieval_doctor_example_contracts.py`.
+- Troubleshoot: if an extension is unavailable, verify capability probing and native-FTS fallback. For empty results, inspect tenant, metadata, and index rather than hiding failure with unsourced text.
 
 ## Observability
 
-- 公开 seam：`TelemetryFacade`、`ProviderTelemetryAdapter`、`TelemetryRecord`、`CanonicalEvent` 和 OTel mapping。
-- 操作：本地 evidence 先提交，再 fan-out 可选 Logfire/Phoenix/Langfuse adapter；新 provider 实现 protocol、脱敏和 degradation 状态，不改变业务调用方。
-- 禁止：业务代码直接 import provider SDK；provider 失败回滚本地 event；把 secret、绝对路径或超大 raw payload 发给 provider。
-- 验证：`make smoke-local`、`make test`；provider 配置/降级合同见下列证据。
-- 证据：`tests/contracts/test_observability_local_first_fanout_contracts.py`、`tests/contracts/test_observability_provider_adapters_contracts.py`、`tests/contracts/test_observability_provider_configuration_contracts.py`。
-- 排障：provider degraded 时先看本地 `CanonicalEvent`/JSONL 是否完整，再看脱敏状态摘要；不要把 SaaS 不可用误报成 run 失败。
+- Public seam: `TelemetryFacade`, `ProviderTelemetryAdapter`, `TelemetryRecord`, `CanonicalEvent`, and OTel mapping.
+- Action: commit local evidence before fan-out to optional Logfire/Phoenix/Langfuse adapters. A new provider implements the protocol, redaction, and degradation state without changing business callers.
+- Forbidden: provider SDK imports in business code; rolling back a local event because a provider failed; sending secrets, absolute paths, or oversized raw payloads.
+- Validate: `make smoke-local`, `make test`; provider configuration/degradation contracts are listed below.
+- Evidence: `tests/contracts/test_observability_local_first_fanout_contracts.py`, `tests/contracts/test_observability_provider_adapters_contracts.py`, `tests/contracts/test_observability_provider_configuration_contracts.py`.
+- Troubleshoot: when a provider is degraded, verify local `CanonicalEvent`/JSONL first, then inspect the redacted status summary. Do not report an unavailable SaaS as a failed run.
 
 ## Eval
 
-- 公开 seam：approved case repository、`ApprovedCaseExecutor`、`ExperimentEvaluator`、`ExperimentEvidencePublisher`、score sink 与 acceptance service。
-- 操作：detector 只写 draft；人工 review 后才能进入 approved；experiment 固定 split/manifest 后比较 baseline/candidate，最后由 reviewer、policy 和 audit 共同决定 acceptance。
-- 禁止：自动写 approved；让总分提升覆盖 holdout/critical regression；由 evaluator 直接改生产 prompt/config；把 provider failure 当 local evidence 成功。
-- 验证：`make eval`、`make test`；HTTP/CLI experiment 操作见 [Eval/Observability 闭环](eval-observability-loop.md)。
-- 证据：`tests/contracts/test_eval_gate_trace_loop_contracts.py`、`tests/contracts/test_eval_execution_contracts.py`、`tests/contracts/test_eval_experiment_api_contracts.py`。
-- 排障：`no-approved-cases` 是稳定结果，不是伪造通过；`needs_review` 要人工核对 claim/evaluator evidence，不能强制重跑。
+- Public seam: approved-case repository, `ApprovedCaseExecutor`, `ExperimentEvaluator`, `ExperimentEvidencePublisher`, score sink, and acceptance service.
+- Action: detectors write drafts only; human review promotes to approved. Experiments freeze split/manifest, compare baseline/candidate, and leave acceptance to reviewer, policy, and audit.
+- Forbidden: automated writes to approved; aggregate improvements overriding holdout/critical regressions; evaluators directly editing production prompt/config; provider failure presented as successful local evidence.
+- Validate: `make eval`, `make test`; see the [Eval/Observability loop](eval-observability-loop.md) for HTTP/CLI experiment operations.
+- Evidence: `tests/contracts/test_eval_gate_trace_loop_contracts.py`, `tests/contracts/test_eval_execution_contracts.py`, `tests/contracts/test_eval_experiment_api_contracts.py`.
+- Troubleshoot: `no-approved-cases` is a stable result, not a fabricated pass. Human review must inspect claim/evaluator evidence for `needs_review`; do not force reruns.
 
-## 完成前检查
+## Before completion
 
 ```bash
 make quality
 make test
 make eval
 make smoke-local
-# 只有扩展影响 PostgreSQL、Redis、DBOS、API/worker 协作时才有资格用它证明 service：
+# Use this to prove service behavior only when the extension affects PostgreSQL, Redis,
+# DBOS, or API/worker collaboration:
 make smoke-service
 ```
 
-变更若改变行为，先更新 Product Spec/DEV Plan 或对应 OpenSpec change。若改变 API，再先更新 `API-Contract.md`。新增 vendor 或 runtime 还必须复核 [Adapter 合同](adapter-contracts.md)、[ADR-0002](adr/0002-vendor-adapter-isolation.md) 与 [release process](release-process.md)。
+Behavior changes first update the Product Spec/DEV Plan or the applicable OpenSpec change. API changes update `API-Contract.md` first. A new vendor or runtime also requires review of [adapter contracts](adapter-contracts.md), [ADR-0002](adr/0002-vendor-adapter-isolation.md), and the [release process](release-process.md).

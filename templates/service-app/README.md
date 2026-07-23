@@ -6,6 +6,21 @@ This directory is a copyable backend application template built on the `agent-ha
 
 Use this template when you want to build an agent service. Work in the repository root only when you intend to change the reusable core package or the template itself.
 
+## Ask an AI / Agent to work on the project
+
+This template includes an ordinary, opt-in [AI / Agent project guide](docs/ai-agent-guide.md). It is not an automatic instruction file. Send the link or paste this prompt when you want an AI to initialize the copied project or implement a feature:
+
+```text
+Read docs/ai-agent-guide.md first, then inspect this project and complete this task:
+<task and acceptance criteria>
+
+Follow the guide's architecture, security, validation, and handoff rules. Do not commit,
+push, deploy, publish, use production credentials, or call a real provider unless I
+separately authorize that exact action.
+```
+
+The guide contains fuller copyable prompts for project initialization and feature implementation.
+
 ## What you get
 
 - `local` profile: SQLite, in-memory queue, local JSONL evidence, fake model, no external provider key;
@@ -405,7 +420,7 @@ The template means you do not build every architecture area yourself:
 
 The normal flow is `CLI/HTTP -> Access -> Runtime -> Engine <-> Tools -> Infra`; Eval tests the same behavior, while Observability records each stage. Graph Nodes/GraphState and independent gateways shown in the product architecture are future extension points, not prerequisites. The diagram's conceptual `@agent.tool` label means the public `ToolRegistry`, not a decorator shortcut.
 
-The source repository provides the complete [five-layer, two-wing Agent development guide](../../docs/building-an-agent.md). That repository-level link will not travel with a standalone copy, so this table deliberately keeps the essential mapping here.
+The source repository provides the complete [five-layer, two-wing Agent development guide](../../docs/building-an-agent.md). That repository-level link will not travel with a standalone copy, so this table deliberately keeps the essential mapping here. The local [AI / Agent project guide](docs/ai-agent-guide.md) does travel with the copy and tells an AI how to apply these boundaries.
 
 ## Python composition API
 
@@ -486,7 +501,11 @@ service-app/
 │   ├── drafts/              # review queue; never scored as approved
 │   └── approved/            # human-reviewed application dataset
 ├── tests/                   # copied-template public-seam tests
-├── docs/                    # application-specific operating and example guides
+├── docs/
+│   ├── README.md / README.zh-CN.md
+│   ├── ai-agent-guide.md / ai-agent-guide.zh-CN.md
+│   ├── examples.md / examples.zh-CN.md
+│   └── ...                  # application-specific operating guides
 ├── scripts/                 # bootstrap, eval, service smoke, and admin helpers
 ├── Dockerfile               # wheel-only API/worker image
 ├── docker-compose.yml

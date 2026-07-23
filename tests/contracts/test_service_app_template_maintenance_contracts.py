@@ -53,6 +53,11 @@ def test_template_layout_contains_committable_maintenance_content() -> None:
         "tests/test_app_surface.py",
         "tests/test_bootstrap.py",
         "docs/README.md",
+        "docs/README.zh-CN.md",
+        "docs/ai-agent-guide.md",
+        "docs/ai-agent-guide.zh-CN.md",
+        "docs/examples.md",
+        "docs/examples.zh-CN.md",
         "scripts/bootstrap.py",
         "scripts/smoke_service.py",
         "docker-compose.yml",
@@ -231,6 +236,7 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
     english = (TEMPLATE / "README.md").read_text(encoding="utf-8")
     chinese = (TEMPLATE / "README.zh-CN.md").read_text(encoding="utf-8")
     docs = (TEMPLATE / "docs" / "README.md").read_text(encoding="utf-8")
+    docs_zh = (TEMPLATE / "docs" / "README.zh-CN.md").read_text(encoding="utf-8")
     env_example = (TEMPLATE / ".env.example").read_text(encoding="utf-8")
 
     for marker in (
@@ -241,7 +247,6 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
         "agent-harness run examples.basic",
         "/docs",
         "/redoc",
-        "../../docs/extension-guide.md",
         "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY",
         "app/migrate.py",
         "AGENT_HARNESS_STORAGE__DSN",
@@ -253,6 +258,7 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
     for marker in (
         "[简体中文](README.zh-CN.md)",
         "## First use: local profile",
+        "## Ask an AI / Agent to work on the project",
         "## HTTP API",
         "## Python composition API",
         "## Ergonomic layers and “syntax sugar”",
@@ -269,6 +275,7 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
     for marker in (
         "[English](README.md)",
         "## 首次使用：local profile",
+        "## 让 AI / Agent 操作项目",
         "## HTTP API",
         "## Python 组合 API",
         "## 便捷封装和“语法糖”",
@@ -294,10 +301,16 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
     assert "`tenant_id`、`agent_id`、`run_id`" in chinese
     assert "Project-root discovery lets core CLI commands" not in english
     assert "核心 CLI 在复制后的 service-app 中自动定位" not in chinese
+    assert "docs/ai-agent-guide.md" in english
+    assert "docs/ai-agent-guide.zh-CN.md" in chinese
+    assert "../../docs/extension-guide.md" in english
+    assert "../../docs/extension-guide.zh-CN.md" in chinese
     assert "../../../docs/adapter-contracts.md" in docs
+    assert "../../../docs/adapter-contracts.zh-CN.md" in docs_zh
     assert "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY=" in env_example
     assert "同一状态库生命周期内保持稳定" in env_example
     assert "后续文档交付" not in docs
+    assert "后续文档交付" not in docs_zh
 
 
 def test_root_readme_preserves_product_overview_and_delegation_boundary() -> None:
@@ -309,6 +322,7 @@ def test_root_readme_preserves_product_overview_and_delegation_boundary() -> Non
     for marker in (
         "## What it does",
         "## First use",
+        "## Hand project work to an AI / Agent",
         "## Python API",
         "## Ergonomic layers and “syntax sugar”",
         "## Project structure",
@@ -323,6 +337,7 @@ def test_root_readme_preserves_product_overview_and_delegation_boundary() -> Non
     for marker in (
         "## 这个项目能做什么",
         "## 第一次使用",
+        "## 把项目任务交给 AI / Agent",
         "## Python API",
         "## 便捷封装和“语法糖”",
         "## 目录结构",
@@ -338,7 +353,12 @@ def test_root_readme_preserves_product_overview_and_delegation_boundary() -> Non
         assert "AgentRegistry" in readme
         assert "PolicyEngine" in readme
         assert "delegation" in readme
-        assert "docs/building-an-agent.md" in readme
+    assert "docs/building-an-agent.md" in english
+    assert "docs/building-an-agent.zh-CN.md" in chinese
+    assert "templates/service-app/docs/ai-agent-guide.md" in english
+    assert "templates/service-app/docs/ai-agent-guide.zh-CN.md" in chinese
+    assert "Read templates/service-app/docs/ai-agent-guide.md first" in english
+    assert "先阅读 templates/service-app/docs/ai-agent-guide.zh-CN.md" in chinese
     assert "`tenant_id`, `agent_id`, and `run_id`" in english
     assert "`tenant_id`、`agent_id`、`run_id`" in chinese
 
@@ -367,9 +387,29 @@ def test_run_commands_keep_explicit_agents_dir_separate_from_scaffold_discovery(
 def test_five_layer_two_wing_guide_maps_architecture_to_agent_work() -> None:
     """五层两翼不能只停在架构图，必须能映射到创建 Agent 的实际动作。"""
 
-    guide_path = ROOT / "docs" / "building-an-agent.md"
-    guide = guide_path.read_text(encoding="utf-8")
+    english = (ROOT / "docs" / "building-an-agent.md").read_text(encoding="utf-8")
+    chinese = (ROOT / "docs" / "building-an-agent.zh-CN.md").read_text(encoding="utf-8")
     architecture = (ROOT / "docs" / "architecture" / "README.md").read_text(encoding="utf-8")
+    architecture_zh = (ROOT / "docs" / "architecture" / "README.zh-CN.md").read_text(
+        encoding="utf-8"
+    )
+
+    for marker in (
+        "1. Access and interaction",
+        "2. Orchestration and Runtime",
+        "3. Engine and cognition",
+        "4. Tools and capabilities",
+        "5. Infrastructure and data",
+        "Left wing: Eval Gate",
+        "Right wing: Observability",
+        "support.triage",
+        "AgentRegistry.load_from_directory()",
+        "AgentExecutionResult.completed(output)",
+        "ToolRegistry",
+        "GraphState",
+        "future extension points",
+    ):
+        assert marker in english
 
     for marker in (
         "1. 接入与交互层 Access",
@@ -386,10 +426,81 @@ def test_five_layer_two_wing_guide_maps_architecture_to_agent_work() -> None:
         "GraphState",
         "目标扩展位",
     ):
-        assert marker in guide
+        assert marker in chinese
 
+    assert "[简体中文](building-an-agent.zh-CN.md)" in english
+    assert "[English](building-an-agent.md)" in chinese
     assert "../building-an-agent.md" in architecture
-    assert "概念性工具注册标签" in architecture
+    assert "conceptual tool-registration label" in architecture
+    assert "../building-an-agent.zh-CN.md" in architecture_zh
+    assert "概念性工具注册标签" in architecture_zh
+
+
+def test_ai_agent_guide_is_opt_in_bilingual_and_actionable() -> None:
+    """AI 指南必须能按需交给工具使用，不能伪装成自动生效的目录级指令。"""
+
+    english = (TEMPLATE / "docs" / "ai-agent-guide.md").read_text(encoding="utf-8")
+    chinese = (TEMPLATE / "docs" / "ai-agent-guide.zh-CN.md").read_text(encoding="utf-8")
+    english_readme = (TEMPLATE / "README.md").read_text(encoding="utf-8")
+    chinese_readme = (TEMPLATE / "README.zh-CN.md").read_text(encoding="utf-8")
+
+    special_instruction_files = sorted(
+        path.relative_to(TEMPLATE)
+        for name in ("AGENTS.md", "AGENTS.zh-CN.md")
+        for path in TEMPLATE.rglob(name)
+    )
+    assert special_instruction_files == []
+    assert "ordinary, opt-in project guide" in english
+    assert "普通、按需使用的项目指南" in chinese
+    assert "[简体中文](ai-agent-guide.zh-CN.md)" in english
+    assert "[English](ai-agent-guide.md)" in chinese
+
+    for marker in (
+        "AGENT_HARNESS_SOURCE",
+        "make bootstrap",
+        "app/migrate.py",
+        "make smoke-local",
+        "agent-harness scaffold agent",
+        "--agents-dir ./agents",
+        "make eval",
+        "make smoke-service",
+        "tenant_id",
+        "agent_id",
+        "run_id",
+    ):
+        assert marker in english
+        assert marker in chinese
+
+    for marker in (
+        "Do not assume those files exist in a standalone copy",
+        "Do not silently install a public same-name package",
+        "Reuse the same key for the lifetime",
+        "Project-root discovery belongs only to `scaffold agent`",
+        "does not import vendor SDKs",
+        "automation never self-approves",
+        "Local/fake evidence does not prove",
+        "require explicit user authorization",
+        "## Required handoff",
+    ):
+        assert marker in english
+
+    for marker in (
+        "独立复制项目不得假设它们仍在",
+        "不得静默安装公网上的同名包",
+        "整个生命周期必须复用同一 key",
+        "项目根自动发现只有 `scaffold agent` 使用",
+        "不得直接 import vendor SDK",
+        "自动化不得自行批准",
+        "local/fake 证据不能证明",
+        "都需要用户单独明确授权",
+        "## 必须返回的交付说明",
+    ):
+        assert marker in chinese
+
+    assert "## Copyable prompts" in english
+    assert "## 可复制提示词" in chinese
+    assert "docs/ai-agent-guide.md" in english_readme
+    assert "docs/ai-agent-guide.zh-CN.md" in chinese_readme
 
 
 def test_service_boundary_adr_links_back_to_maintainer_navigation() -> None:
@@ -405,19 +516,24 @@ def test_tool_guide_distinguishes_public_exports_from_internal_executor() -> Non
     """防止扩展指南把审批执行内部实现误写为公开导出，迫使调用方依赖不稳定模块。"""
 
     extension = (ROOT / "docs" / "extension-guide.md").read_text(encoding="utf-8")
+    extension_zh = (ROOT / "docs" / "extension-guide.zh-CN.md").read_text(encoding="utf-8")
 
-    assert "ApprovedToolExecutor` 是 registry 内部" in extension
-    assert "ApprovedToolExecutor`、" not in extension
+    assert "ApprovedToolExecutor` is an internal registry approval executor" in extension
+    assert "ApprovedToolExecutor` 是 registry 内部" in extension_zh
+    assert "ApprovedToolExecutor`、" not in extension_zh
 
 
 def test_adapter_contract_records_complete_sqlalchemy_ownership_boundary() -> None:
     """锁定 ORM 的受控所有权，避免维护者在 repository 与 UoW 之外直接操作 session。"""
 
     adapters = (ROOT / "docs" / "adapter-contracts.md").read_text(encoding="utf-8")
+    adapters_zh = (ROOT / "docs" / "adapter-contracts.zh-CN.md").read_text(encoding="utf-8")
 
-    assert "model、repository、migration" in adapters
-    assert "API、worker 和 service 只能组合 repository/UoW" in adapters
-    assert "唯一允许接触相应 SDK、driver 或 ORM" not in adapters
+    assert "models, repositories, and migrations under `storage`" in adapters
+    assert "APIs, workers, and services compose repositories/UoW only" in adapters
+    assert "model、repository、migration" in adapters_zh
+    assert "API、worker 和 service 只能组合 repository/UoW" in adapters_zh
+    assert "唯一允许接触相应 SDK、driver 或 ORM" not in adapters_zh
 
 
 def test_redis_runtime_adr_records_triggered_security_review_before_release() -> None:
@@ -426,13 +542,19 @@ def test_redis_runtime_adr_records_triggered_security_review_before_release() ->
     redis_adr = (ROOT / "docs" / "adr" / "0003-redis-runtime-license-policy.md").read_text(
         encoding="utf-8"
     )
+    redis_adr_zh = (ROOT / "docs" / "adr" / "0003-redis-runtime-license-policy.zh-CN.md").read_text(
+        encoding="utf-8"
+    )
     compose = (TEMPLATE / "docker-compose.yml").read_text(encoding="utf-8")
 
-    assert "安全复审条件已经触发" in redis_adr
-    assert "生产使用或" in redis_adr
-    assert "重新选择补丁版本" in redis_adr
+    assert "the security-review trigger fired" in redis_adr
+    assert "Production use/release" in redis_adr
+    assert "returning to the approved 7.2 license line" in redis_adr
     assert "SERVICE_APP_REDIS_IMAGE" in redis_adr
     assert "SERVICE_APP_REDIS_VERSION" not in redis_adr
+    assert "安全复审条件已经触发" in redis_adr_zh
+    assert "生产使用或" in redis_adr_zh
+    assert "重新选择补丁版本" in redis_adr_zh
     assert (
         "${SERVICE_APP_REDIS_IMAGE:-redis:7.2.14@sha256:f0707c78ea880b293ccdeb410c9c0a8ccae93fe7128799b751333a698b0a39a7}"
         in compose
