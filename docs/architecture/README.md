@@ -2,7 +2,7 @@
 
 适用读者：需要理解当前运行边界的 app developer，以及维护 package、template 和 adapter 合同的 scaffold maintainer。
 
-导航：[根 README](../../README.md) · [扩展指南](../extension-guide.md) · [Adapter 合同](../adapter-contracts.md) · [Context 与信任边界](../context-and-trust-boundary.md) · [安全策略](../security-policy.md) · [ADR](../adr/0001-p0-service-boundaries.md)
+导航：[根 README](../../README.md) · [五层两翼开发 Agent](../building-an-agent.md) · [扩展指南](../extension-guide.md) · [Adapter 合同](../adapter-contracts.md) · [Context 与信任边界](../context-and-trust-boundary.md) · [安全策略](../security-policy.md) · [ADR](../adr/0001-p0-service-boundaries.md)
 
 本目录是项目架构图的固定位置。图稿用于解释关系，当前行为仍以 `Product-Spec.md`、`API-Contract.md`、公开 DTO/protocol、生产代码和测试为准；图与代码冲突时不能拿图替代证据。
 
@@ -14,6 +14,15 @@
 | 技术架构图（Agent Harness Layer） | `agent-harness-technical-architecture.drawio` / `agent-harness-technical-architecture.excalidraw` | `agent-harness-technical-architecture.png` | 开发级结构图，说明核心包、template app、DTO、CanonicalEvent、Repository/UoW 和 provider/facade 边界。 |
 | 运行链路与信任边界图（Agent Harness Layer） | `agent-harness-runtime-trust-boundaries.drawio` / `agent-harness-runtime-trust-boundaries.excalidraw` | `agent-harness-runtime-trust-boundaries.png` | 运行级链路图，说明 CLI/API、RunOrchestrator、storage/checkpoint、EventBus/artifact 和不可信输入边界。 |
 | 部署边界图（Agent Harness Layer） | `agent-harness-deployment-boundaries.drawio` / `agent-harness-deployment-boundaries.excalidraw` | `agent-harness-deployment-boundaries.png` | 部署级边界图，说明 local/service profile、API/worker/PostgreSQL/Redis 协作和未来拆分路径。 |
+
+## 从五层两翼开始开发
+
+架构图回答“能力属于哪里、边界如何连接”，不等于业务开发者要逐层重写。创建 Agent 的可执行路线、每层需要修改的文件、两翼接入方式和 `support.triage` 完整对照，统一放在[《用五层两翼开发一个 Agent》](../building-an-agent.md)。
+
+阅读产品级全景图时注意两点：
+
+- `Graph Nodes`、`GraphState`、复杂长期 memory 和独立 tool/model gateway 标记为目标或未来扩展位，不是首次创建 Agent 的前置。
+- 图中的 `@agent.tool Registry` 是概念性工具注册标签；当前公共接口是类型化 `ToolRegistry` 和 descriptor/result DTO，不存在绕过 registry、policy、workspace 或 approval 的公共 decorator 捷径。
 
 ## 当前部署边界
 

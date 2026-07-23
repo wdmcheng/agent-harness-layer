@@ -1032,14 +1032,12 @@ Runtime Trace
 README 是入口，深度文档解释架构和维护边界。
 
 **README MUST 包含：**
-- What this scaffold is
-- Quick Start
-- Project Structure
-- For Agent App Developers
-- For Scaffold Maintainers
-- Deep Docs
-- License & Compliance
-- Release Process
+- 根目录与 `templates/service-app` 都维护英文主入口 `README.md` 和中文入口 `README.zh-CN.md`；同目录两份文档互相链接，并保持命令、能力边界和已实现状态一致。
+- 项目定位、当前能力与明确的非目标，避免把本地验证、未来物理服务或 hosted-unverified 能力写成已部署事实。
+- 准备环境、第一次使用、日常使用指南和常见故障排查；首次路径必须给出可复制命令，并说明 fingerprint key、migration、local/service profile 与外部依赖前置。
+- CLI、HTTP/OpenAPI 与 Python 公共 API 的使用入口；如果提供 Make target、scaffold、profile/config、factory/helper 等便捷封装，必须说明它简化了什么、底层仍复用哪个公共 seam，并给出实际用法，不能只写“有语法糖”。
+- Project Structure、主要模块设计思路、For Agent App Developers、For Scaffold Maintainers、开发与测试指南、贡献指南、Deep Docs、License & Compliance、Release Process；五层两翼架构必须提供“如何开发一个 Agent”的实际映射，区分框架已提供能力、业务开发者必改部分、按需扩展部分和未来目标位。
+- README 只承载可靠上手路径与模块地图；字段级 API、复杂安全/恢复语义和 provider 合同链接到 `API-Contract.md` 与深度文档，避免复制后漂移。
 
 **深度文档 MUST 包含：**
 - `docs/architecture/README.md`
@@ -1060,7 +1058,7 @@ README 是入口，深度文档解释架构和维护边界。
 - 多 agent delegation 必须走 registry 和 policy。
 
 **验收标准：**
-- [x] AC-048: Given README, when 新开发者阅读 Project Structure, then 能知道每个目录职责和禁止跨边界规则。
+- [x] AC-048: Given 根目录与 `templates/service-app` 的中英文 README, when 新开发者选择任一语言从零开始, then 能完成环境准备、首次运行、CLI/HTTP/Python API 定位，并能从 Project Structure、模块设计和五层两翼实战指南中识别目录职责、框架已提供能力、业务 Agent 必改部分、按需扩展部分、两翼使用方法、便捷封装与禁止跨边界规则。
 - [x] AC-049: Given scaffold maintainer, when 阅读 docs, then 能找到 adapter contract、release process、安全策略和 ADR。
 
 ### REQ-019: TDD、测试与质量门禁

@@ -2,7 +2,7 @@
 
 适用读者：维护 trace-to-eval、experiment、provider fan-out 和人工 acceptance 的 app developer 与 scaffold maintainer。
 
-导航：[根 README](../README.md) · [扩展指南](extension-guide.md) · [Adapter 合同](adapter-contracts.md) · [Context 与信任边界](context-and-trust-boundary.md) · [安全策略](security-policy.md) · [Release 边界](release-process.md)
+导航：[根 README](../README.md) · [五层两翼开发 Agent](building-an-agent.md) · [扩展指南](extension-guide.md) · [Adapter 合同](adapter-contracts.md) · [Context 与信任边界](context-and-trust-boundary.md) · [安全策略](security-policy.md) · [Release 边界](release-process.md)
 
 本文说明 Phase 11 approved-only 基础链路与 Phase 12.5 experiment 闭环，包括 case 准入、标签、split、harness manifest、comparison、人工 acceptance 和 provider 降级的真实运行边界。当前实现保持 provider-neutral；provider adapter 和 evaluator 都不能绕过本地证据、policy 或人工批准。
 
@@ -137,7 +137,7 @@ HTTP 使用 EVL-004 四个路径：
 
 Service profile 使用 HTTPBearer；tenant 来自 identity。读取其他 tenant 与不存在统一返回 404。Create/read 分别要求 `eval.experiment.create` / `eval.experiment.read` 或 `*` 权限；accept 由 policy seam 判定。
 
-CLI 使用同一 service/DTO/persistence。以下 local 命令必须从 service-app 根目录运行，并先完成 [`templates/service-app` Quick Start](../templates/service-app/README.md#quick-start) 的 fingerprint key、`STORAGE_DSN` 与 SQLite migration；`experiment.json` 必须按下文 DTO 说明准备，`EXPERIMENT_ID` 和 `CANDIDATE_VERSION` 分别取自 create 结果和 candidate manifest：
+CLI 使用同一 service/DTO/persistence。以下 local 命令必须从 service-app 根目录运行，并先完成 [`templates/service-app` First use](../templates/service-app/README.md#first-use-local-profile) 的 fingerprint key、`STORAGE_DSN` 与 SQLite migration；`experiment.json` 必须按下文 DTO 说明准备，`EXPERIMENT_ID` 和 `CANDIDATE_VERSION` 分别取自 create 结果和 candidate manifest：
 
 ```bash
 uv run agent-harness eval experiment create \

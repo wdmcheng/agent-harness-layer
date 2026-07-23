@@ -1,30 +1,75 @@
 # Agent Harness Service App Template
 
-## What this scaffold is
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-这是 Agent Harness Layer 的可复制后端应用模板。它把 FastAPI、app-specific Typer 入口、worker、local/service profiles、Docker Compose、eval 目录和测试装配在一起；runtime、policy、approval、eval 与 storage 业务能力仍来自 `agent_harness` 公共 seam。
+This directory is a copyable backend application template built on the `agent-harness` core package. It assembles FastAPI, a thin service CLI, a runtime worker, typed local/service profiles, Docker Compose, example agents, eval data, and public-seam tests without moving business agent logic into the application entry layer.
 
-模板包含 `examples.basic` smoke fixture，以及 RAG assistant、ticket triage、repo analyst、dev assistant 四个轻量示例；service profile 已把 API 与 runtime worker 拆成独立进程，但 tool/model gateway、event pipeline 和 storage service 仍是未来边界。
+Use this template when you want to build an agent service. Work in the repository root only when you intend to change the reusable core package or the template itself.
 
-## Quick Start
+## What you get
 
-先选择核心包来源。仓库内开发时，根 workspace 会把当前 checkout 的核心包注入模板：
+- `local` profile: SQLite, in-memory queue, local JSONL evidence, fake model, no external provider key;
+- `service` profile: PostgreSQL, Redis, migration, FastAPI API, and a separate runtime worker;
+- HTTP management surface under `/api/v1`, plus OpenAPI, Swagger, and Redoc;
+- the core `agent-harness` CLI for agents, runs, events, tools, policy, approvals, eval, and scaffolding;
+- an app-specific `agent-harness-service serve` command;
+- four runnable examples: RAG assistant, ticket triage, repository analyst, and development assistant;
+- an `examples.basic` deterministic smoke fixture;
+- an atomic agent generator with safe defaults and a draft eval case;
+- copied-project quality, test, eval, local smoke, and real service smoke commands.
+
+The API and worker are separate processes in the service profile. Model/tool gateways, an event pipeline, and a storage service are future boundaries, not current Compose services.
+
+## Prepare the environment
+
+Required for local use:
+
+- macOS or Linux;
+- Python `>=3.12`;
+- Git and GNU Make;
+- **uv `0.11.29` exactly** in the source repository;
+- a trusted local `agent-harness` wheel, sdist, source directory, or private index when using a copied template.
+
+Check the toolchain:
+
+```bash
+python3 --version
+uv --version
+git --version
+make --version
+```
+
+`make smoke-service` additionally requires Docker with Compose v2. A real model API key is not required by either default profile because both use the fake model unless you deliberately configure another provider.
+
+## First use: local profile
+
+### 1. Select the core package source
+
+Inside the source repository workspace:
 
 ```bash
 cd templates/service-app
 make bootstrap
 ```
 
-如果已经把 `templates/service-app` 复制到独立目录，第一次启动必须显式提供本仓库构建的 `agent-harness` wheel、sdist 或源码目录：
+After copying this directory into an independent project, provide a trusted artifact or source path on the first bootstrap:
 
 ```bash
 make bootstrap \
   AGENT_HARNESS_SOURCE=/absolute/path/to/agent_harness-0.1.0-py3-none-any.whl
 ```
 
-`bootstrap` 会把该可信本地来源写入复制项目自己的 `tool.uv.sources`，后续命令可直接复用。若组织已把 `agent-harness==0.1.0` 发布到可信私有 index，可在配置 `UV_INDEX_URL` 后显式使用 `AGENT_HARNESS_ALLOW_INDEX=1`。独立模板不会默认解析公共同名包；这是供应链边界，不是安装故障。
+`bootstrap` records the trusted local source in the copied project's `tool.uv.sources`, so later commands can reuse it. If your organization publishes `agent-harness==0.1.0` to a trusted private index, configure `UV_INDEX_URL` and opt in explicitly:
 
-两种模式完成 bootstrap 后，都必须为 local profile 生成本次隔离状态使用的 fingerprint key，并先迁移 SQLite。以下命令逐字可执行：
+```bash
+make bootstrap AGENT_HARNESS_ALLOW_INDEX=1
+```
+
+An independent template does not resolve a public package with the same name by default. That is a supply-chain boundary, not an installation defect.
+
+### 2. Create local state and migrate it
+
+Generate a fingerprint key for this state database, export the database location, and run migration:
 
 ```bash
 export AGENT_HARNESS_BUDGET__FINGERPRINT_KEY="$(
@@ -33,18 +78,38 @@ export AGENT_HARNESS_BUDGET__FINGERPRINT_KEY="$(
 export STATE_DIR="$PWD/.agent-harness/local"
 export STORAGE_DSN="sqlite+aiosqlite:///$STATE_DIR/agent_harness.db"
 export AGENT_HARNESS_STORAGE__DSN="$STORAGE_DSN"
+
 mkdir -p "$STATE_DIR"
 uv run python app/migrate.py \
   --profile local \
   --profiles-dir ./configs/profiles \
   --storage-dsn "$STORAGE_DSN"
+```
+
+The fingerprint key is a budget request identity secret, not a model API key. Keep it stable for the lifetime of this state database. Do not write the value into `local.yaml`, documentation, or Git.
+
+You may copy `.env.example` to the ignored `.env` file for persistent local overrides, but it must contain an environment-specific key rather than a repository default:
+
+```bash
+cp .env.example .env
+```
+
+### 3. Verify the profile and run the first agent
+
+```bash
 make smoke-local
+make run-basic
+```
+
+`make smoke-local` validates configuration and registry discovery. `make run-basic` executes the actual registry/runtime/event path and prints a `run_id`, status, and terminal event.
+
+### 4. Start the API
+
+```bash
 make dev
 ```
 
-fingerprint key 是预算请求指纹的 secret，不是模型 API key。它必须在同一状态目录的生命周期内保持稳定；不要把固定值写入 `local.yaml`、README 或版本库，也不要对已有状态随意轮换。`.env.example` 只声明字段，复制为被忽略的 `.env` 时必须填入本环境生成的值。自动化验证应使用新的临时 `STATE_DIR`、对应 `STORAGE_DSN` 和独立 key，避免写入开发者已有状态。
-
-`make dev` 等价于调用 app-specific 入口：
+The equivalent explicit command is:
 
 ```bash
 uv run agent-harness-service serve \
@@ -55,37 +120,79 @@ uv run agent-harness-service serve \
   --port 8000
 ```
 
-启动后可访问：
+Open:
 
-- health：`GET http://127.0.0.1:8000/api/v1/health`
-- OpenAPI：`http://127.0.0.1:8000/openapi.json`
-- Swagger：`http://127.0.0.1:8000/docs`
-- Redoc：`http://127.0.0.1:8000/redoc`
+- health: `http://127.0.0.1:8000/api/v1/health`
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- Redoc: `http://127.0.0.1:8000/redoc`
+- OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
 
-local profile 使用 SQLite、in-memory queue、local JSONL observability 和 fake model，不需要真实模型 API key 或外部 SaaS provider；但 fingerprint key 和 schema migration 是 fail-closed 前置条件，不能省略。
+## Everyday usage
 
-运行现有 basic/fake smoke agent 并获得 terminal evidence：
+### Make commands
+
+| Command | Purpose |
+|---|---|
+| `make bootstrap` | resolve the trusted core package source and sync dependencies |
+| `make dev` | start FastAPI with the selected profile |
+| `make cli ARGS='<core command>'` | call the core CLI without duplicating command logic |
+| `make run-basic` | execute the deterministic smoke agent |
+| `make run-rag` | run the RAG assistant example |
+| `make run-ticket` | run the ticket triage example |
+| `make run-repo` | run the repository analyst example |
+| `make run-dev` | run the development assistant example |
+| `make test` / `make contract` | run copied-template public-seam tests |
+| `make quality` | run Ruff and Pyright over app, agents, tests, and scripts |
+| `make eval` | run all approved example eval cases |
+| `make eval-rag|eval-ticket|eval-repo|eval-dev` | run one example's eval cases |
+| `make smoke-local` | validate the local profile and agent registry |
+| `make smoke-service` | run the real copied-template PostgreSQL/Redis/API/worker smoke |
+| `make worker` | start the runtime worker using the selected profile |
+
+All targets accept Make variable overrides such as `PROFILE`, `PROFILES_DIR`, `STATE_DIR`, `STORAGE_DSN`, `EVENTS_PATH`, `HOST`, and `PORT`.
+
+## CLI
+
+The template CLI owns only `serve`. All management operations come from the core CLI so HTTP, CLI, and worker paths share the same DTOs, services, errors, and authorization semantics.
+
+### Check configuration
+
+```bash
+uv run agent-harness doctor \
+  --profile local \
+  --profiles-dir ./configs/profiles \
+  --storage-dsn "$STORAGE_DSN"
+```
+
+### List and run agents
+
+```bash
+uv run agent-harness agents list \
+  --profile local \
+  --profiles-dir ./configs/profiles \
+  --agents-dir ./agents \
+  --storage-dsn "$STORAGE_DSN"
+
+uv run agent-harness run examples.basic \
+  --profile local \
+  --profiles-dir ./configs/profiles \
+  --agents-dir ./agents \
+  --storage-dsn "$STORAGE_DSN" \
+  --idempotency-key first-cli-run
+```
+
+In a copied service-app, always pass `--agents-dir ./agents` to `run` and `agents list`, as the examples above do. Their current default remains the source-workspace path `templates/service-app/agents`; it does not discover the copied project. The `make run-*` targets pass the application agents directory explicitly. Project-root discovery belongs only to `scaffold agent`, which uses the copied project's `pyproject.toml` marker when `--agents-dir` is omitted.
+
+### Stream events
+
+Capture a run ID from real output, then stream canonical NDJSON:
 
 ```bash
 RUN_OUTPUT="$(make run-basic)"
 printf '%s\n' "$RUN_OUTPUT"
 export RUN_ID="$(printf '%s\n' "$RUN_OUTPUT" | awk '/^run_id:/ {print $2; exit}')"
 test -n "$RUN_ID"
-```
 
-也可以直接使用核心 CLI：
-
-```bash
-uv run agent-harness run examples.basic \
-  --profile local \
-  --profiles-dir ./configs/profiles \
-  --agents-dir ./agents \
-  --storage-dsn "$STORAGE_DSN"
-```
-
-已有 run 可通过同一授权 EventSink reader 逐条读取 canonical event；上一步已经从真实输出设置 `RUN_ID`：
-
-```bash
 uv run agent-harness events stream "$RUN_ID" \
   --profile local \
   --profiles-dir ./configs/profiles \
@@ -93,114 +200,476 @@ uv run agent-harness events stream "$RUN_ID" \
   --events-path "$STATE_DIR/traces.jsonl"
 ```
 
-CLI 的 `--after-seq` 是 exclusive cursor；HTTP 调用方使用
-`GET /api/v1/runs/{run_id}/events/stream` 与唯一 `Last-Event-ID` header。两者默认只读
-public event，terminal 后结束；需要 internal visibility 时必须通过同一策略授权。
+CLI `--after-seq` is an exclusive cursor. The HTTP SSE route uses the single `Last-Event-ID` header instead. Both default to public events and stop after the terminal event.
 
-四个示例的真实 run/eval 命令、能力差异和安全边界见 [`docs/examples.md`](docs/examples.md)。快速验证全部 approved fake-model case：
+### Check policy
 
 ```bash
-make eval
+uv run agent-harness policy check \
+  --profile local \
+  --profiles-dir ./configs/profiles \
+  --storage-dsn "$STORAGE_DSN" \
+  --action run.read \
+  --resource run
 ```
 
-创建自己的 Agent 时，从 service-app 根目录运行：
+Use `agent-harness --help` and `<group> --help` for tools, approvals, eval, experiments, local-state migration, and their exact options.
+
+## HTTP API
+
+Local profile uses a default development identity. Service profile requires `Authorization: Bearer <token>` and derives tenant/user/permissions from the server-side verifier.
+
+### Common routes
+
+| Method and path | Purpose |
+|---|---|
+| `GET /api/v1/health` | public liveness/configuration capability summary |
+| `GET /api/v1/agents` | list visible agent descriptors |
+| `POST /api/v1/agents/{agent_id}/runs` | create a run |
+| `GET /api/v1/runs/{run_id}` | read durable run detail |
+| `POST /api/v1/runs/{run_id}/cancel` | cancel a non-terminal run |
+| `POST /api/v1/runs/{run_id}/resume` | resume a normal checkpoint; not an approval bypass |
+| `GET /api/v1/runs/{run_id}/events` | read JSON events using `after_seq` |
+| `GET /api/v1/runs/{run_id}/events/stream` | read SSE using `Last-Event-ID` |
+| `GET /api/v1/runs/{run_id}/approvals` | list run approvals |
+| `GET /api/v1/runs/{run_id}/approvals/{approval_id}` | read one approval |
+| `POST /api/v1/runs/{run_id}/approvals/{approval_id}` | approve or deny a waiting action |
+| `POST /api/v1/policies/check` | evaluate a policy action/resource/context |
+| `/api/v1/eval-cases/*` | draft, list, and approve eval cases |
+| `/api/v1/evals/runs/*` | run approved evals and read scores |
+| `/api/v1/evals/experiments/*` | create, compare, and accept experiments |
+
+There is intentionally no remote `/api/v1/tools` endpoint. Tool execution remains behind the CLI/runtime `ToolRegistry` seam.
+
+### Create and inspect a run
+
+```bash
+curl -sS http://127.0.0.1:8000/api/v1/agents
+
+RUN_JSON="$(curl -sS \
+  -H 'Content-Type: application/json' \
+  -H 'X-Request-Id: readme-first-run' \
+  -H 'X-Trace-Id: readme.first.run' \
+  -d '{"input": {}, "idempotency_key": "readme-first-run"}' \
+  http://127.0.0.1:8000/api/v1/agents/examples.basic/runs)"
+printf '%s\n' "$RUN_JSON"
+
+export RUN_ID="$(RUN_JSON="$RUN_JSON" uv run python -c \
+  'import json, os; print(json.loads(os.environ["RUN_JSON"])["run_id"])')"
+
+curl -sS "http://127.0.0.1:8000/api/v1/runs/$RUN_ID"
+curl -sS "http://127.0.0.1:8000/api/v1/runs/$RUN_ID/events?after_seq=0"
+```
+
+### Stream with SSE
+
+```bash
+curl -N \
+  -H 'Accept: text/event-stream' \
+  -H 'Last-Event-ID: 0' \
+  "http://127.0.0.1:8000/api/v1/runs/$RUN_ID/events/stream"
+```
+
+The cursor is exclusive. A terminal event closes the stream. `include_internal=true` requires additional policy permission.
+
+### Check a policy decision
+
+```bash
+curl -sS \
+  -H 'Content-Type: application/json' \
+  -d '{"action": "run.read", "resource": "run", "context": {}}' \
+  http://127.0.0.1:8000/api/v1/policies/check
+```
+
+For the service profile, add `-H "Authorization: Bearer $SERVICE_TOKEN"`. Do not put tenant, reviewer, or permission identity into the request body.
+
+Use live Swagger/Redoc for exploration. In the source repository, [`../../API-Contract.md`](../../API-Contract.md) is the field-level source of truth for schemas, status codes, idempotency, approval, event visibility, and recovery rules.
+
+## Create an agent
+
+### Generate the package
+
+From the service-app root:
 
 ```bash
 uv run agent-harness scaffold agent support.triage
+```
+
+This creates `agents/support/triage/` with:
+
+```text
+support/triage/
+├── __init__.py
+├── agent.py
+├── tools.py
+├── schemas.py
+├── config.yaml
+└── evals/
+    ├── drafts/example.yaml
+    └── approved/
+```
+
+The generated package uses a fake model, an empty tool allowlist, empty delegation edges, a typed executor, and a draft-only eval. There is no `--force`; existing paths, invalid IDs, path traversal, and symlink escape are rejected before publication.
+
+### Implement the executor
+
+An Agent exposes a module-level executor that satisfies the public runtime protocol:
+
+```python
+from agent_harness.runtime import (
+    AgentExecutionContext,
+    AgentExecutionRequest,
+    AgentExecutionResult,
+    ApprovalGrant,
+)
+
+
+class SupportTriageExecutor:
+    async def run(
+        self,
+        request: AgentExecutionRequest,
+        context: AgentExecutionContext,
+    ) -> AgentExecutionResult:
+        del context
+        return AgentExecutionResult.completed(
+            {"category": "unknown", "input": request.input, "needs_review": True}
+        )
+
+    async def resume(
+        self,
+        request: AgentExecutionRequest,
+        context: AgentExecutionContext,
+        grant: ApprovalGrant,
+    ) -> AgentExecutionResult:
+        del request, context, grant
+        return AgentExecutionResult.failed("no approval continuation is defined")
+
+
+executor = SupportTriageExecutor()
+```
+
+Use `schemas.py` for validated input/output DTOs and `config.yaml` for registration:
+
+```yaml
+agent_id: support.triage
+version: 0.1.0
+name: Support Triage Agent
+description: Classifies support requests for human routing.
+input_schema: agents.support.triage.schemas.SupportInput
+output_schema: agents.support.triage.schemas.SupportOutput
+executor: agent:executor
+model:
+  provider: fake
+  default_model: fake-scaffold
+  fallback_models: []
+budget:
+  max_tokens_per_run: 1024
+  max_cost_usd_per_run: null
+tool_allowlist: []
+eval_dataset: agents/support/triage/evals/approved
+delegation_edges: []
+```
+
+Then validate discovery and execution:
+
+```bash
 uv run agent-harness agents list \
   --profile local \
   --profiles-dir ./configs/profiles \
   --agents-dir ./agents \
   --storage-dsn "$STORAGE_DSN"
+
 uv run agent-harness run support.triage \
   --profile local \
   --profiles-dir ./configs/profiles \
   --agents-dir ./agents \
   --storage-dsn "$STORAGE_DSN" \
-  --prompt '验证 scaffold runtime'
+  --prompt 'login stopped working'
 ```
 
-省略 `--agents-dir` 时，命令通过当前 service-app 的 `pyproject.toml` 标记定位 `./agents`；无法唯一定位就失败，不猜测相对路径。完整生成、审核和 eval 流程见 [`docs/examples.md`](docs/examples.md#新增自己的-agent)。
+Review the generated draft before moving it through the approved eval flow. Scaffold generation never auto-approves a case.
 
-service profile 的真实依赖验证使用：
+## Map your Agent to five layers and two wings
+
+The template means you do not build every architecture area yourself:
+
+| Area | What to do in this copied application |
+|---|---|
+| Access | normally reuse `app/api`, the core CLI, authentication, OpenAPI, and SSE; add a route only for a real application protocol need |
+| Runtime | declare the Agent in `config.yaml` and return `AgentExecutionResult`; let registry/runtime own runs, checkpoints, approvals, and delegation |
+| Engine | implement typed schemas and the executor in the Agent package; configure model and budget rather than importing a vendor SDK |
+| Tools | keep the allowlist empty unless needed; then register minimal typed tools with workspace, policy, and HITL boundaries |
+| Infra | start with the local profile; add retrieval, providers, PostgreSQL/Redis, or business adapters only when required |
+| Eval Gate | review generated drafts before `approved`; run approved cases as regression evidence |
+| Observability | read run events, usage, and audit locally first; provider telemetry remains optional fan-out |
+
+The normal flow is `CLI/HTTP -> Access -> Runtime -> Engine <-> Tools -> Infra`; Eval tests the same behavior, while Observability records each stage. Graph Nodes/GraphState and independent gateways shown in the product architecture are future extension points, not prerequisites. The diagram's conceptual `@agent.tool` label means the public `ToolRegistry`, not a decorator shortcut.
+
+The source repository provides the complete [five-layer, two-wing Agent development guide](../../docs/building-an-agent.md). That repository-level link will not travel with a standalone copy, so this table deliberately keeps the essential mapping here.
+
+## Python composition API
+
+Application code normally uses the CLI and HTTP surface. When embedding the package, import explicit public modules:
+
+```python
+from pathlib import Path
+
+from agent_harness.config import load_settings
+from agent_harness.registry import AgentRegistry
+
+settings = load_settings(
+    profile="local",
+    profiles_dir=Path("configs/profiles"),
+)
+registry = AgentRegistry.load_from_directory(Path("agents"))
+
+print(settings.profile)
+print([item.agent_id for item in registry.list_agents()])
+```
+
+The template application factory is also injectable for route and health tests. Passing both `orchestrator` and `event_sink` avoids composing storage, but any endpoint exercised by the test still needs a real implementation or a purpose-built test double:
+
+```python
+from pathlib import Path
+from typing import Any, cast
+
+from agent_harness.events import LocalJsonlEventSink
+from agent_harness.registry import AgentRegistry
+from app.main import create_app
+
+app = create_app(
+    orchestrator=cast(Any, object()),
+    event_sink=LocalJsonlEventSink(Path(".agent-harness/test-events.jsonl")),
+    registry=AgentRegistry.load_from_directory(Path("agents")),
+    approval_service=cast(Any, object()),
+    eval_service=cast(Any, object()),
+    profile="local",
+    profiles_dir=Path("configs/profiles"),
+)
+
+assert "/api/v1/health" in app.openapi()["paths"]
+```
+
+This minimal injection is only for route-shape or health tests; use a real `RunOrchestrator` and service dependencies when exercising those endpoints. Production startup should still use `agent-harness-service serve` or an equivalent controlled process entrypoint so migration and configuration errors fail before listening.
+
+## Ergonomic layers and “syntax sugar”
+
+The template has deliberate convenience features:
+
+- **Make targets** shorten trusted, repeatable CLI/script invocations.
+- **Scaffold project-root discovery** lets `scaffold agent` find `./agents` from the copied project's marker; `run` and `agents list` still require an explicit `--agents-dir ./agents`.
+- **Agent scaffolding** creates and validates a complete package before one atomic rename.
+- **Declarative `config.yaml`** registers schemas, executor, model, budget, tools, eval data, and delegation without app-level wiring.
+- **`AgentExecutionResult.completed/waiting/failed`** construct one valid outcome without manual status-field combinations.
+- **`HarnessDTO.to_payload()`** serializes stable JSON-compatible boundary data.
+- **Example prompt adapters** translate convenient `--prompt` text into each example's typed schema.
+
+What the template does not provide is equally important: there is no decorator that bypasses registry validation, no direct tool callable shortcut, no automatic eval approval, and no raw provider/ORM object escape hatch.
+
+## Project structure
+
+```text
+service-app/
+├── app/
+│   ├── api/                 # routes, request/response DTOs, dependencies, SSE
+│   ├── cli/                 # app-specific serve command only
+│   ├── workers/             # independent runtime worker entrypoint
+│   ├── main.py              # FastAPI factory and error/lifecycle wiring
+│   ├── runtime.py           # composition root for public core seams
+│   └── migrate.py           # controlled migration entrypoint
+├── agents/
+│   └── examples/            # basic, RAG, ticket, repo, and dev examples
+├── configs/
+│   ├── profiles/            # typed local/service profiles
+│   └── policy/              # default YAML policy
+├── eval-cases/
+│   ├── drafts/              # review queue; never scored as approved
+│   └── approved/            # human-reviewed application dataset
+├── tests/                   # copied-template public-seam tests
+├── docs/                    # application-specific operating and example guides
+├── scripts/                 # bootstrap, eval, service smoke, and admin helpers
+├── Dockerfile               # wheel-only API/worker image
+├── docker-compose.yml
+├── .env.example
+├── .gitignore
+├── Makefile
+├── pyproject.toml
+├── README.md
+└── README.zh-CN.md
+```
+
+## Module design
+
+| Area | Responsibility and boundary |
+|---|---|
+| `app/main.py` | create one FastAPI app, install routers/error mapping, inject dependencies, and own component shutdown |
+| `app/runtime.py` | bind settings, storage, registry, policy, events, queue, approvals, eval, and delegation through public core seams |
+| `app/api` | authenticate, validate, convert DTOs, and call services; never own ORM sessions or business Agent logic |
+| `app/cli` | provide `serve`; reuse the core CLI for everything else |
+| `app/workers` | consume durable queue messages and restore execution from PostgreSQL truth |
+| `agents/<agent>` | own business executor, schemas, allowed tools, config, and agent-specific eval cases |
+| `configs/profiles` | describe environment topology and provider choices; no committed secret values |
+| `configs/policy` | declare actions that allow, deny, or require approval |
+| `eval-cases` | separate drafts from human-approved evidence |
+| `scripts` | provide copied-project bootstrap and end-to-end verification without depending on repository source paths |
+
+Vendor SDK imports belong in `agent_harness` adapters or an explicitly approved integration boundary. Template app code and business agents depend on provider-neutral DTOs, protocols, facades, repositories, and UoW seams.
+
+Every run record and its evidence must preserve `tenant_id`, `agent_id`, and `run_id`; request/trace IDs add correlation but do not replace those three ownership keys.
+
+## Configuration design
+
+Configuration merge order is:
+
+```text
+profile YAML
+  → agent YAML
+  → .env
+  → trusted *_FILE secret
+  → process environment
+  → explicit override
+```
+
+Environment variables use double underscores for nested fields, for example:
+
+```bash
+export AGENT_HARNESS_STORAGE__DSN="$STORAGE_DSN"
+export AGENT_HARNESS_MODEL__PROVIDER=fake
+export AGENT_HARNESS_SERVICE__API_PROCESS__ENABLED=false
+```
+
+Direct value and matching `_FILE` value are mutually exclusive. Secret files must be trusted absolute, regular, non-symlink files inside the configured secret root. Configuration failures are structured and fail before external connections or application startup.
+
+## Example agents
+
+| Agent | Demonstrates | Default safety behavior |
+|---|---|---|
+| `examples.rag_assistant` | local retrieval, citations, trust-preserving context, fake model | no source produces an honest `no_source` result |
+| `examples.ticket_triage` | typed classification and confidence | ambiguous input becomes `unknown` / `needs_review` |
+| `examples.repo_analyst` | workspace file read/search/list through `ToolRegistry` | no shell; path escape denied; large result uses `artifact_ref` |
+| `examples.dev_assistant` | constrained file/shell tools, policy, HITL continuation | dangerous action waits for approval; deny has zero target side effects |
+
+Commands, inputs, expected outputs, and eval boundaries are documented in [`docs/examples.md`](docs/examples.md).
+
+## Development and testing
+
+For an application-only change:
+
+```bash
+make quality
+make test
+make eval
+make smoke-local
+```
+
+Run `make smoke-service` when the change affects migration, PostgreSQL, Redis, DBOS, service authentication, API/worker separation, queue recovery, approval continuation, or shared event/checkpoint evidence.
+
+Inside the source repository, also run the root gates because they verify core/template import boundaries and the full contract suite:
+
+```bash
+cd ../..
+make quality
+make test
+```
+
+When adding or changing an endpoint, update `API-Contract.md` first and add a local runtime OpenAPI drift test. Do not rely on Swagger rendering alone as contract proof.
+
+## Contributing
+
+For a copied application:
+
+1. Keep business behavior under `agents/*` and application composition under `app/*`.
+2. Add typed schemas and public-seam tests for each behavior and failure path.
+3. Keep `eval-cases/drafts` separate from `eval-cases/approved`; promotion requires human review.
+4. Record deployment/provider choices in your own `docs/` and ADRs.
+5. Never commit `.env`, `.agent-harness`, database files, traces, tokens, or provider payloads.
+
+For an upstream template contribution:
+
+1. Prove it works after a real copy-out with no repository source path or root `PYTHONPATH`.
+2. Do not add member-level `workspace = true` or fixed `cd ../..` assumptions.
+3. Keep `agent-harness-service` limited to `serve`; management logic belongs in the core CLI.
+4. Preserve English/Chinese README parity for changed commands and behavior.
+5. Run root quality/test gates and the relevant local/service smoke.
+
+## Service profile
+
+Run the complete real-dependency verification with:
 
 ```bash
 make smoke-service
 ```
 
-它先构建核心 wheel，再把模板复制到 workspace 外，以单一 wheel-only 镜像启动 PostgreSQL、Redis、migration、API 和 worker。验证内容包括真实 API-key 认证与 401 零副作用、HTTP RUN-001 到 Redis 四字段、DBOS owner 落库后的 worker 硬退出与 `XAUTOCLAIM` 恢复、唯一 terminal、RUN-006 SSE 初始读取/resume/terminal EOF 与零读副作用、shared checkpoint、approval enqueue failure 补投、approve continuation、deny 零 continuation，以及默认删除本轮 container/network/volume/credential。health 只做进程与配置摘要，不能替代 service smoke。
+The script builds or consumes the core wheel, copies the template outside the workspace, and starts PostgreSQL, Redis, migration, API, and worker using the copied project only. It proves authenticated HTTP enqueue, worker pickup/reclaim, DBOS recovery, shared PostgreSQL checkpoint/event evidence, SSE resume, approval continuation, deny-without-continuation, and scoped cleanup.
 
-如需保留本轮 PostgreSQL volume 诊断：
+This command is a verification harness, not a production deployment recipe. By default it removes its containers, network, volume, temporary credentials, queue namespace, and copied workspace.
+
+To retain only the named PostgreSQL volume for diagnosis:
 
 ```bash
 SERVICE_APP_KEEP_DATA=1 make smoke-service
 ```
 
-脚本仍会停止并删除本轮 container/network、临时 credential、Redis namespace 和 workspace 文件，只保留命名 volume，并输出精确的 `docker volume rm` 清理命令。明文 token 不进入 profile、镜像、日志或 artifact。
+The script still removes containers, network, temporary credentials, Redis namespace, and workspace files, then prints the exact `docker volume rm` command.
 
-## Project Structure
+## Troubleshooting
 
-```text
-templates/service-app/
-├── app/
-│   ├── api/                 # HTTP route、DTO 转换和依赖注入
-│   ├── cli/                 # app-specific serve，不复制核心 CLI
-│   └── workers/             # worker 进程入口
-├── agents/examples/         # 每个业务 agent 独立目录
-├── configs/profiles/        # local/service 类型化 profile
-├── eval-cases/
-│   ├── drafts/              # 自动信号只能先进入待审核区
-│   └── approved/            # 只能由人工审核流程写入
-├── tests/                   # 复制模板后可直接运行的公开 seam 测试
-├── docs/                    # app-specific 维护说明入口
-├── scripts/                 # 独立 bootstrap 与 service smoke
-├── Dockerfile               # API/worker 共用的 wheel-only 镜像
-├── docker-compose.yml
-├── .gitignore               # 忽略本地密钥、虚拟环境、数据库、trace 与构建产物
-├── .env.example
-├── Makefile
-└── pyproject.toml
+### Required uv version mismatch
+
+The source workspace refuses commands unless uv is exactly `0.11.29`. Select that version before diagnosing project code.
+
+### Copied project cannot resolve `agent-harness`
+
+Run `make bootstrap AGENT_HARNESS_SOURCE=/absolute/path/to/wheel-or-source`. Do not add a public-index fallback unless your organization deliberately publishes the package and you explicitly enable `AGENT_HARNESS_ALLOW_INDEX=1`.
+
+### Missing fingerprint key
+
+Export `AGENT_HARNESS_BUDGET__FINGERPRINT_KEY` or configure its trusted `_FILE` counterpart before doctor, migration, API, worker, or run composition. Do not rotate it for an existing state database without a planned migration.
+
+### Migration required
+
+Run `app/migrate.py` with the same profile, profiles directory, and `STORAGE_DSN` used by the process. A database at a different path does not count.
+
+### Agent is not listed
+
+Check dotted lowercase `agent_id`, schema references, `executor: agent:executor`, package `__init__.py` files, and the resolved agents root. The registry rejects duplicates and invalid siblings as one unit.
+
+### API starts but a run fails
+
+Read run detail and events first. Then check policy, input guardrail, selected profile, storage migration, and executor output. In service profile also check Redis, worker readiness, and PostgreSQL.
+
+### Tool or file access is denied
+
+Inspect the Agent allowlist, `WorkspacePolicy`, `.agentignore`, shell allow/deny lists, current identity, policy decision, and approval record. Never call the underlying file system or subprocess directly to bypass the result.
+
+### Port 8000 is already in use
+
+Override the Make variable:
+
+```bash
+make dev PORT=8010
 ```
 
-## For Agent App Developers
+## Security boundaries
 
-- 业务 agent 放在 `agents/*`，只依赖 `agent_harness` 公共接口，不直接 import vendor SDK。
-- 使用 `agent-harness scaffold agent <agent_id>` 生成新目录；`agent_id` 必须是点分小写 Python identifier，例如 `support.triage`。
-- `app/*` 只负责协议入口、依赖装配和响应转换，不写业务 agent 逻辑。
-- 使用 `make cli ARGS='<核心命令>'` 或 `uv run agent-harness` 执行 agents、run、approvals、eval 和 policy 管理。
-- eval detector 只能写 `eval-cases/drafts`；`eval-cases/approved` 必须经过人工审核、policy 和 audit seam。
-- `.env`、`.venv` 和 `.agent-harness` 只属于本机运行状态；模板自身的 `.gitignore` 会阻止它们在复制为独立项目后被误提交，`.env.example` 仍应保留在版本库。
-- 所有运行记录必须保留 `tenant_id`、`agent_id`、`run_id`；delegation 必须经过 registry 和 policy。
+- User, retrieval, MCP, and tool content is untrusted input.
+- Service identity comes from bearer/API-key verification, not request-body tenant fields.
+- Tool calls go through schema validation, allowlist, workspace policy, `PolicyEngine`, redaction, audit, and artifact handling.
+- A raw resume token cannot approve a dangerous action; use the approvals CLI/API.
+- Local evidence must commit before optional observability provider fan-out.
+- Eval detectors write drafts only; approved cases require a human review path.
+- Provider SDK objects, ORM sessions, credentials, and raw errors must not cross public DTO boundaries.
 
-## For Scaffold Maintainers
+## Further documentation
 
-- 核心包 `agent_harness/*` 不得依赖模板 `app`、具体示例 agent 或其配置。
-- vendor integration 只能留在受控 adapter 模块，不能反向污染模板、agent 或核心 DTO。
-- 模板 CLI 只拥有 `serve`。`doctor`、agents、run、approvals、eval、policy 等命令继续由核心 `agent-harness` 实现。
-- 模板自身不得声明 `workspace = true` 或固定 `cd ../..`；仓库内 source 由根 workspace 继承，复制项目由 `make bootstrap` 显式选择本地 artifact 或可信 index。
-- `scaffold agent` 属于核心 CLI；模板不得复制生成逻辑。它先在正式 registry 扫描根之外完成渲染和验证，再原子发布具体 Agent 目录。
-- 修改 endpoint 必须先更新 `API-Contract.md`，再运行 template/OpenAPI contract tests。
+- [`docs/README.md`](docs/README.md): copied-app documentation map.
+- [`docs/examples.md`](docs/examples.md): example agents, inputs, outputs, and eval commands.
+- Source-repository [architecture](../../docs/architecture/README.md), [extension guide](../../docs/extension-guide.md), [adapter contracts](../../docs/adapter-contracts.md), [context/trust boundary](../../docs/context-and-trust-boundary.md), [security policy](../../docs/security-policy.md), [eval/observability loop](../../docs/eval-observability-loop.md), [release process](../../docs/release-process.md), and [ADRs](../../docs/adr/0001-p0-service-boundaries.md).
 
-当前 CLI 能力盘点：
+Repository-level links do not travel with a standalone template copy. Record application-specific deployment, provider, data, privacy, and recovery decisions in the copied project's own `docs/`.
 
-| 能力 | 当前归属 | 状态 |
-|---|---|---|
-| `doctor` | 核心 CLI | 已有 |
-| `agents list` / `run` | 核心 CLI | 已有 |
-| `approvals list/approve/deny` | 核心 CLI | 已有 |
-| `eval draft/list/approve/run/scores` | 核心 CLI | 已有 |
-| `policy check` | 核心 CLI | 已有 |
-| `scaffold agent` | 核心 CLI | 已有；原子生成、无 `--force` |
-| `serve` | 模板 CLI | 本切片新增 |
+## License and release boundary
 
-## Deep Docs
+The core repository is Apache-2.0. A copied application must choose and record its own license, privacy requirements, dependency/SBOM policy, model/data licensing, and release process.
 
-模板内维护入口见 [`docs/README.md`](docs/README.md)。在本源仓库中，还可直接查阅仓库级 [架构边界](../../docs/architecture/README.md)、[扩展指南](../../docs/extension-guide.md)、[adapter 合同](../../docs/adapter-contracts.md)、[context 与信任边界](../../docs/context-and-trust-boundary.md)、[安全策略](../../docs/security-policy.md)、[eval/observability 闭环](../../docs/eval-observability-loop.md)、[release 边界](../../docs/release-process.md) 与 [ADR](../../docs/adr/0001-p0-service-boundaries.md)。复制模板后这些仓库级相对链接不会随模板自动复制；独立应用应在自己的 `docs/` 记录本地 adapter、部署和运行手册，并继续遵守公共 seam。
-
-## License & Compliance
-
-仓库核心包按 Apache-2.0 发布。应用复制模板后应保留自己的 license/SBOM gate，并确认新增依赖、模型与数据集的许可证和隐私要求；本仓库的完整 `make license-check` 由 release gate 执行。
-
-## Release Process
-
-本模板在源仓库中是 workspace 成员，复制后则是独立项目；两种模式都不代表生产部署已经完成。当前仓库已提供统一 quality/test/eval/smoke/build/license 门禁、双 CI 合同、自动版本与 CHANGELOG 预演，以及受保护的 promotion/private registry plan/execute seam；本地验证保持零外部副作用。GitHub/GitLab hosted runner、远端 reviewer/protected ref/secret、artifact service 和真实 provider/registry 执行仍为 `hosted-unverified`。不要把 `make dev` 当作生产启动方案；发布前按仓库级 [release process](../../docs/release-process.md) 复核远端保护与凭据边界。
+`make dev` is a development server. `make smoke-service` is an end-to-end verification harness. Neither is a production deployment or proof of hosted runner, protected environment, artifact service, provider, or registry configuration.

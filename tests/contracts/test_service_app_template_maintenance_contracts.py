@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import inspect
 import shutil
 import subprocess
 import tomllib
@@ -11,6 +12,7 @@ from typing import Any
 
 from typer.testing import CliRunner
 
+import agent_harness.cli as core_cli_module
 from agent_harness.cli import app as core_cli
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -58,6 +60,7 @@ def test_template_layout_contains_committable_maintenance_content() -> None:
         ".env.example",
         "Makefile",
         "README.md",
+        "README.zh-CN.md",
         "pyproject.toml",
     )
 
@@ -223,17 +226,14 @@ def test_core_package_does_not_depend_on_template_modules() -> None:
 
 
 def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
-    """README 必须能让应用开发者启动，也能让模板维护者守住边界。"""
+    """中英文 README 都必须能让应用开发者启动，并让模板维护者守住边界。"""
 
-    readme = (TEMPLATE / "README.md").read_text(encoding="utf-8")
+    english = (TEMPLATE / "README.md").read_text(encoding="utf-8")
+    chinese = (TEMPLATE / "README.zh-CN.md").read_text(encoding="utf-8")
     docs = (TEMPLATE / "docs" / "README.md").read_text(encoding="utf-8")
     env_example = (TEMPLATE / ".env.example").read_text(encoding="utf-8")
 
     for marker in (
-        "## Quick Start",
-        "## Project Structure",
-        "## For Agent App Developers",
-        "## For Scaffold Maintainers",
         "make dev",
         "make bootstrap",
         "AGENT_HARNESS_SOURCE",
@@ -242,36 +242,154 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
         "/docs",
         "/redoc",
         "../../docs/extension-guide.md",
-        "本地验证保持零外部副作用",
-        "hosted-unverified",
         "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY",
         "app/migrate.py",
         "AGENT_HARNESS_STORAGE__DSN",
         "scaffold agent",
     ):
-        assert marker in readme
-    assert "原子生成" in readme
-    assert "无 `--force`" in readme
-    assert "eval-cases/approved" in readme
-    assert "审核" in readme
-    assert "app/*" in readme and "agent_harness" in readme
-    assert "agent-harness = { workspace = true }" not in readme
+        assert marker in english
+        assert marker in chinese
+
+    for marker in (
+        "[简体中文](README.zh-CN.md)",
+        "## First use: local profile",
+        "## HTTP API",
+        "## Python composition API",
+        "## Ergonomic layers and “syntax sugar”",
+        "## Project structure",
+        "## Module design",
+        "## Map your Agent to five layers and two wings",
+        "## Development and testing",
+        "## Contributing",
+        "not a production deployment",
+        "removes its containers, network, volume, temporary credentials",
+    ):
+        assert marker in english
+
+    for marker in (
+        "[English](README.md)",
+        "## 首次使用：local profile",
+        "## HTTP API",
+        "## Python 组合 API",
+        "## 便捷封装和“语法糖”",
+        "## 目录结构",
+        "## 模块设计思路",
+        "## 把 Agent 对应到五层两翼",
+        "## 开发和测试",
+        "## 贡献指南",
+        "原子 Agent 生成器",
+        "没有 `--force`",
+        "人工审核",
+        "都不是生产部署",
+        "删除本轮 container、network、volume、临时 credential",
+    ):
+        assert marker in chinese
+
+    for readme in (english, chinese):
+        assert "eval-cases/approved" in readme
+        assert "app/*" in readme and "agent_harness" in readme
+        assert "agent-harness = { workspace = true }" not in readme
+        assert "后续文档交付" not in readme
+    assert "`tenant_id`, `agent_id`, and `run_id`" in english
+    assert "`tenant_id`、`agent_id`、`run_id`" in chinese
+    assert "Project-root discovery lets core CLI commands" not in english
+    assert "核心 CLI 在复制后的 service-app 中自动定位" not in chinese
     assert "../../../docs/adapter-contracts.md" in docs
     assert "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY=" in env_example
     assert "同一状态库生命周期内保持稳定" in env_example
-    assert "后续文档交付" not in readme
     assert "后续文档交付" not in docs
 
 
 def test_root_readme_preserves_product_overview_and_delegation_boundary() -> None:
-    """保护根入口的产品定位与委派门禁，避免维护文档把关键约束下沉后导致入口失真。"""
+    """保护双语根入口的产品定位与委派门禁，避免关键约束下沉后导致入口失真。"""
 
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    english = (ROOT / "README.md").read_text(encoding="utf-8")
+    chinese = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
 
-    assert "## What this scaffold is" in readme
-    assert "Multi-agent delegation" in readme
-    assert "AgentRegistry" in readme
-    assert "PolicyEngine" in readme
+    for marker in (
+        "## What it does",
+        "## First use",
+        "## Python API",
+        "## Ergonomic layers and “syntax sugar”",
+        "## Project structure",
+        "## Module design",
+        "## Build an Agent with five layers and two wings",
+        "## Developer guide",
+        "## Contributing",
+        "[简体中文](README.zh-CN.md)",
+    ):
+        assert marker in english
+
+    for marker in (
+        "## 这个项目能做什么",
+        "## 第一次使用",
+        "## Python API",
+        "## 便捷封装和“语法糖”",
+        "## 目录结构",
+        "## 模块设计思路",
+        "## 用五层两翼开发一个 Agent",
+        "## 开发者指南",
+        "## 贡献指南",
+        "[English](README.md)",
+    ):
+        assert marker in chinese
+
+    for readme in (english, chinese):
+        assert "AgentRegistry" in readme
+        assert "PolicyEngine" in readme
+        assert "delegation" in readme
+        assert "docs/building-an-agent.md" in readme
+    assert "`tenant_id`, `agent_id`, and `run_id`" in english
+    assert "`tenant_id`、`agent_id`、`run_id`" in chinese
+
+
+def test_run_commands_keep_explicit_agents_dir_separate_from_scaffold_discovery() -> None:
+    """run/list 仍使用源仓库默认路径，README 只能把项目根发现归给 scaffold。"""
+
+    expected_default = Path("templates/service-app/agents")
+
+    assert (
+        inspect.signature(core_cli_module.run).parameters["agents_dir"].default == expected_default
+    )
+    assert (
+        inspect.signature(core_cli_module.list_agents).parameters["agents_dir"].default
+        == expected_default
+    )
+
+    english = (TEMPLATE / "README.md").read_text(encoding="utf-8")
+    chinese = (TEMPLATE / "README.zh-CN.md").read_text(encoding="utf-8")
+    assert "Project-root discovery belongs only to `scaffold agent`" in english
+    assert "只有 `scaffold agent`" in chinese
+    assert "`run` and `agents list` still require an explicit `--agents-dir ./agents`" in english
+    assert "`run` 和 `agents list` 仍需显式传 `--agents-dir ./agents`" in chinese
+
+
+def test_five_layer_two_wing_guide_maps_architecture_to_agent_work() -> None:
+    """五层两翼不能只停在架构图，必须能映射到创建 Agent 的实际动作。"""
+
+    guide_path = ROOT / "docs" / "building-an-agent.md"
+    guide = guide_path.read_text(encoding="utf-8")
+    architecture = (ROOT / "docs" / "architecture" / "README.md").read_text(encoding="utf-8")
+
+    for marker in (
+        "1. 接入与交互层 Access",
+        "2. 编排与运行时层 Runtime",
+        "3. 引擎与认知层 Engine",
+        "4. 工具与能力层 Tools",
+        "5. 基础设施与数据层 Infra",
+        "左翼 Eval Gate",
+        "右翼 Observability",
+        "support.triage",
+        "AgentRegistry.load_from_directory()",
+        "AgentExecutionResult.completed(output)",
+        "ToolRegistry",
+        "GraphState",
+        "目标扩展位",
+    ):
+        assert marker in guide
+
+    assert "../building-an-agent.md" in architecture
+    assert "概念性工具注册标签" in architecture
 
 
 def test_service_boundary_adr_links_back_to_maintainer_navigation() -> None:

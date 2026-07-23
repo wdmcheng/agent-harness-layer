@@ -2,7 +2,7 @@
 
 适用读者：在 `templates/service-app` 增加业务能力的 app developer，以及维护公共 seam 的 scaffold maintainer。
 
-导航：[根 README](../README.md) · [架构边界](architecture/README.md) · [Adapter 合同](adapter-contracts.md) · [Context 与信任边界](context-and-trust-boundary.md) · [安全策略](security-policy.md) · [Eval/Observability](eval-observability-loop.md)
+导航：[根 README](../README.md) · [五层两翼开发 Agent](building-an-agent.md) · [架构边界](architecture/README.md) · [Adapter 合同](adapter-contracts.md) · [Context 与信任边界](context-and-trust-boundary.md) · [安全策略](security-policy.md) · [Eval/Observability](eval-observability-loop.md)
 
 ## 扩展原则
 
@@ -10,7 +10,7 @@
 
 `make quality` 会执行 `scripts/import_boundary_check.py`。绕过检查、把 SDK 放进业务 agent，或者为了过检查弱化规则，都不是扩展方式。
 
-下文的 direct local CLI 命令都假设已经按 [`templates/service-app` Quick Start](../templates/service-app/README.md#quick-start) 导出 `AGENT_HARNESS_BUDGET__FINGERPRINT_KEY`/storage DSN 并完成 SQLite migration。缺少任一前置时应 fail closed，不能把 `config.invalid` 或 `storage.migration_required` 当成工具故障。
+下文的 direct local CLI 命令都假设已经按 [`templates/service-app` First use](../templates/service-app/README.md#first-use-local-profile) 导出 `AGENT_HARNESS_BUDGET__FINGERPRINT_KEY`/storage DSN 并完成 SQLite migration。缺少任一前置时应 fail closed，不能把 `config.invalid` 或 `storage.migration_required` 当成工具故障。
 
 ## Agent
 
