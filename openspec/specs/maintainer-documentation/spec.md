@@ -41,11 +41,11 @@
 - **THEN** 文档明确标注前置条件和证据来源，且最终验证记录来自真实 service profile
 
 ### Requirement: 文档版本、链接与决策可复核
-系统 SHALL 使文档中的内部路径、锚点、外部引用和技术版本可从当前 checkout 复核。Python dependency 的支持范围、当前精确解析与 CI/release 工具基线 MUST 分别与对应 `pyproject.toml`、`uv.lock` 和 CI/release 配置一致；Docker runtime MUST 按 Compose image reference 描述 pin 粒度；仓库未锁定的外部 CLI MUST 标明未锁定并记录本次验证版本，不得冒充 lock 内容。vendor isolation 与 Redis runtime/license policy MUST 由独立 ADR 记录背景、决策、替代方案、后果和复审触发条件。
+系统 SHALL 使文档中的内部路径、锚点、外部引用和技术版本可从当前 checkout 复核。Python dependency 的支持范围、当前精确解析、uv CLI 支持范围、CI 具体工具版本与单次发布证据实际版本 MUST 分别与对应 `pyproject.toml`、`uv.lock`、CI/release 配置和 artifact 一致；Docker runtime MUST 按 Compose image reference 描述 pin 粒度；仓库未锁定的外部 CLI MUST 标明未锁定并记录本次验证版本，不得冒充 lock 内容。vendor isolation 与 Redis runtime/license policy MUST 由独立 ADR 记录背景、决策、替代方案、后果和复审触发条件。
 
 #### Scenario: 当前 checkout 执行文档核验
 - **WHEN** 维护者对当前维护文档运行链接、路径、命令与版本核验
-- **THEN** 所有内部目标存在、文档命令可执行或明确标注 service 前置，dependency 支持范围、lock 解析、CI/release 基线、Compose 与外部 CLI 分别按其权威来源核验，已知上游表述冲突被纠正，外部事实有官方来源
+- **THEN** 所有内部目标存在、文档命令可执行或明确标注 service 前置，dependency 支持范围、lock 解析、uv CLI 支持范围、CI 具体版本、单次发布证据实际版本、Compose 与外部 CLI 分别按其权威来源核验，已知上游表述冲突被纠正，外部事实有官方来源
 
 #### Scenario: 外部 provider 或 Redis 版本变化
 - **WHEN** 维护者计划升级 vendor SDK、Redis runtime 或改变部署用途
@@ -53,7 +53,7 @@
 
 #### Scenario: 维护者区分放宽与升级
 - **WHEN** 维护者阅读根或模板 README 与 release process 的依赖维护章节
-- **THEN** 文档明确说明放宽 `pyproject.toml` 不会自动升级 `uv.lock`，并给出普通 locked/frozen 验证与显式 upgrade 的不同受审边界
+- **THEN** 文档明确说明放宽 `pyproject.toml` 或 uv patch 支持范围不会自动升级 `uv.lock` 中的 Python package，给出普通 locked/frozen 验证与显式 dependency upgrade 的不同受审边界，并说明 CI 具体 uv pin 不代表唯一兼容 patch
 
 ### Requirement: 完成状态只由冻结证据驱动
 系统 MUST 在文档交付、命令/链接/版本核验和 OpenSpec strict validation 通过后，先把相关验收与维护状态更新进候选最终 diff，再冻结该 diff 交 fresh reviewer。只有包含状态更新的同一冻结 diff 达到 Stage 1/2 PASS，对应维护目标才可声明完成。任何审查后实质变更 MUST 使旧 review 结论失效并触发重新审查。

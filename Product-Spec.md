@@ -1256,18 +1256,18 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - 根 workspace、核心包、可选 extra、service-app 模板及其开发/构建工具中的外部依赖 MUST 使用带已验证下界和破坏性升级上界的 PEP 440 范围；稳定版本默认限制在下一主版本之前，`0.x` 依赖默认限制在下一次版本之前，已知上游组合约束可以更窄。根 workspace 与 service-app 模板对同仓库 `agent-harness` 的自依赖 MUST 精确匹配当前项目版本，避免模板和核心包跨版本组合。
 - `uv.lock` MUST 继续记录完整精确解析；普通 `uv sync --locked`、`uv lock --check`、CI 和 release 不得仅因声明范围放宽而升级已锁包，升级必须通过显式 `uv lock --upgrade` 或等价受审动作发起。
 - build-system metadata 可以向消费者声明兼容范围，但仓库 release preview 与正式 tag build MUST 先按 frozen lock 准备受审 build backend，再关闭默认 build isolation 使用该精确 backend；manifest MUST 记录并核对 backend identity，不能假定默认隔离构建会继承项目 lock。
-- 根 `[tool.uv].required-version` MUST 接受已验证的 uv `0.11.19` 至 `0.12` 之前版本；GitHub、GitLab、release wrapper 和发布证据继续精确使用 `0.11.29`，从而同时保留本地 patch 兼容性和可复核发布基线。
+- 根 `[tool.uv].required-version` 与 release wrapper MUST 接受 uv `>=0.11.29,<0.12`；GitHub 与 GitLab 当前执行环境继续具体选择 `0.11.29` 及受审 OCI digest，但该选择不得收窄 wrapper 的兼容范围。`release` preview、正式 build 与 publish plan MUST 记录各自实际使用的范围内 uv 版本，`no-release` preview MUST 记录 `uv_version: null` 且不得仅为填充证据启动 uv 或 build。
 - 发布 promotion MUST 只更新本项目版本及两处 `agent-harness` 精确自依赖，不得放宽为兼容范围或通配形式。
 
 **规则：**
 - MUST exact pin 只出现在 lock、同仓库版本耦合的自依赖、CI image/action、发布 wrapper、容器 digest、合规快照或其他明确要求不可变身份的边界；若 `pyproject.toml` 的外部依赖确需 exact pin，必须就地写明兼容、安全或合规原因并有合同测试覆盖。
 - MUST 声明范围变化与解析升级分开审查；只放宽且包含当前版本时，`uv.lock` 中的 `(name, version, source)` 身份不得变化。
-- MUST 双语 README 与 release 文档明确区分“支持范围”“当前 lock 解析”和“CI/发布精确工具基线”。
+- MUST 双语 README 与 release 文档明确区分“支持范围”“当前 lock 解析”“CI 具体工具版本”和“单次发布证据实际版本”。
 
 **验收标准：**
 - [x] AC-069: Given 三份 `pyproject.toml`, when 检查普通、optional、dev、license、release 与 build-system 声明, then 所有可放宽的外部依赖都含已验证下界和兼容上界；根 workspace 与 service-app 模板的 `agent-harness` 自依赖精确等于当前项目版本，且不存在其他无说明 exact pin。
 - [x] AC-070: Given 当前 `uv.lock`, when 只将依赖声明改为包含当前版本的兼容范围并刷新 lock metadata, then 所有已锁 package 的 `(name, version, source)` 身份保持不变，`uv lock --check` 和 frozen sync 通过。
-- [x] AC-071: Given release promotion 将版本从 `0.1.x` 提升到 `0.2.0`, when 更新根 workspace 与 service-app 模板依赖, then 两者都得到 `agent-harness==0.2.0`，本地 uv `0.11.19` 可读取当前 lock，而 CI/release 仍精确使用 `0.11.29`。
+- [x] AC-071: Given release promotion 将版本从 `0.1.x` 提升到 `0.2.0`, when 更新根 workspace 与 service-app 模板依赖, then 两者都得到 `agent-harness==0.2.0`；uv `>=0.11.29,<0.12` 可读取当前 lock 并通过 release wrapper，CI 当前具体使用 `0.11.29`，单次发布证据记录实际 uv 版本。
 - [x] AC-072: Given build-system metadata 使用 `hatchling>=1.30.1,<2`, when release preview 或正式 tag build 生成 wheel/sdist, then 构建入口只使用 frozen lock 中精确 `hatchling 1.30.1`，manifest 记录该 backend identity，任何缺失或漂移都在产物授权前 fail closed。
 
 ### AI 能力规格

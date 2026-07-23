@@ -80,7 +80,7 @@ Required for local development:
 - Git;
 - GNU Make;
 - Python `>=3.12`;
-- uv `>=0.11.19,<0.12` for local development. CI and release evidence use `0.11.29` exactly.
+- uv `>=0.11.29,<0.12` for local development and release wrappers. CI currently selects `0.11.29`; each release artifact records the actual supported patch it used.
 
 Verify before running repository commands:
 
@@ -91,7 +91,7 @@ git --version
 make --version
 ```
 
-If uv is missing or outside the supported range, install the exact CI/release baseline with the [official versioned installer](https://docs.astral.sh/uv/getting-started/installation/), or use your package manager's equivalent version-selection mechanism:
+If uv is missing or outside the supported range, install the current concrete CI version with the [official versioned installer](https://docs.astral.sh/uv/getting-started/installation/), or use your package manager's equivalent version-selection mechanism:
 
 ```bash
 curl -LsSf https://astral.sh/uv/0.11.29/install.sh | sh
@@ -409,7 +409,7 @@ Documentation-only contributions must still verify commands, internal links, lan
 
 ### uv rejects every command
 
-If the error says the required uv version does not match, select a uv version in `>=0.11.19,<0.12`; use `0.11.29` when reproducing CI or release evidence. The rejection occurs before project code runs.
+If the error says the required uv version does not match, select a uv version in `>=0.11.29,<0.12`; use `0.11.29` when reproducing the current CI environment. Preview, formal build, and publish plans record their actual uv patch. The rejection occurs before project code runs.
 
 ### `config.invalid` or a missing fingerprint key
 

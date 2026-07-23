@@ -48,7 +48,7 @@ uv run pre-commit run --all-files
 
 失败即停止。不要在 service smoke 失败时用 local 结果替代；不要在 license check 通过后声称完成了依赖许可证法律审计。
 
-本地开发接受 uv `>=0.11.19,<0.12`；CI、release wrapper 与可复现发布证据精确使用 `0.11.29`。若宿主设置了 HTTP 代理，`127.0.0.1`/`localhost` 必须进入 `NO_PROXY` 与 `no_proxy`；否则 service smoke 的宿主 HTTP 请求可能被代理截获并返回 HTML 503，而容器内 API 仍健康。2026-07-22 的归档候选已在 `NO_PROXY=127.0.0.1,localhost` 下完整通过真实 service smoke 并生成 service trace；这证明本地 service gate，不证明 hosted runner 或生产网络配置。
+本地开发与 release wrapper 接受 uv `>=0.11.29,<0.12`；CI 当前具体选择 `0.11.29`，preview、正式 build 与 publish plan artifact 分别记录本阶段实际使用的受支持 patch。若宿主设置了 HTTP 代理，`127.0.0.1`/`localhost` 必须进入 `NO_PROXY` 与 `no_proxy`；否则 service smoke 的宿主 HTTP 请求可能被代理截获并返回 HTML 503，而容器内 API 仍健康。2026-07-22 的归档候选已在 `NO_PROXY=127.0.0.1,localhost` 下完整通过真实 service smoke 并生成 service trace；这证明本地 service gate，不证明 hosted runner 或生产网络配置。
 
 ## 版本真相
 
@@ -57,11 +57,11 @@ uv run pre-commit run --all-files
 | Python dependency declaration | root/package/template `pyproject.toml` | 外部依赖写有界范围；根与模板的 `agent-harness` 自依赖精确匹配当前项目版本 |
 | Python dependency resolution | `uv.lock` | 保存受审的精确 `(name, version, source)` 身份，用 `uv lock --check` 与 `uv tree --locked` 复核 |
 | Docker runtime | `templates/service-app/docker-compose.yml` 与 `compliance/third-party.toml` | PostgreSQL `18.4` 与 Redis `7.2.14` 使用完整 OCI index digest；实际 server 版本仍须由 service smoke 记录 |
-| uv CLI | 根 `pyproject.toml`、GitHub setup action、GitLab image | 本地 `required-version` 为 `>=0.11.19,<0.12`；两套 CI、release wrapper 与 `uv publish` 精确使用 `0.11.29` |
+| uv CLI | 根 `pyproject.toml`、release wrapper、GitHub setup action、GitLab image | 支持范围为 `>=0.11.29,<0.12`；两套 CI 当前具体选择 `0.11.29`，发布 artifact 绑定实际 patch |
 | 其他外部 CLI | 当前开发机或 CI runner | Docker、Compose 等宿主工具未由 Python lock 固定；运行证据必须记录实际版本，不能称为项目 pin |
 | 实际 server patch | 某次 service smoke 输出 | 只作为该次运行证据，不反向改写 Compose 声明 |
 
-技术栈表与上述受控来源冲突时，修正文档，不偷偷升级 dependency、toolchain 或 image。放宽声明不得改变 lock 身份；升级依赖必须通过单独受审的 `uv lock --upgrade` 发起。升级 uv CLI 时必须同步本地范围、两套 CI pin、release 合同和 lock 验证；Docker/Compose 的 hosted runner 能力仍属于未验证边界。
+技术栈表与上述受控来源冲突时，修正文档，不偷偷升级 dependency、toolchain 或 image。放宽声明不得改变 lock 身份；升级依赖必须通过单独受审的 `uv lock --upgrade` 发起。调整 uv 支持窗口时必须同步根范围、release 合同与边界验证；调整具体 CI 版本或 image identity 单独审查。Docker/Compose 的 hosted runner 能力仍属于未验证边界。
 
 ## CI 与发布工具选择
 
@@ -69,13 +69,13 @@ uv run pre-commit run --all-files
 
 | 工具 | 版本或 pin | 选择依据与官方来源 | 与 `uv workspace` 的适配结论 |
 |---|---|---|---|
-| uv | 本地 `>=0.11.19,<0.12`；CI/发布 `0.11.29` | [uv 0.11.29 metadata](https://github.com/astral-sh/uv/blob/0.11.29/pyproject.toml)、[`uv lock --check`](https://docs.astral.sh/uv/concepts/projects/sync/#checking-the-lockfile)、[build/publish guide](https://docs.astral.sh/uv/guides/package/)；本地 patch 范围与发布精确基线分别验证。 | workspace 开发继续使用根 `tool.uv.sources`；发布兼容性通过 workspace 外默认隔离构建与安装验证，确保 metadata 不依赖本机 workspace path。 |
+| uv | 支持 `>=0.11.29,<0.12`；CI 当前 `0.11.29` | [uv 0.11.29 metadata](https://github.com/astral-sh/uv/blob/0.11.29/pyproject.toml)、[`uv lock --check`](https://docs.astral.sh/uv/concepts/projects/sync/#checking-the-lockfile)、[build/publish guide](https://docs.astral.sh/uv/guides/package/)；边界合同覆盖范围，发布 artifact 绑定实际 patch。 | workspace 开发继续使用根 `tool.uv.sources`；发布兼容性通过 workspace 外默认隔离构建与安装验证，确保 metadata 不依赖本机 workspace path。 |
 | python-semantic-release | 声明 `>=10.6.1,<11`；lock `10.6.1` | [10.6.1 metadata](https://github.com/python-semantic-release/python-semantic-release/blob/v10.6.1/pyproject.toml) 与 [version command](https://python-semantic-release.readthedocs.io/en/latest/api/commands.html#semantic-release-version)；只复用 Conventional Commits 解析与下一 SemVer 计算，仓库 wrapper 负责无副作用 preview。 | 根 `release` dependency group 使用有界声明，`uv.lock` 保存精确身份；不进入核心包或模板 runtime dependency。 |
 | `actions/checkout` | `9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0` | [官方 commit](https://github.com/actions/checkout/commit/9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)；完整 SHA 固定 action 代码。 | 只提供 checkout；依赖解析仍由固定 uv 和仓库 lock 控制。 |
 | `astral-sh/setup-uv` | `08807647e7069bb48b6ef5acd8ec9567f424441b` | [官方 commit](https://github.com/astral-sh/setup-uv/commit/08807647e7069bb48b6ef5acd8ec9567f424441b) 与 [setup-uv 文档](https://github.com/astral-sh/setup-uv)；输入 `version: 0.11.29`。 | 只安装精确 uv；不改变 workspace sources 或 lock。 |
 | `actions/upload-artifact` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | [官方 commit](https://github.com/actions/upload-artifact/commit/043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)；归档每个 gate 的 result/log 与产物。 | 只传输 `.artifacts/` 和 `dist/`，不参与依赖解析。 |
 | `actions/download-artifact` | `95815c38cf2ff2164869cbab79da8d1f422bc89e` | [官方 commit](https://github.com/actions/download-artifact/commit/95815c38cf2ff2164869cbab79da8d1f422bc89e)；按 job DAG 交接证据。 | 只消费上游 artifact，不允许用缺失或旧 identity 结果继续 release gate。 |
-| GitLab uv image | `ghcr.io/astral-sh/uv:0.11.29-python3.12-trixie-slim@sha256:36cdfbf910c8b0f651355c013e7ece9678f4ecbf030a9fd9e6779de421189805` | [uv GitLab integration](https://docs.astral.sh/uv/guides/integration/gitlab/) 与 [GitLab image syntax](https://docs.gitlab.com/ci/yaml/#image)；tag 便于人读，digest 固定实际 OCI index。 | image 内 uv 是发布精确基线；互斥的 release/license 组分别同步，并显式排除另一组。 |
+| GitLab uv image | `ghcr.io/astral-sh/uv:0.11.29-python3.12-trixie-slim@sha256:36cdfbf910c8b0f651355c013e7ece9678f4ecbf030a9fd9e6779de421189805` | [uv GitLab integration](https://docs.astral.sh/uv/guides/integration/gitlab/) 与 [GitLab image syntax](https://docs.gitlab.com/ci/yaml/#image)；tag 便于人读，digest 固定实际 OCI index。 | image 内 uv 是当前具体 CI 环境，不是 wrapper 唯一兼容的 patch；互斥的 release/license 组分别同步，并显式排除另一组。 |
 | act | `0.2.88` | [act v0.2.88 官方 README](https://github.com/nektos/act/blob/v0.2.88/README.md)；用于本地读取 workflow、解析依赖并在 Docker 容器执行 job。 | 只验证 GitHub workflow 的本地容器执行语义；不替代 hosted artifact service、权限或 runner 证明。 |
 | gitlab-ci-local | `4.73.0` | [4.73.0 官方 README](https://github.com/firecow/gitlab-ci-local/blob/4.73.0/README.md)；用于本地 Docker executor 与 artifact/needs 路径验证。 | 只验证本地 GitLab job 执行；protected variables、protected environment 和 hosted runner 保持未验证。 |
 

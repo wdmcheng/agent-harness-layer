@@ -258,13 +258,16 @@ def create_preview(repo: Path, output: Path) -> dict[str, Any]:
                 "current_version": current,
                 "next_version": None,
                 "tag": None,
+                "uv_version": None,
                 "decision": {"bump": None, "reason": reason, "commits": commits},
                 "artifacts": [],
             }
         else:
             if next_version is None or tag is None:
                 raise ReleaseContractError("release decision lacks calculated version or tag")
-            records, backend = build_preview_artifacts(repo, output, next_version, commits)
+            records, backend, uv_version = build_preview_artifacts(
+                repo, output, next_version, commits
+            )
             manifest = {
                 "schema_version": "release-preview/v1",
                 "status": "release",
@@ -272,6 +275,7 @@ def create_preview(repo: Path, output: Path) -> dict[str, Any]:
                 "current_version": current,
                 "next_version": next_version,
                 "tag": tag,
+                "uv_version": uv_version,
                 "decision": {"bump": bump, "reason": reason, "commits": commits},
                 "build_backend": backend,
                 "artifacts": records,

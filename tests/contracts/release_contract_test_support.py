@@ -71,7 +71,7 @@ release = ["hatchling>=1.30.1,<2"]
 license = []
 
 [tool.uv]
-required-version = ">=0.11.19,<0.12"
+required-version = ">=0.11.29,<0.12"
 conflicts = [[{ group = "release" }, { group = "license" }]]
 # Fixture 从零创建仓库时用私有 constraint 复现受审 lock 中的 backend；真实仓库
 # 已有 lock preference，不应为了测试而切换全局 resolution mode。
@@ -271,6 +271,7 @@ def write_publish_inputs(root: Path, *, status: str = "promoted") -> tuple[Path,
         "current_version": "0.1.0",
         "next_version": "0.2.0",
         "tag": "agent-harness-v0.2.0",
+        "uv_version": "0.11.29",
         "build_backend": build_backend_identity(),
         "decision": {"bump": "minor", "reason": "feat", "commits": []},
         "artifacts": all_artifacts,

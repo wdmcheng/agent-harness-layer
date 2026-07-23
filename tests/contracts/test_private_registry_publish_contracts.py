@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import sys
 from collections.abc import Generator
@@ -31,7 +32,9 @@ from scripts.registry_publish import (  # noqa: E402  # pyright: ignore[reportPr
     _upload,
     publish,
 )
-from scripts.release_models import redact  # noqa: E402
+from scripts.release_models import ReleaseContractError, redact  # noqa: E402
+
+REGISTRY_MODULE = importlib.import_module("scripts.registry_publish")
 
 
 @pytest.fixture
@@ -85,6 +88,128 @@ def test_registry_plan_is_default_and_execute_requires_all_gates(tmp_path: Path)
     )
     assert rejected.returncode != 0
     assert "fixture-secret" not in rejected.stdout + rejected.stderr
+
+
+def test_cli_plan_drift_error_does_not_read_registry_credential(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CLI 入口必须先让 publish 校验 plan identity，普通合同失败不得读取 token。"""
+
+    token_reads: list[str] = []
+    original_get = REGISTRY_MODULE.os.environ.get
+
+    def tracking_get(key: str, default: str | None = None) -> str | None:
+        """记录敏感键读取，区分“未泄漏”与“根本未读取”。"""
+
+        if key == "UV_PUBLISH_TOKEN":
+            token_reads.append(key)
+        return original_get(key, default)
+
+    def reject_plan_drift(**_kwargs: object) -> dict[str, object]:
+        """模拟 publish 在 credential 门禁前发现受审 plan identity 漂移。"""
+
+        raise ReleaseContractError("registry approval plan identity drift")
+
+    monkeypatch.setenv("UV_PUBLISH_TOKEN", "must-not-be-read")
+    monkeypatch.setattr(REGISTRY_MODULE.os.environ, "get", tracking_get)
+    monkeypatch.setattr(REGISTRY_MODULE, "publish", reject_plan_drift)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "registry_publish.py",
+            "--manifest",
+            str(tmp_path / "preview.json"),
+            "--promotion-receipt",
+            str(tmp_path / "receipt.json"),
+        ],
+    )
+
+    assert REGISTRY_MODULE.main() == 2
+    assert token_reads == []
+
+
+def test_registry_execute_rejects_approved_uv_patch_drift_before_credential_or_network(
+    tmp_path: Path,
+    loopback_server: tuple[str, type[RegistryHandler]],
+) -> None:
+    """plan 绑定实际 uv patch；execute 换成另一受支持 patch 也必须重新审批。"""
+
+    endpoint, handler = loopback_server
+    preview, receipt, _ = write_publish_inputs(tmp_path)
+    promotion = json.loads(receipt.read_text(encoding="utf-8"))
+    build = tmp_path / str(promotion["release_build_manifest"])
+    plan_path = tmp_path / "registry-plan.json"
+    uv_29 = tmp_path / "uv-0.11.29"
+    uv_31 = tmp_path / "uv-0.11.31"
+    credential_probe = tmp_path / "uv-version-probe-credential.txt"
+    for executable, version in ((uv_29, "0.11.29"), (uv_31, "0.11.31")):
+        credential_check = ""
+        if version == "0.11.31":
+            # execute 阶段会把 registry token 放入父进程环境；待验证的 uv 身份探测
+            # 不得继承该凭据，否则漂移拒绝发生前 executable 已经能够读取密钥。
+            credential_check = (
+                'if [ -n "${UV_PUBLISH_TOKEN+x}" ]; then '
+                f"printf '%s' \"$UV_PUBLISH_TOKEN\" > '{credential_probe}'; fi\n"
+            )
+        executable.write_text(
+            f"#!/bin/sh\n{credential_check}printf 'uv {version} (fixture)\\n'\n",
+            encoding="utf-8",
+        )
+        executable.chmod(0o700)
+    arguments = (
+        sys.executable,
+        str(PUBLISH),
+        "--manifest",
+        str(preview),
+        "--promotion-receipt",
+        str(receipt),
+        "--build-manifest",
+        str(build),
+        "--artifact-root",
+        str(tmp_path),
+    )
+    evidence = {
+        "RELEASE_TEST_MODE": "true",
+        "UV_PUBLISH_URL": endpoint,
+        "UV_PUBLISH_CHECK_URL": f"{endpoint}/simple",
+        "RELEASE_PROTECTED_REF_NAME": f"refs/tags/{promotion['tag']}",
+        "RELEASE_PROTECTED_REF_SHA": str(promotion["release_commit_sha"]),
+    }
+    planned = run(
+        *arguments,
+        "--plan-output",
+        str(plan_path),
+        cwd=ROOT,
+        env={**evidence, "UV": str(uv_29)},
+    )
+    assert planned.returncode == 0, planned.stderr
+    plan = json.loads(planned.stdout)
+    assert plan["uv_version"] == "0.11.29"
+    assert plan["approval"]["uv_version"] == "0.11.29"
+
+    executed = run(
+        *arguments,
+        "--plan-input",
+        str(plan_path),
+        "--execute",
+        cwd=ROOT,
+        env={
+            **evidence,
+            "UV": str(uv_31),
+            "REGISTRY_PUBLISH_APPROVED": "true",
+            "REGISTRY_PUBLISH_APPROVAL_SHA256": str(plan["approval_sha256"]),
+            "RELEASE_PROTECTED_REF": "true",
+            "UV_PUBLISH_TOKEN": "must-not-be-read",
+        },
+    )
+
+    assert executed.returncode != 0
+    assert "plan identity drift" in executed.stderr
+    assert "must-not-be-read" not in executed.stdout + executed.stderr
+    assert not credential_probe.exists()
+    assert handler.requests == []
 
 
 def test_registry_rejects_cross_authority_check_endpoint_before_network(tmp_path: Path) -> None:
@@ -249,6 +374,7 @@ def test_registry_rejects_bytes_changed_between_preflight_and_upload(
             artifact,
             checksum,
             "0.2.0",
+            "uv",
         )
     assert handler.requests == []
 

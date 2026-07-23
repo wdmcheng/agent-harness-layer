@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import sys
@@ -19,6 +20,11 @@ from release_contract_test_support import (
     run,
     write_release_repo,
 )
+
+SCRIPTS = ROOT / "scripts"
+sys.path.insert(0, str(SCRIPTS))
+RELEASE_DRY_RUN_MODULE = importlib.import_module("release_dry_run")
+RELEASE_PREVIEW_BUILD_MODULE = importlib.import_module("release_preview_build")
 
 
 def test_releasable_history_generates_explained_version_and_isolated_artifacts(
@@ -55,6 +61,7 @@ def test_releasable_history_generates_explained_version_and_isolated_artifacts(
         "version": "1.30.1",
         "source": {"registry": "https://pypi.org/simple"},
     }
+    assert manifest["uv_version"] == run(os.environ["UV"], "--version", cwd=repo).stdout.split()[1]
     kinds = {item["kind"] for item in manifest["artifacts"]}
     assert {"wheel", "sdist", "changelog", "release-notes", "checksums"} <= kinds
     assert before == (
@@ -149,7 +156,10 @@ def test_perf_commit_matches_psr_patch_release_after_existing_tag(tmp_path: Path
     assert "perf" in manifest["decision"]["reason"]
 
 
-def test_no_release_history_succeeds_without_build_or_tag(tmp_path: Path) -> None:
+def test_no_release_history_succeeds_without_uv_build_or_tag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """tag 后只有 docs 提交时明确返回 no-release，不伪造版本、tag 或构建发布物。"""
 
     repo = tmp_path / "repo"
@@ -159,6 +169,14 @@ def test_no_release_history_succeeds_without_build_or_tag(tmp_path: Path) -> Non
     git(repo, "add", "README.md")
     git(repo, "commit", "-m", "docs: explain usage")
     output = repo / ".artifacts" / "release-preview" / "none"
+    uv_started = tmp_path / "uv-started"
+    fake_uv = tmp_path / "uv-must-not-start"
+    fake_uv.write_text(
+        f"#!/bin/sh\nprintf started > {uv_started}\nexit 93\n",
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o700)
+    monkeypatch.setenv("UV", str(fake_uv))
 
     result = dry_run(repo, output)
 
@@ -166,8 +184,40 @@ def test_no_release_history_succeeds_without_build_or_tag(tmp_path: Path) -> Non
     manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == "no-release"
     assert manifest["next_version"] is None and manifest["tag"] is None
+    assert manifest["uv_version"] is None
     assert manifest["artifacts"] == []
+    assert not uv_started.exists()
     assert not (output / "dist").exists()
+
+
+def test_no_release_does_not_call_public_uv_identity_seam(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """no-release 必须在公开 uv identity seam 之前收口，不能只保证不启动子进程。"""
+
+    repo = tmp_path / "repo"
+    write_release_repo(repo)
+    git(repo, "tag", "-a", "agent-harness-v0.1.0", "-m", "0.1.0")
+    (repo / "README.md").write_text("docs\n", encoding="utf-8")
+    git(repo, "add", "README.md")
+    git(repo, "commit", "-m", "docs: no release identity")
+
+    def fail_on_identity_lookup() -> tuple[str, str]:
+        pytest.fail("no-release called required_uv_identity")
+
+    monkeypatch.setattr(
+        RELEASE_PREVIEW_BUILD_MODULE,
+        "required_uv_identity",
+        fail_on_identity_lookup,
+    )
+    manifest = RELEASE_DRY_RUN_MODULE.create_preview(
+        repo,
+        repo / ".artifacts" / "release-preview" / "no-uv-seam",
+    )
+
+    assert manifest["status"] == "no-release"
+    assert manifest["uv_version"] is None
 
 
 def test_psr_release_wrapper_no_release_disagreement_fails_closed(tmp_path: Path) -> None:

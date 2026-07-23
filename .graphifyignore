@@ -11,6 +11,8 @@ agent-pack.ps1
 agent-pack.cmd
 
 .agent-harness/
+.artifacts/
+.coverage
 .venv/
 venv/
 env/

@@ -31,7 +31,13 @@ GIT_OBJECT_ID = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 BUMPS = {"major", "minor", "patch"}
 RELEASE_ARTIFACT_KINDS = {"wheel", "sdist", "changelog", "release-notes", "checksums"}
-UV_VERSION = "0.11.29"
+UV_VERSION_RANGE = ">=0.11.29,<0.12"
+UV_MIN_VERSION = (0, 11, 29)
+UV_MAX_VERSION = (0, 12, 0)
+UV_VERSION_OUTPUT = re.compile(r"^uv (\d+)\.(\d+)\.(\d+)(?:\s|$)")
+UV_PUBLISH_CREDENTIAL_ENV = frozenset(
+    {"UV_PUBLISH_PASSWORD", "UV_PUBLISH_TOKEN", "UV_PUBLISH_USERNAME"}
+)
 PSR_VERSION = "10.6.1"
 BUILD_BACKEND_IDENTITY: dict[str, object] = {
     "name": "hatchling",
@@ -61,22 +67,47 @@ def validate_build_backend_identity(value: object) -> None:
         raise ReleaseContractError("build backend identity does not match the reviewed lock")
 
 
-def required_uv_executable() -> str:
-    """返回精确项目 pin 的 uv；子进程不得绕回 PATH 中的旧版本。"""
+def validate_uv_version(value: object) -> str:
+    """返回受支持的三段 uv 版本；artifact consumer 与 CLI 共用同一范围。"""
+
+    if not isinstance(value, str) or SEMVER.fullmatch(value) is None:
+        raise ReleaseContractError(f"required uv version range is {UV_VERSION_RANGE}")
+    parsed = tuple(int(part) for part in value.split("."))
+    if not (UV_MIN_VERSION <= parsed < UV_MAX_VERSION):
+        raise ReleaseContractError(f"required uv version range is {UV_VERSION_RANGE}")
+    return value
+
+
+def required_uv_identity() -> tuple[str, str]:
+    """返回受支持的 uv executable 与实际版本，供单次发布证据绑定。"""
 
     executable = os.environ.get("UV") or shutil.which("uv")
     if executable is None:
         raise ReleaseContractError("required uv executable is unavailable")
+    # execute job 的父进程环境含 registry credential。版本身份尚未与已批准计划
+    # 比对前，待验证 executable 不得继承这些凭据；否则拒绝虽发生在 Python 显式
+    # 取 token 之前，子进程仍已获得密钥。
+    probe_environment = {
+        name: value for name, value in os.environ.items() if name not in UV_PUBLISH_CREDENTIAL_ENV
+    }
     result = subprocess.run(
         [executable, "--version"],
         text=True,
         capture_output=True,
         check=False,
+        env=probe_environment,
     )
-    parts = result.stdout.split()
-    if result.returncode != 0 or len(parts) < 2 or parts[:2] != ["uv", UV_VERSION]:
-        raise ReleaseContractError(f"required uv version is {UV_VERSION}")
-    return executable
+    match = UV_VERSION_OUTPUT.match(result.stdout)
+    if result.returncode != 0 or match is None:
+        raise ReleaseContractError(f"required uv version range is {UV_VERSION_RANGE}")
+    version = validate_uv_version(".".join(match.groups()))
+    return executable, version
+
+
+def required_uv_executable() -> str:
+    """兼容只需 executable 的调用方，同时执行统一 uv 范围校验。"""
+
+    return required_uv_identity()[0]
 
 
 def required_psr_executable() -> str:

@@ -41,7 +41,7 @@ service profile 已把 API 和 worker 拆成独立进程。model/tool gateway、
 - macOS 或 Linux；
 - Python `>=3.12`；
 - Git 和 GNU Make；
-- 源仓库使用 uv `>=0.11.19,<0.12`；CI 与发布证据精确使用 `0.11.29`；
+- 源仓库与 release wrapper 使用 uv `>=0.11.29,<0.12`；CI 当前具体选择 `0.11.29`，发布 artifact 记录实际 patch；
 - 复制模板独立使用时，准备受信的 `agent-harness` wheel、sdist、源码目录或私有 index。
 
 先检查工具链：
@@ -158,7 +158,7 @@ uv run agent-harness-service serve \
 | `make test` / `make contract` | 运行复制模板后的公开 seam 测试 |
 | `make quality` | 对 app、agents、tests、scripts 执行 Ruff 和 Pyright |
 | `make eval` | 运行全部 approved 示例 eval case |
-| `make eval-rag|eval-ticket|eval-repo|eval-dev` | 只运行一个示例的 eval |
+| `make eval-rag` |eval-ticket|eval-repo|eval-dev` | 只运行一个示例的 eval |
 | `make smoke-local` | 验证 local profile 和 Agent registry |
 | `make smoke-service` | 运行真实 PostgreSQL/Redis/API/worker service smoke |
 | `make worker` | 使用当前 profile 启动 runtime worker |
@@ -634,7 +634,7 @@ SERVICE_APP_KEEP_DATA=1 make smoke-service
 
 ### uv required version 不匹配
 
-源 workspace 接受 uv `>=0.11.19,<0.12`；复现 CI 或发布证据时选择 `0.11.29`。复制模板对 `agent-harness` 保持与项目版本一致的 exact 依赖，外部依赖使用有界范围，源仓库 `uv.lock` 保存受审的精确解析。
+源 workspace 与 release wrapper 接受 uv `>=0.11.29,<0.12`；复现当前 CI 环境时选择 `0.11.29`，发布 artifact 记录实际 uv patch。复制模板对 `agent-harness` 保持与项目版本一致的 exact 依赖，外部依赖使用有界范围，源仓库 `uv.lock` 保存受审的精确解析。
 
 ### 复制项目无法解析 `agent-harness`
 

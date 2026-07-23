@@ -179,7 +179,7 @@ REQUIRED_TEST_MAPPINGS = {
     "AC-070": frozenset(
         {
             "tests/contracts/test_dependency_version_policy_contracts.py::"
-            "test_local_uv_range_and_conflicting_groups_keep_release_baseline_exact",
+            "test_uv_range_and_conflicting_groups_keep_ci_environment_concrete",
             "tests/contracts/test_dependency_version_policy_contracts.py::"
             "test_lock_package_identities_match_reviewed_baseline",
         }
@@ -187,7 +187,7 @@ REQUIRED_TEST_MAPPINGS = {
     "AC-071": frozenset(
         {
             "tests/contracts/test_dependency_version_policy_contracts.py::"
-            "test_local_uv_range_and_conflicting_groups_keep_release_baseline_exact",
+            "test_uv_range_and_conflicting_groups_keep_ci_environment_concrete",
             "tests/contracts/test_release_promotion_contracts.py::"
             "test_update_release_files_keeps_workspace_self_dependencies_exact",
         }

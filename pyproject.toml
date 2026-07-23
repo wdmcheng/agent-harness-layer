@@ -48,9 +48,9 @@ members = [
 ]
 
 [tool.uv]
-# 本地允许已经验证的 0.11 patch；CI、release wrapper 与发布证据仍精确使用
-# 0.11.29。跨 minor 继续 fail closed，避免 lock/build/publish 语义静默变化。
-required-version = ">=0.11.19,<0.12"
+# 0.11.29 是包含归档与 build backend 路径加固的最低安全基线；同一 minor
+# 的后续 patch 可用，单次发布 artifact 记录实际版本。跨 minor 继续 fail closed。
+required-version = ">=0.11.29,<0.12"
 # release 与 license 工具依赖不同 Rich 主版本；lock 同时记录两套精确环境，CI 按
 # `--group release --no-group license` / 反向组合分别验证，禁止无条件 all-groups。
 conflicts = [

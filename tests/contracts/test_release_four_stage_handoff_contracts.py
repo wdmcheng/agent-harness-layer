@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import os
 import sys
 import tarfile
 from collections.abc import Callable, Generator
@@ -134,7 +135,11 @@ def test_formal_build_rejects_symlinked_release_root_before_cleanup(
         "run_git",
         fake_run_git,
     )
-    monkeypatch.setattr(RELEASE_BUILD_MODULE, "required_uv_executable", lambda: "uv")
+    monkeypatch.setattr(
+        RELEASE_BUILD_MODULE,
+        "required_uv_identity",
+        lambda: ("uv", "0.11.29"),
+    )
     monkeypatch.setattr(
         RELEASE_BUILD_MODULE,
         "_run",
@@ -291,6 +296,9 @@ def test_promotion_rebuilds_from_tag_and_registry_plans_only_formal_artifacts(
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
     assert plan["schema_version"] == "registry-publish-plan/v1"
     assert plan["status"] == "planned"
+    actual_uv = run(os.environ["UV"], "--version", cwd=ROOT).stdout.split()[1]
+    assert plan["uv_version"] == actual_uv
+    assert plan["approval"]["uv_version"] == actual_uv
     assert plan["artifacts"] == receipt["artifacts"]
     preview = json.loads(manifest.read_text(encoding="utf-8"))
     assert plan["artifacts"] != [
@@ -332,6 +340,31 @@ def test_formal_build_manifest_rejects_missing_or_drifted_backend_identity(
 
     with pytest.raises(RELEASE_CONTRACT_ERROR, match="build backend"):
         VALIDATE_RELEASE_BUILD(build)
+
+
+def test_formal_build_consumer_accepts_supported_newer_uv_patch() -> None:
+    """正式构建 consumer 接受范围内实际 patch，而不是把 CI 选择当唯一版本。"""
+
+    build: dict[str, Any] = {
+        "schema_version": "release-build/v1",
+        "status": "built",
+        "version": "0.2.0",
+        "tag": "agent-harness-v0.2.0",
+        "tag_target_sha": "c" * 40,
+        "uv_version": "0.11.31",
+        "build_backend": {
+            "name": "hatchling",
+            "version": "1.30.1",
+            "source": {"registry": "https://pypi.org/simple"},
+        },
+        "artifacts": [
+            {"kind": "wheel"},
+            {"kind": "sdist"},
+            {"kind": "checksums"},
+        ],
+    }
+
+    VALIDATE_RELEASE_BUILD(build)
 
 
 @pytest.mark.parametrize("status", [None, "planned", "failed"])

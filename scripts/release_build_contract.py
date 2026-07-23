@@ -8,11 +8,11 @@ from release_contract_support import (
     BUILD_SCHEMA,
     REGISTRY_PLAN_SCHEMA,
     SEMVER,
-    UV_VERSION,
     ReleaseContractError,
     approval_sha256,
     valid_git_object_id,
     validate_build_backend_identity,
+    validate_uv_version,
 )
 
 
@@ -31,8 +31,7 @@ def validate_release_build(build: dict[str, Any]) -> None:
         raise ReleaseContractError("release build tag must match version")
     if not valid_git_object_id(build.get("tag_target_sha")):
         raise ReleaseContractError("release build tag_target_sha is invalid")
-    if build.get("uv_version") != UV_VERSION:
-        raise ReleaseContractError(f"release build uv_version must be {UV_VERSION}")
+    validate_uv_version(build.get("uv_version"))
     validate_build_backend_identity(build.get("build_backend"))
     artifacts = build.get("artifacts")
     if not isinstance(artifacts, list):
@@ -63,5 +62,9 @@ def validate_registry_plan(plan: dict[str, Any]) -> None:
     approval = plan.get("approval")
     if not isinstance(approval, dict):
         raise ReleaseContractError("registry plan approval is incomplete")
-    if plan.get("approval_sha256") != approval_sha256(cast(dict[str, object], approval)):
+    typed_approval = cast(dict[str, object], approval)
+    uv_version = validate_uv_version(plan.get("uv_version"))
+    if typed_approval.get("uv_version") != uv_version:
+        raise ReleaseContractError("registry plan uv_version identity drift")
+    if plan.get("approval_sha256") != approval_sha256(typed_approval):
         raise ReleaseContractError("registry plan approval checksum drift")

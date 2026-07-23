@@ -42,7 +42,7 @@ Required for local use:
 - macOS or Linux;
 - Python `>=3.12`;
 - Git and GNU Make;
-- uv `>=0.11.19,<0.12` in the source repository; CI and release evidence use `0.11.29` exactly;
+- uv `>=0.11.29,<0.12` in the source repository and release wrappers; CI currently selects `0.11.29`, while release artifacts record the actual patch;
 - a trusted local `agent-harness` wheel, sdist, source directory, or private index when using a copied template.
 
 Check the toolchain:
@@ -159,7 +159,7 @@ Open:
 | `make test` / `make contract` | run copied-template public-seam tests |
 | `make quality` | run Ruff and Pyright over app, agents, tests, and scripts |
 | `make eval` | run all approved example eval cases |
-| `make eval-rag|eval-ticket|eval-repo|eval-dev` | run one example's eval cases |
+| `make eval-rag` |eval-ticket|eval-repo|eval-dev` | run one example's eval cases |
 | `make smoke-local` | validate the local profile and agent registry |
 | `make smoke-service` | run the real copied-template PostgreSQL/Redis/API/worker smoke |
 | `make worker` | start the runtime worker using the selected profile |
@@ -635,7 +635,7 @@ The script still removes containers, network, temporary credentials, Redis names
 
 ### Required uv version mismatch
 
-The source workspace accepts uv `>=0.11.19,<0.12`; select `0.11.29` when reproducing CI or release evidence. The copied template keeps an exact `agent-harness` dependency matching its project version, while external dependencies use bounded ranges and the source `uv.lock` keeps the reviewed exact resolution.
+The source workspace and release wrappers accept uv `>=0.11.29,<0.12`; select `0.11.29` when reproducing the current CI environment. Release artifacts record their actual uv patch. The copied template keeps an exact `agent-harness` dependency matching its project version, while external dependencies use bounded ranges and the source `uv.lock` keeps the reviewed exact resolution.
 
 ### Copied project cannot resolve `agent-harness`
 

@@ -79,7 +79,7 @@ commit、push、deploy、publish、使用生产凭据或调用真实 provider。
 - Git；
 - GNU Make；
 - Python `>=3.12`；
-- 本地开发使用 uv `>=0.11.19,<0.12`；CI 与发布证据精确使用 `0.11.29`。
+- 本地开发与 release wrapper 使用 uv `>=0.11.29,<0.12`；CI 当前具体选择 `0.11.29`，单次发布 artifact 记录实际使用的受支持 patch。
 
 运行项目前先检查：
 
@@ -90,7 +90,7 @@ git --version
 make --version
 ```
 
-如果 uv 未安装或不在支持范围内，可以使用 [uv 官方版本化安装方式](https://docs.astral.sh/uv/getting-started/installation/)安装 CI/发布的精确基线，也可以用包管理器切换版本：
+如果 uv 未安装或不在支持范围内，可以使用 [uv 官方版本化安装方式](https://docs.astral.sh/uv/getting-started/installation/)安装当前 CI 的具体版本，也可以用包管理器切换版本：
 
 ```bash
 curl -LsSf https://astral.sh/uv/0.11.29/install.sh | sh
@@ -406,7 +406,7 @@ make smoke-local
 
 ### uv 拒绝所有命令
 
-如果错误提示 uv 版本与 required version 不匹配，请选择 `>=0.11.19,<0.12`；复现 CI 或发布证据时使用 `0.11.29`。这个拒绝发生在项目代码运行之前。
+如果错误提示 uv 版本与 required version 不匹配，请选择 `>=0.11.29,<0.12`；复现当前 CI 环境时使用 `0.11.29`。preview、正式 build 与 publish plan 会记录各自实际使用的 uv patch。这个拒绝发生在项目代码运行之前。
 
 ### `config.invalid` 或 fingerprint key 缺失
 

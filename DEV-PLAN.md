@@ -11,21 +11,21 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-16 的已完成 changes 均已同步主规格并归档。Phase 16 的单一聚焦 change `relax-dependency-version-constraints` 已归档到 `openspec/changes/archive/2026-07-23-relax-dependency-version-constraints/`，当前无 active change。
-- 代码状态: Phase 1-15 已完成计划内实现或文档交付并归档；Phase 16 已完成 red-first 实现、本地四步走验证、主规格同步与归档，外部依赖范围化、同仓库自依赖精确匹配、lock identity 保持与发布 backend 保真已形成归档后冻结候选；尚未 commit，也未执行任何外部发布副作用。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-16 及后续 `relax-release-uv-patch-range` 均已同步主规格并归档，当前无 active change。后者归档路径为 `openspec/changes/archive/2026-07-23-relax-release-uv-patch-range/`。
+- 代码状态: Phase 1-15 已完成计划内实现或文档交付并归档；Phase 16 的依赖范围化及后续 uv patch 范围修正已完成 red-first 实现、双版本验证、全量回归、实现候选 fresh review、主规格同步与归档。该完成状态随归档后候选进入 fresh review，只有同一冻结内容通过后才对外声明；尚未 commit，也未执行任何外部发布副作用。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | Phase 16 已实现并归档，归档后候选进入最终门禁 | Phase 1-15 保持已归档；本轮只放宽声明，207 个已锁 package identity 未升级。 |
-| 当前 Phase | Phase 16: 依赖兼容范围与锁定策略 | TDD、完整本地验证、主规格同步和 OpenSpec 归档已完成；最终收口以归档后同一冻结候选的 fresh code-reviewer Stage 1/2 结论为准。 |
+| 总体状态 | Phase 16 后续 uv patch 范围修正已形成归档候选 | Phase 1-16 既有交付及后续 change 均已同步主规格并归档；207 个已锁 package identity 未升级。 |
+| 当前 Phase | Phase 16 后续修正：uv patch 支持范围与实际身份 | TDD、双版本、完整本地验证、实现候选 fresh review、主规格同步与归档已完成；最终完成声明以归档后同一冻结候选的 fresh code-reviewer Stage 1/2 结论为准。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14, Phase 15 | Phase 13-15 的 changes 均已同步主规格并归档。 |
-| 当前 OpenSpec change | 无 active change | `relax-dependency-version-constraints` 的 19/19 tasks 已完成，delta 已同步到 4 类长期主规格，并归档到 `openspec/changes/archive/2026-07-23-relax-dependency-version-constraints/`。 |
-| Phase 16 本地验证 | PASS | 归档后固定 uv `0.11.29` 的 unit-contract `1279 passed, 200 skipped`、全量 pytest `1291 passed, 223 skipped`；此前 quality、pre-commit、integration `11 passed, 23 skipped`、eval、`smoke-local`、真实 PostgreSQL 18.4/Redis 7.2.14 `smoke-service`、build、release dry-run、license check 均通过。系统 uv `0.11.19` 与固定 uv `0.11.29` 都通过 lock check，207 项 lock identity SHA-256 保持 `bb9046c25267f611007c6b74ee74c3ff8e55f885b3f92d091aed0642c5adef58`。 |
-| 当前阻塞项 | 无本地收口阻塞 | GitHub/GitLab hosted runner、远端保护、secret/artifact service 仍未验证；AC-053/054 因此保持未勾选。 |
-| 当前建议下一步 | 完成归档后冻结候选的最终代码审查 | 除非用户另行授权，不 commit、push、tag、release、真实 publish、升级依赖或部署。 |
+| 当前 OpenSpec change | 无 | `relax-release-uv-patch-range` 的 9/9 tasks、change strict、主规格同步与归档均已完成；`openspec list --json` 为空。 |
+| Phase 16 本地验证 | PASS | 2026-07-24 后续修正中，固定 uv `0.11.29` 与本机 uv `0.11.31` 都通过 lock check、frozen release sync、无隔离 build、release dry-run 与 17 项范围/identity 合同，两版 wheel/sdist 和 preview artifact checksum 完全一致；本机 `0.11.31` 下 quality PASS、审查修复后全量 pytest `1306 passed, 223 skipped`。207 项 lock identity SHA-256 保持 `bb9046c25267f611007c6b74ee74c3ff8e55f885b3f92d091aed0642c5adef58`。 |
+| 当前阻塞项 | 无本地实现阻塞；归档后候选仍受 fresh review 门禁约束 | GitHub/GitLab hosted runner、远端保护、secret/artifact service 仍未验证；AC-053/054 因此保持未勾选。 |
+| 当前建议下一步 | 冻结归档后候选并重派 code-reviewer | PASS 后才写 `clean`；除非用户另行授权，不 commit、push、tag、release、真实 publish、升级依赖或部署。 |
 
 ## 剩余工作
 
@@ -68,12 +68,12 @@
 
 ## 技术栈决策
 
-Python dependency 的支持范围以各 `pyproject.toml` 为准，当前精确解析以 `uv.lock` 为准；Docker runtime 以 Compose image reference 为准。Phase 16 将本地 `[tool.uv].required-version` 放宽到 `>=0.11.19,<0.12`，GitHub setup action、GitLab image和 release wrapper 仍精确固定 `0.11.29`。本表版本列写“声明范围；当前 lock”，不把支持范围、解析真相和 CI/发布基线混为一谈。
+Python dependency 的支持范围以各 `pyproject.toml` 为准，当前精确解析以 `uv.lock` 为准；Docker runtime 以 Compose image reference 为准。Phase 16 后续修正将根 `[tool.uv].required-version` 与 release wrapper 统一为 `>=0.11.29,<0.12`，GitHub setup action 与 GitLab image 仍具体选择 `0.11.29`，单次发布 artifact 记录实际执行版本。本表版本列写“声明范围；当前 lock”，不把支持范围、解析真相、CI 具体环境和单次证据身份混为一谈。
 
 | 层级 | 技术 | 版本 | 说明 |
 |------|------|------|------|
 | 运行语言 | Python | `>=3.12` | 由 `pyproject.toml` 声明；2026-07-20 Phase 14 本机验证为 3.14.5。Phase 15 才定义并证明 CI Python matrix。 |
-| 包管理 / Workspace | uv | 本地 `>=0.11.19,<0.12`；CI/release `0.11.29` | 同一 minor 的已验证 patch 可读取当前 lock；发布证据继续使用精确基线，真实外部发布本轮不执行。 |
+| 包管理 / Workspace | uv | 支持 `>=0.11.29,<0.12`；CI 当前 `0.11.29` | 同一 minor 的受支持 patch 可读取当前 lock并执行 release wrapper；发布 artifact 记录实际 uv，真实外部发布本轮不执行。 |
 | Build backend | hatchling | `>=1.30.1,<2`；lock `1.30.1` | 现代 Python build backend，配合 `uv build` 产出 wheel/sdist。 |
 | Agent runtime 底座 | pydantic-ai / pydantic-ai-slim | `>=2.5.0,<3`；lock `2.5.0` | 默认底座，但业务 agent 只依赖 `agent_harness` 公共接口；优先使用 slim + extras 降低依赖面。 |
 | Agent capability library | pydantic-ai-harness | 不作为 P0 必选依赖；按能力块引入时重新核验并锁版本 | 官方 capability library，用于 CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等可选能力；进入实现前必须走受控 integration boundary。 |
@@ -101,7 +101,7 @@ Python dependency 的支持范围以各 `pyproject.toml` 为准，当前精确�
 | Async tests | pytest-asyncio | `>=1.4.0,<2`；lock `1.4.0` | runtime、storage、API、event stream 的 async tests。 |
 | Coverage | coverage.py | `>=7.15.0,<8`；lock `7.15.0` | 产出 CI coverage artifact；和 pytest 分离配置。 |
 | Git hooks | pre-commit | `>=4.6.0,<5`；lock `4.6.0` | 本地 quality hook 和 license/header check 入口。 |
-| Release automation | Python Semantic Release + 仓库 wrapper | `>=10.6.1,<11`；lock `10.6.1`；CI uv `0.11.29` | PSR 只用全局 `--noop` 的版本计算；wrapper 负责无副作用 preview、隔离构建、checksum 与私有 registry 安全门禁。真实 promotion/publish 不执行。 |
+| Release automation | Python Semantic Release + 仓库 wrapper | `>=10.6.1,<11`；lock `10.6.1`；uv `>=0.11.29,<0.12` | PSR 只用全局 `--noop` 的版本计算；wrapper 负责无副作用 preview、隔离构建、checksum、实际 uv 身份与私有 registry 安全门禁。真实 promotion/publish 不执行。 |
 | 部署目标 | Docker Compose | Compose v2 | P0 只做本地 service profile，验证 PostgreSQL + Redis + API + worker 协作；不引入 Kubernetes。 |
 
 ## 技术栈验证来源
@@ -927,7 +927,7 @@ Phase 1 Monorepo / quality spine
 **交付内容**：
 - 创建并审查聚焦 change `relax-dependency-version-constraints`，覆盖 Product Spec REQ-023 与 AC-069/070/071/072。
 - 冻结变更前 `uv.lock` 的 `(name, version, source)` 身份，先写失败合同，再把根 workspace、核心包、optional extra、模板、dev/license/release/build-system 中可放宽的外部 exact pin 改为有下界和兼容上界的 PEP 440 范围；根与模板的 `agent-harness` 自依赖保持精确匹配项目版本。
-- 将本地 uv 要求改为 `>=0.11.19,<0.12`；GitHub、GitLab、release wrapper、OCI digest 与发布证据继续固定 `0.11.29`。
+- 将根与 release wrapper 的 uv 支持范围统一为 `>=0.11.29,<0.12`；GitHub、GitLab 与 OCI digest 当前继续具体选择 `0.11.29`，preview/build/publish 证据记录实际执行版本。
 - 修改 release promotion，使根 workspace 和模板在版本提升后都精确同步为 `agent-harness==MAJOR.MINOR.PATCH`，不放宽为范围或通配 pin。
 - 让 release preview 与正式 tag build 先 frozen sync build backend，再以 `--no-build-isolation` 使用 lock 内精确 Hatchling；两类 manifest 都记录并核对 backend identity。
 - 刷新 `uv.lock` 声明 metadata，但禁止 `--upgrade`；证明所有已锁 package identity 不变，并同步双语 README、release 文档与 acceptance matrix。
@@ -943,12 +943,12 @@ Phase 1 Monorepo / quality spine
 **验收标准**：
 - AC-069：三份 `pyproject.toml` 的可放宽外部依赖均有已验证下界和兼容上界；根与模板的 `agent-harness` 自依赖精确等于当前项目版本，无其他未说明 exact pin。
 - AC-070：只刷新范围 metadata 后，lock 中所有 `(name, version, source)` identity 与变更前快照一致，`uv lock --check` 通过；由于 `release` 与 `license` groups 明确冲突，分别执行 `uv sync --frozen --group release --no-group license` 和 `uv sync --frozen --group license --no-group release`，禁止用无排除条件的 `--all-groups` 制造不可满足门禁。
-- AC-071：promotion 到 `0.2.0` 后根与模板均声明 `agent-harness==0.2.0`；系统 uv `0.11.19` 可检查当前 lock，CI/release exact `0.11.29` 合同保持不变。
+- AC-071：promotion 到 `0.2.0` 后根与模板均声明 `agent-harness==0.2.0`；uv `>=0.11.29,<0.12` 可检查当前 lock 并执行 release wrapper，CI 当前具体选择 `0.11.29`，单次证据绑定实际 uv。
 - AC-072：兼容 build-system metadata 不得让发布构建漂移；preview 与正式 tag build 都只使用 lock 内 `hatchling 1.30.1`，manifest 缺失或 identity 漂移时 fail closed。
 - Workspace 外消费者兼容：复制核心 package 或解包 sdist 后移除 workspace source，以默认 build isolation 真实构建，证明兼容 build-system metadata 可独立解析；仓库内部无隔离构建证据不得替代该验收。
 - 四步走：fresh code-reviewer Stage 1/2 PASS；dependency/promotion/workspace contract 和全量 pytest 通过；ruff/pyright/import boundary 通过；install/build/release dry-run/license/local/service smoke 按受影响共享配置完整验证。
 
-**当前状态**：实现候选已完成，delta 已同步到 `dependency-version-policy`、`maintainer-documentation`、`release-dry-run-private-registry` 与 `workspace-packaging` 长期主规格，change 已归档到 `openspec/changes/archive/2026-07-23-relax-dependency-version-constraints/`，当前无 active change。根与模板 `agent-harness` 自依赖保持精确项目版本，外部依赖使用有界兼容范围；`uv.lock` 的 207 项 `(name, version, source)` identity 与变更前完全一致。归档后 fresh review 发现依赖策略合同仍读取已移动的 active `tasks.md`，精确节点先以 `FileNotFoundError` 变红，再改为读取长期主规格并转绿；固定 uv `0.11.29` 下 unit-contract `1279 passed, 200 skipped`、全量 pytest `1291 passed, 223 skipped`。一次误用系统 uv `0.11.19` 的 unit-contract 运行按发布工具精确基线 fail closed，产生的 53 个共同失败不作为候选缺陷或通过证据。此前 red-first 合同、quality、pre-commit、integration `11 passed, 23 skipped`、eval、本地与真实 PostgreSQL/Redis service smoke、build、release dry-run、license check、归档前 change strict 及归档前后全仓 strict 均通过。最终代码审查发现的正式构建输出 symlink 越界清理风险也已用精确 red 回归修复，修复后的 fresh Stage 1/2 已通过；同步、归档、路径修复和状态校正形成新的冻结候选，最终收口以该归档后候选的 fresh Stage 1/2 结论为准。未 commit，也未执行 push、tag、release、真实 publish、依赖升级或部署。
+**当前状态**：`relax-dependency-version-constraints` 已归档，根与模板 `agent-harness` 自依赖保持精确项目版本，外部依赖使用有界兼容范围，`uv.lock` 的 207 项 `(name, version, source)` identity 保持不变。后续 `relax-release-uv-patch-range` 把根与 release wrapper 统一为 `>=0.11.29,<0.12`，CI 当前具体选择 `0.11.29`，preview/build/publish 证据绑定实际 uv；`no-release` 记录 `uv_version: null` 且不启动 uv。固定 uv `0.11.29` 与本机 `0.11.31` 均通过 lock、frozen release sync、build、release dry-run 与范围合同，产物 checksum 一致；`0.11.31` 下 quality PASS、审查修复后全量 pytest `1306 passed, 223 skipped`。该 change 的主规格已同步，并由 OpenSpec CLI 归档到 `openspec/changes/archive/2026-07-23-relax-release-uv-patch-range/`；当前无 active change，未执行 push、tag、release、真实 publish、依赖升级或部署。
 
 ---
 

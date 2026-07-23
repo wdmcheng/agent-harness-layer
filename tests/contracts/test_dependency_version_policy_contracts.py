@@ -97,11 +97,11 @@ def test_all_python_dependency_declarations_use_reviewed_compatible_ranges() -> 
     assert all("==" not in requirement for requirement in external_requirements)
 
 
-def test_local_uv_range_and_conflicting_groups_keep_release_baseline_exact() -> None:
-    """本地 patch 兼容不能放松 CI/release 版本或合并互斥工具环境。"""
+def test_uv_range_and_conflicting_groups_keep_ci_environment_concrete() -> None:
+    """wrapper 支持范围不能浮动 CI 环境或合并互斥工具组。"""
 
     root = _load("pyproject.toml")
-    assert root["tool"]["uv"]["required-version"] == ">=0.11.19,<0.12"
+    assert root["tool"]["uv"]["required-version"] == ">=0.11.29,<0.12"
     assert root["tool"]["uv"]["conflicts"] == [[{"group": "release"}, {"group": "license"}]]
 
     plan = (ROOT / "DEV-PLAN.md").read_text(encoding="utf-8")
@@ -111,7 +111,7 @@ def test_local_uv_range_and_conflicting_groups_keep_release_baseline_exact() -> 
     assert "--group license --no-group release" in plan + policy
 
     release_support = (ROOT / "scripts/release_contract_support.py").read_text(encoding="utf-8")
-    assert 'UV_VERSION = "0.11.29"' in release_support
+    assert 'UV_VERSION_RANGE = ">=0.11.29,<0.12"' in release_support
     for relative in (".github/workflows/ci.yml", ".github/workflows/release.yml"):
         workflow = (ROOT / relative).read_text(encoding="utf-8")
         assert 'version: "0.11.29"' in workflow
@@ -138,7 +138,7 @@ def test_lock_package_identities_match_reviewed_baseline() -> None:
     assert hashlib.sha256(encoded).hexdigest() == REVIEWED_LOCK_IDENTITY_SHA256
 
 
-def test_bilingual_docs_explain_range_lock_and_exact_release_baseline() -> None:
+def test_bilingual_docs_explain_range_lock_ci_environment_and_actual_identity() -> None:
     """根、模板与发布文档都必须解释声明、lock、自依赖和 uv 的不同边界。"""
 
     for relative in (
@@ -150,7 +150,7 @@ def test_bilingual_docs_explain_range_lock_and_exact_release_baseline() -> None:
         "docs/release-process.zh-CN.md",
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")
-        assert ">=0.11.19,<0.12" in text
+        assert ">=0.11.29,<0.12" in text
         assert "0.11.29" in text
         assert "uv.lock" in text
 
@@ -158,3 +158,28 @@ def test_bilingual_docs_explain_range_lock_and_exact_release_baseline() -> None:
         text = (ROOT / relative).read_text(encoding="utf-8")
         assert "agent-harness==0.1.0" in text
         assert "uv lock --upgrade" in text
+
+
+def test_uv_acceptance_nodes_match_current_tests_and_policy() -> None:
+    """验收矩阵、强制策略与 pytest node 必须同步改名，不能依赖被 skip 的 evidence。"""
+
+    matrix = (ROOT / "docs/acceptance-matrix.md").read_text(encoding="utf-8")
+    policy = (ROOT / "scripts/acceptance_matrix_policy.py").read_text(encoding="utf-8")
+    combined = matrix + policy
+
+    assert "test_local_uv_range_and_conflicting_groups_keep_release_baseline_exact" not in combined
+    assert "test_no_release_history_succeeds_without_build_or_tag" not in matrix
+    assert "test_uv_range_and_conflicting_groups_keep_ci_environment_concrete" in matrix
+    assert "test_uv_range_and_conflicting_groups_keep_ci_environment_concrete" in policy
+    assert "test_no_release_history_succeeds_without_uv_build_or_tag" in matrix
+
+
+def test_dev_plan_reports_archived_uv_change() -> None:
+    """DEV-PLAN 顶部状态必须与 uv change 的最终归档位置一致。"""
+
+    current = (ROOT / "DEV-PLAN.md").read_text(encoding="utf-8").split("## 剩余工作", 1)[0]
+
+    assert "当前无 active change" in current
+    assert "| 当前 OpenSpec change | 无 |" in current
+    assert not (ROOT / "openspec/changes/relax-release-uv-patch-range").exists()
+    assert (ROOT / "openspec/changes/archive/2026-07-23-relax-release-uv-patch-range").is_dir()

@@ -304,7 +304,7 @@ def test_registry_execute_rejects_uv_version_drift_before_network(
     result = registry_execute(preview, receipt, cwd=tmp_path, endpoint=endpoint)
 
     assert result.returncode != 0
-    assert "required uv version is 0.11.29" in result.stderr
+    assert "required uv version range is >=0.11.29,<0.12" in result.stderr
     assert handler.requests == []
 
 

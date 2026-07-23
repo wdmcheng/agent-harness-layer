@@ -13,7 +13,7 @@ from release_build_backend import prepare_build_backend
 from release_models import (
     ReleaseContractError,
     artifact_record,
-    required_uv_executable,
+    required_uv_identity,
     sha256_file,
 )
 
@@ -67,10 +67,10 @@ def _release_text(version: str, commits: list[dict[str, Any]]) -> tuple[str, str
 
 def build_preview_artifacts(
     repo: Path, output: Path, version: str, commits: list[dict[str, Any]]
-) -> tuple[list[dict[str, object]], dict[str, object]]:
+) -> tuple[list[dict[str, object]], dict[str, object], str]:
     """在短命副本更新版本并构建，异常或中断由 TemporaryDirectory 统一清理。"""
 
-    uv = required_uv_executable()
+    uv, uv_version = required_uv_identity()
     output.mkdir(parents=True, exist_ok=True)
     dist = output / "dist"
     changelog = output / "CHANGELOG.preview.md"
@@ -136,7 +136,7 @@ def build_preview_artifacts(
         artifact_record(notes, root=repo, kind="release-notes"),
         artifact_record(checksum, root=repo, kind="checksums"),
     ]
-    return records, backend
+    return records, backend, uv_version
 
 
 __all__ = ["build_preview_artifacts"]

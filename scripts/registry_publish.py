@@ -31,6 +31,7 @@ from release_models import (
     read_json,
     redact,
     require_approval_digest,
+    required_uv_identity,
     resolve_artifact,
     sha256_file,
     validate_preview,
@@ -103,6 +104,7 @@ def _approval_payload(
     check_endpoint: str,
     protected_ref: dict[str, str],
     artifacts: list[dict[str, Any]],
+    uv_version: str,
 ) -> dict[str, object]:
     """冻结 publish 的跨 job 身份；endpoint 只以摘要进入 plan，credential 永不入 payload。"""
 
@@ -117,6 +119,7 @@ def _approval_payload(
         "registry_endpoint_sha256": endpoint_sha256(endpoint),
         "registry_check_endpoint_sha256": endpoint_sha256(check_endpoint),
         "protected_ref": protected_ref,
+        "uv_version": uv_version,
         "artifacts": cast(list[dict[str, object]], artifacts),
     }
 
@@ -162,6 +165,7 @@ def publish(
     )
     artifacts = verify_artifacts(build, base=artifact_root)
     artifacts = [item for item in artifacts if item.get("kind") in {"wheel", "sdist"}]
+    uv_executable, uv_version = required_uv_identity()
     endpoint = os.environ.get("UV_PUBLISH_URL", "")
     if not endpoint:
         raise ReleaseContractError("UV_PUBLISH_URL is required to identify the plan")
@@ -181,6 +185,7 @@ def publish(
         check_endpoint=check_endpoint,
         protected_ref=protected_ref,
         artifacts=artifacts,
+        uv_version=uv_version,
     )
     reviewed_approval = approval_sha256(approval)
     plan: dict[str, Any] = {
@@ -188,6 +193,7 @@ def publish(
         "status": "planned",
         "version": preview["next_version"],
         "tag": preview["tag"],
+        "uv_version": uv_version,
         "artifacts": artifacts,
         "approval": approval,
         "approval_sha256": reviewed_approval,
@@ -222,6 +228,7 @@ def publish(
                 path,
                 str(item["sha256"]),
                 str(preview["next_version"]),
+                uv_executable,
             )
         except RegistryUploadError as exc:
             failure = redact(str(exc), token, endpoint)
@@ -269,7 +276,6 @@ def main() -> int:
     plan_group.add_argument("--plan-input", type=Path)
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args()
-    token = os.environ.get("UV_PUBLISH_TOKEN", "")
     try:
         result = publish(
             preview_path=args.manifest.resolve(),
@@ -283,12 +289,15 @@ def main() -> int:
             else None,
         )
     except RegistryPublishFailure as exc:
+        # 只有上传状态机已经读取 credential 后才做 token 二次脱敏；普通 plan/schema
+        # 失败不能为了日志处理提前读取受限 credential。
+        token = os.environ.get("UV_PUBLISH_TOKEN", "")
         print(redact(f"registry publish failed: {exc}", token), file=sys.stderr)
         for line in _inventory_summary(exc.receipt):
             print(redact(line, token), file=sys.stderr)
         return 2
     except ReleaseContractError as exc:
-        print(redact(f"registry publish failed: {exc}", token), file=sys.stderr)
+        print(redact(f"registry publish failed: {exc}"), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0

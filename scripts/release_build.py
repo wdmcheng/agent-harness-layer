@@ -17,10 +17,9 @@ from typing import Any, cast
 
 from release_build_backend import prepare_build_backend
 from release_models import (
-    UV_VERSION,
     ReleaseContractError,
     artifact_record,
-    required_uv_executable,
+    required_uv_identity,
     run_git,
     sha256_file,
     write_json,
@@ -176,7 +175,7 @@ def build_release(
     tag_target = run_git(repo, "rev-parse", f"{tag}^{{commit}}")
     if tag_target != expected_target:
         raise ReleaseContractError("formal build tag target identity drift")
-    uv = required_uv_executable()
+    uv, uv_version = required_uv_identity()
 
     _remove_output(repo, output, ignore_errors=False)
     output.mkdir(parents=True)
@@ -230,7 +229,7 @@ def build_release(
             "version": expected_version,
             "tag": tag,
             "tag_target_sha": tag_target,
-            "uv_version": UV_VERSION,
+            "uv_version": uv_version,
             "build_backend": backend,
             "artifacts": [
                 artifact_record(wheels[0], root=repo, kind="wheel"),

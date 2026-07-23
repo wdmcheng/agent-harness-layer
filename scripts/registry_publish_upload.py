@@ -11,11 +11,7 @@ import urllib.request
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from release_models import (
-    ReleaseContractError,
-    required_uv_executable,
-    urlopen_no_redirect,
-)
+from release_models import ReleaseContractError, urlopen_no_redirect
 from release_registry_transport import RegistryRelay
 
 
@@ -145,8 +141,9 @@ def upload(
     path: Path,
     checksum: str,
     version: str,
+    uv_executable: str,
 ) -> dict[str, object]:
-    """用固定 uv 上传冻结 distribution；relay 禁止 redirect 并限制安全重试。"""
+    """用 plan 已绑定的 uv 上传冻结 distribution；relay 禁止 redirect 并限制安全重试。"""
 
     # 同一份 bytes 同时用于校验和上传，避免路径在两次读取间被替换后产生
     # “未受审 body + 受审 checksum header”的 TOCTOU 窗口。
@@ -163,10 +160,6 @@ def upload(
             upload_status="not-started",
         )
     project = _project_name(path.name, version)
-    try:
-        executable = required_uv_executable()
-    except ReleaseContractError as exc:
-        raise RegistryUploadError(str(exc), upload_status="not-started") from exc
     with TemporaryDirectory(prefix="agent-harness-publish-") as temporary:
         frozen = _frozen_distribution(Path(temporary), name=path.name, body=body)
         with RegistryRelay(
@@ -204,7 +197,7 @@ def upload(
                 try:
                     result = subprocess.run(
                         [
-                            executable,
+                            uv_executable,
                             "publish",
                             "--trusted-publishing",
                             "never",
