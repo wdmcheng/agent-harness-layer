@@ -64,6 +64,8 @@ CORRECTION_PHRASES = (
     "应该写",
 )
 
+FEEDBACK_ROLE_CLAUSE_ENDS = "，,。.；;：:！？!?\r\n"
+
 
 def run(
     cmd: list[str],
@@ -134,20 +136,17 @@ def npx_command() -> str:
 
 
 def should_skip_feedback_prompt(prompt: str) -> bool:
-    is_agent_prompt = (
-        re.search(r"你是[^\n]*(code-reviewer|evolution-runner)", prompt) is not None
-    )
-    has_review_words = any(
-        word in prompt
-        for word in (
-            "必须先阅读",
-            "重点审查",
-            "输出要求",
-            "不要修改",
-            "不做任何文件编辑",
+    """识别首个分句内的固定角色声明，避免任务正文纠正词被误抓。"""
+
+    clause_ends = re.escape(FEEDBACK_ROLE_CLAUSE_ENDS)
+    return (
+        re.search(
+            rf"\A[ \t]*你是[^{clause_ends}]*"
+            rf"(?:code-reviewer|evolution-runner)(?=\s|[{clause_ends}]|$)",
+            prompt,
         )
+        is not None
     )
-    return is_agent_prompt and has_review_words
 
 
 def evolution_dir(root: Path, agent: str) -> Path:

@@ -3,9 +3,9 @@
   "installMode": "vendored",
   "packPath": "/Volumes/develop/vibe-engineering/agent-pack",
   "packRemote": "git@github.com:wdmcheng/agent-pack.git",
-  "packCommit": "11ab56a",
+  "packCommit": "e533862",
   "projectEvolution": ".agents/evolution",
-  "updatedAt": "2026-07-23T07:32:34.804380+00:00",
+  "updatedAt": "2026-07-23T12:20:13.963931+00:00",
   "files": {
     ".agents/EVOLUTION.md": {
       "type": "file",
@@ -28,8 +28,8 @@
     ".agents/hooks/agent_pack_hook_runtime.py": {
       "type": "file",
       "source": ".agents/hooks/agent_pack_hook_runtime.py",
-      "sourceSha256": "9f5a710b760e14a25a627715d2e6fdc05d856069dcd71e9a2d7d7a4a725a58b7",
-      "installedSha256": "9f5a710b760e14a25a627715d2e6fdc05d856069dcd71e9a2d7d7a4a725a58b7"
+      "sourceSha256": "80eb714069ba604443341cfa17a87717f8ac6daafad6fadf308fd1daa793d649",
+      "installedSha256": "80eb714069ba604443341cfa17a87717f8ac6daafad6fadf308fd1daa793d649"
     },
     ".agents/hooks/run-hook.cmd": {
       "type": "file",
