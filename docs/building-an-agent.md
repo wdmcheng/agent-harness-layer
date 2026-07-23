@@ -4,9 +4,11 @@
 
 Audience: developers creating their first business Agent with Agent Harness Layer, and maintainers deciding where a feature belongs.
 
-Navigation: [root README](../README.md) · [service-app template](../templates/service-app/README.md) · [architecture](architecture/README.md) · [extension guide](extension-guide.md) · [example Agents](../templates/service-app/docs/examples.md)
+Navigation: [root README](../README.md) · [service-app template](../templates/service-app/README.md) · [architecture](architecture/README.md) · [framework comparison](framework-positioning.md) · [extension guide](extension-guide.md) · [example Agents](../templates/service-app/docs/examples.md)
 
 This guide answers one practical question: how do you turn a business idea into a runnable, evaluable, and observable Agent using the five-layer, two-wing architecture?
+
+For framework positioning and capability boundaries, read the [framework positioning and capability comparison guide](framework-positioning.md) first. It explains which responsibilities belong to this project and which designs remain comparison material.
 
 You do not rebuild seven systems for every Agent. The template already supplies most of Access and Runtime. A minimal Agent mainly implements typed schemas and an executor in Engine, declares model and budget choices in configuration, adds Tools and Infra only when required, and uses Eval plus Observability throughout the lifecycle.
 

@@ -441,6 +441,7 @@ local profile 先检查 run events 和本地 JSONL。service profile 检查 migr
 | 你要回答的问题 | 文档 |
 |---|---|
 | 如何用五层两翼做出一个可运行 Agent？ | [五层两翼开发 Agent 指南](docs/building-an-agent.zh-CN.md) |
+| 本项目与 Pydantic AI Harness、Agently 是什么关系？ | [框架定位与能力对照说明](docs/framework-positioning.zh-CN.md) |
 | 如何把项目初始化或功能实现交给 AI / Agent？ | [AI / Agent 项目操作指南](templates/service-app/docs/ai-agent-guide.zh-CN.md) |
 | 今天实际运行什么，未来可能拆什么？ | [架构与部署边界](docs/architecture/README.zh-CN.md) |
 | 可以在哪里增加 Agent 或能力？ | [扩展指南](docs/extension-guide.zh-CN.md) |

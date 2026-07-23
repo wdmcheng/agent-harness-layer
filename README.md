@@ -444,6 +444,7 @@ See the [security policy](docs/security-policy.md) and [context/trust boundary](
 | Question | Document |
 |---|---|
 | How do five layers and two wings become one working Agent? | [Build an Agent guide](docs/building-an-agent.md) |
+| How does this project relate to Pydantic AI Harness and Agently? | [Framework positioning and capability comparison guide](docs/framework-positioning.md) |
 | How can I hand project initialization or feature work to an AI / Agent? | [AI / Agent project guide](templates/service-app/docs/ai-agent-guide.md) |
 | What runs today, and what may split later? | [Architecture and deployment boundaries](docs/architecture/README.md) |
 | Where can I add an agent or capability? | [Extension guide](docs/extension-guide.md) |

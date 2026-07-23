@@ -4,9 +4,11 @@
 
 适用读者：第一次使用 Agent Harness Layer 创建业务 Agent 的开发者，以及需要判断功能应该落在哪一层的维护者。
 
-导航：[根 README](../README.zh-CN.md) · [service-app 模板](../templates/service-app/README.zh-CN.md) · [架构图说明](architecture/README.zh-CN.md) · [扩展指南](extension-guide.zh-CN.md) · [示例 Agent](../templates/service-app/docs/examples.zh-CN.md)
+导航：[根 README](../README.zh-CN.md) · [service-app 模板](../templates/service-app/README.zh-CN.md) · [架构图说明](architecture/README.zh-CN.md) · [框架定位与能力对照](framework-positioning.zh-CN.md) · [扩展指南](extension-guide.zh-CN.md) · [示例 Agent](../templates/service-app/docs/examples.zh-CN.md)
 
 这份指南回答一个具体问题：拿到“五层 + 两翼”架构图后，怎样把一个业务想法落成可以运行、评测和观测的 Agent。
+
+如果你需要看框架定位和能力边界，先读[框架定位与能力对照说明](framework-positioning.zh-CN.md)。它会说明哪些职责属于本项目，哪些设计只作为对照材料。
 
 五层不是五个都要由业务开发者重写的服务。模板已经提供接入层和运行时层的大部分能力；一个最小 Agent 主要在引擎层实现类型化 schema 和 executor，通过配置声明模型与预算，按需增加工具层和基础设施适配，并让 Eval 与 Observability 两翼贯穿整个生命周期。
 

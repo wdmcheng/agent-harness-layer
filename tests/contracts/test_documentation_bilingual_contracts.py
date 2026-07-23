@@ -10,6 +10,7 @@ def test_deep_documentation_link_chain_is_bilingual() -> None:
     """英文入口不能落入中文正文，深度文档与模板示例必须成对维护。"""
 
     pairs = (
+        (ROOT / "docs" / "framework-positioning.md", "framework-positioning.zh-CN.md"),
         (ROOT / "docs" / "architecture" / "README.md", "README.zh-CN.md"),
         (ROOT / "docs" / "adapter-contracts.md", "adapter-contracts.zh-CN.md"),
         (
@@ -53,6 +54,7 @@ def test_deep_documentation_link_chain_is_bilingual() -> None:
     template_chinese = (TEMPLATE / "README.zh-CN.md").read_text(encoding="utf-8")
 
     for path in (
+        "docs/framework-positioning.md",
         "docs/architecture/README.md",
         "docs/extension-guide.md",
         "docs/adapter-contracts.md",
@@ -83,6 +85,11 @@ def test_deep_documentation_link_chain_is_bilingual() -> None:
         assert marker in path.read_text(encoding="utf-8")
 
     shared_contract_markers = {
+        ROOT / "docs" / "framework-positioning.md": (
+            "DynamicWorkflow",
+            "Capability matrix",
+            "Framework Positioning",
+        ),
         ROOT / "docs" / "architecture" / "README.md": (
             "GraphState",
             "make smoke-service",
