@@ -16,7 +16,7 @@ from release_models import (
 
 
 def _replace_project_version(path: Path, version: str) -> None:
-    """同步各发布 package 的 project.version，不改依赖兼容范围或其他版本文本。"""
+    """同步各发布 package 的 project.version，不改依赖或其他版本文本。"""
 
     if not path.exists():
         return
@@ -32,13 +32,12 @@ def _replace_project_version(path: Path, version: str) -> None:
     path.write_text(replaced, encoding="utf-8")
 
 
-def _replace_core_dependency(path: Path, version: str, *, compatible: bool) -> None:
-    """同步 root exact 与模板兼容依赖，避免 promotion 后 workspace 无法解析。"""
+def _replace_core_dependency(path: Path, version: str) -> None:
+    """同步根与模板的精确自依赖，避免同仓库 package 跨版本组合。"""
 
     if not path.exists():
         return
-    major, minor, _patch = (int(part) for part in version.split("."))
-    requirement = f"agent-harness=={major}.{minor}.*" if compatible else f"agent-harness=={version}"
+    requirement = f"agent-harness=={version}"
     text = path.read_text(encoding="utf-8")
     replaced, count = re.subn(
         r"agent-harness(?:==|>=)[^\"\s,]+(?:,<[^\"\s,]+)?",
@@ -98,10 +97,8 @@ def update_release_files(
         "templates/service-app/pyproject.toml",
     ):
         _replace_project_version(repo / relative, version)
-    _replace_core_dependency(repo / "pyproject.toml", version, compatible=False)
-    _replace_core_dependency(
-        repo / "templates/service-app/pyproject.toml", version, compatible=True
-    )
+    _replace_core_dependency(repo / "pyproject.toml", version)
+    _replace_core_dependency(repo / "templates/service-app/pyproject.toml", version)
     init_file = repo / "packages/agent-harness/src/agent_harness/__init__.py"
     if init_file.exists():
         init_file.write_text(

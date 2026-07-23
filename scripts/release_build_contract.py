@@ -12,6 +12,7 @@ from release_contract_support import (
     ReleaseContractError,
     approval_sha256,
     valid_git_object_id,
+    validate_build_backend_identity,
 )
 
 
@@ -32,6 +33,7 @@ def validate_release_build(build: dict[str, Any]) -> None:
         raise ReleaseContractError("release build tag_target_sha is invalid")
     if build.get("uv_version") != UV_VERSION:
         raise ReleaseContractError(f"release build uv_version must be {UV_VERSION}")
+    validate_build_backend_identity(build.get("build_backend"))
     artifacts = build.get("artifacts")
     if not isinstance(artifacts, list):
         raise ReleaseContractError("release build artifacts must be a list")

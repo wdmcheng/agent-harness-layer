@@ -156,7 +156,7 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 ### FLOW-001: 使用模板启动本地 agent 应用
 
 **关联任务：** TASK-001, TASK-004  
-**优先级：** P0  
+**优先级：** P0
 **目标：** 开发者能在不注册 SaaS、不配置真实模型 key 的情况下跑通本地模板、测试、eval 和 trace。
 
 **入口：**  
@@ -300,7 +300,7 @@ main 分支合并 Conventional Commits，或维护者手动触发 release workfl
 - release automation 不得绕过 Apache-2.0、NOTICE、license check。
 
 **完成状态：**
-核心包能自动生成版本、tag、CHANGELOG、wheel/sdist 和 release artifact；模板声明兼容版本范围。
+核心包能自动生成版本、tag、CHANGELOG、wheel/sdist 和 release artifact；模板声明与当前项目版本精确匹配的 `agent-harness` 自依赖。
 
 ## 5. 功能需求
 
@@ -310,7 +310,7 @@ main 分支合并 Conventional Commits，或维护者手动触发 release workfl
 **关联任务：** TASK-001, TASK-008, TASK-010  
 **关联流程：** FLOW-001, FLOW-005
 
-**用途：**  
+**用途：**
 保证核心包、模板、示例和文档边界清楚，避免 P0 之后再痛苦拆包。
 
 **行为：**  
@@ -1179,7 +1179,7 @@ make quality
 - MUST release job 在质量门禁通过后运行。
 - MUST 无 releasable commit 时不发版。
 - MUST release process 写入 `docs/release-process.md`。
-- MUST template 声明兼容的 `agent-harness` 版本范围，例如 `>=0.1,<0.2`。
+- MUST template 声明与当前发布版本精确匹配的 `agent-harness` 自依赖，例如 `==0.1.0`，避免模板与核心包跨版本组合。
 - MUST 将每次发布预演记录为版本化、机器可读的 `ReleaseRecord` CI artifact；该记录不是运行时业务实体，不写入应用数据库。
 - MUST 破坏性变更写 ADR。
 
@@ -1243,6 +1243,32 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - [x] AC-060: Given service profile, when 分别启动 API 进程和 worker 进程并提交 run, then run 可被 worker 执行并通过共享 storage/queue 产出事件。
 - [x] AC-061: Given 业务 agent 代码, when 静态扫描 import, then 不直接 import 具体 model/tool/storage/observability vendor SDK 或直接操作 ORM session。
 - [x] AC-062: Given CanonicalEvent / DTO contract tests, when API、worker、tool/model adapter 交换数据, then 关联字段和 schema 校验保持一致。
+
+### REQ-023: 依赖兼容范围与可复现解析
+
+**优先级：** P0
+**关联任务：** TASK-001, TASK-009, TASK-010
+
+**用途：**
+依赖声明表达项目支持的兼容窗口，`uv.lock` 表达当前经过验证的精确解析；不能把二者混成一组永久 exact pin，也不能以放宽声明为由让 CI、构建或发布自动漂移。
+
+**行为：**
+- 根 workspace、核心包、可选 extra、service-app 模板及其开发/构建工具中的外部依赖 MUST 使用带已验证下界和破坏性升级上界的 PEP 440 范围；稳定版本默认限制在下一主版本之前，`0.x` 依赖默认限制在下一次版本之前，已知上游组合约束可以更窄。根 workspace 与 service-app 模板对同仓库 `agent-harness` 的自依赖 MUST 精确匹配当前项目版本，避免模板和核心包跨版本组合。
+- `uv.lock` MUST 继续记录完整精确解析；普通 `uv sync --locked`、`uv lock --check`、CI 和 release 不得仅因声明范围放宽而升级已锁包，升级必须通过显式 `uv lock --upgrade` 或等价受审动作发起。
+- build-system metadata 可以向消费者声明兼容范围，但仓库 release preview 与正式 tag build MUST 先按 frozen lock 准备受审 build backend，再关闭默认 build isolation 使用该精确 backend；manifest MUST 记录并核对 backend identity，不能假定默认隔离构建会继承项目 lock。
+- 根 `[tool.uv].required-version` MUST 接受已验证的 uv `0.11.19` 至 `0.12` 之前版本；GitHub、GitLab、release wrapper 和发布证据继续精确使用 `0.11.29`，从而同时保留本地 patch 兼容性和可复核发布基线。
+- 发布 promotion MUST 只更新本项目版本及两处 `agent-harness` 精确自依赖，不得放宽为兼容范围或通配形式。
+
+**规则：**
+- MUST exact pin 只出现在 lock、同仓库版本耦合的自依赖、CI image/action、发布 wrapper、容器 digest、合规快照或其他明确要求不可变身份的边界；若 `pyproject.toml` 的外部依赖确需 exact pin，必须就地写明兼容、安全或合规原因并有合同测试覆盖。
+- MUST 声明范围变化与解析升级分开审查；只放宽且包含当前版本时，`uv.lock` 中的 `(name, version, source)` 身份不得变化。
+- MUST 双语 README 与 release 文档明确区分“支持范围”“当前 lock 解析”和“CI/发布精确工具基线”。
+
+**验收标准：**
+- [x] AC-069: Given 三份 `pyproject.toml`, when 检查普通、optional、dev、license、release 与 build-system 声明, then 所有可放宽的外部依赖都含已验证下界和兼容上界；根 workspace 与 service-app 模板的 `agent-harness` 自依赖精确等于当前项目版本，且不存在其他无说明 exact pin。
+- [x] AC-070: Given 当前 `uv.lock`, when 只将依赖声明改为包含当前版本的兼容范围并刷新 lock metadata, then 所有已锁 package 的 `(name, version, source)` 身份保持不变，`uv lock --check` 和 frozen sync 通过。
+- [x] AC-071: Given release promotion 将版本从 `0.1.x` 提升到 `0.2.0`, when 更新根 workspace 与 service-app 模板依赖, then 两者都得到 `agent-harness==0.2.0`，本地 uv `0.11.19` 可读取当前 lock，而 CI/release 仍精确使用 `0.11.29`。
+- [x] AC-072: Given build-system metadata 使用 `hatchling>=1.30.1,<2`, when release preview 或正式 tag build 生成 wheel/sdist, then 构建入口只使用 frozen lock 中精确 `hatchling 1.30.1`，manifest 记录该 backend identity，任何缺失或漂移都在产物授权前 fail closed。
 
 ### AI 能力规格
 

@@ -50,6 +50,10 @@ REQUIRED_PRODUCER_GATES = {
     "AC-060": frozenset({"test-aggregate", "smoke-service"}),
     "AC-065": frozenset({"smoke-local"}),
     "AC-068": frozenset({"test-aggregate", "smoke-service"}),
+    "AC-069": frozenset({"test-aggregate"}),
+    "AC-070": frozenset({"lock", "install", "license", "release-dry-run", "test-aggregate"}),
+    "AC-071": frozenset({"test-aggregate"}),
+    "AC-072": frozenset({"test-aggregate", "release-dry-run"}),
 }
 REQUIRED_TEST_MAPPINGS = {
     "AC-003": frozenset(
@@ -164,6 +168,38 @@ REQUIRED_TEST_MAPPINGS = {
             "test_sqlite_true_concurrency_commits_only_safe_direct_combination",
             "tests/contracts/test_service_deployment_packaging_smoke_contracts.py::"
             "test_service_smoke_executes_postgresql_migration_and_shared_budget_scenarios",
+        }
+    ),
+    "AC-069": frozenset(
+        {
+            "tests/contracts/test_dependency_version_policy_contracts.py::"
+            "test_all_python_dependency_declarations_use_reviewed_compatible_ranges"
+        }
+    ),
+    "AC-070": frozenset(
+        {
+            "tests/contracts/test_dependency_version_policy_contracts.py::"
+            "test_local_uv_range_and_conflicting_groups_keep_release_baseline_exact",
+            "tests/contracts/test_dependency_version_policy_contracts.py::"
+            "test_lock_package_identities_match_reviewed_baseline",
+        }
+    ),
+    "AC-071": frozenset(
+        {
+            "tests/contracts/test_dependency_version_policy_contracts.py::"
+            "test_local_uv_range_and_conflicting_groups_keep_release_baseline_exact",
+            "tests/contracts/test_release_promotion_contracts.py::"
+            "test_update_release_files_keeps_workspace_self_dependencies_exact",
+        }
+    ),
+    "AC-072": frozenset(
+        {
+            "tests/contracts/test_release_four_stage_handoff_contracts.py::"
+            "test_formal_build_manifest_rejects_missing_or_drifted_backend_identity",
+            "tests/contracts/test_release_four_stage_handoff_contracts.py::"
+            "test_promotion_rebuilds_from_tag_and_registry_plans_only_formal_artifacts",
+            "tests/contracts/test_release_preview_contracts.py::"
+            "test_releasable_history_generates_explained_version_and_isolated_artifacts",
         }
     ),
 }

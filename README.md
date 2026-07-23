@@ -80,7 +80,7 @@ Required for local development:
 - Git;
 - GNU Make;
 - Python `>=3.12`;
-- **uv `0.11.29` exactly**. The repository enforces this version in `pyproject.toml`.
+- uv `>=0.11.19,<0.12` for local development. CI and release evidence use `0.11.29` exactly.
 
 Verify before running repository commands:
 
@@ -91,12 +91,14 @@ git --version
 make --version
 ```
 
-If uv is missing or has a different version, install the repository-pinned version with the [official versioned installer](https://docs.astral.sh/uv/getting-started/installation/), or use your package manager's equivalent version-selection mechanism:
+If uv is missing or outside the supported range, install the exact CI/release baseline with the [official versioned installer](https://docs.astral.sh/uv/getting-started/installation/), or use your package manager's equivalent version-selection mechanism:
 
 ```bash
 curl -LsSf https://astral.sh/uv/0.11.29/install.sh | sh
 uv --version
 ```
+
+The three `pyproject.toml` files declare bounded compatibility ranges for external dependencies. The root and service template deliberately keep `agent-harness==0.1.0` because they are released from this repository as one versioned set. `uv.lock` remains the exact, reviewed resolution: normal `uv sync --frozen` and `uv lock --check` do not upgrade packages. Start dependency upgrades separately with `uv lock --upgrade` and review the resulting lock diff.
 
 The service profile additionally requires Docker with Compose v2. See the [official Docker Compose installation guide](https://docs.docker.com/compose/install/).
 
@@ -407,7 +409,7 @@ Documentation-only contributions must still verify commands, internal links, lan
 
 ### uv rejects every command
 
-If the error says the required uv version does not match, install or select `uv 0.11.29`. The rejection occurs before project code runs.
+If the error says the required uv version does not match, select a uv version in `>=0.11.19,<0.12`; use `0.11.29` when reproducing CI or release evidence. The rejection occurs before project code runs.
 
 ### `config.invalid` or a missing fingerprint key
 

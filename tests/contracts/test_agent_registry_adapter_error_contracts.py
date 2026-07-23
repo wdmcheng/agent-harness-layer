@@ -58,7 +58,7 @@ def test_pydantic_ai_adapter_invokes_agent_run_sync_without_leaking_sdk_types() 
     from agent_harness.models import ModelRequest
 
     pyproject = tomllib.loads((ROOT / "packages" / "agent-harness" / "pyproject.toml").read_text())
-    assert "pydantic-ai==2.5.0" in pyproject["project"]["dependencies"]
+    assert "pydantic-ai>=2.5.0,<3" in pyproject["project"]["dependencies"]
     assert importlib.util.find_spec("pydantic_ai") is not None
 
     class Result:

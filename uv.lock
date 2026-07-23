@@ -53,25 +53,25 @@ observability = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiosqlite", specifier = "==0.22.1" },
-    { name = "alembic", specifier = "==1.18.5" },
-    { name = "arize-phoenix", marker = "extra == 'observability'", specifier = "==17.21.0" },
-    { name = "asyncpg", specifier = "==0.31.0" },
-    { name = "dbos", specifier = "==2.26.0" },
-    { name = "greenlet", specifier = "==3.3.0" },
-    { name = "httpx", specifier = "==0.28.1" },
-    { name = "langfuse", marker = "extra == 'observability'", specifier = "==4.13.2" },
-    { name = "logfire", extras = ["httpx"], marker = "extra == 'observability'", specifier = "==4.37.0" },
+    { name = "aiosqlite", specifier = ">=0.22.1,<0.23" },
+    { name = "alembic", specifier = ">=1.18.5,<2" },
+    { name = "arize-phoenix", marker = "extra == 'observability'", specifier = ">=17.21.0,<18" },
+    { name = "asyncpg", specifier = ">=0.31.0,<0.32" },
+    { name = "dbos", specifier = ">=2.26.0,<3" },
+    { name = "greenlet", specifier = ">=3.3.0,<4" },
+    { name = "httpx", specifier = ">=0.28.1,<0.29" },
+    { name = "langfuse", marker = "extra == 'observability'", specifier = ">=4.13.2,<5" },
+    { name = "logfire", extras = ["httpx"], marker = "extra == 'observability'", specifier = ">=4.37.0,<5" },
     { name = "mcp", specifier = ">=1.28.1,<2" },
-    { name = "opentelemetry-api", marker = "extra == 'observability'", specifier = "==1.42.1" },
-    { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'observability'", specifier = "==1.42.1" },
-    { name = "opentelemetry-sdk", marker = "extra == 'observability'", specifier = "==1.42.1" },
-    { name = "pydantic", specifier = "==2.13.4" },
-    { name = "pydantic-ai", specifier = "==2.5.0" },
-    { name = "pyyaml", specifier = "==6.0.3" },
-    { name = "redis", specifier = "==8.0.1" },
-    { name = "sqlalchemy", specifier = "==2.0.51" },
-    { name = "typer", specifier = "==0.26.8" },
+    { name = "opentelemetry-api", marker = "extra == 'observability'", specifier = ">=1.42.1,<1.43" },
+    { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'observability'", specifier = ">=1.42.1,<1.43" },
+    { name = "opentelemetry-sdk", marker = "extra == 'observability'", specifier = ">=1.42.1,<1.43" },
+    { name = "pydantic", specifier = ">=2.13.4,<3" },
+    { name = "pydantic-ai", specifier = ">=2.5.0,<3" },
+    { name = "pyyaml", specifier = ">=6.0.3,<7" },
+    { name = "redis", specifier = ">=8.0.1,<9" },
+    { name = "sqlalchemy", specifier = ">=2.0.51,<3" },
+    { name = "typer", specifier = ">=0.26.8,<0.27" },
 ]
 provides-extras = ["observability"]
 
@@ -106,18 +106,18 @@ requires-dist = [{ name = "agent-harness", editable = "packages/agent-harness" }
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "coverage", specifier = "==7.15.0" },
-    { name = "fastapi", specifier = "==0.139.0" },
-    { name = "pre-commit", specifier = "==4.6.0" },
-    { name = "pyright", specifier = "==1.1.411" },
-    { name = "pytest", specifier = "==9.1.1" },
-    { name = "pytest-asyncio", specifier = "==1.4.0" },
-    { name = "ruff", specifier = "==0.15.20" },
+    { name = "coverage", specifier = ">=7.15.0,<8" },
+    { name = "fastapi", specifier = ">=0.139.0,<0.140" },
+    { name = "pre-commit", specifier = ">=4.6.0,<5" },
+    { name = "pyright", specifier = ">=1.1.411,<2" },
+    { name = "pytest", specifier = ">=9.1.1,<10" },
+    { name = "pytest-asyncio", specifier = ">=1.4.0,<2" },
+    { name = "ruff", specifier = ">=0.15.20,<0.16" },
 ]
-license = [{ name = "licensecheck", specifier = "==2026.0.8" }]
+license = [{ name = "licensecheck", specifier = ">=2026.0.8,<2027" }]
 release = [
-    { name = "hatchling", specifier = "==1.30.1" },
-    { name = "python-semantic-release", specifier = "==10.6.1" },
+    { name = "hatchling", specifier = ">=1.30.1,<2" },
+    { name = "python-semantic-release", specifier = ">=10.6.1,<11" },
 ]
 
 [[package]]
@@ -141,16 +141,16 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "agent-harness", editable = "packages/agent-harness" },
-    { name = "fastapi", specifier = "==0.139.0" },
-    { name = "typer", specifier = "==0.26.8" },
-    { name = "uvicorn", specifier = "==0.50.2" },
+    { name = "fastapi", specifier = ">=0.139.0,<0.140" },
+    { name = "typer", specifier = ">=0.26.8,<0.27" },
+    { name = "uvicorn", specifier = ">=0.50.2,<0.51" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "pyright", specifier = "==1.1.411" },
-    { name = "pytest", specifier = "==9.1.1" },
-    { name = "ruff", specifier = "==0.15.20" },
+    { name = "pyright", specifier = ">=1.1.411,<2" },
+    { name = "pytest", specifier = ">=9.1.1,<10" },
+    { name = "ruff", specifier = ">=0.15.20,<0.16" },
 ]
 
 [[package]]

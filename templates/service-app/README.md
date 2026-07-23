@@ -42,7 +42,7 @@ Required for local use:
 - macOS or Linux;
 - Python `>=3.12`;
 - Git and GNU Make;
-- **uv `0.11.29` exactly** in the source repository;
+- uv `>=0.11.19,<0.12` in the source repository; CI and release evidence use `0.11.29` exactly;
 - a trusted local `agent-harness` wheel, sdist, source directory, or private index when using a copied template.
 
 Check the toolchain:
@@ -635,7 +635,7 @@ The script still removes containers, network, temporary credentials, Redis names
 
 ### Required uv version mismatch
 
-The source workspace refuses commands unless uv is exactly `0.11.29`. Select that version before diagnosing project code.
+The source workspace accepts uv `>=0.11.19,<0.12`; select `0.11.29` when reproducing CI or release evidence. The copied template keeps an exact `agent-harness` dependency matching its project version, while external dependencies use bounded ranges and the source `uv.lock` keeps the reviewed exact resolution.
 
 ### Copied project cannot resolve `agent-harness`
 

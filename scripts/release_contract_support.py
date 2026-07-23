@@ -33,10 +33,32 @@ BUMPS = {"major", "minor", "patch"}
 RELEASE_ARTIFACT_KINDS = {"wheel", "sdist", "changelog", "release-notes", "checksums"}
 UV_VERSION = "0.11.29"
 PSR_VERSION = "10.6.1"
+BUILD_BACKEND_IDENTITY: dict[str, object] = {
+    "name": "hatchling",
+    "version": "1.30.1",
+    "source": {"registry": "https://pypi.org/simple"},
+}
 
 
 class ReleaseContractError(RuntimeError):
     """表示发布身份、schema 或安全门禁不能形成闭合证据。"""
+
+
+def build_backend_identity() -> dict[str, object]:
+    """返回可写入 manifest 的独立 backend identity，避免调用方修改全局常量。"""
+
+    return {
+        "name": BUILD_BACKEND_IDENTITY["name"],
+        "version": BUILD_BACKEND_IDENTITY["version"],
+        "source": dict(cast(dict[str, object], BUILD_BACKEND_IDENTITY["source"])),
+    }
+
+
+def validate_build_backend_identity(value: object) -> None:
+    """要求 manifest backend 与受审 lock identity 完全一致。"""
+
+    if value != BUILD_BACKEND_IDENTITY:
+        raise ReleaseContractError("build backend identity does not match the reviewed lock")
 
 
 def required_uv_executable() -> str:

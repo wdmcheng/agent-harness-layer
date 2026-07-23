@@ -8,32 +8,32 @@ authors = [
 ]
 license = "Apache-2.0"
 dependencies = [
-    "aiosqlite==0.22.1",
-    "alembic==1.18.5",
-    "asyncpg==0.31.0",
-    "dbos==2.26.0",
-    "greenlet==3.3.0",
-    "httpx==0.28.1",
+    "aiosqlite>=0.22.1,<0.23",
+    "alembic>=1.18.5,<2",
+    "asyncpg>=0.31.0,<0.32",
+    "dbos>=2.26.0,<3",
+    "greenlet>=3.3.0,<4",
+    "httpx>=0.28.1,<0.29",
     "mcp>=1.28.1,<2",
-    "pydantic==2.13.4",
-    "pydantic-ai==2.5.0",
-    "PyYAML==6.0.3",
-    "redis==8.0.1",
-    "SQLAlchemy==2.0.51",
-    "typer==0.26.8",
+    "pydantic>=2.13.4,<3",
+    "pydantic-ai>=2.5.0,<3",
+    "PyYAML>=6.0.3,<7",
+    "redis>=8.0.1,<9",
+    "SQLAlchemy>=2.0.51,<3",
+    "typer>=0.26.8,<0.27",
 ]
 
 [project.optional-dependencies]
 # Provider adapters 是 optional fan-out；默认 local/jsonl 不依赖 SaaS SDK。
 observability = [
-    "arize-phoenix==17.21.0",
-    "langfuse==4.13.2",
-    "logfire[httpx]==4.37.0",
+    "arize-phoenix>=17.21.0,<18",
+    "langfuse>=4.13.2,<5",
+    "logfire[httpx]>=4.37.0,<5",
     # Logfire 4.37.0 当前约束 opentelemetry-sdk <1.43.0；该 optional extra 锁定
     # 可解析组合，避免 provider extra 声明成不可安装状态。
-    "opentelemetry-api==1.42.1",
-    "opentelemetry-exporter-otlp-proto-http==1.42.1",
-    "opentelemetry-sdk==1.42.1",
+    "opentelemetry-api>=1.42.1,<1.43",
+    "opentelemetry-exporter-otlp-proto-http>=1.42.1,<1.43",
+    "opentelemetry-sdk>=1.42.1,<1.43",
 ]
 
 [project.scripts]
@@ -41,7 +41,7 @@ observability = [
 agent-harness = "agent_harness.cli:main"
 
 [build-system]
-requires = ["hatchling==1.30.1"]
+requires = ["hatchling>=1.30.1,<2"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

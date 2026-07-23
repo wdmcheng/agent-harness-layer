@@ -28,13 +28,19 @@ from release_contract_test_support import (
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
+RELEASE_BUILD_MODULE = importlib.import_module("release_build")
+BUILD_RELEASE = cast(Callable[..., dict[str, Any]], vars(RELEASE_BUILD_MODULE)["build_release"])
 VERIFY_SDIST = cast(
     Callable[[Path, str], None],
-    vars(importlib.import_module("release_build"))["_verify_sdist_metadata"],
+    vars(RELEASE_BUILD_MODULE)["_verify_sdist_metadata"],
 )
 RELEASE_CONTRACT_ERROR = cast(
     type[Exception],
     vars(importlib.import_module("release_models"))["ReleaseContractError"],
+)
+VALIDATE_RELEASE_BUILD = cast(
+    Callable[[dict[str, Any]], None],
+    vars(importlib.import_module("release_build_contract"))["validate_release_build"],
 )
 
 
@@ -94,6 +100,57 @@ def test_formal_sdist_rejects_version_or_workspace_dependency_drift(
 
     with pytest.raises(RELEASE_CONTRACT_ERROR, match=expected):
         VERIFY_SDIST(sdist, "0.2.0")
+
+
+def test_formal_build_rejects_symlinked_release_root_before_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """正式构建不得把仓库内 release-build symlink 当成仓库外可清理目录。"""
+
+    repo = tmp_path / "repo"
+    artifacts = repo / ".artifacts"
+    artifacts.mkdir(parents=True)
+    external = tmp_path / "external-builds"
+    output = external / "execute"
+    output.mkdir(parents=True)
+    sentinel = output / "must-survive.txt"
+    sentinel.write_text("outside repository\n", encoding="utf-8")
+    (artifacts / "release-build").symlink_to(external, target_is_directory=True)
+
+    def fake_run_git(_repo: Path, *args: str) -> str:
+        """只提供到达输出清理边界所需的 tag identity。"""
+
+        return "tag" if args[:2] == ("cat-file", "-t") else "c" * 40
+
+    def fail_build_command(_arguments: list[str], *, cwd: Path) -> None:
+        """安全输出检查必须先于任何 clone 或 build 子进程。"""
+
+        del cwd
+        pytest.fail("unsafe output reached the build command")
+
+    monkeypatch.setattr(
+        RELEASE_BUILD_MODULE,
+        "run_git",
+        fake_run_git,
+    )
+    monkeypatch.setattr(RELEASE_BUILD_MODULE, "required_uv_executable", lambda: "uv")
+    monkeypatch.setattr(
+        RELEASE_BUILD_MODULE,
+        "_run",
+        fail_build_command,
+    )
+
+    with pytest.raises(RELEASE_CONTRACT_ERROR, match="unsafe|symlink"):
+        BUILD_RELEASE(
+            repo=repo,
+            tag="agent-harness-v0.2.0",
+            expected_version="0.2.0",
+            expected_target="c" * 40,
+            output=artifacts / "release-build" / "execute",
+        )
+
+    assert sentinel.read_text(encoding="utf-8") == "outside repository\n"
 
 
 def test_promotion_plan_is_atomically_persisted_with_planned_status(
@@ -195,6 +252,11 @@ def test_promotion_rebuilds_from_tag_and_registry_plans_only_formal_artifacts(
     build = json.loads(build_path.read_text(encoding="utf-8"))
     assert build["schema_version"] == "release-build/v1"
     assert build["status"] == "built"
+    assert build["build_backend"] == {
+        "name": "hatchling",
+        "version": "1.30.1",
+        "source": {"registry": "https://pypi.org/simple"},
+    }
     assert build["tag_target_sha"] == receipt["release_commit_sha"]
     assert receipt["release_build_manifest_sha256"]
     assert receipt["artifacts"] == [
@@ -234,6 +296,42 @@ def test_promotion_rebuilds_from_tag_and_registry_plans_only_formal_artifacts(
     assert plan["artifacts"] != [
         item for item in preview["artifacts"] if item["kind"] in {"wheel", "sdist"}
     ]
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        None,
+        {
+            "name": "hatchling",
+            "version": "1.31.0",
+            "source": {"registry": "https://pypi.org/simple"},
+        },
+    ],
+)
+def test_formal_build_manifest_rejects_missing_or_drifted_backend_identity(
+    backend: dict[str, object] | None,
+) -> None:
+    """正式 build consumer 必须在授权产物前核对 lock 内 Hatchling identity。"""
+
+    build: dict[str, Any] = {
+        "schema_version": "release-build/v1",
+        "status": "built",
+        "version": "0.2.0",
+        "tag": "agent-harness-v0.2.0",
+        "tag_target_sha": "c" * 40,
+        "uv_version": "0.11.29",
+        "artifacts": [
+            {"kind": "wheel"},
+            {"kind": "sdist"},
+            {"kind": "checksums"},
+        ],
+    }
+    if backend is not None:
+        build["build_backend"] = backend
+
+    with pytest.raises(RELEASE_CONTRACT_ERROR, match="build backend"):
+        VALIDATE_RELEASE_BUILD(build)
 
 
 @pytest.mark.parametrize("status", [None, "planned", "failed"])

@@ -16,6 +16,7 @@ from release_contract_support import (
     ReleaseContractError,
     sha256_file,
     valid_git_object_id,
+    validate_build_backend_identity,
 )
 
 
@@ -109,6 +110,7 @@ def validate_preview(manifest: dict[str, Any]) -> None:
         raise ReleaseContractError("release preview next_version must be stable SemVer")
     if not isinstance(tag, str) or tag != f"agent-harness-v{next_version}":
         raise ReleaseContractError("release preview tag must match next_version")
+    validate_build_backend_identity(manifest.get("build_backend"))
     if len(typed_artifacts) != len(RELEASE_ARTIFACT_KINDS):
         raise ReleaseContractError("release preview must contain exactly five artifacts")
     kinds: set[str] = set()

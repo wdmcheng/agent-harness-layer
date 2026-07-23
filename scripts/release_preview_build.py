@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from release_build_backend import prepare_build_backend
 from release_models import (
     ReleaseContractError,
     artifact_record,
@@ -66,7 +67,7 @@ def _release_text(version: str, commits: list[dict[str, Any]]) -> tuple[str, str
 
 def build_preview_artifacts(
     repo: Path, output: Path, version: str, commits: list[dict[str, Any]]
-) -> list[dict[str, object]]:
+) -> tuple[list[dict[str, object]], dict[str, object]]:
     """在短命副本更新版本并构建，异常或中断由 TemporaryDirectory 统一清理。"""
 
     uv = required_uv_executable()
@@ -98,6 +99,7 @@ def build_preview_artifacts(
                 ),
                 encoding="utf-8",
             )
+        backend = prepare_build_backend(copy, uv)
         result = subprocess.run(
             [
                 uv,
@@ -134,7 +136,7 @@ def build_preview_artifacts(
         artifact_record(notes, root=repo, kind="release-notes"),
         artifact_record(checksum, root=repo, kind="checksums"),
     ]
-    return records
+    return records, backend
 
 
 __all__ = ["build_preview_artifacts"]

@@ -23,6 +23,16 @@ PROMOTE = ROOT / "scripts" / "release_promote.py"
 PUBLISH = ROOT / "scripts" / "registry_publish.py"
 
 
+def build_backend_identity() -> dict[str, object]:
+    """构造受审 lock 中的 Hatchling 身份；生产校验会拒绝 fixture 与合同漂移。"""
+
+    return {
+        "name": "hatchling",
+        "version": "1.30.1",
+        "source": {"registry": "https://pypi.org/simple"},
+    }
+
+
 def run(
     *args: str, cwd: Path, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
@@ -56,8 +66,16 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = ["agent-harness==0.1.0"]
 
+[dependency-groups]
+release = ["hatchling>=1.30.1,<2"]
+license = []
+
 [tool.uv]
-required-version = "==0.11.29"
+required-version = ">=0.11.19,<0.12"
+conflicts = [[{ group = "release" }, { group = "license" }]]
+# Fixture 从零创建仓库时用私有 constraint 复现受审 lock 中的 backend；真实仓库
+# 已有 lock preference，不应为了测试而切换全局 resolution mode。
+constraint-dependencies = ["hatchling==1.30.1"]
 
 [tool.uv.workspace]
 members = ["packages/agent-harness", "templates/service-app"]
@@ -74,7 +92,7 @@ version = "0.1.0"
 requires-python = ">=3.12"
 
 [build-system]
-requires = ["hatchling==1.30.1"]
+requires = ["hatchling>=1.30.1,<2"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
@@ -88,10 +106,10 @@ packages = ["src/agent_harness"]
 name = "agent-harness-service-app"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["agent-harness==0.1.*"]
+dependencies = ["agent-harness==0.1.0"]
 
 [build-system]
-requires = ["hatchling==1.30.1"]
+requires = ["hatchling>=1.30.1,<2"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
@@ -101,6 +119,9 @@ packages = []
     )
     (repo / "CHANGELOG.md").write_text("# Changelog\n", encoding="utf-8")
     (repo / ".gitignore").write_text("/.artifacts/\n", encoding="utf-8")
+    # 默认解析策略必须与 promotion 的 refresh 保持一致，避免把策略切换误判为依赖漂移。
+    locked = run(os.environ["UV"], "lock", cwd=repo)
+    assert locked.returncode == 0, locked.stderr
     git(repo, "init", "-b", "main")
     git(repo, "config", "user.name", "Release Contract")
     git(repo, "config", "user.email", "release-contract@example.invalid")
@@ -250,6 +271,7 @@ def write_publish_inputs(root: Path, *, status: str = "promoted") -> tuple[Path,
         "current_version": "0.1.0",
         "next_version": "0.2.0",
         "tag": "agent-harness-v0.2.0",
+        "build_backend": build_backend_identity(),
         "decision": {"bump": "minor", "reason": "feat", "commits": []},
         "artifacts": all_artifacts,
     }
@@ -278,6 +300,7 @@ def write_publish_inputs(root: Path, *, status: str = "promoted") -> tuple[Path,
         "tag": "agent-harness-v0.2.0",
         "tag_target_sha": "c" * 40,
         "uv_version": "0.11.29",
+        "build_backend": build_backend_identity(),
         "artifacts": [
             *formal_publishable,
             artifact(formal_checksums, "checksums", relative_to=root),

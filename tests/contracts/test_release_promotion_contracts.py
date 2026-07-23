@@ -30,6 +30,7 @@ from release_contract_test_support import (
     run,
     write_release_repo,
 )
+from scripts.release_workspace_contract import update_release_files  # noqa: E402
 
 from scripts import release_promote as release_promote_module  # noqa: E402
 
@@ -39,6 +40,28 @@ def loopback_server() -> Generator[tuple[str, type[RegistryHandler]], None, None
     """复用共享 loopback 生命周期，同时让 pytest 在当前测试模块发现 fixture。"""
 
     yield from loopback_server_fixture()
+
+
+def test_update_release_files_keeps_workspace_self_dependencies_exact(tmp_path: Path) -> None:
+    """公开 promotion seam 必须同步项目版本，不能把同仓库自依赖放宽。"""
+
+    repo = tmp_path / "repo"
+    write_release_repo(repo)
+    notes = repo / "release-notes.md"
+    notes.write_text("# Release notes\n", encoding="utf-8")
+    update_release_files(
+        repo,
+        {
+            "next_version": "0.2.0",
+            "artifacts": [{"kind": "release-notes", "path": "release-notes.md"}],
+        },
+        changelog_preview="# Changelog\n\n## 0.2.0\n",
+    )
+
+    for relative in ("pyproject.toml", "templates/service-app/pyproject.toml"):
+        with (repo / relative).open("rb") as stream:
+            project = tomllib.load(stream)
+        assert "agent-harness==0.2.0" in project["project"]["dependencies"]
 
 
 @pytest.mark.parametrize("artifact_kind", ["changelog", "release-notes"])
@@ -156,7 +179,7 @@ def test_isolated_promotion_orders_commit_tag_provider_and_writes_closed_receipt
     with (repo / "templates/service-app/pyproject.toml").open("rb") as stream:
         template_project = tomllib.load(stream)
     assert "agent-harness==0.2.0" in root_project["project"]["dependencies"]
-    assert "agent-harness==0.2.*" in template_project["project"]["dependencies"]
+    assert "agent-harness==0.2.0" in template_project["project"]["dependencies"]
     assert len(handler.requests) == 1 and handler.requests[0]["path"] == "/"
     provider_payload_value = handler.requests[0]["json_payload"]
     assert isinstance(provider_payload_value, dict)

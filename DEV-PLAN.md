@@ -7,25 +7,25 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-21 的 v1.13。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-23 的 v1.17。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-15 的已完成 changes 均已归档并同步主规格。Phase 15 的 `release-dry-run-private-registry`、`license-compliance-gate`、`ci-p0-evidence-closure` 已于 2026-07-22 归档。审查确认的 `2 HIGH + 1 MEDIUM + 1 LOW` 已按最小范围修复，fresh Reviewer 1 对四项修复给出 Stage 1/2 PASS；随后 `make smoke-service` 在仓库要求的 uv `0.11.29` 且 localhost 绕过宿主代理的环境中完整退出 0，用户已裁决该门禁按 PASS 处理。用户已明确取消最终 Reviewer 2/3，并对本次 Phase 15 作出一次性 `owner-waived` 裁决；当前无 active change。
-- 代码状态: Phase 1-15 已完成计划内实现或文档交付并归档；Phase 15 已建立双 CI、release preview/promotion seam、覆盖可发布 root 普通/optional 依赖的 124 项 `name/version/source` license inventory/report，以及 92 项具体生产文件与精确 pytest node 的 acceptance matrix。validator 拒绝文件级/空壳节点，并固定审查确认的语义节点；AC-004/061 真实扫描 import，AC-019/023/026/029/052/062 分别验证默认 tenant、deny audit、MCP allowlist、无真实 key 的 fake eval 与跨边界关联传播。AC-012/068 分别列出 SQLite `test-aggregate` 与真实 PostgreSQL `smoke-service`，AC-065 映射公开 CLI 正向 single-agent fake run。GitHub release 多路径 artifact 下载根固定为 `.artifacts` 并纳入 `ci_contract`，registry endpoint 在 plan/network 前拒绝 userinfo/query/fragment。artifact 服务本身按用户裁决不执行上传或下载验证，hosted 服务保持未验证；本地收口记录为 `owner-waived`，不写成 Reviewer 2/3 PASS 或已发布。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-16 的已完成 changes 均已同步主规格并归档。Phase 16 的单一聚焦 change `relax-dependency-version-constraints` 已归档到 `openspec/changes/archive/2026-07-23-relax-dependency-version-constraints/`，当前无 active change。
+- 代码状态: Phase 1-15 已完成计划内实现或文档交付并归档；Phase 16 已完成 red-first 实现、本地四步走验证、主规格同步与归档，外部依赖范围化、同仓库自依赖精确匹配、lock identity 保持与发布 backend 保真已形成归档后冻结候选；尚未 commit，也未执行任何外部发布副作用。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | Phase 1-15 已完成并归档 | Phase 15 四项最小修复的 fresh Reviewer 1 Stage 1/2 PASS，真实 `smoke-service` 已在正确 uv/localhost 直连环境中退出 0；最终 Reviewer 2/3 由用户一次性 `owner-waived`。 |
-| 当前 Phase | Phase 15 已归档 | 三个 change 已同步主规格并归档；不执行 Reviewer 2/3，不代表 hosted PASS 或发布。 |
+| 总体状态 | Phase 16 已实现并归档，归档后候选进入最终门禁 | Phase 1-15 保持已归档；本轮只放宽声明，207 个已锁 package identity 未升级。 |
+| 当前 Phase | Phase 16: 依赖兼容范围与锁定策略 | TDD、完整本地验证、主规格同步和 OpenSpec 归档已完成；最终收口以归档后同一冻结候选的 fresh code-reviewer Stage 1/2 结论为准。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14, Phase 15 | Phase 13-15 的 changes 均已同步主规格并归档。 |
-| 当前 OpenSpec change | 无 active change | Phase 15 三份 tasks 全部完成并已归档；本次以明确的 `owner-waived` 代替未执行的最终 Reviewer 2/3。 |
-| 当前验证基线 | 当前候选证据已覆盖受影响路径 | quality/ruff/pyright/import-boundary 与 unit-contract PASS，test-aggregate `1279 passed, 223 skipped`，integration `11 passed, 23 skipped`，eval 与 `smoke-local` PASS；真实 PostgreSQL 18.4/Redis 7.2.14 `smoke-service` 在 uv `0.11.29`、`NO_PROXY=127.0.0.1,localhost` 下完整退出 0并生成 service trace。旧 `ci-result/v1` 失败记录不再作为门禁结论，最终证据说明保留宿主 uv/proxy 条件。 |
+| 当前 OpenSpec change | 无 active change | `relax-dependency-version-constraints` 的 19/19 tasks 已完成，delta 已同步到 4 类长期主规格，并归档到 `openspec/changes/archive/2026-07-23-relax-dependency-version-constraints/`。 |
+| Phase 16 本地验证 | PASS | 归档后固定 uv `0.11.29` 的 unit-contract `1279 passed, 200 skipped`、全量 pytest `1291 passed, 223 skipped`；此前 quality、pre-commit、integration `11 passed, 23 skipped`、eval、`smoke-local`、真实 PostgreSQL 18.4/Redis 7.2.14 `smoke-service`、build、release dry-run、license check 均通过。系统 uv `0.11.19` 与固定 uv `0.11.29` 都通过 lock check，207 项 lock identity SHA-256 保持 `bb9046c25267f611007c6b74ee74c3ff8e55f885b3f92d091aed0642c5adef58`。 |
 | 当前阻塞项 | 无本地收口阻塞 | GitHub/GitLab hosted runner、远端保护、secret/artifact service 仍未验证；AC-053/054 因此保持未勾选。 |
-| 当前建议下一步 | 等待后续任务 | AC-053/054 仍需真实 hosted 证据才能关闭；除非用户另行授权，不 push、tag、release、真实 publish 或部署。 |
+| 当前建议下一步 | 完成归档后冻结候选的最终代码审查 | 除非用户另行授权，不 commit、push、tag、release、真实 publish、升级依赖或部署。 |
 
 ## 剩余工作
 
@@ -34,6 +34,7 @@
 - Phase 13.5-13.9 的已实现 changes 已同步主规格并归档。
 - Phase 14 的交付、验证、主规格同步与归档已完成；归档路径为 `openspec/changes/archive/2026-07-19-maintainer-deep-documentation/`。
 - Phase 15 的 release、license 与双 CI/需求验收 evidence 实现已完成；审查确认的四项最小修复已有 fresh Reviewer 1 Stage 1/2 PASS，真实 `smoke-service` 也已在正确 uv 与 localhost 直连环境中通过。用户已明确取消最终 Reviewer 2/3，并对本次 Phase 作出一次性 `owner-waived` 裁决；三个 change 已于 2026-07-22 同步主规格并归档。
+- Phase 16 已冻结 `uv.lock` 的 `(name, version, source)` 身份，建立声明范围、promotion 与 release build backend identity 的失败合同，放宽三份 `pyproject.toml` 并仅刷新 lock metadata；未使用 `--upgrade`，长期主规格已同步，change 已归档。
 
 ### 后续 Phase
 
@@ -49,6 +50,7 @@
 - Phase 13.9: SSE transport、Last-Event-ID、CLI stream 与首 frame 性能已实现并通过完整门禁及最终 3-review，并于 2026-07-19 归档。
 - Phase 14: 深度文档、ADR 与维护者指南，已交付、验证、同步主规格并归档。
 - Phase 15: CI/CD、Release Automation 与合规收口。
+- Phase 16: 依赖兼容范围、精确 lock 与 promotion 保真；已实现、验证、同步主规格并归档，归档后冻结候选进入最终审查门禁。
 
 ### 关键验收状态
 
@@ -66,40 +68,40 @@
 
 ## 技术栈决策
 
-Python dependency 的声明范围以各 `pyproject.toml` 为准，实际解析版本以 `uv.lock` 为准；Docker runtime 以 Compose image reference 为准。Phase 15 通过根 `[tool.uv].required-version`、GitHub setup action 和 GitLab image 将 uv 固定为 `0.11.29`；Docker、Compose 等宿主 CLI 仍只记录某次验证环境，不能冒充 lock 内容。本表区分仓库 pin、解析真相与运行观察值。
+Python dependency 的支持范围以各 `pyproject.toml` 为准，当前精确解析以 `uv.lock` 为准；Docker runtime 以 Compose image reference 为准。Phase 16 将本地 `[tool.uv].required-version` 放宽到 `>=0.11.19,<0.12`，GitHub setup action、GitLab image和 release wrapper 仍精确固定 `0.11.29`。本表版本列写“声明范围；当前 lock”，不把支持范围、解析真相和 CI/发布基线混为一谈。
 
 | 层级 | 技术 | 版本 | 说明 |
 |------|------|------|------|
 | 运行语言 | Python | `>=3.12` | 由 `pyproject.toml` 声明；2026-07-20 Phase 14 本机验证为 3.14.5。Phase 15 才定义并证明 CI Python matrix。 |
-| 包管理 / Workspace | uv | `==0.11.29` | 根 `[tool.uv].required-version`、GitHub setup action 与 GitLab OCI image 共同固定；负责 workspace、lock、preview/tag 后正式 build 和受保护 publish，真实外部发布本轮不执行。 |
-| Build backend | hatchling | `1.30.1` | 现代 Python build backend，配合 `uv build` 产出 wheel/sdist。 |
-| Agent runtime 底座 | pydantic-ai / pydantic-ai-slim | `2.5.0` | 默认底座，但业务 agent 只依赖 `agent_harness` 公共接口；优先使用 slim + extras 降低依赖面。 |
+| 包管理 / Workspace | uv | 本地 `>=0.11.19,<0.12`；CI/release `0.11.29` | 同一 minor 的已验证 patch 可读取当前 lock；发布证据继续使用精确基线，真实外部发布本轮不执行。 |
+| Build backend | hatchling | `>=1.30.1,<2`；lock `1.30.1` | 现代 Python build backend，配合 `uv build` 产出 wheel/sdist。 |
+| Agent runtime 底座 | pydantic-ai / pydantic-ai-slim | `>=2.5.0,<3`；lock `2.5.0` | 默认底座，但业务 agent 只依赖 `agent_harness` 公共接口；优先使用 slim + extras 降低依赖面。 |
 | Agent capability library | pydantic-ai-harness | 不作为 P0 必选依赖；按能力块引入时重新核验并锁版本 | 官方 capability library，用于 CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等可选能力；进入实现前必须走受控 integration boundary。 |
-| 数据校验 | Pydantic | `2.13.4` | 配置、DTO、API schema、CanonicalEvent 和 adapter contract 的统一 schema 基础。 |
-| HTTP API | FastAPI | `0.139.0` | 当前实现 `/api/v1/...`、OpenAPI、Swagger、Redoc、JSON events 与 RUN-006 SSE endpoint。 |
-| ASGI Server | Uvicorn | `0.50.2` | service app 本地 API 入口；开发态使用 `uvicorn[standard]`，CI 可用基础安装。 |
-| CLI | Typer | `0.26.8` | 实现 `agent-harness doctor/run/eval/policy/scaffold/approvals`。 |
-| Durable execution | DBOS | `2.26.0` | service profile 默认 adapter；local profile 保留 SQLite-backed checkpoint。 |
-| ORM | SQLAlchemy | `2.0.51` | 采用 2.0 typed declarative、async session、Repository + Unit of Work。 |
-| Migration | Alembic | `1.18.5` | 统一 SQLite/PostgreSQL schema migration。 |
-| PostgreSQL driver | asyncpg | `0.31.0` | service profile async driver；repository contract tests 以 async 路径为准。 |
-| SQLite async bridge | aiosqlite | `0.22.1` | local profile 和 CI 使用 SQLite async adapter。 |
+| 数据校验 | Pydantic | `>=2.13.4,<3`；lock `2.13.4` | 配置、DTO、API schema、CanonicalEvent 和 adapter contract 的统一 schema 基础。 |
+| HTTP API | FastAPI | `>=0.139.0,<0.140`；lock `0.139.0` | 当前实现 `/api/v1/...`、OpenAPI、Swagger、Redoc、JSON events 与 RUN-006 SSE endpoint。 |
+| ASGI Server | Uvicorn | `>=0.50.2,<0.51`；lock `0.50.2` | service app 本地 API 入口；开发态使用 `uvicorn[standard]`，CI 可用基础安装。 |
+| CLI | Typer | `>=0.26.8,<0.27`；lock `0.26.8` | 实现 `agent-harness doctor/run/eval/policy/scaffold/approvals`。 |
+| Durable execution | DBOS | `>=2.26.0,<3`；lock `2.26.0` | service profile 默认 adapter；local profile 保留 SQLite-backed checkpoint。 |
+| ORM | SQLAlchemy | `>=2.0.51,<3`；lock `2.0.51` | 采用 2.0 typed declarative、async session、Repository + Unit of Work。 |
+| Migration | Alembic | `>=1.18.5,<2`；lock `1.18.5` | 统一 SQLite/PostgreSQL schema migration。 |
+| PostgreSQL driver | asyncpg | `>=0.31.0,<0.32`；lock `0.31.0` | service profile async driver；repository contract tests 以 async 路径为准。 |
+| SQLite async bridge | aiosqlite | `>=0.22.1,<0.23`；lock `0.22.1` | local profile 和 CI 使用 SQLite async adapter。 |
 | Service database | PostgreSQL | Compose 默认 `18.4` + OCI index digest | 由 `templates/service-app/docker-compose.yml` 与 `compliance/third-party.toml` 固定构建输入；实际 server patch 仍由每次真实 service smoke 记录。 |
 | Durable queue | Redis server | `7.2.14` + OCI index digest | 固定在仍采用 BSD-3-Clause 的 7.2 安全补丁线，当前只承担 Streams/XAUTOCLAIM RunQueue；7.4+ 不在 P0 批准范围，升级须重新走 ADR/license/真实 service smoke。 |
-| Redis client | redis-py | `8.0.1` | Durable queue 只依赖 Redis Streams consumer group、claim/ack 与幂等状态 seam。 |
-| Observability 底座 | OpenTelemetry Python | `observability` extra 解析为 `1.42.1` SDK/exporter | 以 `uv.lock` 为当前解析真相；OTel API/SDK 作为 provider adapter 前的统一协议。升级需重新解析 Logfire/Phoenix/Langfuse 组合。 |
-| 推荐观测 provider | Logfire | `4.37.0` | 推荐 adapter；业务代码不直接 import。 |
-| 可选观测 provider | Arize Phoenix | `17.21.0` | 2026-07-09 通过 PyPI 重新核验；可选 adapter contract，覆盖 trace/dataset/eval/feedback 工作流。 |
-| 可选观测 provider | Langfuse Python SDK | `4.13.2` | 2026-07-09 通过 PyPI 重新核验；v4 SDK；adapter 层处理 v4 API，不污染核心接口。 |
+| Redis client | redis-py | `>=8.0.1,<9`；lock `8.0.1` | Durable queue 只依赖 Redis Streams consumer group、claim/ack 与幂等状态 seam。 |
+| Observability 底座 | OpenTelemetry Python | `>=1.42.1,<1.43`；lock `1.42.1` | 上界保留 Logfire 已知组合约束；OTel API/SDK 作为 provider adapter 前的统一协议。 |
+| 推荐观测 provider | Logfire | `>=4.37.0,<5`；lock `4.37.0` | 推荐 adapter；业务代码不直接 import。 |
+| 可选观测 provider | Arize Phoenix | `>=17.21.0,<18`；lock `17.21.0` | 2026-07-09 通过 PyPI 重新核验；可选 adapter contract，覆盖 trace/dataset/eval/feedback 工作流。 |
+| 可选观测 provider | Langfuse Python SDK | `>=4.13.2,<5`；lock `4.13.2` | 2026-07-09 通过 PyPI 重新核验；v4 SDK；adapter 层处理 v4 API，不污染核心接口。 |
 | MCP client SDK | mcp | `>=1.28.1,<2` | 官方 PyPI 说明 v1 是稳定线、v2 是 alpha；P0 明确 `<2` 防止破坏性升级。 |
-| HTTP client | HTTPX | `0.28.1` | MCP HTTP/SSE、provider adapter 和 smoke tests 使用。 |
-| Lint / Format | Ruff | `0.15.20` | `make quality` 的 lint + format 主工具。 |
-| Typecheck | Pyright | `1.1.411` | 使用 Python wrapper 或 npm pyright；CI 固定版本，避免自动漂移。 |
-| Test runner | pytest | `9.1.1` | unit、contract、integration、smoke、eval tests 的统一 runner。 |
-| Async tests | pytest-asyncio | `1.4.0` | runtime、storage、API、event stream 的 async tests。 |
-| Coverage | coverage.py | `7.15.0` | 产出 CI coverage artifact；和 pytest 分离配置。 |
-| Git hooks | pre-commit | `4.6.0` | 本地 quality hook 和 license/header check 入口。 |
-| Release automation | Python Semantic Release + 仓库 wrapper | `python-semantic-release==10.6.1`、CI uv `0.11.29` | PSR 只用全局 `--noop` 的版本计算；wrapper 负责无副作用 preview、隔离构建、checksum 与私有 registry 安全门禁。真实 promotion/publish 不执行。 |
+| HTTP client | HTTPX | `>=0.28.1,<0.29`；lock `0.28.1` | MCP HTTP/SSE、provider adapter 和 smoke tests 使用。 |
+| Lint / Format | Ruff | `>=0.15.20,<0.16`；lock `0.15.20` | `make quality` 的 lint + format 主工具。 |
+| Typecheck | Pyright | `>=1.1.411,<2`；lock `1.1.411` | CI 从 lock 安装当前精确版本，声明允许兼容升级窗口。 |
+| Test runner | pytest | `>=9.1.1,<10`；lock `9.1.1` | unit、contract、integration、smoke、eval tests 的统一 runner。 |
+| Async tests | pytest-asyncio | `>=1.4.0,<2`；lock `1.4.0` | runtime、storage、API、event stream 的 async tests。 |
+| Coverage | coverage.py | `>=7.15.0,<8`；lock `7.15.0` | 产出 CI coverage artifact；和 pytest 分离配置。 |
+| Git hooks | pre-commit | `>=4.6.0,<5`；lock `4.6.0` | 本地 quality hook 和 license/header check 入口。 |
+| Release automation | Python Semantic Release + 仓库 wrapper | `>=10.6.1,<11`；lock `10.6.1`；CI uv `0.11.29` | PSR 只用全局 `--noop` 的版本计算；wrapper 负责无副作用 preview、隔离构建、checksum 与私有 registry 安全门禁。真实 promotion/publish 不执行。 |
 | 部署目标 | Docker Compose | Compose v2 | P0 只做本地 service profile，验证 PostgreSQL + Redis + API + worker 协作；不引入 Kubernetes。 |
 
 ## 技术栈验证来源
@@ -896,7 +898,7 @@ Phase 1 Monorepo / quality spine
 - `.github/workflows/release.yml` - GitHub release dry-run / publish path。
 - `.gitlab-ci.yml`、`.gitlab/release-child.yml` - GitLab required pipeline 与按 promotion plan 生成的动态 release child 模板。
 - `Makefile` - `quality`、`test`、`integration`、`eval`、`smoke-local`、`smoke-service`、`build`、`license-check` 的稳定入口。
-- `templates/service-app/pyproject.toml` - 声明兼容的 `agent-harness` 版本范围，例如 `>=0.1,<0.2`。
+- `templates/service-app/pyproject.toml` - 声明与当前项目版本精确匹配的 `agent-harness` 自依赖，例如 `==0.1.0`。
 - `scripts/license_check.py` - license / NOTICE / vendoring 检查；来源 URL 的 userinfo/query/fragment credential fail closed 并脱敏。
 - `scripts/release_gitlab_pipeline.py` - 从已验证 promotion plan 生成只实例化 planned 或 no-release 对应节点的 GitLab child config。
 - `scripts/import_boundary_check.py` - import boundary CI 检查。
@@ -911,10 +913,42 @@ Phase 1 Monorepo / quality spine
 - AC-055：有 releasable commits 时 release dry-run 能生成下一版本、tag 名称、CHANGELOG 预览和 wheel/sdist artifact。
 - AC-056：无 releasable commits 时 release dry-run 不创建 tag 或 release。
 - AC-058：`LICENSE` 为 Apache-2.0，`NOTICE` 可追踪第三方声明，license check 能阻止未声明 vendoring 或不兼容 license。
-- 模板依赖声明使用可发布的兼容版本范围，例如 `agent-harness>=0.1,<0.2`，不得把 workspace path 依赖带入发布产物。
+- 模板依赖声明使用与当前项目版本精确匹配的可发布自依赖，例如 `agent-harness==0.1.0`，不得把 workspace path 依赖带入发布产物。
 - `ReleaseRecord` 以 `release-preview/v1` JSON manifest 作为 CI artifact，关联 commit、版本决策、tag 计划、CHANGELOG preview、release notes、wheel/sdist 与 checksum；不创建运行时数据库表，不新增 migration/repository/UoW，也不让 dry-run 连接应用数据库。
 
 **当前状态**：既有发布与 CI 收口修复已完成。冻结证据包含 quality/ruff/pyright/import-boundary 与 unit-contract PASS、test-aggregate `1279 passed, 223 skipped`、integration `11 passed, 23 skipped`、eval 与 `smoke-local` PASS；真实 PostgreSQL 18.4/Redis 7.2.14 `smoke-service` 在 uv `0.11.29` 且 `NO_PROXY=127.0.0.1,localhost` 下完整退出 0并生成 service trace。此前 `api-auth` 失败已由宿主代理返回 HTML 503、localhost 直连返回预期 JSON 401 的对照证据定位为环境问题；更早的 `result_committed` receipt 超时在完整重跑中未复现。三个相关 change 的 tasks 已全部完成，并于 2026-07-22 同步主规格和归档。AC-050/051/055/056/058 已按本地证据勾选，AC-053/054 因 hosted runner 未执行保持未勾选；不声明 hosted PASS 或已发布。
+
+---
+
+## Phase 16: 依赖兼容范围与可复现锁定
+
+**目标**：把项目支持窗口、当前精确解析和 CI/发布不可变基线拆成三个明确层次；放宽可兼容声明，但不在本 Phase 升级任何已锁 package。
+
+**交付内容**：
+- 创建并审查聚焦 change `relax-dependency-version-constraints`，覆盖 Product Spec REQ-023 与 AC-069/070/071/072。
+- 冻结变更前 `uv.lock` 的 `(name, version, source)` 身份，先写失败合同，再把根 workspace、核心包、optional extra、模板、dev/license/release/build-system 中可放宽的外部 exact pin 改为有下界和兼容上界的 PEP 440 范围；根与模板的 `agent-harness` 自依赖保持精确匹配项目版本。
+- 将本地 uv 要求改为 `>=0.11.19,<0.12`；GitHub、GitLab、release wrapper、OCI digest 与发布证据继续固定 `0.11.29`。
+- 修改 release promotion，使根 workspace 和模板在版本提升后都精确同步为 `agent-harness==MAJOR.MINOR.PATCH`，不放宽为范围或通配 pin。
+- 让 release preview 与正式 tag build 先 frozen sync build backend，再以 `--no-build-isolation` 使用 lock 内精确 Hatchling；两类 manifest 都记录并核对 backend identity。
+- 刷新 `uv.lock` 声明 metadata，但禁止 `--upgrade`；证明所有已锁 package identity 不变，并同步双语 README、release 文档与 acceptance matrix。
+
+**关键文件**：
+- `pyproject.toml`、`packages/agent-harness/pyproject.toml`、`templates/service-app/pyproject.toml` - 兼容声明与本地 uv 范围。
+- `uv.lock` - 精确解析和声明 metadata。
+- `scripts/release_workspace_contract.py` - promotion 精确自依赖保真。
+- `tests/contracts/test_dependency_version_policy_contracts.py`、release/workspace contracts - REQ-023 与 AC-069/070/071/072 的 red-first 长期合同和 acceptance mapping 精确节点。
+- `README.md`、`README.zh-CN.md`、模板 README、`docs/release-process.md` 及中文版 - 三层版本语义和维护命令。
+- `docs/acceptance-matrix.md` - REQ-023 与四个 AC 的生产、测试、CI producer 和 evidence 映射。
+
+**验收标准**：
+- AC-069：三份 `pyproject.toml` 的可放宽外部依赖均有已验证下界和兼容上界；根与模板的 `agent-harness` 自依赖精确等于当前项目版本，无其他未说明 exact pin。
+- AC-070：只刷新范围 metadata 后，lock 中所有 `(name, version, source)` identity 与变更前快照一致，`uv lock --check` 通过；由于 `release` 与 `license` groups 明确冲突，分别执行 `uv sync --frozen --group release --no-group license` 和 `uv sync --frozen --group license --no-group release`，禁止用无排除条件的 `--all-groups` 制造不可满足门禁。
+- AC-071：promotion 到 `0.2.0` 后根与模板均声明 `agent-harness==0.2.0`；系统 uv `0.11.19` 可检查当前 lock，CI/release exact `0.11.29` 合同保持不变。
+- AC-072：兼容 build-system metadata 不得让发布构建漂移；preview 与正式 tag build 都只使用 lock 内 `hatchling 1.30.1`，manifest 缺失或 identity 漂移时 fail closed。
+- Workspace 外消费者兼容：复制核心 package 或解包 sdist 后移除 workspace source，以默认 build isolation 真实构建，证明兼容 build-system metadata 可独立解析；仓库内部无隔离构建证据不得替代该验收。
+- 四步走：fresh code-reviewer Stage 1/2 PASS；dependency/promotion/workspace contract 和全量 pytest 通过；ruff/pyright/import boundary 通过；install/build/release dry-run/license/local/service smoke 按受影响共享配置完整验证。
+
+**当前状态**：实现候选已完成，delta 已同步到 `dependency-version-policy`、`maintainer-documentation`、`release-dry-run-private-registry` 与 `workspace-packaging` 长期主规格，change 已归档到 `openspec/changes/archive/2026-07-23-relax-dependency-version-constraints/`，当前无 active change。根与模板 `agent-harness` 自依赖保持精确项目版本，外部依赖使用有界兼容范围；`uv.lock` 的 207 项 `(name, version, source)` identity 与变更前完全一致。归档后 fresh review 发现依赖策略合同仍读取已移动的 active `tasks.md`，精确节点先以 `FileNotFoundError` 变红，再改为读取长期主规格并转绿；固定 uv `0.11.29` 下 unit-contract `1279 passed, 200 skipped`、全量 pytest `1291 passed, 223 skipped`。一次误用系统 uv `0.11.19` 的 unit-contract 运行按发布工具精确基线 fail closed，产生的 53 个共同失败不作为候选缺陷或通过证据。此前 red-first 合同、quality、pre-commit、integration `11 passed, 23 skipped`、eval、本地与真实 PostgreSQL/Redis service smoke、build、release dry-run、license check、归档前 change strict 及归档前后全仓 strict 均通过。最终代码审查发现的正式构建输出 symlink 越界清理风险也已用精确 red 回归修复，修复后的 fresh Stage 1/2 已通过；同步、归档、路径修复和状态校正形成新的冻结候选，最终收口以该归档后候选的 fresh Stage 1/2 结论为准。未 commit，也未执行 push、tag、release、真实 publish、依赖升级或部署。
 
 ---
 
@@ -982,6 +1016,7 @@ Phase 1 Monorepo / quality spine
 | REQ-020 CI/CD 与 Release Automation | Phase 15 |
 | REQ-021 开源合规与许可证 | Phase 1, Phase 14, Phase 15 |
 | REQ-022 部署边界与未来微服务拆分基础 | Phase 2, Phase 4, Phase 5, Phase 13, Phase 13.8, Phase 13.9, Phase 14 |
+| REQ-023 依赖兼容范围与可复现解析 | Phase 16 |
 
 ## 开发规则
 

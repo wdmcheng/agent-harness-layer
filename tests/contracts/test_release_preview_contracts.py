@@ -50,6 +50,11 @@ def test_releasable_history_generates_explained_version_and_isolated_artifacts(
         "agent-harness-v0.2.0",
     )
     assert manifest["decision"]["commits"][0]["type"] == "feat"
+    assert manifest["build_backend"] == {
+        "name": "hatchling",
+        "version": "1.30.1",
+        "source": {"registry": "https://pypi.org/simple"},
+    }
     kinds = {item["kind"] for item in manifest["artifacts"]}
     assert {"wheel", "sdist", "changelog", "release-notes", "checksums"} <= kinds
     assert before == (
@@ -292,14 +297,14 @@ def test_real_depth_one_clone_fails_before_version_or_network(tmp_path: Path) ->
     assert not (tmp_path / "preview" / "manifest.json").exists()
 
 
-def test_template_dependency_is_publishable_while_root_keeps_workspace_override() -> None:
-    """模板声明发布兼容范围，根 workspace source 仅服务 checkout 内开发解析。"""
+def test_template_dependency_matches_project_version_while_root_keeps_workspace_override() -> None:
+    """模板精确匹配项目版本，根 workspace source 仅服务 checkout 内开发解析。"""
 
     with (ROOT / "templates/service-app/pyproject.toml").open("rb") as stream:
         template = tomllib.load(stream)
     with (ROOT / "pyproject.toml").open("rb") as stream:
         root = tomllib.load(stream)
-    assert "agent-harness==0.1.*" in template["project"]["dependencies"]
+    assert "agent-harness==0.1.0" in template["project"]["dependencies"]
     assert root["tool"]["uv"]["sources"]["agent-harness"] == {"workspace": True}
 
 
@@ -329,9 +334,25 @@ def test_release_artifacts_have_publishable_metadata_and_install_outside_workspa
         packaged_pyproject = archive.extractfile(pyproject_name)
         assert packaged_pyproject is not None
         sdist_metadata = packaged_pyproject.read().decode("utf-8")
+        extracted = tmp_path / "outside-source"
+        archive.extractall(extracted, filter="data")
     forbidden = ("workspace = true", "file://", str(repo), "../")
     assert all(value not in metadata for value in forbidden)
     assert all(value not in sdist_metadata for value in forbidden)
+    assert 'requires = ["hatchling>=1.30.1,<2"]' in sdist_metadata
+
+    package_source = next(path for path in extracted.iterdir() if path.is_dir())
+    rebuilt = run(
+        os.environ["UV"],
+        "build",
+        str(package_source),
+        "--out-dir",
+        str(tmp_path / "outside-dist"),
+        "--no-create-gitignore",
+        cwd=tmp_path,
+        env={"UV_OFFLINE": "true"},
+    )
+    assert rebuilt.returncode == 0, rebuilt.stderr
 
     # PATH 中的同名旧 uv 代表维护者机器漂移；workspace 外安装也必须继续消费
     # 已审查的 UV 绝对路径，不能因离开项目目录而绕过精确版本门禁。

@@ -1,5 +1,15 @@
 # 变更记录
 
+## [v1.17] - 2026-07-23
+### 依赖兼容范围与精确锁定分层
+
+- 新增 REQ-023 与 AC-069/070/071/072：三份 `pyproject.toml` 的外部 runtime、optional、dev、license、release 和 build-system 依赖以已验证下界加兼容上界声明；根与模板对同仓库 `agent-harness` 保持项目版本精确匹配，`uv.lock` 继续保存精确解析，外部依赖升级必须显式发起。
+- 根 `[tool.uv].required-version` 从单一 `0.11.29` 调整为已验证的 `>=0.11.19,<0.12`；GitHub、GitLab、release wrapper、容器 digest与发布证据仍精确固定 `0.11.29`，避免把本地 patch 兼容性和发布可复现性混为一谈。
+- release promotion 必须把根 workspace 与模板的 `agent-harness` 自依赖同步为当前完整版本的 exact pin，禁止发版后产生范围或通配形式；外部声明放宽不得改变 `uv.lock` 的 `(name, version, source)` 身份。
+- build-system 对消费者暴露兼容范围，但仓库 preview 与正式 tag build 必须先 frozen sync，再关闭默认 build isolation 使用 lock 内精确 Hatchling，并在 manifest 中记录、核对 backend identity；不能把默认隔离构建误写成受项目 lock 约束。
+- `relax-dependency-version-constraints` 的 19/19 tasks 已完成；delta 已同步到依赖版本策略、维护文档、发布构建和 workspace 包边界四类长期主规格，并归档到 `openspec/changes/archive/2026-07-23-relax-dependency-version-constraints/`。归档不代表 commit、push、tag、release、真实 publish、依赖升级或部署。
+- 归档后 fresh review 发现依赖策略合同仍读取已移动的 active `tasks.md`；精确节点先复现 `FileNotFoundError`，再切换为读取长期 `dependency-version-policy` 主规格。固定 uv `0.11.29` 下归档后 unit-contract 为 `1279 passed, 200 skipped`，全量 pytest 为 `1291 passed, 223 skipped`；系统 uv `0.11.19` 触发 release exact 基线拒绝的运行不计为候选证据。
+
 ## [v1.16] - 2026-07-23
 ### 深度维护文档引用链双语化
 

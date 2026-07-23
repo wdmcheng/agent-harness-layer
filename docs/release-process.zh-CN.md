@@ -48,20 +48,20 @@ uv run pre-commit run --all-files
 
 失败即停止。不要在 service smoke 失败时用 local 结果替代；不要在 license check 通过后声称完成了依赖许可证法律审计。
 
-本地执行必须使用仓库固定的 uv `0.11.29`。若宿主设置了 HTTP 代理，`127.0.0.1`/`localhost` 必须进入 `NO_PROXY` 与 `no_proxy`；否则 service smoke 的宿主 HTTP 请求可能被代理截获并返回 HTML 503，而容器内 API 仍健康。2026-07-22 的归档候选已在 `NO_PROXY=127.0.0.1,localhost` 下完整通过真实 service smoke 并生成 service trace；这证明本地 service gate，不证明 hosted runner 或生产网络配置。
+本地开发接受 uv `>=0.11.19,<0.12`；CI、release wrapper 与可复现发布证据精确使用 `0.11.29`。若宿主设置了 HTTP 代理，`127.0.0.1`/`localhost` 必须进入 `NO_PROXY` 与 `no_proxy`；否则 service smoke 的宿主 HTTP 请求可能被代理截获并返回 HTML 503，而容器内 API 仍健康。2026-07-22 的归档候选已在 `NO_PROXY=127.0.0.1,localhost` 下完整通过真实 service smoke 并生成 service trace；这证明本地 service gate，不证明 hosted runner 或生产网络配置。
 
 ## 版本真相
 
 | 资产 | 权威来源 | 当前表达规则 |
 |---|---|---|
-| Python dependency declaration | root/package/template `pyproject.toml` | 写声明范围或 exact pin |
-| Python dependency resolution | `uv.lock` | 用 `uv lock --check` 与 `uv tree --locked` 复核实际解析版本 |
+| Python dependency declaration | root/package/template `pyproject.toml` | 外部依赖写有界范围；根与模板的 `agent-harness` 自依赖精确匹配当前项目版本 |
+| Python dependency resolution | `uv.lock` | 保存受审的精确 `(name, version, source)` 身份，用 `uv lock --check` 与 `uv tree --locked` 复核 |
 | Docker runtime | `templates/service-app/docker-compose.yml` 与 `compliance/third-party.toml` | PostgreSQL `18.4` 与 Redis `7.2.14` 使用完整 OCI index digest；实际 server 版本仍须由 service smoke 记录 |
-| uv CLI | 根 `pyproject.toml`、GitHub setup action、GitLab image | 精确固定 `0.11.29`；本地、两套 CI、release wrapper 与 `uv publish` 必须使用同一版本，其他版本由 `required-version` fail closed |
+| uv CLI | 根 `pyproject.toml`、GitHub setup action、GitLab image | 本地 `required-version` 为 `>=0.11.19,<0.12`；两套 CI、release wrapper 与 `uv publish` 精确使用 `0.11.29` |
 | 其他外部 CLI | 当前开发机或 CI runner | Docker、Compose 等宿主工具未由 Python lock 固定；运行证据必须记录实际版本，不能称为项目 pin |
 | 实际 server patch | 某次 service smoke 输出 | 只作为该次运行证据，不反向改写 Compose 声明 |
 
-技术栈表与上述受控来源冲突时，修正文档，不偷偷升级 dependency、toolchain 或 image。uv 升级必须同步根约束、两套 CI pin、release 合同和 lock 验证；Docker/Compose 的 hosted runner 能力仍属于未验证边界。
+技术栈表与上述受控来源冲突时，修正文档，不偷偷升级 dependency、toolchain 或 image。放宽声明不得改变 lock 身份；升级依赖必须通过单独受审的 `uv lock --upgrade` 发起。升级 uv CLI 时必须同步本地范围、两套 CI pin、release 合同和 lock 验证；Docker/Compose 的 hosted runner 能力仍属于未验证边界。
 
 ## CI 与发布工具选择
 
@@ -69,13 +69,13 @@ uv run pre-commit run --all-files
 
 | 工具 | 版本或 pin | 选择依据与官方来源 | 与 `uv workspace` 的适配结论 |
 |---|---|---|---|
-| uv | `0.11.29` | [uv 0.11.29 metadata](https://github.com/astral-sh/uv/blob/0.11.29/pyproject.toml)、[`uv lock --check`](https://docs.astral.sh/uv/concepts/projects/sync/#checking-the-lockfile)、[build/publish guide](https://docs.astral.sh/uv/guides/package/)；根 `required-version`、GitHub setup、GitLab image 与 release wrapper 使用同一版本。 | workspace 开发继续使用根 `tool.uv.sources`；发布兼容性用 `uv build --no-sources`/workspace 外安装验证，确保模板声明和构建 metadata 不依赖本机 workspace path。 |
-| python-semantic-release | `10.6.1` | [10.6.1 metadata](https://github.com/python-semantic-release/python-semantic-release/blob/v10.6.1/pyproject.toml) 与 [version command](https://python-semantic-release.readthedocs.io/en/latest/api/commands.html#semantic-release-version)；只复用 Conventional Commits 解析与下一 SemVer 计算，仓库 wrapper 负责无副作用 preview。 | 作为根 `release` dependency group 的 exact pin 进入 `uv.lock`，不进入核心包或模板 runtime dependency；release dry-run 不调用会写 commit/tag/release 的命令路径。 |
+| uv | 本地 `>=0.11.19,<0.12`；CI/发布 `0.11.29` | [uv 0.11.29 metadata](https://github.com/astral-sh/uv/blob/0.11.29/pyproject.toml)、[`uv lock --check`](https://docs.astral.sh/uv/concepts/projects/sync/#checking-the-lockfile)、[build/publish guide](https://docs.astral.sh/uv/guides/package/)；本地 patch 范围与发布精确基线分别验证。 | workspace 开发继续使用根 `tool.uv.sources`；发布兼容性通过 workspace 外默认隔离构建与安装验证，确保 metadata 不依赖本机 workspace path。 |
+| python-semantic-release | 声明 `>=10.6.1,<11`；lock `10.6.1` | [10.6.1 metadata](https://github.com/python-semantic-release/python-semantic-release/blob/v10.6.1/pyproject.toml) 与 [version command](https://python-semantic-release.readthedocs.io/en/latest/api/commands.html#semantic-release-version)；只复用 Conventional Commits 解析与下一 SemVer 计算，仓库 wrapper 负责无副作用 preview。 | 根 `release` dependency group 使用有界声明，`uv.lock` 保存精确身份；不进入核心包或模板 runtime dependency。 |
 | `actions/checkout` | `9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0` | [官方 commit](https://github.com/actions/checkout/commit/9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)；完整 SHA 固定 action 代码。 | 只提供 checkout；依赖解析仍由固定 uv 和仓库 lock 控制。 |
 | `astral-sh/setup-uv` | `08807647e7069bb48b6ef5acd8ec9567f424441b` | [官方 commit](https://github.com/astral-sh/setup-uv/commit/08807647e7069bb48b6ef5acd8ec9567f424441b) 与 [setup-uv 文档](https://github.com/astral-sh/setup-uv)；输入 `version: 0.11.29`。 | 只安装精确 uv；不改变 workspace sources 或 lock。 |
 | `actions/upload-artifact` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | [官方 commit](https://github.com/actions/upload-artifact/commit/043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)；归档每个 gate 的 result/log 与产物。 | 只传输 `.artifacts/` 和 `dist/`，不参与依赖解析。 |
 | `actions/download-artifact` | `95815c38cf2ff2164869cbab79da8d1f422bc89e` | [官方 commit](https://github.com/actions/download-artifact/commit/95815c38cf2ff2164869cbab79da8d1f422bc89e)；按 job DAG 交接证据。 | 只消费上游 artifact，不允许用缺失或旧 identity 结果继续 release gate。 |
-| GitLab uv image | `ghcr.io/astral-sh/uv:0.11.29-python3.12-trixie-slim@sha256:36cdfbf910c8b0f651355c013e7ece9678f4ecbf030a9fd9e6779de421189805` | [uv GitLab integration](https://docs.astral.sh/uv/guides/integration/gitlab/) 与 [GitLab image syntax](https://docs.gitlab.com/ci/yaml/#image)；tag 便于人读，digest 固定实际 OCI index。 | image 内 uv 与根 `required-version` 一致；`uv sync --locked --all-groups` 仍从根 workspace 执行。 |
+| GitLab uv image | `ghcr.io/astral-sh/uv:0.11.29-python3.12-trixie-slim@sha256:36cdfbf910c8b0f651355c013e7ece9678f4ecbf030a9fd9e6779de421189805` | [uv GitLab integration](https://docs.astral.sh/uv/guides/integration/gitlab/) 与 [GitLab image syntax](https://docs.gitlab.com/ci/yaml/#image)；tag 便于人读，digest 固定实际 OCI index。 | image 内 uv 是发布精确基线；互斥的 release/license 组分别同步，并显式排除另一组。 |
 | act | `0.2.88` | [act v0.2.88 官方 README](https://github.com/nektos/act/blob/v0.2.88/README.md)；用于本地读取 workflow、解析依赖并在 Docker 容器执行 job。 | 只验证 GitHub workflow 的本地容器执行语义；不替代 hosted artifact service、权限或 runner 证明。 |
 | gitlab-ci-local | `4.73.0` | [4.73.0 官方 README](https://github.com/firecow/gitlab-ci-local/blob/4.73.0/README.md)；用于本地 Docker executor 与 artifact/needs 路径验证。 | 只验证本地 GitLab job 执行；protected variables、protected environment 和 hosted runner 保持未验证。 |
 
@@ -101,7 +101,7 @@ Redis server `7.2.14` 按其版本化官方 [`COPYING`](https://raw.githubuserco
 
 ## 当前发布边界
 
-`.github/workflows/ci.yml` 与 `.gitlab-ci.yml` 复用同一组 `make ci-*` 入口，覆盖 lock/install、独立质量项、unit/contract、integration、eval、local/service smoke、build、license 和 release dry-run，并以独立 result/log 与 artifact 归档失败诊断。两套 CI 的独立 `acceptance-validate` clean-runner job 显式下载或继承矩阵所需的全部 producer evidence，其中包括不会自动存在于新 runner 的 `install`、`integration` 与 `build` 结果。`docs/acceptance-matrix.md` 显式选择需要长期保障的 REQ，并将所选 REQ 及其全部 AC（当前共 92 项）逐项映射到仓库内存在的具体生产文件、精确 pytest node、CI job 和实际证据路径；validator 不从开发阶段或优先级标签推断范围，并会拒绝孤立 AC、目录、文件级测试映射、缺失/越界路径、空壳节点及已列明验收的 producer/行为节点错配。经独立审查点名的 import 扫描、fake adapter/eval、默认 tenant、deny audit、MCP allowlist 与 API/worker/tool/model/Event 关联传播均固定到实际执行相应行为的节点，不能退回只检查常量或无关 happy path 的测试。AC-001 的 `uv sync --frozen` 由 `install` 证据证明，AC-002 的 `uv build` 由 `build` 证据证明，AC-003/006 的 workspace 外 wheel 与复制模板运行由 `integration` 和实际集成测试证明；AC-012/068 明确由 `test-aggregate` 的 SQLite 节点与真实 PostgreSQL `smoke-service` 两部分共同证明，不能拿会跳过的 PostgreSQL pytest 冒充完整后端闭环。AC-065 映射到从公开入口完成 single-agent fake run 的正向节点，并由 `smoke-local` 证明总时延 `<5s`。
+`.github/workflows/ci.yml` 与 `.gitlab-ci.yml` 复用同一组 `make ci-*` 入口，覆盖 lock/install、独立质量项、unit/contract、integration、eval、local/service smoke、build、license 和 release dry-run，并以独立 result/log 与 artifact 归档失败诊断。两套 CI 的独立 `acceptance-validate` clean-runner job 显式下载或继承矩阵所需的全部 producer evidence，其中包括不会自动存在于新 runner 的 `install`、`integration` 与 `build` 结果。`docs/acceptance-matrix.md` 显式选择需要长期保障的 REQ，并将所选 REQ 及其全部 AC（当前共 97 项）逐项映射到仓库内存在的具体生产文件、精确 pytest node、CI job 和实际证据路径；validator 不从开发阶段或优先级标签推断范围，并会拒绝孤立 AC、目录、文件级测试映射、缺失/越界路径、空壳节点及已列明验收的 producer/行为节点错配。经独立审查点名的 import 扫描、fake adapter/eval、默认 tenant、deny audit、MCP allowlist 与 API/worker/tool/model/Event 关联传播均固定到实际执行相应行为的节点，不能退回只检查常量或无关 happy path 的测试。AC-001 的 `uv sync --frozen` 由 `install` 证据证明，AC-002 的 `uv build` 由 `build` 证据证明，AC-003/006 的 workspace 外 wheel 与复制模板运行由 `integration` 和实际集成测试证明；AC-012/068 明确由 `test-aggregate` 的 SQLite 节点与真实 PostgreSQL `smoke-service` 两部分共同证明，不能拿会跳过的 PostgreSQL pytest 冒充完整后端闭环。AC-065 映射到从公开入口完成 single-agent fake run 的正向节点，并由 `smoke-local` 证明总时延 `<5s`。
 
 `make release-dry-run` 使用 Conventional Commits 和固定 `python-semantic-release==10.6.1` 计算下一 SemVer；有 releasable commits 时生成 `release-preview/v1`，无 releasable commits 时成功退出且不创建 tag/release。`make release-promote-plan` 同时生成版本化 plan 与 GitLab child config：GitHub 依据 plan output 在无凭据 `promote-no-release` 和 protected execute 间二选一；GitLab 的动态 child 对 `no-release` 只实例化无 environment/secret 的回执 job，对 `planned` 才实例化四阶段人工门禁。`make registry-publish-plan` 只接受已 promotion 的正式 build；只有 protected job 在 `make release-promote-execute` / `make registry-publish-execute` 注入显式授权、匹配的 preview/promotion receipt、受限 credential 和固定 HTTPS endpoint 后才可能执行副作用；本 checkout 不执行真实 promotion/publish。
 

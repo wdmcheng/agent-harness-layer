@@ -41,7 +41,7 @@ service profile 已把 API 和 worker 拆成独立进程。model/tool gateway、
 - macOS 或 Linux；
 - Python `>=3.12`；
 - Git 和 GNU Make；
-- 在源仓库中使用**精确版本 uv `0.11.29`**；
+- 源仓库使用 uv `>=0.11.19,<0.12`；CI 与发布证据精确使用 `0.11.29`；
 - 复制模板独立使用时，准备受信的 `agent-harness` wheel、sdist、源码目录或私有 index。
 
 先检查工具链：
@@ -634,7 +634,7 @@ SERVICE_APP_KEEP_DATA=1 make smoke-service
 
 ### uv required version 不匹配
 
-源 workspace 只接受精确 `uv 0.11.29`。先切换版本，再诊断项目代码。
+源 workspace 接受 uv `>=0.11.19,<0.12`；复现 CI 或发布证据时选择 `0.11.29`。复制模板对 `agent-harness` 保持与项目版本一致的 exact 依赖，外部依赖使用有界范围，源仓库 `uv.lock` 保存受审的精确解析。
 
 ### 复制项目无法解析 `agent-harness`
 

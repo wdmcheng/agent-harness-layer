@@ -79,7 +79,7 @@ commit、push、deploy、publish、使用生产凭据或调用真实 provider。
 - Git；
 - GNU Make；
 - Python `>=3.12`；
-- **精确版本 uv `0.11.29`**。仓库在 `pyproject.toml` 中强制该版本。
+- 本地开发使用 uv `>=0.11.19,<0.12`；CI 与发布证据精确使用 `0.11.29`。
 
 运行项目前先检查：
 
@@ -90,12 +90,14 @@ git --version
 make --version
 ```
 
-如果 uv 未安装或版本不一致，可以使用 [uv 官方版本化安装方式](https://docs.astral.sh/uv/getting-started/installation/)，也可以用包管理器切换到仓库指定版本：
+如果 uv 未安装或不在支持范围内，可以使用 [uv 官方版本化安装方式](https://docs.astral.sh/uv/getting-started/installation/)安装 CI/发布的精确基线，也可以用包管理器切换版本：
 
 ```bash
 curl -LsSf https://astral.sh/uv/0.11.29/install.sh | sh
 uv --version
 ```
+
+三份 `pyproject.toml` 对外部依赖声明有上下界的兼容范围。根项目和服务模板刻意保留 `agent-harness==0.1.0`，因为它们与本仓库核心包作为同一版本集合发布。`uv.lock` 仍保存受审的精确解析：普通 `uv sync --frozen` 与 `uv lock --check` 不会升级依赖；需要升级时单独执行 `uv lock --upgrade`，并审查 lock diff。
 
 service profile 还需要 Docker 和 Compose v2，安装方法见 [Docker Compose 官方文档](https://docs.docker.com/compose/install/)。
 
@@ -404,7 +406,7 @@ make smoke-local
 
 ### uv 拒绝所有命令
 
-如果错误提示 uv 版本与 required version 不匹配，请安装或选择 `uv 0.11.29`。这个拒绝发生在项目代码运行之前。
+如果错误提示 uv 版本与 required version 不匹配，请选择 `>=0.11.19,<0.12`；复现 CI 或发布证据时使用 `0.11.29`。这个拒绝发生在项目代码运行之前。
 
 ### `config.invalid` 或 fingerprint key 缺失
 

@@ -9,20 +9,20 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "coverage==7.15.0",
-    "fastapi==0.139.0",
-    "pre-commit==4.6.0",
-    "pyright==1.1.411",
-    "pytest==9.1.1",
-    "pytest-asyncio==1.4.0",
-    "ruff==0.15.20",
+    "coverage>=7.15.0,<8",
+    "fastapi>=0.139.0,<0.140",
+    "pre-commit>=4.6.0,<5",
+    "pyright>=1.1.411,<2",
+    "pytest>=9.1.1,<10",
+    "pytest-asyncio>=1.4.0,<2",
+    "ruff>=0.15.20,<0.16",
 ]
 license = [
-    "licensecheck==2026.0.8",
+    "licensecheck>=2026.0.8,<2027",
 ]
 release = [
-    "hatchling==1.30.1",
-    "python-semantic-release==10.6.1",
+    "hatchling>=1.30.1,<2",
+    "python-semantic-release>=10.6.1,<11",
 ]
 
 [tool.semantic_release]
@@ -48,11 +48,11 @@ members = [
 ]
 
 [tool.uv]
-# release/CI 证据只接受经审查的 patch 版本；较旧或较新的本机 uv 都应 fail closed，
-# 维护者需显式使用 0.11.29，不能让环境漂移默默改变 lock/build/publish 语义。
-required-version = "==0.11.29"
-# 两个上游 exact pin 的 rich 主版本约束互斥；lock 同时记录两套工具环境，CI 按
-# `--group release` / `--group license` 独立执行，避免为求解而放松安全工具版本。
+# 本地允许已经验证的 0.11 patch；CI、release wrapper 与发布证据仍精确使用
+# 0.11.29。跨 minor 继续 fail closed，避免 lock/build/publish 语义静默变化。
+required-version = ">=0.11.19,<0.12"
+# release 与 license 工具依赖不同 Rich 主版本；lock 同时记录两套精确环境，CI 按
+# `--group release --no-group license` / 反向组合分别验证，禁止无条件 all-groups。
 conflicts = [
     [
         { group = "release" },

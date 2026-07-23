@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, cast
 
+from release_build_backend import prepare_build_backend
 from release_models import (
     UV_VERSION,
     ReleaseContractError,
@@ -35,18 +37,42 @@ def _run(arguments: list[str], *, cwd: Path) -> None:
         )
 
 
-def _validate_output(repo: Path, output: Path) -> None:
-    """正式产物只能写入具名 `.artifacts/release-build/<identity>` 目录。"""
+def _validate_output(repo: Path, output: Path) -> Path:
+    """返回未跟随 symlink 的安全输出路径，并拒绝仓库外清理目标。"""
 
-    root = (repo / ".artifacts/release-build").resolve()
+    root = repo / ".artifacts/release-build"
+    # `resolve()` 会把仓库内 symlink 转成仓库外真实路径；若再对真实路径执行
+    # rmtree，就会越过发布目录边界。这里先按词法路径定界，再逐段拒绝 symlink。
+    if root.is_symlink() or root.resolve() != root:
+        raise ReleaseContractError("release build root has an unsafe symlink boundary")
+    if root.exists() and not root.is_dir():
+        raise ReleaseContractError("release build root has an unsafe file type")
+    normalized = Path(os.path.abspath(output))
     try:
-        relative = output.resolve().relative_to(root)
+        relative = normalized.relative_to(root)
     except ValueError as exc:
         raise ReleaseContractError(
             "release build output must be below .artifacts/release-build"
         ) from exc
     if not relative.parts:
         raise ReleaseContractError("release build output must include an identity directory")
+    current = root
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            raise ReleaseContractError("release build output has an unsafe symlink boundary")
+    return normalized
+
+
+def _remove_output(repo: Path, output: Path, *, ignore_errors: bool) -> None:
+    """在每次递归删除前重新核对词法根和 symlink 边界。"""
+
+    validated = _validate_output(repo, output)
+    if not validated.exists() and not validated.is_symlink():
+        return
+    if validated.is_symlink() or not validated.is_dir():
+        raise ReleaseContractError("release build output has an unsafe file type")
+    shutil.rmtree(validated, ignore_errors=ignore_errors)
 
 
 def _project_version(source: Path) -> str:
@@ -144,8 +170,7 @@ def build_release(
     """复制 tag target、运行固定 uv，并原子发布 `release-build/v1` manifest。"""
 
     repo = repo.resolve()
-    output = output.resolve()
-    _validate_output(repo, output)
+    output = _validate_output(repo, output)
     if run_git(repo, "cat-file", "-t", tag) != "tag":
         raise ReleaseContractError("formal build requires an annotated release tag")
     tag_target = run_git(repo, "rev-parse", f"{tag}^{{commit}}")
@@ -153,10 +178,7 @@ def build_release(
         raise ReleaseContractError("formal build tag target identity drift")
     uv = required_uv_executable()
 
-    if output.exists():
-        if output.is_symlink() or not output.is_dir():
-            raise ReleaseContractError("release build output has an unsafe file type")
-        shutil.rmtree(output)
+    _remove_output(repo, output, ignore_errors=False)
     output.mkdir(parents=True)
     dist = output / "dist"
     try:
@@ -178,8 +200,17 @@ def build_release(
             version = _project_version(source)
             if version != expected_version:
                 raise ReleaseContractError("formal build project.version does not match promotion")
+            backend = prepare_build_backend(source, uv)
             _run(
-                [uv, "build", "--package", "agent-harness", "--out-dir", str(dist)],
+                [
+                    uv,
+                    "build",
+                    "--package",
+                    "agent-harness",
+                    "--out-dir",
+                    str(dist),
+                    "--no-build-isolation",
+                ],
                 cwd=source,
             )
         wheels = sorted(dist.glob("*.whl"))
@@ -200,6 +231,7 @@ def build_release(
             "tag": tag,
             "tag_target_sha": tag_target,
             "uv_version": UV_VERSION,
+            "build_backend": backend,
             "artifacts": [
                 artifact_record(wheels[0], root=repo, kind="wheel"),
                 artifact_record(sdists[0], root=repo, kind="sdist"),
@@ -209,7 +241,11 @@ def build_release(
         write_json(output / "manifest.json", manifest)
         return manifest
     except BaseException:
-        shutil.rmtree(output, ignore_errors=True)
+        try:
+            _remove_output(repo, output, ignore_errors=True)
+        except ReleaseContractError:
+            # 若构建期间边界被替换为 symlink，宁可保留局部产物，也不能越界清理。
+            pass
         raise
 
 

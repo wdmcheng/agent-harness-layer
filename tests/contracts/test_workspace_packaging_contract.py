@@ -101,7 +101,7 @@ def test_service_app_declares_core_dependency_without_member_only_workspace_sour
 
     dependencies = project["dependencies"]
     assert isinstance(dependencies, list)
-    assert "agent-harness==0.1.*" in dependencies
+    assert "agent-harness==0.1.0" in dependencies
     template_uv: Mapping[str, object] = (
         as_mapping(tool["uv"]) if "uv" in tool else cast(Mapping[str, object], {})
     )
@@ -131,7 +131,7 @@ def test_service_app_declares_installable_package_boundary() -> None:
 
     # 这锁住模板 wheel 边界，防止 build backend 把 configs/docs 当成顶层包。
     assert build_system["build-backend"] == "hatchling.build"
-    assert build_system["requires"] == ["hatchling==1.30.1"]
+    assert build_system["requires"] == ["hatchling>=1.30.1,<2"]
     assert wheel["packages"] == ["app", "agents"]
 
 
