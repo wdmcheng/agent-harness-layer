@@ -3,9 +3,9 @@
   "installMode": "vendored",
   "packPath": "/Volumes/develop/vibe-engineering/agent-pack",
   "packRemote": "git@github.com:wdmcheng/agent-pack.git",
-  "packCommit": "14ac7d9",
+  "packCommit": "11ab56a",
   "projectEvolution": ".agents/evolution",
-  "updatedAt": "2026-07-19T22:47:48.739633+00:00",
+  "updatedAt": "2026-07-23T07:32:34.804380+00:00",
   "files": {
     ".agents/EVOLUTION.md": {
       "type": "file",
@@ -58,8 +58,8 @@
     ".agents/skills/code-review/SKILL.md": {
       "type": "file",
       "source": ".agents/skills/code-review/SKILL.md",
-      "sourceSha256": "e738a7a0e5824398e13129dc498d61dd804d07a8b61ba4fc24fd7e847eb0a784",
-      "installedSha256": "e738a7a0e5824398e13129dc498d61dd804d07a8b61ba4fc24fd7e847eb0a784"
+      "sourceSha256": "aa8195147c1d8fe3ed112b4329cec9bda134039d676cfc00c87c038a7840122b",
+      "installedSha256": "aa8195147c1d8fe3ed112b4329cec9bda134039d676cfc00c87c038a7840122b"
     },
     ".agents/skills/design-brief-builder/SKILL.md": {
       "type": "file",
@@ -112,8 +112,8 @@
     ".agents/skills/dev-builder/SKILL.md": {
       "type": "file",
       "source": ".agents/skills/dev-builder/SKILL.md",
-      "sourceSha256": "ae0acdaa6f09c749a495f41bba0b37293b0ee25e8adf1934413cb61190afe4a9",
-      "installedSha256": "ae0acdaa6f09c749a495f41bba0b37293b0ee25e8adf1934413cb61190afe4a9"
+      "sourceSha256": "8637aa5f37ade2f5c01d126d3c96507e66fb8abae8e75e7f0fde6130bfb42e91",
+      "installedSha256": "8637aa5f37ade2f5c01d126d3c96507e66fb8abae8e75e7f0fde6130bfb42e91"
     },
     ".agents/skills/dev-planner/SKILL.md": {
       "type": "file",
@@ -196,8 +196,8 @@
     ".agents/skills/release-builder/SKILL.md": {
       "type": "file",
       "source": ".agents/skills/release-builder/SKILL.md",
-      "sourceSha256": "e8280988ec032ada9565620d96932650aae8df72af58acbf0f6d471a975ee05a",
-      "installedSha256": "e8280988ec032ada9565620d96932650aae8df72af58acbf0f6d471a975ee05a"
+      "sourceSha256": "8e30261069f3ffadee9d5381e56ddb7a915b255d3e2926a246b1c7260ff6544e",
+      "installedSha256": "8e30261069f3ffadee9d5381e56ddb7a915b255d3e2926a246b1c7260ff6544e"
     },
     ".agents/skills/skill-builder/SKILL.md": {
       "type": "file",
@@ -478,8 +478,8 @@
     "AGENTS.md": {
       "type": "file",
       "source": "AGENTS.md",
-      "sourceSha256": "1407a1697417c204ccea88068f763b0e01b9dbeb698af8d6c40e17d6ae46dfb9",
-      "installedSha256": "1407a1697417c204ccea88068f763b0e01b9dbeb698af8d6c40e17d6ae46dfb9"
+      "sourceSha256": "d26a044aaec0aa6ea3b8398ea4456c81aecc7d5c6cef53f8ecf0654e1b901547",
+      "installedSha256": "d26a044aaec0aa6ea3b8398ea4456c81aecc7d5c6cef53f8ecf0654e1b901547"
     }
   }
 }

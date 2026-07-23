@@ -74,6 +74,7 @@
     - OpenSpec specs/delta 只约束本次行为变更；若它与 Product-Spec.md、DEV-PLAN.md、Design-Brief.md 或设计稿冲突，先停下指出冲突并让用户决定，不擅自让任何一方覆盖另一方。
     - 活动 change 的起草、审查和实现阶段只维护 `openspec/changes/<change>/` 的当前契约，不得直接改 `openspec/specs/` 或 `openspec/changes/archive/`；仅在用户明确要求 sync 或 archive 时，才评估并合并主规格。
     - 不自动 archive、不自动 validate 后推进发布；archive、schema 切换和 OpenSpec 初始化都需要用户明确同意或显式命令。
+    - 归档单个或一组关联 change 前，除 change 目录外还要盘点 changes 根目录中与其绑定的关系矩阵、总结和其他侧车文档；与已归档变更共生命周期的文件一并移入 archive 并更新引用，确需保留在 active 根目录时写明仍服务的 active change。归档后同时核对 `openspec list --json`、changes 根目录剩余文件和引用链，不得只以 change 目录已移动宣称归档完整。
 
     领域语言兼容：
     - 项目存在 CONTEXT-MAP.md 时，按映射读取与任务相关的 CONTEXT.md；不存在映射但有根目录 CONTEXT.md 时读取根目录 CONTEXT.md。
