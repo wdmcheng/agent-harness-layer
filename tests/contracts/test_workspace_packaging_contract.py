@@ -12,6 +12,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
+from packaging.requirements import Requirement
+
 from agent_harness.config import load_settings
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -90,18 +92,23 @@ def test_service_app_shell_layout_exists() -> None:
         assert (service_app / relative_path).exists()
 
 
-def test_service_app_declares_core_dependency_without_member_only_workspace_source() -> None:
-    """验证可复制模板使用版本化核心依赖，而 workspace source 只留在根项目注入。"""
+def test_service_app_declares_core_dependency_and_source_workspace_mapping() -> None:
+    """验证模板声明核心依赖，并在源 workspace 内复用根核心包。"""
 
-    # template 必须声明版本依赖；workspace source 只由根项目注入，复制产物不能
-    # 保留 member-only workspace=true 而绕过 wheel-only smoke。
+    # 这里锁依赖身份和源 workspace 的解析关系，不复制发布版本合同；版本升级由
+    # 专门的依赖/发布合同验证，独立复制态则由 bootstrap 与 copy-out smoke 验证。
     pyproject = load_pyproject(ROOT / "templates" / "service-app" / "pyproject.toml")
     project = as_mapping(pyproject["project"])
     tool = as_mapping(pyproject["tool"])
 
-    dependencies = project["dependencies"]
-    assert isinstance(dependencies, list)
-    assert "agent-harness==0.1.0" in dependencies
+    raw_dependencies = project["dependencies"]
+    assert isinstance(raw_dependencies, list)
+    dependencies = cast(list[object], raw_dependencies)
+    dependency_names: list[str] = []
+    for dependency in dependencies:
+        assert isinstance(dependency, str)
+        dependency_names.append(Requirement(dependency).name)
+    assert dependency_names.count("agent-harness") == 1
     template_uv: Mapping[str, object] = (
         as_mapping(tool["uv"]) if "uv" in tool else cast(Mapping[str, object], {})
     )
@@ -110,7 +117,7 @@ def test_service_app_declares_core_dependency_without_member_only_workspace_sour
         if "sources" in template_uv
         else cast(Mapping[str, object], {})
     )
-    assert "agent-harness" not in template_sources
+    assert as_mapping(template_sources["agent-harness"]) == {"workspace": True}
 
     root_pyproject = load_pyproject(ROOT / "pyproject.toml")
     root_tool = as_mapping(root_pyproject["tool"])

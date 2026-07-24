@@ -192,7 +192,7 @@ def test_template_pyproject_and_makefile_publish_dev_entrypoints() -> None:
 
     assert pyproject["project"]["scripts"]["agent-harness-service"] == "app.cli.main:main"
     assert "uvicorn>=0.50.2,<0.51" in pyproject["project"]["dependencies"]
-    assert "agent-harness" not in pyproject.get("tool", {}).get("uv", {}).get("sources", {})
+    assert pyproject["tool"]["uv"]["sources"]["agent-harness"] == {"workspace": True}
     # 当前 PyCharm 不会可靠继承根 workspace 的环境选择；模板必须明确指回根环境，
     # 复制项目再由 bootstrap 归一化为项目内 `.venv`。
     assert pyproject["tool"]["pyright"] == {"venvPath": "../..", "venv": ".venv"}
@@ -314,7 +314,7 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
     for readme in (english, chinese):
         assert "eval-cases/approved" in readme
         assert "app/*" in readme and "agent_harness" in readme
-        assert "agent-harness = { workspace = true }" not in readme
+        assert "agent-harness = { workspace = true }" in readme
         assert "后续文档交付" not in readme
         # 自定义环境说明必须随模板复制，并覆盖含空格路径与显式 Pyright 覆盖配置。
         for marker in (
@@ -382,6 +382,7 @@ def test_root_readme_preserves_product_overview_and_delegation_boundary() -> Non
         assert "AgentRegistry" in readme
         assert "PolicyEngine" in readme
         assert "delegation" in readme
+        assert "agent-harness = { workspace = true }" in readme
         assert 'venvPath = "."' in readme
         assert 'venv = ".venv"' in readme
         assert re.search(r"PyCharm\s+\d", readme) is None

@@ -119,6 +119,9 @@ uv sync
 依赖；这里的具体值来自本仓库的根 `.venv` 约定。模板成员用
 `venvPath = "../.."` 指向同一个根环境。模板复制成独立项目后，第一次 bootstrap
 会把该值归一化为项目内的 `.`。
+模板成员还会在自己的 `tool.uv.sources` 中重复声明
+`agent-harness = { workspace = true }`，因为 PyCharm 可能不会把根 source 映射应用到
+该成员。复制项目第一次 bootstrap 会在同步依赖前替换或删除这个 workspace-only 来源。
 
 PyCharm 中启用 `Use pyproject.toml-based project model`，执行
 `Sync Project with pyproject.toml`，并确认项目 SDK 指向根 `.venv`。

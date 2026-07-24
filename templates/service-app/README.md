@@ -67,6 +67,10 @@ cd templates/service-app
 make bootstrap
 ```
 
+The source template repeats `agent-harness = { workspace = true }` in its own
+`tool.uv.sources` so uv and PyCharm both model the core package as a workspace dependency. This
+entry is valid only inside the source workspace.
+
 After copying this directory into an independent project, provide a trusted artifact or source path on the first bootstrap:
 
 ```bash
@@ -74,7 +78,11 @@ make bootstrap \
   AGENT_HARNESS_SOURCE=/absolute/path/to/agent_harness-0.1.0-py3-none-any.whl
 ```
 
-`bootstrap` records the trusted local source in the copied project's `tool.uv.sources`, so later commands can reuse it. If your organization publishes `agent-harness==0.1.0` to a trusted private index, configure `UV_INDEX_URL` and opt in explicitly:
+Do not run a raw `uv sync` before this first bootstrap: the copied project is no longer a member of
+the source workspace. `bootstrap` replaces the workspace-only entry with the trusted local source,
+so later commands can reuse it. If your organization publishes `agent-harness==0.1.0` to a trusted
+private index, configure `UV_INDEX_URL` and opt in explicitly; bootstrap removes the workspace-only
+entry before syncing the index dependency:
 
 ```bash
 make bootstrap AGENT_HARNESS_ALLOW_INDEX=1
@@ -659,7 +667,7 @@ For a copied application:
 For an upstream template contribution:
 
 1. Prove it works after a real copy-out with no repository source path or root `PYTHONPATH`.
-2. Do not add member-level `workspace = true` or fixed `cd ../..` assumptions.
+2. Keep member-level `workspace = true` sources limited to source-workspace tooling, and prove bootstrap removes or replaces them after a real copy-out; do not add fixed `cd ../..` assumptions.
 3. Keep `agent-harness-service` limited to `serve`; management logic belongs in the core CLI.
 4. Preserve English/Chinese README parity for changed commands and behavior.
 5. Run root quality/test gates and the relevant local/service smoke.

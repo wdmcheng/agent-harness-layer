@@ -29,6 +29,11 @@ build-backend = "hatchling.build"
 # service-app wheel 只包含模板 app 和示例 agent，不携带根仓库 tests/scripts。
 packages = ["app", "agents"]
 
+[tool.uv.sources]
+# 源 workspace 内重复声明核心包来源，供 uv 与 PyCharm 建立成员依赖；复制项目的
+# bootstrap 会在同步前把它替换为可信 artifact/path，或在显式 index 模式下删除。
+agent-harness = { workspace = true }
+
 [tool.pyright]
 # 当前 PyCharm 不会可靠继承根 workspace 的环境选择，因此这里显式指向仓库根
 # `.venv`。复制项目第一次 bootstrap 会把 venvPath 归一化为 `.`。

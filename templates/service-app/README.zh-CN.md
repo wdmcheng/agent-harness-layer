@@ -66,6 +66,10 @@ cd templates/service-app
 make bootstrap
 ```
 
+源模板在自己的 `tool.uv.sources` 中重复声明
+`agent-harness = { workspace = true }`，让 uv 和 PyCharm 都把核心包识别为 workspace
+依赖；该配置只在源 workspace 内成立。
+
 把当前目录复制成独立项目后，第一次 bootstrap 必须提供受信 artifact 或源码路径：
 
 ```bash
@@ -73,7 +77,10 @@ make bootstrap \
   AGENT_HARNESS_SOURCE=/absolute/path/to/agent_harness-0.1.0-py3-none-any.whl
 ```
 
-`bootstrap` 会把受信本地来源写入复制项目自己的 `tool.uv.sources`，后续命令可直接复用。如果组织已经把 `agent-harness==0.1.0` 发布到受信私有 index，配置 `UV_INDEX_URL` 后显式允许 index：
+第一次 bootstrap 前不要直接运行裸 `uv sync`：复制项目已经不是源 workspace 的成员。
+`bootstrap` 会用受信本地来源替换 workspace-only 配置，后续命令可直接复用。如果组织
+已经把 `agent-harness==0.1.0` 发布到受信私有 index，配置 `UV_INDEX_URL` 后显式允许
+index；bootstrap 会先删除 workspace-only 配置，再同步 index 依赖：
 
 ```bash
 make bootstrap AGENT_HARNESS_ALLOW_INDEX=1
@@ -656,7 +663,7 @@ make test
 对于上游模板贡献：
 
 1. 必须在真实 copy-out 后证明可运行，不能依赖源仓库路径或根 `PYTHONPATH`。
-2. 不增加成员级 `workspace = true` 或固定 `cd ../..` 假设。
+2. 成员级 `workspace = true` 来源只服务源 workspace 工具链，并通过真实 copy-out 证明 bootstrap 会移除或替换；不增加固定 `cd ../..` 假设。
 3. `agent-harness-service` 只保留 `serve`，管理逻辑归核心 CLI。
 4. 改动命令或行为时保持中英文 README 事实一致。
 5. 运行根 quality/test 和相关 local/service smoke。

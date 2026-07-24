@@ -120,6 +120,9 @@ create separate environments. The committed root `[tool.pyright]` therefore decl
 `venv` settings to resolve dependencies reliably; these particular values come from this
 repository's root `.venv` convention. The template member uses `venvPath = "../.."` to select that
 same root environment. The first bootstrap of a copied project normalizes the value to `.`.
+The template member also repeats `agent-harness = { workspace = true }` in its own
+`tool.uv.sources`, because PyCharm may not apply the root source mapping to that member. A copied
+project's first bootstrap replaces or removes this workspace-only source before dependency sync.
 
 In PyCharm, enable `Use pyproject.toml-based project model`, run
 `Sync Project with pyproject.toml`, and confirm that the project SDK points to the root `.venv`.
