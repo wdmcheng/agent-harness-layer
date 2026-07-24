@@ -153,6 +153,11 @@ def main() -> int:
         )
         if "cp .env.example .env" not in bootstrap.stdout:
             raise RuntimeError(f"bootstrap did not emit the missing .env hint:\n{bootstrap.stdout}")
+        _run(
+            ["make", "test"],
+            cwd=copied,
+            env=env,
+        )
 
         state.mkdir(exist_ok=True)
         storage_dsn = f"sqlite+aiosqlite:///{state / 'agent_harness.db'}"
@@ -252,6 +257,7 @@ def main() -> int:
                 raise RuntimeError(f"copied service smoke did not complete:\n{service_output}")
 
         print(f"smoke-template-copy: wheel={wheel.name}")
+        print("smoke-template-copy: make-test=ok")
         print(f"smoke-template-copy: health={health['status']} profile={health['profile']}")
         print("smoke-template-copy: openapi=ok swagger=ok redoc=ok")
         print(

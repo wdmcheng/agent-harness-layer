@@ -27,6 +27,7 @@ def test_copied_template_runs_local_dev_and_generated_example() -> None:
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+    assert "make-test=ok" in result.stdout
     assert "health=ok profile=local" in result.stdout
     assert "list=ok run=completed approved-eval=passed" in result.stdout
     assert "smoke-template-copy: ok" in result.stdout

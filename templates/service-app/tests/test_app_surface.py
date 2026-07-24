@@ -11,22 +11,32 @@ from agent_harness.events import LocalJsonlEventSink
 from agent_harness.registry import AgentRegistry
 from app.main import create_app
 
-TEMPLATE = Path(__file__).resolve().parents[1]
+APP_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_local_health_uses_profile_summary_without_external_provider(tmp_path: Path) -> None:
+def test_local_health_uses_profile_summary_without_external_provider(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
     """local health 只需类型化配置，不建立外部依赖连接。"""
 
+    # fingerprint key 是设置加载的 fail-closed 前置条件；测试值只用于本进程，
+    # 不写入模板配置，也不允许调用方环境中的 `_FILE` 形成冲突。
+    monkeypatch.setenv(
+        "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY",
+        "test-only-template-health-fingerprint-key",
+    )
+    monkeypatch.delenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE", raising=False)
     app = create_app(
         orchestrator=cast(Any, object()),
         event_sink=LocalJsonlEventSink(tmp_path / "events.jsonl"),
-        # 本测试只验证模板管理面；完整 registry/executor 组合由示例 agent
-        # change 的运行合同收口，避免未完成的业务样例污染 health 基线。
-        registry=AgentRegistry.load_from_directory(TEMPLATE / "agents" / "examples" / "basic"),
+        # App factory 需要合法 registry，但 health 不执行 Agent。这里仍从完整 agents
+        # 根加载，确保 dotted schema ref 的首段与 registry root 一致。
+        registry=AgentRegistry.load_from_directory(APP_ROOT / "agents"),
         approval_service=cast(Any, object()),
         eval_service=cast(Any, object()),
         profile="local",
-        profiles_dir=TEMPLATE / "configs" / "profiles",
+        profiles_dir=APP_ROOT / "configs" / "profiles",
     )
 
     with TestClient(app) as client:

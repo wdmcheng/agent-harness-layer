@@ -186,6 +186,7 @@ def test_template_pyproject_and_makefile_publish_dev_entrypoints() -> None:
     assert pyproject["project"]["scripts"]["agent-harness-service"] == "app.cli.main:main"
     assert "uvicorn>=0.50.2,<0.51" in pyproject["project"]["dependencies"]
     assert "agent-harness" not in pyproject.get("tool", {}).get("uv", {}).get("sources", {})
+    assert pyproject["tool"]["pyright"] == {"venvPath": ".", "venv": ".venv"}
     assert {"pytest>=9.1.1,<10", "ruff>=0.15.20,<0.16", "pyright>=1.1.411,<2"} <= set(
         pyproject["dependency-groups"]["dev"]
     )

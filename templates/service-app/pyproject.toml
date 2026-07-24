@@ -28,3 +28,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 # service-app wheel 只包含模板 app 和示例 agent，不携带根仓库 tests/scripts。
 packages = ["app", "agents"]
+
+[tool.pyright]
+# 项目约定使用 uv 默认的项目内 `.venv`，让 IDE 中独立运行的 Pyright
+# 也能解析已同步依赖；自定义 UV_PROJECT_ENVIRONMENT 时需同步调整本机工具配置。
+venvPath = "."
+venv = ".venv"

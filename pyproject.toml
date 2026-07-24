@@ -87,7 +87,8 @@ pythonpath = [".", "templates/service-app"]
 testpaths = ["tests"]
 
 [tool.pyright]
-# strict 模式覆盖模板代码；模板一旦复制出去，类型边界也要可维护。
+# 项目约定使用 uv 默认的项目内 `.venv`，让 IDE 中独立运行的 Pyright
+# 也能解析已同步依赖；自定义 UV_PROJECT_ENVIRONMENT 时需同步调整本机工具配置。
 venvPath = "."
 venv = ".venv"
 include = [
@@ -107,5 +108,6 @@ extraPaths = [
     "templates/service-app/scripts",
 ]
 pythonVersion = "3.12"
+# strict 模式覆盖模板代码；模板一旦复制出去，类型边界也要可维护。
 typeCheckingMode = "strict"
 reportMissingTypeStubs = "none"
