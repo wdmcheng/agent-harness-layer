@@ -1,7 +1,9 @@
 SHELL := /bin/sh
 UV ?= uv
 PYTHON ?= python3
-APP_ROOT := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+# 公开入口要求在项目根执行 make（直接进入目录或使用 make -C）；CURDIR
+# 不会把路径中的空格误当成 Makefile 列表分隔符。
+APP_ROOT := $(CURDIR)
 PROFILE ?= local
 PROFILES_DIR ?= $(APP_ROOT)/configs/profiles
 HOST ?= 127.0.0.1
@@ -12,7 +14,7 @@ EVENTS_PATH ?= $(STATE_DIR)/traces.jsonl
 AGENT_HARNESS_SOURCE ?=
 AGENT_HARNESS_ALLOW_INDEX ?= 0
 
-.PHONY: bootstrap dev cli run-basic run-rag run-ticket run-repo run-dev test contract quality migrate-service smoke-local smoke-service eval eval-rag eval-ticket eval-repo eval-dev worker
+.PHONY: bootstrap dev cli run-basic run-rag run-ticket run-repo run-dev test contract quality pyright-environment migrate-service smoke-local smoke-service eval eval-rag eval-ticket eval-repo eval-dev worker
 
 # 仓库内由根 workspace 提供核心包；复制出的模板必须显式提供本地 wheel/source，
 # 或明确允许从已配置的可信 index 解析，避免误装同名公共包。
@@ -75,7 +77,10 @@ test: bootstrap
 
 contract: test
 
-quality: bootstrap
+pyright-environment: bootstrap
+	cd "$(APP_ROOT)" && $(UV) run python scripts/check_pyright_environment.py
+
+quality: pyright-environment
 	cd "$(APP_ROOT)" && $(UV) run ruff check app agents tests scripts
 	cd "$(APP_ROOT)" && $(UV) run pyright app agents tests scripts
 

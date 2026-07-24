@@ -13,7 +13,7 @@ RELEASE_BUILD_MANIFEST ?= $(CURDIR)/.artifacts/release-build/execute/manifest.js
 REGISTRY_PLAN ?= $(CURDIR)/.artifacts/registry-publish/plan.json
 REGISTRY_OUTPUT ?= $(CURDIR)/.artifacts/registry-publish/receipt.json
 
-.PHONY: sync lock install quality ruff-format ruff-lint pyright import-boundary \
+.PHONY: sync lock install quality ruff-format ruff-lint pyright pyright-environment import-boundary \
 	unit-contract integration quality-aggregate test-aggregate test smoke-local \
 	smoke-service eval build license-check release-dry-run release-promote-plan \
 	release-promote-execute registry-publish-plan registry-publish-execute format \
@@ -41,13 +41,16 @@ ruff-format:
 ruff-lint:
 	$(UV) run ruff check .
 
-pyright:
+pyright-environment:
+	$(UV) run python scripts/check_pyright_environment.py
+
+pyright: pyright-environment
 	$(UV) run pyright
 
 import-boundary:
 	$(UV) run python scripts/import_boundary_check.py
 
-quality:
+quality: pyright-environment
 	$(UV) run ruff format --check .
 	$(UV) run ruff check .
 	$(UV) run pyright

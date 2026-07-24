@@ -87,8 +87,9 @@ pythonpath = [".", "templates/service-app"]
 testpaths = ["tests"]
 
 [tool.pyright]
-# 项目约定使用 uv 默认的项目内 `.venv`，让 IDE 中独立运行的 Pyright
-# 也能解析已同步依赖；自定义 UV_PROJECT_ENVIRONMENT 时需同步调整本机工具配置。
+# 根 uv workspace 约定使用默认 `.venv`，让 IDE 从成员目录分析时仍使用
+# 同一套依赖。需要其他环境时可由使用者显式创建更高优先级的
+# pyrightconfig.json；仓库命令不会生成或改写该文件。
 venvPath = "."
 venv = ".venv"
 include = [

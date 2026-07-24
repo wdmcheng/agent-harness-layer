@@ -33,7 +33,8 @@ def _prepare_module(module: Any, tmp_path: Path) -> None:
     module.ENV_EXAMPLE = tmp_path / ".env.example"
     module.ENV_FILE = tmp_path / ".env"
     module.PYPROJECT.write_text(
-        '[project]\nname = "copied-service-app"\nversion = "0.1.0"\n',
+        '[project]\nname = "copied-service-app"\nversion = "0.1.0"\n'
+        '\n[tool.pyright]\nvenvPath = "../.."\nvenv = ".venv"\n',
         encoding="utf-8",
     )
     module.ENV_EXAMPLE.write_text("AGENT_HARNESS_PROFILE=local\n", encoding="utf-8")
@@ -84,3 +85,48 @@ def test_copied_bootstrap_rejects_unknown_public_source(
 
     with pytest.raises(SystemExit, match="copied template requires AGENT_HARNESS_SOURCE"):
         module.main()
+
+
+def test_copied_bootstrap_normalizes_workspace_pyright_environment(tmp_path: Path) -> None:
+    """复制项目应把模板成员的根 workspace 路径改回项目内默认环境。"""
+
+    module = _load_bootstrap_module()
+    _prepare_module(module, tmp_path)
+
+    module._normalize_copied_pyright_environment()
+
+    payload = module.tomllib.loads(module.PYPROJECT.read_text(encoding="utf-8"))
+    assert payload["tool"]["pyright"] == {"venvPath": ".", "venv": ".venv"}
+
+
+def test_copied_bootstrap_preserves_explicit_toml_override(tmp_path: Path) -> None:
+    """使用者已修改 TOML 时，bootstrap 不得把本机选择改回默认值。"""
+
+    module = _load_bootstrap_module()
+    _prepare_module(module, tmp_path)
+    module.PYPROJECT.write_text(
+        module.PYPROJECT.read_text(encoding="utf-8").replace(
+            'venvPath = "../.."',
+            'venvPath = "/opt/python-envs"',
+        ),
+        encoding="utf-8",
+    )
+    module._normalize_copied_pyright_environment()
+
+    assert 'venvPath = "/opt/python-envs"' in module.PYPROJECT.read_text(encoding="utf-8")
+
+
+def test_copied_bootstrap_does_not_rewrite_pyrightconfig(tmp_path: Path) -> None:
+    """默认 TOML 仍可归一化，但使用者的高优先级 JSON 必须逐字保留。"""
+
+    module = _load_bootstrap_module()
+    _prepare_module(module, tmp_path)
+    pyrightconfig = tmp_path / "pyrightconfig.json"
+    explicit_config = '{"venvPath":"/opt/python-envs","venv":"custom"}\n'
+    pyrightconfig.write_text(explicit_config, encoding="utf-8")
+
+    module._normalize_copied_pyright_environment()
+
+    payload = module.tomllib.loads(module.PYPROJECT.read_text(encoding="utf-8"))
+    assert payload["tool"]["pyright"] == {"venvPath": ".", "venv": ".venv"}
+    assert pyrightconfig.read_text(encoding="utf-8") == explicit_config

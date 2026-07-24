@@ -111,6 +111,54 @@ service profile 还需要 Docker 和 Compose v2，安装方法见 [Docker Compos
 uv sync
 ```
 
+#### PyCharm 与 Pyright
+
+本仓库约定整个 uv workspace 统一使用仓库根目录的 `.venv`，成员项目不各自创建
+环境。已提交的根 `[tool.pyright]` 因此明确配置 `venvPath = "."` 和
+`venv = ".venv"`。当前 PyCharm 需要显式的 `venvPath` 和 `venv` 才能稳定解析
+依赖；这里的具体值来自本仓库的根 `.venv` 约定。模板成员用
+`venvPath = "../.."` 指向同一个根环境。模板复制成独立项目后，第一次 bootstrap
+会把该值归一化为项目内的 `.`。
+
+PyCharm 中启用 `Use pyproject.toml-based project model`，执行
+`Sync Project with pyproject.toml`，并确认项目 SDK 指向根 `.venv`。
+
+修改 TOML 后，仅同步 PyCharm 项目模型不一定会重启已经运行的 Pyright；从状态栏
+语言服务菜单重启 Pyright，或重开项目，才能让新环境配置立即生效。
+
+根 `make pyright` 和 `make quality` 会校验当前 uv 环境是否符合上述根 `.venv`
+约定，避免两套环境造成误导性的假通过。
+
+##### 覆盖根 `.venv` 约定
+
+确需把本仓库的虚拟环境放到其他位置时，同时设置 uv 环境和仅供本机使用的
+`pyrightconfig.json`。例如：
+
+```bash
+export UV_PROJECT_ENVIRONMENT="/absolute/path/to/python envs/agent-harness-layer"
+```
+
+在仓库根目录创建：
+
+```json
+{
+  "extends": "./pyproject.toml",
+  "venvPath": "/absolute/path/to/python envs",
+  "venv": "agent-harness-layer"
+}
+```
+
+然后执行 `uv sync` 和 `make quality`，并把 PyCharm 项目 SDK 指向同一个环境中的
+Python，再同步项目模型并重启 Pyright。`pyrightconfig.json` 优先于已提交的
+`[tool.pyright]`；Make 入口不会生成或改写它，根 `.gitignore` 也会默认忽略该文件。
+不要在 Pyright 路径字段中使用 `~` 或环境变量，因为 Pyright 不展开它们。
+
+复制出的独立项目请按
+[模板中的自定义虚拟环境说明](templates/service-app/README.zh-CN.md#自定义虚拟环境路径)
+操作；该说明会随模板一起复制。具体优先级和 uv 默认环境行为见官方
+[Pyright 配置文档](https://github.com/microsoft/pyright/blob/main/docs/configuration.md)与
+[uv 项目环境文档](https://docs.astral.sh/uv/concepts/projects/layout/)。
+
 ### 2. 验证离线开发链路
 
 ```bash

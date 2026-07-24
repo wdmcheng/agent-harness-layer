@@ -10,6 +10,7 @@ import socket
 import subprocess
 import tempfile
 import time
+import tomllib
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -120,12 +121,18 @@ def main() -> int:
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
     env.pop("VIRTUAL_ENV", None)
+    env.pop("UV_PROJECT_ENVIRONMENT", None)
+    env.pop("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE", None)
     env["UV_NO_PROGRESS"] = "1"
     env["PYTHONNOUSERSITE"] = "1"
+    # 复制 smoke 必须自带 local profile 的 fail-closed 前置值，不能依赖开发者 shell；
+    # 固定测试值仅用于本轮临时 SQLite 状态，不写入模板或产物。
+    env["AGENT_HARNESS_BUDGET__FINGERPRINT_KEY"] = "copy-smoke-ephemeral-fingerprint-key"
     with tempfile.TemporaryDirectory(prefix="agent-harness-template-copy.") as temp_dir:
         temp_root = Path(temp_dir)
         dist = temp_root / "dist"
-        copied = temp_root / "service-app"
+        # 复制目录刻意包含空格，防止 Make/shell 引用只在简单路径假通过。
+        copied = temp_root / "service app"
         state = temp_root / "state"
         dist.mkdir()
         _run(
@@ -153,11 +160,55 @@ def main() -> int:
         )
         if "cp .env.example .env" not in bootstrap.stdout:
             raise RuntimeError(f"bootstrap did not emit the missing .env hint:\n{bootstrap.stdout}")
+        copied_pyproject = tomllib.loads((copied / "pyproject.toml").read_text(encoding="utf-8"))
+        if copied_pyproject["tool"]["pyright"] != {"venvPath": ".", "venv": ".venv"}:
+            raise RuntimeError("copied bootstrap did not normalize the Pyright environment")
         _run(
             ["make", "test"],
             cwd=copied,
             env=env,
         )
+        _run(
+            ["make", "quality"],
+            cwd=copied,
+            env=env,
+        )
+        if (copied / "pyrightconfig.json").exists():
+            raise RuntimeError("copied quality generated an unexpected pyrightconfig.json")
+
+        # 真实切换到含空格的项目外环境，证明文档示例不是只通过字符串合同。
+        custom_environment = temp_root / "python envs" / "service-app"
+        custom_config = (
+            "{\n"
+            "  // Pyright 接受 JSONC；质量门禁必须接受相同语法。\n"
+            '  "extends": "./pyproject.toml",\n'
+            f'  "venvPath": "{custom_environment.parent}",\n'
+            f'  "venv": "{custom_environment.name}",\n'
+            '  "exclude": ["https://example.test//types", "/* literal */"],\n'
+            "}\n"
+        )
+        pyright_config = copied / "pyrightconfig.json"
+        pyright_config.write_text(custom_config, encoding="utf-8")
+        custom_env = env.copy()
+        custom_env["UV_PROJECT_ENVIRONMENT"] = str(custom_environment)
+        _run(
+            ["make", "bootstrap", f"AGENT_HARNESS_SOURCE={wheel}"],
+            cwd=copied,
+            env=custom_env,
+        )
+        if pyright_config.read_text(encoding="utf-8") != custom_config:
+            raise RuntimeError("bootstrap rewrote the user-owned pyrightconfig.json")
+        _run(
+            ["make", "test"],
+            cwd=copied,
+            env=custom_env,
+        )
+        _run(
+            ["make", "quality"],
+            cwd=copied,
+            env=custom_env,
+        )
+        pyright_config.unlink()
 
         state.mkdir(exist_ok=True)
         storage_dsn = f"sqlite+aiosqlite:///{state / 'agent_harness.db'}"
@@ -258,6 +309,8 @@ def main() -> int:
 
         print(f"smoke-template-copy: wheel={wheel.name}")
         print("smoke-template-copy: make-test=ok")
+        print("smoke-template-copy: custom-make-test=ok")
+        print("smoke-template-copy: make-quality=ok spaced-path=ok custom-environment=ok")
         print(f"smoke-template-copy: health={health['status']} profile={health['profile']}")
         print("smoke-template-copy: openapi=ok swagger=ok redoc=ok")
         print(

@@ -112,6 +112,56 @@ From the repository root:
 uv sync
 ```
 
+#### PyCharm and Pyright
+
+This repository requires the entire uv workspace to use the root `.venv`; member projects do not
+create separate environments. The committed root `[tool.pyright]` therefore declares
+`venvPath = "."` and `venv = ".venv"` explicitly. Current PyCharm needs explicit `venvPath` and
+`venv` settings to resolve dependencies reliably; these particular values come from this
+repository's root `.venv` convention. The template member uses `venvPath = "../.."` to select that
+same root environment. The first bootstrap of a copied project normalizes the value to `.`.
+
+In PyCharm, enable `Use pyproject.toml-based project model`, run
+`Sync Project with pyproject.toml`, and confirm that the project SDK points to the root `.venv`.
+
+After editing the TOML, syncing the PyCharm project model may not restart an already-running
+Pyright server. Restart Pyright from the status-bar language-services menu, or reopen the project,
+to apply the new environment configuration immediately.
+
+Root `make pyright` and `make quality` verify that the active uv environment follows this root
+`.venv` convention, preventing a misleading pass against two different environments.
+
+##### Override the root `.venv` convention
+
+If this repository must place its virtual environment elsewhere, configure both uv and a
+machine-local `pyrightconfig.json`. For example:
+
+```bash
+export UV_PROJECT_ENVIRONMENT="/absolute/path/to/python envs/agent-harness-layer"
+```
+
+Create this file at the repository root:
+
+```json
+{
+  "extends": "./pyproject.toml",
+  "venvPath": "/absolute/path/to/python envs",
+  "venv": "agent-harness-layer"
+}
+```
+
+Then run `uv sync` and `make quality`, point the PyCharm project SDK to the Python in that same
+environment, resync the project model, and restart Pyright. `pyrightconfig.json` takes precedence
+over the committed `[tool.pyright]`; the Make targets neither generate nor rewrite it, and the root
+`.gitignore` ignores it by default. Do not use `~` or environment variables in Pyright path fields
+because Pyright does not expand them.
+
+For a copied, independent project, follow the
+[template guide](templates/service-app/README.md#custom-virtual-environment-path); that guide is
+included in every copy. See the official
+[Pyright configuration precedence](https://github.com/microsoft/pyright/blob/main/docs/configuration.md)
+and [uv project environment](https://docs.astral.sh/uv/concepts/projects/layout/) documentation.
+
 ### 2. Verify the offline development surface
 
 ```bash

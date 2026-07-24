@@ -81,6 +81,57 @@ make bootstrap AGENT_HARNESS_ALLOW_INDEX=1
 
 独立模板默认不会解析公共同名包。这是供应链边界，不是安装故障。
 
+#### PyCharm 与 Pyright
+
+当前 PyCharm 不会可靠地把根 workspace 的 Pyright 环境选择应用到模板成员，因此
+模板自己的 `[tool.pyright]` 显式使用 `venvPath = "../.."` 和 `venv = ".venv"`
+指向根环境。把模板复制成独立项目后，第一次 `make bootstrap` 会把 `venvPath`
+归一化为 `.`，使 PyCharm 转而解析复制项目自己的 `.venv`。修改 SDK 后执行
+`Sync Project with pyproject.toml`；修改 TOML 后还应从状态栏语言服务菜单重启
+Pyright，或重开项目，避免现有 LSP 继续使用旧配置。
+
+`make quality` 会先确认 uv 当前解释器与 Pyright 配置指向同一环境，避免两套环境
+造成误导性的假通过。bootstrap 和质量入口都不会生成或改写使用者主动创建的
+`pyrightconfig.json`。具体行为见官方
+[Pyright 配置文档](https://github.com/microsoft/pyright/blob/main/docs/configuration.md)与
+[uv 项目环境文档](https://docs.astral.sh/uv/concepts/projects/layout/)。
+
+##### 自定义虚拟环境路径
+
+复制出的独立项目可以把虚拟环境放在任意绝对路径，路径中包含空格也受支持，但 uv、
+Pyright 和 PyCharm 项目 SDK 必须选择同一个环境。Pyright 的 `venvPath` 表示环境的
+父目录，`venv` 表示该父目录下的环境目录名。
+
+例如把环境放在 `/absolute/path/to/python envs/service-app`：
+
+```bash
+export UV_PROJECT_ENVIRONMENT="/absolute/path/to/python envs/service-app"
+```
+
+在复制项目根目录创建仅供本机使用的 `pyrightconfig.json`：
+
+```json
+{
+  "extends": "./pyproject.toml",
+  "venvPath": "/absolute/path/to/python envs",
+  "venv": "service-app"
+}
+```
+
+然后在同一个 shell 中完成首次初始化和检查：
+
+```bash
+make bootstrap \
+  AGENT_HARNESS_SOURCE=/absolute/path/to/agent_harness-0.1.0-py3-none-any.whl
+make quality
+```
+
+最后把 PyCharm 项目 SDK 指向该环境中的 Python，重新同步项目模型并重启 Pyright。
+模板的 `.gitignore` 会默认忽略这个包含本机绝对路径的 `pyrightconfig.json`。如果
+团队约定的是可移植的相对环境路径，可以直接修改并提交复制项目的
+`[tool.pyright]`。无论采用哪种方式，bootstrap 和质量入口都不会生成或改写 JSON
+配置。
+
 ### 2. 创建本地状态并迁移
 
 为当前状态库生成 fingerprint key，导出数据库位置，然后执行 migration：

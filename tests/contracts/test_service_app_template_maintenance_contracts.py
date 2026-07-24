@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import re
 import shutil
 import subprocess
 import tomllib
@@ -52,6 +53,7 @@ def test_template_layout_contains_committable_maintenance_content() -> None:
         "eval-cases/approved/README.md",
         "tests/test_app_surface.py",
         "tests/test_bootstrap.py",
+        "tests/test_pyright_environment.py",
         "docs/README.md",
         "docs/README.zh-CN.md",
         "docs/ai-agent-guide.md",
@@ -59,6 +61,7 @@ def test_template_layout_contains_committable_maintenance_content() -> None:
         "docs/examples.md",
         "docs/examples.zh-CN.md",
         "scripts/bootstrap.py",
+        "scripts/check_pyright_environment.py",
         "scripts/smoke_service.py",
         "docker-compose.yml",
         ".gitignore",
@@ -182,11 +185,19 @@ def test_template_pyproject_and_makefile_publish_dev_entrypoints() -> None:
 
     pyproject = tomllib.loads((TEMPLATE / "pyproject.toml").read_text(encoding="utf-8"))
     makefile = (TEMPLATE / "Makefile").read_text(encoding="utf-8")
+    template_gitignore = (TEMPLATE / ".gitignore").read_text(encoding="utf-8")
+    root_pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    root_makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    root_gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
 
     assert pyproject["project"]["scripts"]["agent-harness-service"] == "app.cli.main:main"
     assert "uvicorn>=0.50.2,<0.51" in pyproject["project"]["dependencies"]
     assert "agent-harness" not in pyproject.get("tool", {}).get("uv", {}).get("sources", {})
-    assert pyproject["tool"]["pyright"] == {"venvPath": ".", "venv": ".venv"}
+    # 当前 PyCharm 不会可靠继承根 workspace 的环境选择；模板必须明确指回根环境，
+    # 复制项目再由 bootstrap 归一化为项目内 `.venv`。
+    assert pyproject["tool"]["pyright"] == {"venvPath": "../..", "venv": ".venv"}
+    assert root_pyproject["tool"]["pyright"]["venvPath"] == "."
+    assert root_pyproject["tool"]["pyright"]["venv"] == ".venv"
     assert {"pytest>=9.1.1,<10", "ruff>=0.15.20,<0.16", "pyright>=1.1.411,<2"} <= set(
         pyproject["dependency-groups"]["dev"]
     )
@@ -197,6 +208,13 @@ def test_template_pyproject_and_makefile_publish_dev_entrypoints() -> None:
     assert "cd ../.." not in makefile
     assert "scripts/smoke_service.py" in makefile
     assert "AGENT_HARNESS_SOURCE" in makefile
+    assert "APP_ROOT := $(CURDIR)" in makefile
+    assert "scripts/check_pyright_environment.py" in makefile
+    assert "--pythonpath" not in makefile
+    assert "$(UV) run pyright app agents tests scripts" in makefile
+    assert "scripts/check_pyright_environment.py" in root_makefile
+    assert "/pyrightconfig.json" in root_gitignore
+    assert "/pyrightconfig.json" in template_gitignore
 
 
 def test_template_and_eval_runner_keep_vendor_and_orm_boundary() -> None:
@@ -298,6 +316,16 @@ def test_readme_serves_both_audiences_and_records_delivery_boundaries() -> None:
         assert "app/*" in readme and "agent_harness" in readme
         assert "agent-harness = { workspace = true }" not in readme
         assert "后续文档交付" not in readme
+        # 自定义环境说明必须随模板复制，并覆盖含空格路径与显式 Pyright 覆盖配置。
+        for marker in (
+            'UV_PROJECT_ENVIRONMENT="/absolute/path/to/python envs/service-app"',
+            '"extends": "./pyproject.toml"',
+            '"venvPath": "/absolute/path/to/python envs"',
+            '"venv": "service-app"',
+            "make quality",
+        ):
+            assert marker in readme
+        assert re.search(r"PyCharm\s+\d", readme) is None
     assert "`tenant_id`, `agent_id`, and `run_id`" in english
     assert "`tenant_id`、`agent_id`、`run_id`" in chinese
     assert "Project-root discovery lets core CLI commands" not in english
@@ -354,6 +382,19 @@ def test_root_readme_preserves_product_overview_and_delegation_boundary() -> Non
         assert "AgentRegistry" in readme
         assert "PolicyEngine" in readme
         assert "delegation" in readme
+        assert 'venvPath = "."' in readme
+        assert 'venv = ".venv"' in readme
+        assert re.search(r"PyCharm\s+\d", readme) is None
+    assert "entire uv workspace to use the root `.venv`" in english
+    assert "整个 uv workspace 统一使用仓库根目录的 `.venv`" in chinese
+    for readme in (english, chinese):
+        assert (
+            'UV_PROJECT_ENVIRONMENT="/absolute/path/to/python envs/agent-harness-layer"' in readme
+        )
+        assert '"extends": "./pyproject.toml"' in readme
+        assert '"venvPath": "/absolute/path/to/python envs"' in readme
+        assert '"venv": "agent-harness-layer"' in readme
+        assert "make quality" in readme
     assert "docs/building-an-agent.md" in english
     assert "docs/building-an-agent.zh-CN.md" in chinese
     assert "templates/service-app/docs/ai-agent-guide.md" in english

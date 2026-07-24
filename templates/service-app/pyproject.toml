@@ -30,7 +30,7 @@ build-backend = "hatchling.build"
 packages = ["app", "agents"]
 
 [tool.pyright]
-# 项目约定使用 uv 默认的项目内 `.venv`，让 IDE 中独立运行的 Pyright
-# 也能解析已同步依赖；自定义 UV_PROJECT_ENVIRONMENT 时需同步调整本机工具配置。
-venvPath = "."
+# 当前 PyCharm 不会可靠继承根 workspace 的环境选择，因此这里显式指向仓库根
+# `.venv`。复制项目第一次 bootstrap 会把 venvPath 归一化为 `.`。
+venvPath = "../.."
 venv = ".venv"

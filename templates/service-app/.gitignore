@@ -29,6 +29,7 @@ dist/
 *.egg-info/
 
 # 编辑器与操作系统状态。
+/pyrightconfig.json
 .idea/
 .vscode/
 .DS_Store

@@ -82,6 +82,59 @@ make bootstrap AGENT_HARNESS_ALLOW_INDEX=1
 
 An independent template does not resolve a public package with the same name by default. That is a supply-chain boundary, not an installation defect.
 
+#### PyCharm and Pyright
+
+Current PyCharm does not reliably apply the root workspace's Pyright environment selection to the
+template member. The template therefore declares `venvPath = "../.."` and `venv = ".venv"`
+explicitly so source-workspace analysis uses the root environment. After copying the template, the
+first `make bootstrap` normalizes `venvPath` to `.` so PyCharm uses the copied project's own `.venv`.
+Run `Sync Project with pyproject.toml` after changing the SDK. After editing the TOML, also restart
+Pyright from the status-bar language-services menu, or reopen the project, so the existing LSP does
+not continue using stale settings.
+
+`make quality` first verifies that uv's current interpreter and the Pyright configuration select the
+same environment, preventing a misleading pass against two different environments. Bootstrap and
+quality targets never generate or rewrite a user-created `pyrightconfig.json`. See the official
+[Pyright configuration](https://github.com/microsoft/pyright/blob/main/docs/configuration.md)
+and [uv project environment](https://docs.astral.sh/uv/concepts/projects/layout/) documentation.
+
+##### Custom virtual-environment path
+
+A copied, independent project may place its virtual environment at any absolute path. Paths that
+contain spaces are supported, but uv, Pyright, and the PyCharm project SDK must all select the same
+environment. In Pyright, `venvPath` names the parent directory and `venv` names the environment
+directory inside it.
+
+For example, to use `/absolute/path/to/python envs/service-app`:
+
+```bash
+export UV_PROJECT_ENVIRONMENT="/absolute/path/to/python envs/service-app"
+```
+
+Create a machine-local `pyrightconfig.json` at the copied project root:
+
+```json
+{
+  "extends": "./pyproject.toml",
+  "venvPath": "/absolute/path/to/python envs",
+  "venv": "service-app"
+}
+```
+
+Then bootstrap and verify the project in the same shell:
+
+```bash
+make bootstrap \
+  AGENT_HARNESS_SOURCE=/absolute/path/to/agent_harness-0.1.0-py3-none-any.whl
+make quality
+```
+
+Finally, point the PyCharm project SDK to that environment's Python, resync the project model, and
+restart Pyright. The template `.gitignore` ignores this machine-specific `pyrightconfig.json` by
+default. If the team uses a portable relative environment path, update and commit the copied
+project's `[tool.pyright]` instead. Bootstrap and quality targets never generate or rewrite the JSON
+file.
+
 ### 2. Create local state and migrate it
 
 Generate a fingerprint key for this state database, export the database location, and run migration:

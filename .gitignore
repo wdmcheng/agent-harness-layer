@@ -44,6 +44,7 @@ pnpm-debug.log*
 !.env.*.sample
 
 # Editor and IDE local state
+/pyrightconfig.json
 .idea/
 *.iws
 *.iml
