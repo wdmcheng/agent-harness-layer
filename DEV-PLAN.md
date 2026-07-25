@@ -7,30 +7,33 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-23 的 v1.17。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-25 的 v1.19。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；新增或修改 HTTP endpoint 前必须先更新契约，再做局部 OpenAPI 漂移检查。
 - OpenSpec: 仓库存在 `openspec/`；Phase 1-16 及后续 `relax-release-uv-patch-range` 均已同步主规格并归档，当前无 active change。后者归档路径为 `openspec/changes/archive/2026-07-23-relax-release-uv-patch-range/`。
-- 代码状态: Phase 1-15 已完成计划内实现或文档交付并归档；Phase 16 的依赖范围化及后续 uv patch 范围修正已完成 red-first 实现、双版本验证、全量回归、实现候选 fresh review、主规格同步与归档。该完成状态随归档后候选进入 fresh review，只有同一冻结内容通过后才对外声明；尚未 commit，也未执行任何外部发布副作用。
+- 代码状态: Phase 1-16 及后续依赖范围修正已归档；当前对已归档 Phase 12 做窄范围模板维护：修复复制项目 `make eval*` 未显式迁移数据库，并将 Swagger UI / Redoc 改为默认离线自托管、可显式切换在线、可复现更新且可在正式环境整体关闭。当前无 active OpenSpec change，本修复不新建 change；尚未 commit，也未执行 push、tag、release、真实 publish、依赖升级或部署。
 - 计划模式: 迭代模式。已完成 Phase 保持冻结，只更新状态、剩余工作、风险和后续 Phase 入口。
 
 ## 当前进度
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | Phase 16 后续 uv patch 范围修正已形成归档候选 | Phase 1-16 既有交付及后续 change 均已同步主规格并归档；207 个已锁 package identity 未升级。 |
-| 当前 Phase | Phase 16 后续修正：uv patch 支持范围与实际身份 | TDD、双版本、完整本地验证、实现候选 fresh review、主规格同步与归档已完成；最终完成声明以归档后同一冻结候选的 fresh code-reviewer Stage 1/2 结论为准。 |
+| 总体状态 | Phase 12 复制模板窄范围维护候选 | Phase 1-16 既有交付及后续 change 均已归档；本轮只修复离线 API 文档和评测数据库自准备，不升级依赖。 |
+| 当前 Phase | Phase 12 后续维护：复制项目的 docs / eval 可用性 | 实现、质量、全量测试、真实 copy-out、Docker service smoke 与 license check 已通过；最终完成声明仍以同一冻结候选的 fresh code-reviewer Stage 1/2 结论为准。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14, Phase 15 | Phase 13-15 的 changes 均已同步主规格并归档。 |
 | 当前 OpenSpec change | 无 | `relax-release-uv-patch-range` 的 9/9 tasks、change strict、主规格同步与归档均已完成；`openspec list --json` 为空。 |
 | Phase 16 本地验证 | PASS | 2026-07-24 后续修正中，固定 uv `0.11.29` 与本机 uv `0.11.31` 都通过 lock check、frozen release sync、无隔离 build、release dry-run 与 17 项范围/identity 合同，两版 wheel/sdist 和 preview artifact checksum 完全一致；本机 `0.11.31` 下 quality PASS、审查修复后全量 pytest `1306 passed, 223 skipped`。207 项 lock identity SHA-256 保持 `bb9046c25267f611007c6b74ee74c3ff8e55f885b3f92d091aed0642c5adef58`。 |
-| 当前阻塞项 | 无本地实现阻塞；归档后候选仍受 fresh review 门禁约束 | GitHub/GitLab hosted runner、远端保护、secret/artifact service 仍未验证；AC-053/054 因此保持未勾选。 |
-| 当前建议下一步 | 冻结归档后候选并重派 code-reviewer | PASS 后才写 `clean`；除非用户另行授权，不 commit、push、tag、release、真实 publish、升级依赖或部署。 |
+| 当前阻塞项 | 无本地实现阻塞；本轮维护候选仍受 fresh review 门禁约束 | GitHub/GitLab hosted runner、远端保护、secret/artifact service 仍未验证；AC-053/054 因此保持未勾选。 |
+| 当前建议下一步 | 冻结本轮维护候选并重派 code-reviewer | PASS 后才声明完成；除非用户另行授权，不 commit、push、tag、release、真实 publish、升级依赖或部署。 |
 
 ## 剩余工作
 
-### 立即下一步
+### 本轮维护收口
 
+- 已按 red-first 修复 Phase 12 模板维护缺口：全新 `STATE_DIR` 执行每个 `make eval*` 时先显式迁移；真复制项目已验证 health、OpenAPI、Swagger UI、Redoc、本地静态资源和显式 `online` 切换。
+- API 文档公开面使用一个类型化开关整体控制：local 默认开启、service 默认关闭；关闭时 OpenAPI、两个 UI、OAuth2 redirect 与静态 mount 一起消失，并跳过静态资源读取。
+- 资源更新入口已固定 Swagger UI / Redoc 版本和 npm 来源，校验 tarball integrity 与逐文件 SHA-256，保留 Apache-2.0 / MIT 许可证材料，并对 symlink、路径逃逸和替换失败恢复建立合同测试。
 - Phase 13.5-13.9 的已实现 changes 已同步主规格并归档。
 - Phase 14 的交付、验证、主规格同步与归档已完成；归档路径为 `openspec/changes/archive/2026-07-19-maintainer-deep-documentation/`。
 - Phase 15 的 release、license 与双 CI/需求验收 evidence 实现已完成；审查确认的四项最小修复已有 fresh Reviewer 1 Stage 1/2 PASS，真实 `smoke-service` 也已在正确 uv 与 localhost 直连环境中通过。用户已明确取消最终 Reviewer 2/3，并对本次 Phase 作出一次性 `owner-waived` 裁决；三个 change 已于 2026-07-22 同步主规格并归档。

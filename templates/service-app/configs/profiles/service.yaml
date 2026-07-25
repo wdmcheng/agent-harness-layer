@@ -99,3 +99,8 @@ service:
     port: 8000
   worker_process:
     enabled: true
+  api_docs:
+    # 正式服务默认不暴露 OpenAPI/Swagger/Redoc；排障时由部署环境显式开启。
+    enabled: false
+    # 开启后仍默认自托管；只有显式 online 才允许浏览器请求 CDN。
+    asset_mode: offline

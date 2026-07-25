@@ -35,12 +35,52 @@ def test_local_and_service_profiles_load_typed_settings() -> None:
     assert local.observability.kind == "local-jsonl"
     assert local.model.requires_api_key is False
     assert local.identity.default.tenant_id == "default"
+    assert local.service.api_docs.enabled is True
+    assert local.service.api_docs.asset_mode == "offline"
 
     assert service.profile == "service"
     assert service.service.api_process.enabled is True
     assert service.service.worker_process.enabled is True
     assert service.storage.kind == "postgresql"
     assert service.queue.kind == "redis"
+    assert service.service.api_docs.enabled is False
+    assert service.service.api_docs.asset_mode == "offline"
+
+
+def test_api_docs_asset_mode_is_typed_and_rejects_unknown_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """API 文档只允许 offline/online，拼写错误不能静默回退。"""
+
+    monkeypatch.setenv("AGENT_HARNESS_SERVICE__API_DOCS__ASSET_MODE", "online")
+    online = load_settings(profile="local", profiles_dir=PROFILES)
+    assert online.service.api_docs.asset_mode == "online"
+
+    monkeypatch.setenv("AGENT_HARNESS_SERVICE__API_DOCS__ASSET_MODE", "remote")
+    with pytest.raises(SettingsLoadError) as exc_info:
+        load_settings(profile="local", profiles_dir=PROFILES)
+
+    assert exc_info.value.errors[0].field_path == "service.api_docs.asset_mode"
+
+
+def test_api_docs_enabled_accepts_only_typed_boolean_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """文档总开关接受显式布尔覆盖，歧义字符串不得静默开启管理面。"""
+
+    monkeypatch.setenv("AGENT_HARNESS_SERVICE__API_DOCS__ENABLED", "false")
+    disabled = load_settings(profile="local", profiles_dir=PROFILES)
+    assert disabled.service.api_docs.enabled is False
+
+    monkeypatch.setenv("AGENT_HARNESS_SERVICE__API_DOCS__ENABLED", "true")
+    enabled_for_service = load_settings(profile="service", profiles_dir=PROFILES)
+    assert enabled_for_service.service.api_docs.enabled is True
+
+    monkeypatch.setenv("AGENT_HARNESS_SERVICE__API_DOCS__ENABLED", "sometimes")
+    with pytest.raises(SettingsLoadError) as exc_info:
+        load_settings(profile="local", profiles_dir=PROFILES)
+
+    assert exc_info.value.errors[0].field_path == "service.api_docs.enabled"
 
 
 def test_agent_yaml_and_env_file_override_profile_values(tmp_path: Path) -> None:

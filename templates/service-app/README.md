@@ -203,6 +203,79 @@ Open:
 - Redoc: `http://127.0.0.1:8000/redoc`
 - OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
 
+### Offline and online Swagger UI / Redoc modes
+
+One master switch controls the OpenAPI schema, Swagger UI, Redoc, the Swagger OAuth2 redirect,
+and the local static mount. The `local` profile enables this surface; the production-oriented
+`service` profile disables it. Enable it explicitly for a bounded production diagnostic window,
+then turn it off again:
+
+```bash
+AGENT_HARNESS_SERVICE__API_DOCS__ENABLED=true make dev PROFILE=service
+```
+
+Force it off in any profile with:
+
+```bash
+AGENT_HARNESS_SERVICE__API_DOCS__ENABLED=false make dev
+```
+
+When disabled, `/openapi.json`, `/docs`, `/redoc`, `/docs/oauth2-redirect`, and
+`/static/api-docs/*` all return `404`; the application does not read or validate the asset tree.
+
+`service.api_docs.asset_mode=offline` is the default. `/docs` and `/redoc` request only the
+current service's `/static/api-docs/*` resources, so a copied project remains usable without
+Internet access. The pinned files travel in `app/static/api-docs/`; `manifest.json` records exact
+Swagger UI and Redoc versions, npm sources, and per-file SHA-256 values. Package-level licenses
+and the embedded-dependency license sidecars referenced by both bundle headers are part of this
+closed asset set and must remain in copied and packaged projects.
+
+Switch only when the browser can reach `cdn.jsdelivr.net` and you deliberately want CDN delivery.
+Set the typed override in the ignored `.env` or deployment environment:
+
+```bash
+AGENT_HARNESS_SERVICE__API_DOCS__ASSET_MODE=online make dev
+```
+
+`online` changes only the browser delivery location. It still uses the exact manifest versions,
+never `latest` or a floating major-only URL, and startup still verifies the complete local locked
+asset set. The service does not proxy the CDN, so restricted networks should keep `offline`.
+Swagger's remote validator and Redoc's Google Fonts are disabled in both modes. The updater also
+replaces Redoc's fixed runtime logo URL with a local data URI.
+
+#### Verify and update the static assets
+
+The routine check is entirely offline and downloads nothing:
+
+```bash
+uv run python scripts/update_api_docs_assets.py --check
+```
+
+Before an upgrade, read the official Swagger UI and Redoc release notes and select exact versions.
+Follow FastAPI's [self-hosting guide](https://fastapi.tiangolo.com/how-to/custom-docs-ui-assets/),
+and select candidates only from the official [Swagger UI releases](https://github.com/swagger-api/swagger-ui/releases)
+and [Redoc releases](https://github.com/Redocly/redoc/releases).
+Then run the explicit networked update and local verification:
+
+```bash
+uv run python scripts/update_api_docs_assets.py --update \
+  --swagger-ui-version 5.32.11 \
+  --redoc-version 2.5.3
+uv run python scripts/update_api_docs_assets.py --check
+make test
+```
+
+The updater extracts regular, uniquely named runtime files, package-level licenses, and bundle
+license sidecars from exact npm tarballs, rejects ambiguous JSON/tar members and symlink path
+boundaries, validates npm sha512 integrity, and deterministically removes Redoc's runtime logo CDN
+URL before validating the complete staged directory. Only then does it perform a transactional
+replacement. Ordinary failures and catchable process interruptions restore the previous set.
+Portable directory replacement needs two renames and does not promise strict atomic visibility to
+concurrent filesystem observers, so do not update while the service is starting or running. A normal copied project commits the updated assets,
+manifest, and all license files. When changing the upstream Agent Harness Layer template, also update the root `NOTICE`,
+`compliance/third-party.toml`, ADR-0004/0005, run `make license-check`, and run the real copy-out
+smoke.
+
 ## Everyday usage
 
 ### Make commands
@@ -220,10 +293,14 @@ Open:
 | `make test` / `make contract` | run copied-template public-seam tests |
 | `make quality` | run Ruff and Pyright over app, agents, tests, and scripts |
 | `make eval` | run all approved example eval cases |
-| `make eval-rag` |eval-ticket|eval-repo|eval-dev` | run one example's eval cases |
+| `make eval-rag` / `make eval-ticket` / `make eval-repo` / `make eval-dev` | run one example's eval cases |
 | `make smoke-local` | validate the local profile and agent registry |
 | `make smoke-service` | run the real copied-template PostgreSQL/Redis/API/worker smoke |
 | `make worker` | start the runtime worker using the selected profile |
+
+Each `make eval*` target owns `STATE_DIR/<target>/eval.db` and explicitly migrates that database
+before entering the fail-closed runtime. A fresh `STATE_DIR` can therefore run `make eval` directly;
+no separate manual eval migration is required.
 
 All targets accept Make variable overrides such as `PROFILE`, `PROFILES_DIR`, `STATE_DIR`, `STORAGE_DSN`, `EVENTS_PATH`, `HOST`, and `PORT`.
 

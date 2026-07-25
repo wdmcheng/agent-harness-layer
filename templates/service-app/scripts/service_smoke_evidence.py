@@ -67,6 +67,7 @@ def collect_evidence(
             "failure_cases": bootstrap.secret_failures,
         },
         "auth": {"missing": 401, "invalid": 401, "side_effects": 0},
+        "api_docs": bootstrap.api_docs,
         "queue": {
             **reclaim.expected,
             "message_id": reclaim.message_id,

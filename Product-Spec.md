@@ -395,6 +395,7 @@ project/
 templates/service-app/
 ├── app/
 │   ├── api/
+│   ├── static/api-docs/
 │   ├── cli/
 │   └── workers/
 ├── agents/
@@ -406,6 +407,7 @@ templates/service-app/
 │   └── approved/
 ├── tests/
 ├── docs/
+├── scripts/update_api_docs_assets.py
 ├── docker-compose.yml
 ├── pyproject.toml
 ├── Makefile
@@ -418,9 +420,14 @@ templates/service-app/
 - MUST `agents/*` 每个子目录是一个 agent。
 - MUST `configs/profiles/local.yaml` 和 `configs/profiles/service.yaml` 都存在。
 - MUST README 面向 app developer 和 scaffold maintainer 两类读者。
+- MUST Swagger UI 和 Redoc 默认只从当前 service-app 加载固定版本的本地静态资源，保证复制项目在无外网环境也可使用；只有类型化 profile 或 `AGENT_HARNESS_SERVICE__API_DOCS__ASSET_MODE` 显式切换为 `online` 时，才允许加载与本地资源相同锁定版本的 CDN 资源。
+- MUST API 文档公开面可通过类型化 `service.api_docs.enabled` 或 `AGENT_HARNESS_SERVICE__API_DOCS__ENABLED` 整体关闭；`local` profile 默认开启，面向正式部署的 `service` profile 默认关闭。关闭时不得注册 `/docs`、`/redoc`、`/openapi.json`、Swagger OAuth2 redirect 或 `/static/api-docs` mount，也不得读取或校验文档静态资源。
+- MUST 随模板提供可复现的 API 文档资源更新入口，同步记录 Swagger UI / Redoc 版本、来源、SHA-256 和许可证文件；下载或校验失败时不得留下部分更新。
+- MUST 所有 `make eval*` 入口在进入 fail-closed runtime 前显式迁移各自的独立数据库，全新 `STATE_DIR` 不需要用户手动补迁移。
 
 **验收标准：**
-- [x] AC-006: Given 模板目录, when 执行 `make dev` with local profile, then FastAPI/CLI 至少一种入口可运行示例 agent。
+- [x] AC-006: Given 复制后的模板目录, when 执行 `make dev` with local profile, then health、OpenAPI、Swagger UI 和 Redoc 入口均可用，文档 UI 默认只请求本地资源，显式切为 `online` 后才请求与本地锁定版本一致的 CDN 资源。
+- [x] AC-070: Given `service.api_docs.enabled=false`, when service-app 启动, then `/docs`、`/redoc`、`/openapi.json`、Swagger OAuth2 redirect 和 `/static/api-docs/*` 均返回 404，且缺失或损坏的文档静态资源不阻断应用启动；`local` 默认开启、`service` 默认关闭，并可由类型化环境变量显式覆盖。
 - [x] AC-007: Given 模板目录, when 执行 `make smoke-service`, then Docker Compose PostgreSQL/Redis service smoke 通过。
 
 ### REQ-004: 配置系统
@@ -1021,7 +1028,7 @@ Runtime Trace
 
 **验收标准：**
 - [x] AC-046: Given P0 示例 agent, when `agent-harness agents list`, then 四个示例均可见。
-- [x] AC-047: Given 每个示例, when 执行对应 eval, then fake model 下可跑通确定性测试。
+- [x] AC-047: Given 每个示例和全新的评测 `STATE_DIR`, when 执行对应 `make eval*`, then 入口先显式迁移其独立 SQLite，再在 fake model 下跑通确定性评测。
 
 ### REQ-018: README 与文档体系
 

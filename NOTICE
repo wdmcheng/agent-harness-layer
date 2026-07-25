@@ -5,9 +5,19 @@ This product includes software developed by the Agent Harness Layer contributors
 
 Third-party notices and source attributions required by dependency licenses or copied materials
 must be recorded here before release. The versioned runtime dependency policy and source/license
-basis are tracked in `compliance/third-party.toml`; the current scaffold does not vendor third-party
-source code. The generated `.artifacts/license/license-report.json` is an automated evidence report,
-not legal advice.
+basis are tracked in `compliance/third-party.toml`. The service-app template vendors the following
+browser-only API documentation assets so copied projects remain usable without Internet access:
+
+- Vendored path: templates/service-app/app/static/api-docs/swagger-ui
+  Swagger UI 5.32.11, Apache-2.0; the upstream package LICENSE/NOTICE and the bundle's
+  embedded-dependency license sidecar travel with the assets.
+- Vendored path: templates/service-app/app/static/api-docs/redoc
+  Redoc 2.5.3, MIT; the upstream package LICENSE and the bundle's embedded-dependency license
+  sidecar travel with the asset. The update script replaces the bundle's fixed Redocly logo URL
+  with a local data URI so offline docs do not contact that CDN.
+
+The generated `.artifacts/license/license-report.json` is an automated evidence report, not legal
+advice.
 
 Service runtime evidence and license boundary:
 - PostgreSQL actual server version: 18.4

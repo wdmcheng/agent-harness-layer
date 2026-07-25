@@ -229,10 +229,13 @@ def validate(spec_path: Path, matrix_path: Path) -> tuple[int, int]:
         identifier = row["ID"]
         if row["状态"] not in ALLOWED_STATUS:
             raise MatrixError(f"{identifier} has invalid status: {row['状态']}")
-        production = row["生产路径"].strip()
-        if production.lower() in PLACEHOLDERS:
-            raise MatrixError(f"{identifier} has placeholder 生产路径")
-        _specific_repository_file(root, identifier, "生产路径", production)
+        production_references = _field_values(identifier, "生产路径", row["生产路径"])
+        actual_production = {
+            _specific_repository_file(root, identifier, "生产路径", reference)
+            for reference in production_references
+        }
+        if len(actual_production) != len(production_references):
+            raise MatrixError(f"{identifier} has duplicate specific production path mapping")
 
         test_references = _field_values(identifier, "测试", row["测试"])
         actual_tests = {

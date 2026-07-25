@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -14,7 +15,7 @@ import tomllib
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from template_copy_agent_smoke import run_agent_surface_smoke
 
@@ -75,6 +76,59 @@ def _read_url(port: int, path: str) -> tuple[int, str, str]:
             response.headers.get("content-type", ""),
             response.read().decode("utf-8"),
         )
+
+
+def _read_dev_surface(
+    *,
+    copied: Path,
+    state: Path,
+    env: dict[str, str],
+    log_path: Path,
+) -> dict[str, Any]:
+    """启动一次复制项目，读取 health、OpenAPI 和两个文档页后回收进程。"""
+
+    port = _free_port()
+    with log_path.open("w", encoding="utf-8") as log_file:
+        process = subprocess.Popen(
+            ["make", "dev", f"PORT={port}", f"STATE_DIR={state}"],
+            cwd=copied,
+            env=env,
+            text=True,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+        )
+        try:
+            health = _wait_for_health(port)
+            openapi_status, openapi_type, openapi_text = _read_url(port, "/openapi.json")
+            swagger_status, swagger_type, swagger_text = _read_url(port, "/docs")
+            redoc_status, redoc_type, redoc_text = _read_url(port, "/redoc")
+        except Exception as exc:
+            process.terminate()
+            process.wait(timeout=5)
+            raise RuntimeError(
+                f"{exc}\nserver log:\n{log_path.read_text(encoding='utf-8')}"
+            ) from exc
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+    return {
+        "port": port,
+        "health": health,
+        "openapi_status": openapi_status,
+        "openapi_type": openapi_type,
+        "openapi_text": openapi_text,
+        "swagger_status": swagger_status,
+        "swagger_type": swagger_type,
+        "swagger_text": swagger_text,
+        "redoc_status": redoc_status,
+        "redoc_type": redoc_type,
+        "redoc_text": redoc_text,
+    }
 
 
 def _compose_down(*, copied: Path, env: dict[str, str]) -> None:
@@ -211,6 +265,16 @@ def main() -> int:
         pyright_config.unlink()
 
         state.mkdir(exist_ok=True)
+        eval_result = _run(
+            ["make", "eval-ticket", f"STATE_DIR={state}"],
+            cwd=copied,
+            env=env,
+        )
+        if "agent=examples.ticket_triage status=completed cases=2" not in eval_result.stdout:
+            raise RuntimeError(f"copied eval did not complete:\n{eval_result.stdout}")
+        if not (state / "eval-ticket" / "eval.db").is_file():
+            raise RuntimeError("copied eval did not migrate its isolated database")
+
         storage_dsn = f"sqlite+aiosqlite:///{state / 'agent_harness.db'}"
         _run(
             [
@@ -228,48 +292,100 @@ def main() -> int:
             cwd=copied,
             env=env,
         )
-        port = _free_port()
-        log_path = temp_root / "dev.log"
-        with log_path.open("w", encoding="utf-8") as log_file:
-            process = subprocess.Popen(
-                ["make", "dev", f"PORT={port}", f"STATE_DIR={state}"],
-                cwd=copied,
-                env=env,
-                text=True,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-            )
-            try:
-                health = _wait_for_health(port)
-                openapi_status, openapi_type, openapi_text = _read_url(port, "/openapi.json")
-                swagger_status, swagger_type, _ = _read_url(port, "/docs")
-                redoc_status, redoc_type, _ = _read_url(port, "/redoc")
-            except Exception as exc:
-                process.terminate()
-                process.wait(timeout=5)
-                raise RuntimeError(
-                    f"{exc}\nserver log:\n{log_path.read_text(encoding='utf-8')}"
-                ) from exc
-            finally:
-                if process.poll() is None:
-                    process.terminate()
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        process.wait(timeout=5)
-
+        offline_surface = _read_dev_surface(
+            copied=copied,
+            state=state,
+            env=env,
+            log_path=temp_root / "dev-offline.log",
+        )
+        health = offline_surface["health"]
         if health.get("status") != "ok" or health.get("profile") != "local":
             raise RuntimeError(f"unexpected health payload: {health}")
-        openapi = json.loads(openapi_text)
-        if openapi_status != 200 or "application/json" not in openapi_type:
+        openapi = json.loads(offline_surface["openapi_text"])
+        if (
+            offline_surface["openapi_status"] != 200
+            or "application/json" not in offline_surface["openapi_type"]
+        ):
             raise RuntimeError("copied OpenAPI endpoint is not available")
         if "/api/v1/health" not in openapi.get("paths", {}):
             raise RuntimeError("copied OpenAPI schema is missing /api/v1/health")
-        if swagger_status != 200 or "text/html" not in swagger_type:
+        if (
+            offline_surface["swagger_status"] != 200
+            or "text/html" not in offline_surface["swagger_type"]
+        ):
             raise RuntimeError("copied Swagger endpoint is not available")
-        if redoc_status != 200 or "text/html" not in redoc_type:
+        if (
+            offline_surface["redoc_status"] != 200
+            or "text/html" not in offline_surface["redoc_type"]
+        ):
             raise RuntimeError("copied Redoc endpoint is not available")
+        for page in (offline_surface["swagger_text"], offline_surface["redoc_text"]):
+            if "https://" in page:
+                raise RuntimeError("copied offline API docs retained an external asset")
+            asset_paths = re.findall(r'(?:href|src)="(/[^"]+)"', page)
+            if not asset_paths:
+                raise RuntimeError("copied offline API docs expose no local assets")
+            for asset_path in asset_paths:
+                status, _, payload = _read_url(cast(int, offline_surface["port"]), asset_path)
+                if status != 200 or not payload:
+                    raise RuntimeError(f"copied API docs asset is unavailable: {asset_path}")
+                if (
+                    asset_path.endswith("/redoc/redoc.standalone.js")
+                    and "https://cdn.redoc.ly/redoc/logo-mini.svg" in payload
+                ):
+                    raise RuntimeError("copied Redoc bundle retained its runtime CDN logo")
+        if '"validatorUrl": null' not in offline_surface["swagger_text"]:
+            raise RuntimeError("copied offline Swagger UI retained the remote validator")
+
+        manifest = json.loads(
+            (copied / "app/static/api-docs/manifest.json").read_text(encoding="utf-8")
+        )
+        license_sidecars = {
+            "swagger_ui": (
+                "swagger-ui/swagger-ui-bundle.js",
+                "swagger-ui/swagger-ui-bundle.js.LICENSE.txt",
+            ),
+            "redoc": (
+                "redoc/redoc.standalone.js",
+                "redoc/redoc.standalone.js.LICENSE.txt",
+            ),
+        }
+        for component, (bundle_path, sidecar_path) in license_sidecars.items():
+            if sidecar_path not in manifest[component]["files"]:
+                raise RuntimeError(f"copied API docs manifest omitted {sidecar_path}")
+            sidecar = copied / "app/static/api-docs" / sidecar_path
+            if not sidecar.is_file() or not sidecar.read_text(encoding="utf-8").strip():
+                raise RuntimeError(
+                    f"copied API docs license sidecar is unavailable: {sidecar_path}"
+                )
+            bundle_header = (
+                (copied / "app/static/api-docs" / bundle_path)
+                .read_text(encoding="utf-8")
+                .splitlines()[0]
+            )
+            if Path(sidecar_path).name not in bundle_header:
+                raise RuntimeError(f"copied bundle does not reference {sidecar_path}")
+        online_env = env.copy()
+        online_env["AGENT_HARNESS_SERVICE__API_DOCS__ASSET_MODE"] = "online"
+        online_surface = _read_dev_surface(
+            copied=copied,
+            state=state,
+            env=online_env,
+            log_path=temp_root / "dev-online.log",
+        )
+        if (
+            f"swagger-ui-dist@{manifest['swagger_ui']['version']}"
+            not in online_surface["swagger_text"]
+            or f"redoc@{manifest['redoc']['version']}" not in online_surface["redoc_text"]
+        ):
+            raise RuntimeError("copied online API docs did not keep pinned asset versions")
+        if any(
+            "/static/api-docs/" in page
+            for page in (online_surface["swagger_text"], online_surface["redoc_text"])
+        ):
+            raise RuntimeError("copied online API docs retained local asset URLs")
+        if '"validatorUrl": null' not in online_surface["swagger_text"]:
+            raise RuntimeError("copied online Swagger UI retained the remote validator")
         if "workspace = true" in (copied / "pyproject.toml").read_text(encoding="utf-8"):
             raise RuntimeError("copied pyproject retained a workspace-only source")
         if str(ROOT) in (copied / "pyproject.toml").read_text(encoding="utf-8"):
@@ -311,8 +427,10 @@ def main() -> int:
         print("smoke-template-copy: make-test=ok")
         print("smoke-template-copy: custom-make-test=ok")
         print("smoke-template-copy: make-quality=ok spaced-path=ok custom-environment=ok")
+        print("smoke-template-copy: eval-ticket=migrated-and-passed")
         print(f"smoke-template-copy: health={health['status']} profile={health['profile']}")
-        print("smoke-template-copy: openapi=ok swagger=ok redoc=ok")
+        print("smoke-template-copy: openapi=ok swagger=offline-ok redoc=offline-ok")
+        print("smoke-template-copy: swagger=online-pinned redoc=online-pinned")
         print(
             "smoke-template-copy: scaffold=generated.smoke "
             "list=ok run=completed approved-eval=passed"

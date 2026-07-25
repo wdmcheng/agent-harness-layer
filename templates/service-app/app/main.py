@@ -64,6 +64,7 @@ from app.api.routes.runs import (
     request_id_from,
 )
 from app.api.routes.runs import router as runs_router
+from app.api_docs import configure_api_docs
 from app.runtime import RuntimeComponents, build_runtime_components
 
 
@@ -147,7 +148,20 @@ def create_app(
             if components is not None:
                 await components.close()
 
-    app = FastAPI(title="Agent Harness Service", lifespan=lifespan)
+    api_docs = settings.service.api_docs
+    # FastAPI 默认文档页引用浮动 CDN 和外部 favicon。这里禁用默认页，
+    # 由显式 route 按 typed profile 选择已锁定的本地或在线资源。关闭时连
+    # OpenAPI route 也不注册，且不读取静态树，避免正式服务被文档资产阻断。
+    app = FastAPI(
+        title="Agent Harness Service",
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url="/openapi.json" if api_docs.enabled else None,
+    )
+    if api_docs.enabled:
+        configure_api_docs(app, api_docs.asset_mode)
+
     app.include_router(agents_router)
     app.include_router(runs_router)
     app.include_router(approvals_router)

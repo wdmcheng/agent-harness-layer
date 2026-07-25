@@ -1133,6 +1133,32 @@ license_expression = "BSD-2-Clause"
 decision = "allow"
 basis = "https://pypi.org/project/wrapt/2.2.2/"
 
+[[vendored]]
+path = "templates/service-app/app/static/api-docs/swagger-ui"
+source_url = "https://registry.npmjs.org/swagger-ui-dist/-/swagger-ui-dist-5.32.11.tgz"
+source_revision = "414a60c9a40408d37821297682b8a190a840a79b"
+source_sha256 = "966b7c7ea3bc98af2f5f125dac3a971973df20ed1f9c40707d846200d8b462a6"
+license_expression = "Apache-2.0"
+license_ref = "templates/service-app/app/static/api-docs/swagger-ui/LICENSE"
+notice_ref = "NOTICE"
+modified = false
+modification_summary = "未修改上游发布文件；更新脚本仅从 npm tarball 提取 Swagger UI 的运行资源、包级 LICENSE/NOTICE 与 bundle 内嵌第三方依赖许可证 sidecar。"
+modification_summary_sha256 = "d833797d20e06b7d694eb26d9ad1278f0527f78e20e6b93d5e76b5cb3f7ed7c1"
+adr_ref = "docs/adr/0004-swagger-ui-offline-assets.zh-CN.md"
+
+[[vendored]]
+path = "templates/service-app/app/static/api-docs/redoc"
+source_url = "https://registry.npmjs.org/redoc/-/redoc-2.5.3.tgz"
+source_revision = "1b2591e87291fbf6fe1ad5dce9326a316a54609f"
+source_sha256 = "e09cc6eb1af62e493e92ebff1ff98b5917ff4018f24ef9be91a3d97998987a73"
+license_expression = "MIT"
+license_ref = "templates/service-app/app/static/api-docs/redoc/LICENSE"
+notice_ref = "NOTICE"
+modified = true
+modification_summary = "基于上游发布文件，将 Redoc bundle 内固定的外部 logo URL 确定性替换为本地 data URI；包级 LICENSE 与 bundle 内嵌第三方依赖许可证 sidecar 保持不变。"
+modification_summary_sha256 = "61526e9c44c24f8f440e646fb2d556140bec83d0227677e1d58bc036117eb9f9"
+adr_ref = "docs/adr/0005-redoc-offline-assets.zh-CN.md"
+
 [service_images.postgres]
 reference = "postgres:18.4@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a"
 server_version = "18.4"

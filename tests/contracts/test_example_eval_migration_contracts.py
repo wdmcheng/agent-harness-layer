@@ -25,6 +25,39 @@ SERVICE_APP = ROOT / "templates" / "service-app"
 PROFILES = SERVICE_APP / "configs" / "profiles"
 
 
+@pytest.mark.parametrize(
+    ("target", "state_name"),
+    [
+        ("eval", "eval"),
+        ("eval-rag", "eval-rag"),
+        ("eval-ticket", "eval-ticket"),
+        ("eval-repo", "eval-repo"),
+        ("eval-dev", "eval-dev"),
+    ],
+)
+def test_template_eval_targets_migrate_fresh_database_before_runtime(
+    tmp_path: Path,
+    target: str,
+    state_name: str,
+) -> None:
+    """全新复制项目的每个 eval target 都先显式迁移自己的库。"""
+
+    result = subprocess.run(
+        ["make", "-n", target, f"STATE_DIR={tmp_path}"],
+        cwd=SERVICE_APP,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    migration = "python app/migrate.py"
+    evaluation = "python scripts/run_example_evals.py"
+    assert migration in result.stdout
+    assert result.stdout.index(migration) < result.stdout.index(evaluation)
+    assert f"sqlite+aiosqlite:///{tmp_path}/{state_name}/eval.db" in result.stdout
+
+
 def _dsn(path: Path) -> str:
     """将临时 SQLite 文件转换为示例 runtime 组件使用的异步 DSN。"""
 

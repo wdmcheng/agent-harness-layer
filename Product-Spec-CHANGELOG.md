@@ -1,5 +1,20 @@
 # 变更记录
 
+## [v1.19] - 2026-07-25
+### API 文档生产关闭边界
+
+- 新增 AC-070：Swagger UI、Redoc、OpenAPI schema、OAuth2 redirect 与文档静态 mount 必须由一个类型化开关整体控制，关闭时不读取静态资源。
+- `local` profile 默认开启文档，面向正式部署的 `service` profile 默认关闭；两者都允许通过 `AGENT_HARNESS_SERVICE__API_DOCS__ENABLED` 显式覆盖。
+- 本轮继续作为已归档 Phase 12 的窄范围模板维护，不新建 OpenSpec change。
+
+## [v1.18] - 2026-07-25
+### 复制模板的离线 API 文档与评测自准备
+
+- 收紧 REQ-003 / AC-006：复制后的 service-app 必须默认自托管锁定版本的 Swagger UI / Redoc 静态资源，在无外网环境仍可使用；仅允许通过类型化配置显式切换到同版本 CDN。
+- 模板必须带可复现的资源更新入口，记录版本、来源、SHA-256 和许可证文件，下载或校验失败不得留下部分更新。
+- 收紧 AC-047：每个 `make eval*` 都必须先迁移自己的独立 SQLite，全新 `STATE_DIR` 可直接运行 fake-model 评测；保持 runtime 的未迁移 schema fail-closed 边界。
+- 本轮是已归档 Phase 12 的窄范围模板维护修复，当前无 active OpenSpec change，不创建新 change，不修改主 OpenSpec specs 或 archive。
+
 ## [v1.17] - 2026-07-23
 ### 依赖兼容范围与精确锁定分层
 

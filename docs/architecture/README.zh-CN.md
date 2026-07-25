@@ -43,7 +43,7 @@
 | Event/observability | `CanonicalEvent` 先写 local/PostgreSQL sink，再可选 fan-out provider | provider 失败不能删除本地 evidence；可见性走授权 reader | 独立 event pipeline |
 | Storage | API/worker 当前共享 PostgreSQL，local profile 使用 SQLite | 业务层只依赖 repository/UoW，不传 `AsyncSession` | 独立 storage service |
 
-当前拆分决策见 [ADR-0001](../adr/0001-p0-service-boundaries.zh-CN.md)，vendor 隔离见 [ADR-0002](../adr/0002-vendor-adapter-isolation.zh-CN.md)，Redis runtime 与许可证复审边界见 [ADR-0003](../adr/0003-redis-runtime-license-policy.zh-CN.md)。
+当前拆分决策见 [ADR-0001](../adr/0001-p0-service-boundaries.zh-CN.md)，vendor 隔离见 [ADR-0002](../adr/0002-vendor-adapter-isolation.zh-CN.md)，Redis runtime 与许可证复审边界见 [ADR-0003](../adr/0003-redis-runtime-license-policy.zh-CN.md)，复制模板的离线 API 文档资源见 [ADR-0004](../adr/0004-swagger-ui-offline-assets.zh-CN.md) 与 [ADR-0005](../adr/0005-redoc-offline-assets.zh-CN.md)。
 
 ## 验证与证据
 

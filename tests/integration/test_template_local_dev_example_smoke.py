@@ -31,6 +31,9 @@ def test_copied_template_runs_local_dev_and_generated_example() -> None:
     assert "custom-make-test=ok" in result.stdout
     assert "make-quality=ok" in result.stdout
     assert "custom-environment=ok" in result.stdout
+    assert "eval-ticket=migrated-and-passed" in result.stdout
     assert "health=ok profile=local" in result.stdout
+    assert "swagger=offline-ok redoc=offline-ok" in result.stdout
+    assert "swagger=online-pinned redoc=online-pinned" in result.stdout
     assert "list=ok run=completed approved-eval=passed" in result.stdout
     assert "smoke-template-copy: ok" in result.stdout

@@ -34,6 +34,29 @@ def test_validator_accepts_one_complete_mapping_per_selected_req_and_ac(tmp_path
     assert "3/3" in completed.stdout
 
 
+def test_validator_accepts_multiple_specific_production_paths(tmp_path: Path) -> None:
+    """复合行为可映射多个真实生产文件，解析语义与测试/Evidence 一致。"""
+
+    spec = tmp_path / "Product-Spec.md"
+    matrix = tmp_path / "matrix.md"
+    write_spec_fixture(spec)
+    write_acceptance_matrix(matrix)
+    matrix.write_text(
+        matrix.read_text(encoding="utf-8").replace(
+            "`src/example.py`",
+            "`src/example.py`<br>`src/other.py`",
+        ),
+        encoding="utf-8",
+    )
+    for gate in ("ruff-lint", "unit-contract", "release-dry-run"):
+        write_gate_result(tmp_path, gate)
+
+    completed = run_matrix_validator(spec, matrix)
+
+    assert completed.returncode == 0, completed.stderr
+    assert "3/3" in completed.stdout
+
+
 def test_validator_rejects_missing_or_duplicate_mapping(tmp_path: Path) -> None:
     """已选择 REQ 的 AC 遗漏和重复都会让追踪失真。"""
 

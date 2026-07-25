@@ -1680,7 +1680,8 @@ P0 已实现 SSE 与 P1 可选 WS：
 
 当前必须保留：
 
-- FastAPI app 暴露 `/openapi.json`、`/docs`、`/redoc`。
+- `service.api_docs.enabled=true` 时 FastAPI app 暴露 `/openapi.json`、`/docs`、`/redoc` 和 `/docs/oauth2-redirect`；`local` profile 默认开启。
+- `service.api_docs.enabled=false` 时上述路径与 `/static/api-docs/*` 一起不注册并返回统一 404；面向正式部署的 `service` profile 默认关闭，可由 `AGENT_HARNESS_SERVICE__API_DOCS__ENABLED` 显式覆盖。
 - OpenAPI paths 必须包含当前已实现 run routes。
 - `RunCreateResponse` schema 必须包含 `request_id`。
 - `RunCreateResponse` schema 不得包含 `resume_token`。

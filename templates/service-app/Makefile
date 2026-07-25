@@ -98,25 +98,32 @@ migrate-service: bootstrap
 smoke-service:
 	@cd "$(APP_ROOT)" && $(PYTHON) scripts/smoke_service.py
 
-eval: bootstrap
+# 评测库与开发库隔离；每个 target 必须在进入 fail-closed runtime 前
+# 显式迁移它自己的 SQLite，不把自动迁移隐藏进 application factory。
+define RUN_EXAMPLE_EVAL
+	mkdir -p "$(STATE_DIR)/$(1)"
+	cd "$(APP_ROOT)" && $(UV) run python app/migrate.py \
+		--profile "$(PROFILE)" \
+		--profiles-dir "$(PROFILES_DIR)" \
+		--storage-dsn "sqlite+aiosqlite:///$(STATE_DIR)/$(1)/eval.db"
 	cd "$(APP_ROOT)" && $(UV) run python scripts/run_example_evals.py \
-		--state-dir "$(STATE_DIR)/eval"
+		$(2) --state-dir "$(STATE_DIR)/$(1)"
+endef
+
+eval: bootstrap
+	$(call RUN_EXAMPLE_EVAL,eval,)
 
 eval-rag: bootstrap
-	cd "$(APP_ROOT)" && $(UV) run python scripts/run_example_evals.py \
-		--agent examples.rag_assistant --state-dir "$(STATE_DIR)/eval-rag"
+	$(call RUN_EXAMPLE_EVAL,eval-rag,--agent examples.rag_assistant)
 
 eval-ticket: bootstrap
-	cd "$(APP_ROOT)" && $(UV) run python scripts/run_example_evals.py \
-		--agent examples.ticket_triage --state-dir "$(STATE_DIR)/eval-ticket"
+	$(call RUN_EXAMPLE_EVAL,eval-ticket,--agent examples.ticket_triage)
 
 eval-repo: bootstrap
-	cd "$(APP_ROOT)" && $(UV) run python scripts/run_example_evals.py \
-		--agent examples.repo_analyst --state-dir "$(STATE_DIR)/eval-repo"
+	$(call RUN_EXAMPLE_EVAL,eval-repo,--agent examples.repo_analyst)
 
 eval-dev: bootstrap
-	cd "$(APP_ROOT)" && $(UV) run python scripts/run_example_evals.py \
-		--agent examples.dev_assistant --state-dir "$(STATE_DIR)/eval-dev"
+	$(call RUN_EXAMPLE_EVAL,eval-dev,--agent examples.dev_assistant)
 
 # worker 入口和 API 使用同一套 RuntimeComponents；不要在模板里另起一套存储装配。
 worker: bootstrap

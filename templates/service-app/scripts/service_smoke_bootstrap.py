@@ -26,6 +26,27 @@ class BootstrapEvidence:
     secret_failures: dict[str, object]
     budget_race: dict[str, Any]
     budget_topology: dict[str, Any]
+    api_docs: dict[str, object]
+
+
+def _verify_api_docs_disabled(env: dict[str, str]) -> dict[str, object]:
+    """证明 service 默认不暴露 OpenAPI、文档 UI、OAuth redirect 或静态资源。"""
+
+    base_url = f"http://127.0.0.1:{env['SERVICE_APP_API_PORT']}"
+    paths = (
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        "/docs/oauth2-redirect",
+        "/static/api-docs/swagger-ui/swagger-ui.css",
+    )
+    for path in paths:
+        status, payload = request(base_url, "GET", path)
+        raw_error = payload.get("error")
+        error = cast(dict[str, object], raw_error) if isinstance(raw_error, dict) else {}
+        if status != 404 or error.get("code") != "api.not_found":
+            raise RuntimeError(f"service profile exposed disabled API docs path: {path}")
+    return {"enabled": False, "not_found_paths": len(paths)}
 
 
 def _admin_assertion(env: dict[str, str], *, boundary: str, command: str) -> dict[str, Any]:
@@ -94,6 +115,8 @@ def prepare_service(env: dict[str, str], token: str) -> BootstrapEvidence:
     )
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "api-readiness"
     compose(env, "up", "-d", "--wait", "api")
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "api-docs-disabled"
+    api_docs = _verify_api_docs_disabled(env)
     env["SERVICE_APP_SMOKE_BOUNDARY"] = "api-auth"
     if env.get("SERVICE_APP_SMOKE_FAIL_AFTER_BOOTSTRAP") == "1":
         raise RuntimeError("deterministic smoke failure after credential bootstrap")
@@ -101,6 +124,7 @@ def prepare_service(env: dict[str, str], token: str) -> BootstrapEvidence:
         secret_failures=cast(dict[str, object], secret_failures),
         budget_race=budget_race,
         budget_topology=budget_topology,
+        api_docs=api_docs,
     )
 
 

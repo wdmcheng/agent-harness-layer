@@ -43,7 +43,7 @@ When reading the product overview, remember:
 | Event/observability | `CanonicalEvent` writes to local/PostgreSQL sink before optional provider fan-out | Provider failure cannot delete local evidence; visibility uses authorized readers | Standalone event pipeline |
 | Storage | API/worker share PostgreSQL; local uses SQLite | Business layers depend on repository/UoW and never pass `AsyncSession` | Standalone storage service |
 
-See [ADR-0001](../adr/0001-p0-service-boundaries.md) for deployment separation, [ADR-0002](../adr/0002-vendor-adapter-isolation.md) for vendor isolation, and [ADR-0003](../adr/0003-redis-runtime-license-policy.md) for Redis runtime and license-review boundaries.
+See [ADR-0001](../adr/0001-p0-service-boundaries.md) for deployment separation, [ADR-0002](../adr/0002-vendor-adapter-isolation.md) for vendor isolation, [ADR-0003](../adr/0003-redis-runtime-license-policy.md) for Redis runtime and license-review boundaries, and [ADR-0004](../adr/0004-swagger-ui-offline-assets.md) / [ADR-0005](../adr/0005-redoc-offline-assets.md) for the copied template's offline API-documentation assets.
 
 ## Validation and evidence
 

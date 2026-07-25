@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field, SecretStr
 
 from agent_harness.contracts.dto import HarnessDTO
@@ -100,11 +102,19 @@ class ProcessSettings(HarnessDTO):
     port: int | None = None
 
 
+class ApiDocsSettings(HarnessDTO):
+    """OpenAPI 管理面的公开开关与静态资源部署位置。"""
+
+    enabled: bool = True
+    asset_mode: Literal["offline", "online"] = "offline"
+
+
 class ServiceSettings(HarnessDTO):
     """API / worker 可拆边界的类型化占位。"""
 
     api_process: ProcessSettings = Field(default_factory=ProcessSettings)
     worker_process: ProcessSettings = Field(default_factory=ProcessSettings)
+    api_docs: ApiDocsSettings = Field(default_factory=ApiDocsSettings)
 
 
 def _empty_string_list() -> list[str]:

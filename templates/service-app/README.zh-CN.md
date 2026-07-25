@@ -199,6 +199,75 @@ uv run agent-harness-service serve \
 - Redoc：`http://127.0.0.1:8000/redoc`
 - OpenAPI JSON：`http://127.0.0.1:8000/openapi.json`
 
+### Swagger UI / Redoc 离线与在线模式
+
+API 文档使用一个总开关控制 OpenAPI schema、Swagger UI、Redoc、Swagger OAuth2
+redirect 和本地静态 mount。`local` profile 默认开启，面向正式部署的 `service`
+profile 默认关闭。正式环境需要临时排障时显式开启，结束后恢复关闭：
+
+```bash
+AGENT_HARNESS_SERVICE__API_DOCS__ENABLED=true make dev PROFILE=service
+```
+
+要在任意 profile 强制关闭，设置：
+
+```bash
+AGENT_HARNESS_SERVICE__API_DOCS__ENABLED=false make dev
+```
+
+关闭后 `/openapi.json`、`/docs`、`/redoc`、`/docs/oauth2-redirect` 和
+`/static/api-docs/*` 都返回 `404`，应用也不会读取或校验文档静态资源。
+
+默认 `service.api_docs.asset_mode=offline`：`/docs` 和 `/redoc` 只请求当前服务的
+`/static/api-docs/*`，复制项目无外网时也能使用。静态资源随模板保存在
+`app/static/api-docs/`，`manifest.json` 锁定 Swagger UI、Redoc 版本、npm 来源
+与逐文件 SHA-256；包级许可证和两个 bundle 首行引用的内嵌第三方依赖许可证
+sidecar 也属于闭合资源集，复制和打包时不得删减。
+
+只有确定浏览器可访问 `cdn.jsdelivr.net` 并希望由 CDN 传输时，才在已忽略
+的 `.env` 或部署环境显式切换：
+
+```bash
+AGENT_HARNESS_SERVICE__API_DOCS__ASSET_MODE=online make dev
+```
+
+`online` 只改变浏览器加载位置，仍使用 manifest 中的精确版本，不使用
+`latest` 或仅锁主版本的 URL，且启动前仍校验完整的本地锁定资源集。
+当前服务不代理 CDN；受限网络环境应保持 `offline`。无论哪种模式，
+Swagger 远程 validator 与 Redoc Google Fonts 都保持禁用；更新脚本还会把
+Redoc bundle 内固定的运行时 logo 外链替换为本地 data URI。
+
+#### 校验和更新静态资源
+
+日常检查完全离线，不会下载：
+
+```bash
+uv run python scripts/update_api_docs_assets.py --check
+```
+
+更新前先阅读 Swagger UI 和 Redoc 官方 release notes，选定精确版本，再显式执行：
+自托管装配方式见 [FastAPI 官方指南](https://fastapi.tiangolo.com/how-to/custom-docs-ui-assets/)，
+版本候选只从 [Swagger UI releases](https://github.com/swagger-api/swagger-ui/releases) 和
+[Redoc releases](https://github.com/Redocly/redoc/releases) 选取。
+
+```bash
+uv run python scripts/update_api_docs_assets.py --update \
+  --swagger-ui-version 5.32.11 \
+  --redoc-version 2.5.3
+uv run python scripts/update_api_docs_assets.py --check
+make test
+```
+
+脚本只从精确版本的 npm tarball 提取名称唯一的普通运行文件、包级许可证和
+bundle 许可证 sidecar，拒绝歧义 JSON/tar 成员与 symlink 路径边界，校验 npm
+sha512 integrity，并确定性移除 Redoc 运行时 logo CDN URL；完整待替换目录通过后
+才做事务式替换，普通故障或可捕获进程中断会恢复原资源集。跨平台目录替换需要两次
+rename，不向并发文件系统观察者承诺严格原子，因此不要在服务启动或运行时更新。
+普通复制项目提交更新后的 assets、manifest
+和全部许可证文件即可；如果修改的是上游
+Agent Harness Layer 模板，还必须同步根 `NOTICE`、`compliance/third-party.toml`
+与 ADR-0004/0005，并运行 `make license-check` 和真实 copy-out smoke。
+
 ## 日常使用
 
 ### Make 命令
@@ -216,10 +285,14 @@ uv run agent-harness-service serve \
 | `make test` / `make contract` | 运行复制模板后的公开 seam 测试 |
 | `make quality` | 对 app、agents、tests、scripts 执行 Ruff 和 Pyright |
 | `make eval` | 运行全部 approved 示例 eval case |
-| `make eval-rag` |eval-ticket|eval-repo|eval-dev` | 只运行一个示例的 eval |
+| `make eval-rag` / `make eval-ticket` / `make eval-repo` / `make eval-dev` | 只运行一个示例的 eval |
 | `make smoke-local` | 验证 local profile 和 Agent registry |
 | `make smoke-service` | 运行真实 PostgreSQL/Redis/API/worker service smoke |
 | `make worker` | 使用当前 profile 启动 runtime worker |
+
+每个 `make eval*` 都使用自己的 `STATE_DIR/<target>/eval.db`，并在进入
+fail-closed runtime 前显式迁移该数据库。因此全新 `STATE_DIR` 可直接执行
+`make eval`，不需要手动先迁移评测库。
 
 所有 target 都支持通过 Make 变量覆盖 `PROFILE`、`PROFILES_DIR`、`STATE_DIR`、`STORAGE_DSN`、`EVENTS_PATH`、`HOST`、`PORT`。
 

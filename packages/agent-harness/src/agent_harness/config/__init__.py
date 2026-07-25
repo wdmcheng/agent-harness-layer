@@ -6,6 +6,9 @@ from agent_harness.config.schemas import (
     AgentConfig as AgentConfig,
 )
 from agent_harness.config.schemas import (
+    ApiDocsSettings as ApiDocsSettings,
+)
+from agent_harness.config.schemas import (
     AuthSettings as AuthSettings,
 )
 from agent_harness.config.schemas import (
@@ -42,6 +45,7 @@ from agent_harness.config.settings import load_settings as load_settings
 
 _SCHEMA_MODEL_EXPORTS = [
     "AgentConfig",
+    "ApiDocsSettings",
     "AuthSettings",
     "BudgetSettings",
     "HarnessSettings",

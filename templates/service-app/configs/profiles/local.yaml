@@ -79,3 +79,7 @@ service:
     enabled: false
   worker_process:
     enabled: false
+  api_docs:
+    # 本地开发默认开放管理面，并自托管锁定资源以支持无外网使用。
+    enabled: true
+    asset_mode: offline
