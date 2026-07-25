@@ -124,12 +124,10 @@ def test_api_docs_can_be_disabled_without_reading_assets(
     monkeypatch: Any,
     profile: str,
 ) -> None:
-    """显式关闭或 service 默认值都会隐藏全部公开 seam 且不触碰静态树。"""
+    """显式关闭时隐藏全部公开 seam，且不受调用方 `.env` 覆盖影响。"""
 
-    if profile == "local":
-        monkeypatch.setenv("AGENT_HARNESS_SERVICE__API_DOCS__ENABLED", "false")
-    else:
-        monkeypatch.delenv("AGENT_HARNESS_SERVICE__API_DOCS__ENABLED", raising=False)
+    monkeypatch.delenv("AGENT_HARNESS_SERVICE__API_DOCS__ENABLED_FILE", raising=False)
+    monkeypatch.setenv("AGENT_HARNESS_SERVICE__API_DOCS__ENABLED", "false")
     monkeypatch.setattr(api_docs, "API_DOCS_ASSET_ROOT", tmp_path / "missing-assets")
     app = _create_injected_app(tmp_path, monkeypatch, profile=profile)
 

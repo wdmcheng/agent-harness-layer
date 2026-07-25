@@ -176,7 +176,11 @@ def main() -> int:
     env.pop("PYTHONPATH", None)
     env.pop("VIRTUAL_ENV", None)
     env.pop("UV_PROJECT_ENVIRONMENT", None)
-    env.pop("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE", None)
+    # 复制验收必须从封闭配置基线开始，不能继承宿主的 direct、`_FILE`
+    # 或测试专用 Harness 变量；本轮所需值在下方逐项重新注入。
+    for key in tuple(env):
+        if key.startswith("AGENT_HARNESS_"):
+            env.pop(key)
     env["UV_NO_PROGRESS"] = "1"
     env["PYTHONNOUSERSITE"] = "1"
     # 复制 smoke 必须自带 local profile 的 fail-closed 前置值，不能依赖开发者 shell；
@@ -222,6 +226,41 @@ def main() -> int:
             cwd=copied,
             env=env,
         )
+        # 复制项目的测试必须与合法本机覆盖共存。用户显式开启 API 文档后，
+        # 测试仍应自己声明关闭场景，不能把真实 `.env` 当成 profile 默认值。
+        configured_env_path = copied / ".env"
+        configured_env_content = "AGENT_HARNESS_SERVICE__API_DOCS__ENABLED=true\n"
+        configured_env_path.write_text(configured_env_content, encoding="utf-8")
+        configured_docs = _run(
+            [
+                "uv",
+                "run",
+                "--no-sync",
+                "python",
+                "-c",
+                (
+                    "from pathlib import Path; "
+                    "from agent_harness.config import load_settings; "
+                    "settings = load_settings(profile='service', "
+                    "profiles_dir=Path('configs/profiles')); "
+                    "print('configured-service-api-docs=' + "
+                    "('enabled' if settings.service.api_docs.enabled else 'disabled'))"
+                ),
+            ],
+            cwd=copied,
+            env=env,
+        )
+        if configured_docs.stdout.strip() != "configured-service-api-docs=enabled":
+            raise RuntimeError(
+                "copied service profile did not load API docs enablement from .env"
+            )
+        _run(
+            ["make", "test"],
+            cwd=copied,
+            env=env,
+        )
+        if configured_env_path.read_text(encoding="utf-8") != configured_env_content:
+            raise RuntimeError("copied bootstrap rewrote the user-owned .env")
         _run(
             ["make", "quality"],
             cwd=copied,
@@ -425,6 +464,8 @@ def main() -> int:
 
         print(f"smoke-template-copy: wheel={wheel.name}")
         print("smoke-template-copy: make-test=ok")
+        print("smoke-template-copy: configured-service-api-docs=enabled")
+        print("smoke-template-copy: configured-make-test=ok")
         print("smoke-template-copy: custom-make-test=ok")
         print("smoke-template-copy: make-quality=ok spaced-path=ok custom-environment=ok")
         print("smoke-template-copy: eval-ticket=migrated-and-passed")
