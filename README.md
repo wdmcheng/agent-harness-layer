@@ -39,7 +39,7 @@ It is not a hosted agent platform, a frontend administration product, or proof t
 | Call the HTTP API | [Service-app HTTP API](templates/service-app/README.md#http-api) |
 | Use the Python package | [Python API](#python-api) |
 | Understand architecture and safety boundaries | [Module design](#module-design) and [Deep documentation](#deep-documentation) |
-| Modify the reusable scaffold | [Developer guide](#developer-guide) and [Contributing](#contributing) |
+| Modify the reusable scaffold | [Developer guide](#developer-guide) and the full [contributor guide](CONTRIBUTING.md) |
 
 ## Hand project work to an AI / Agent
 
@@ -417,13 +417,12 @@ Today the service profile physically separates the API and runtime worker. Model
 
 ## Developer guide
 
-Before changing behavior, read the relevant source of truth:
+Use the full [contributor guide](CONTRIBUTING.md) for the human/Agent workflow, file ownership,
+mechanical rule sources, validation matrix, and Git/security limits.
 
-1. `Product-Spec.md` for product scope and acceptance.
-2. `API-Contract.md` for endpoints, CLI/module seams, fields, and error semantics.
-3. `DEV-PLAN.md` for phase ownership and evidence.
-4. Relevant `openspec/specs/*/spec.md` or an active `openspec/changes/<change>/` contract.
-5. The matching architecture, extension, security, or adapter guide.
+Do not use this README as a second workflow specification. Follow the contributor guide's
+source-of-truth order, including applicable synchronized OpenSpec specs and active deltas, and use
+its minimum-sufficient validation and authorization rules.
 
 Keep these dependency rules:
 
@@ -435,18 +434,14 @@ Keep these dependency rules:
 - delegation goes through `AgentRegistry`, `PolicyEngine`, and the runtime service.
 - every run record and its evidence preserves `tenant_id`, `agent_id`, and `run_id`; request/trace IDs add correlation but do not replace those ownership keys.
 
-For a normal code change, run at least:
-
-```bash
-make quality
-make test
-make eval
-make smoke-local
-```
-
-Run `make smoke-service` when the change affects PostgreSQL, Redis, DBOS, migration, API/worker coordination, durable recovery, or service-only authentication. A local SQLite result cannot substitute for service evidence.
+Choose validation from the authoritative matrix in `CONTRIBUTING.md`; this README intentionally
+does not define a second fixed command bundle. Report only the checks that actually ran and the
+boundary each result proves.
 
 ## Contributing
+
+The authoritative contribution workflow for both humans and Agents is in
+[`CONTRIBUTING.md`](CONTRIBUTING.md), with a [Simplified Chinese edition](CONTRIBUTING.zh-CN.md).
 
 1. Start from a focused issue or change contract; avoid mixing unrelated cleanup.
 2. Update the relevant product/API/OpenSpec contract before behavior changes.
@@ -498,6 +493,8 @@ See the [security policy](docs/security-policy.md) and [context/trust boundary](
 
 | Question | Document |
 |---|---|
+| How should humans and Agents plan, isolate, validate, and hand off a change? | [Contributor guide](CONTRIBUTING.md) |
+| Which layering, design-principle, and pattern-selection rules govern architecture changes? | [Engineering principles](docs/engineering-principles.md) |
 | How do five layers and two wings become one working Agent? | [Build an Agent guide](docs/building-an-agent.md) |
 | How does this project relate to Pydantic AI Harness and Agently? | [Framework positioning and capability comparison guide](docs/framework-positioning.md) |
 | How can I hand project initialization or feature work to an AI / Agent? | [AI / Agent project guide](templates/service-app/docs/ai-agent-guide.md) |

@@ -380,6 +380,8 @@ eval.score.recorded
 artifact.created
 ```
 
+该目录是合法 `CanonicalEvent` 类型词汇，不是 producer 完成清单。当前模型调用只形成 request-started 与最终 usage evidence；`model.output.delta` / `model.output.completed` 尚无真实 provider 增量生产链。RUN-006 / CLI-EVT-001 当前只传输已经持久化的事件，不能据此宣称 provider token/text streaming 已实现。
+
 Delegation 生命周期事件：
 
 | event type | 稳定 event id | 阶段 payload | 出现条件 |
@@ -398,6 +400,7 @@ payload 不得包含 child input、完整 identity/request hash、动态余额�
 - 同一 `run_id` 内 `seq` 单调递增。
 - 相同 `event_id` 仅在除 sink 分配的 `seq` 与调用方重建重试时不稳定的 `timestamp` 外，其余稳定 envelope 语义完全一致时视为幂等重试并返回原事件。`event_type`、版本、payload/ref/checksum、identity、parent、request/span/raw ref、scope、terminal、visibility、run/tenant/trace 任一不同都必须在 artifact materialize 与 fan-out 前返回脱敏 replay conflict，不得吞掉新 evidence。状态已提交后的 terminal/approval 恢复先读取并校验既有确定性 evidence，只有缺失时才补写，新的 `request_id` 不得重构同一 event-id。
 - CanonicalEvent `seq` 的持久化范围固定为 `1..2147483647`。run 创建时先持久化一个 terminal capacity reservation；provider/tool/approval/delegation 等操作必须在外部副作用前，由受信、版本化、封闭的 `operation_kind -> max_prerequisite_events` registry 派生预约数，并通过 `0014` durable evidence outbox 的 run 级锁/CAS 原子预留，业务 agent/HTTP 调用方不得自报容量。容量不变量固定为 `highest_persisted_seq + outstanding_reserved_event_count + terminal_reservation <= 2147483647`；`highest_persisted_seq` 是该 run 已持久化的最大 `seq`，没有 event 时为 `0`，不得用 event row count 替代。预约消费、event 插入与 high-water mark 推进必须在同一 run 锁/事务内原子完成。容量不足时以稳定 `event.sequence_exhausted` 零业务副作用拒绝，不消费 seq。预约只在对应 prerequisite evidence 已持久化或确定不会产生时按实耗结算/释放，未知结果保持预约并阻止 terminal；terminal 消费最后保留的预约且仍是最后一条 event。若历史状态已越过容量不变量、high-water mark 与最大已持久化 `seq` 不一致，或 `seq=2147483647` 不是 terminal，任何新写入以 `event.sequence_state_invalid` 零变更拒绝并要求人工处置。SQLite/local 与 PostgreSQL 必须使用相同规则；稀疏高 seq（例如 `{1, 2147483646}`）必须按最大值拒绝新的 operation reservation并保住 terminal 容量。
+- Phase 18.1 `controlled-model-streaming` 开工前必须先更新本契约，冻结受信的 stream operation kind、最大 delta 数、分片/合并策略、稳定 chunk event id、delta/completed 可见性、跨 chunk 输出安全、completed/usage/terminal 顺序与 unknown 预约释放规则。SDK token 数量或 HTTP/Agent 自报值不得作为容量上限；不能在无界 provider stream 已开始后才发现 CanonicalEvent 容量不足。
 - `record_scope` 是只允许 `run|non_run` 的 typed discriminator。当前生产 DTO/OpenAPI 对 `record_scope=run` 要求 `trace_id` 必填、格式合法并与该 run 的 persisted canonical trace 逐值一致；`record_scope=non_run` 允许 `trace_id` 缺失或为 null，持久化与迁移都不得为它生成假的 lineage。RUN-003 和后续 RUN-006 SSE 使用同一字段，不生成第二 trace。
 - `terminal=true` 当且仅当 `event_type` 为 `run.completed`、`run.failed` 或 `run.cancelled`；三种 run terminal event 必须显式设置 `terminal=true`、`visibility=public`，其余 36 种类型必须设置 `terminal=false`。EventBus 与 local/PostgreSQL sink 必须在分配 seq、消费容量、物化 artifact 或 fan-out 前拒绝 type/terminal/visibility 任一不一致的 envelope，不能依赖 DTO 默认值。每个 run 只能有一个 terminal event。
 - terminal event 是同一 run 的最后一条 CanonicalEvent；持久化后 EventBus/sink 必须拒绝 terminal 和 non-terminal 的任何后续业务事件，不能让已结束的 SSE/JSON 消费者漏掉晚到 evidence。
@@ -1043,9 +1046,9 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `RUN-006` |
-| 状态 | 已实现（P0）；不得用 RUN-003 JSON response 冒充 SSE。 |
+| 状态 | 已实现（P0）的 CanonicalEvent transport；不得用 RUN-003 JSON response 冒充 SSE，也不得把事件目录中的 delta 类型冒充尚未实现的 provider 文本流 producer。 |
 | 入口 / 调用方 | OpenAPI 调用方、service-app、未来 Access gateway。 |
-| 用途 | 将可见 `CanonicalEvent` 映射为 SSE frame，并按 `Last-Event-ID` 恢复未读事件。 |
+| 用途 | 只将可见且已持久化的 `CanonicalEvent` 映射为 SSE frame，并按 `Last-Event-ID` 恢复未读事件；reader 不启动、取消、恢复或重放 provider 调用。 |
 | 方法 | `GET` |
 | 路径 | `/api/v1/runs/{run_id}/events/stream` |
 | 认证 | 复用 RUN-003 的 IdentityContext、tenant/run 可见性和 event visibility policy。 |
@@ -1059,7 +1062,7 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 响应头 | `Content-Type: text/event-stream`、`Cache-Control: no-cache`；代理缓冲必须关闭或在部署文档明确。 |
 | 响应体 | SSE frame：`id=<seq>`、`event=<event_type>`、`data=<CanonicalEvent JSON>`；frame data 保留 event_version、terminal、visibility、request_id/trace_id。 |
 | 错误响应码 | 握手前使用 `401/403/404/422/500 ApiErrorEnvelope`；握手后错误转换为脱敏 `event: stream.error` frame 后关闭连接。 |
-| 状态语义 | 只发送 `seq > Last-Event-ID` 的可见事件；run terminal event 发送后关闭。若合法 cursor 已消费当前 run 的 terminal marker，握手后立即 EOF，不重放 terminal、不发送 heartbeat。只有 run 尚未 terminal 且暂时没有新事件时才可发送 comment heartbeat；heartbeat 不占 CanonicalEvent seq。P0 transport 不增加 CanonicalEvent 清理、TTL 或 retention job：run 存续期间其 event evidence 不删除，曾合法的非零 cursor 不会因本 transport 的后台行为变成过期 cursor；未来 retention 必须另建行为 change 并定义 expired-cursor 契约。 |
+| 状态语义 | 只发送 `seq > Last-Event-ID` 的可见事件；run terminal event 发送后关闭。若合法 cursor 已消费当前 run 的 terminal marker，握手后立即 EOF，不重放 terminal、不发送 heartbeat。只有 run 尚未 terminal 且暂时没有新事件时才可发送 comment heartbeat；heartbeat 不占 CanonicalEvent seq。P0 transport 不增加 CanonicalEvent 清理、TTL 或 retention job：run 存续期间其 event evidence 不删除，曾合法的非零 cursor 不会因本 transport 的后台行为变成过期 cursor；未来 retention 必须另建行为 change 并定义 expired-cursor 契约。客户端断连只取消当前 reader/send，不隐式取消 durable run/provider；未来文本流重连也只重放 committed event prefix，不接受 provider cursor 或 SDK resume token。 |
 | 背压 | EventSink 按 exclusive `after_seq` 提供受限分页；每条 event 必须先通过 `canonical_event_bytes() <= 65536` 的单条合法性校验，再计入默认每页最多 `100` 个 event、合法 envelope 合计最多 `1048576` bytes 的 page budget。generator 同时最多持有一个 page，逐 frame 等待 ASGI send 完成后才继续，不得预取下一页。达到 event 或 page bytes 任一上限即以最后已发送 seq 续读；客户端断连或 send cancellation 立即停止读取。 |
 | 安全规则 | 默认隐藏 reasoning/internal event；header 必须解析为 `0..2147483647` 内的十进制整数，该上限与 PostgreSQL `canonical_events.seq` 的 `Integer` schema 一致。`0` 是无需命中既有 seq 的合法初始 cursor，其他值必须命中当前身份与 `include_internal` 权限下可见的既有 event seq。隐藏空洞、其他 run seq、不存在 seq 与整数越界返回同一 422，不得形成 internal event 存在性 oracle；不得把 provider raw event、resume token、secret 或内部异常写入 frame。 |
 | 验证要求 | 局部 OpenAPI drift + transport contract 覆盖 content type、frame 映射、默认可见性、缺失/`0`/可见既有/隐藏/非法 Last-Event-ID、统一 422、握手后错误、terminal 关闭与已有事件首 frame <1s；local/PostgreSQL 还必须覆盖 run/operation capacity reservation、稀疏高 seq/high-water mark、容量不足副作用前拒绝、未知结果保留预约、非法历史容量状态、canonical serializer 的 Unicode/键顺序/NaN/精确边界、单条 envelope `65536/65537` 与 page 累计 `1048576/1048577` 四点、`100` event 上限、慢客户端无预取、断连取消，以及 P0 无 retention 清理。 |
@@ -1649,7 +1652,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 | runtime / worker tool call | 等价于 `TLS-003` 的 module seam | runtime/worker 必须通过 `ToolRegistry`，不得直接调用 FileTool、ShellTool、MCP SDK、subprocess 或文件系统危险操作。 |
 | runtime / worker delegation | `DLG-001` module seam | 通过内置 `agent.delegate` 复用 registry、PolicyEngine、orchestrator/RunQueue、storage/event；P0 不新增远程 delegation route。 |
 | runtime / worker shared budget | `BGT-001` module seam | direct model/embedding、delegation 与 child allocation 复用同一 owner ledger/UoW；P0 不新增 budget ledger route 或公开动态余额。 |
-| model / embedding adapter | `MOD-001` evidence seam | adapter 必须输出 provider-neutral `ModelUsageEvidence`，并通过 EventBus/TelemetryFacade 关联 run/trace；业务 agent 不拼 raw usage。 |
+| model / embedding adapter | `MOD-001` evidence seam | 当前 adapter 必须输出 provider-neutral 最终 `ModelUsageEvidence`，并通过 EventBus/TelemetryFacade 关联 run/trace；业务 agent 不拼 raw usage。Phase 18.1 才扩展 provider-neutral 文本 delta、部分 usage/unknown 与有界 event-capacity 契约。 |
 | service config loader | `CFG-001` settings seam | `<BASE_ENV>_FILE` 只在受控 typed settings 边界读取，包括 BGT-001 keyed fingerprint secret；P0 不引入 SecretProvider。 |
 | OpenAPI 调用方 | 当前 `AGT-001`、`RUN-001` 到 `RUN-006` | `/docs`、`/redoc`、`/openapi.json` 是当前版本管理面，不是前端 SaaS UI。 |
 | service-app FastAPI | 当前 `AGT-001`、`RUN-001` 到 `RUN-006` | route module 保持薄层，app factory 负责依赖注入、lifecycle 和 error handler。 |
@@ -1666,6 +1669,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 - 该 route 按 `after_seq` 读取 `CanonicalEvent`，不是 SSE 握手 endpoint。
 - `GET /api/v1/runs/{run_id}/events/stream` 返回 `text/event-stream`，以唯一 `Last-Event-ID` header 续读同一授权 EventSink reader，并在 terminal 后关闭。
 - `agent-harness events stream <run_id>` 以 CLI 专属 `--after-seq` 输出 canonical NDJSON；不经 HTTP framing，不建立第二事件状态。
+- 当前两个 stream 入口都是 transport-only reader：模型 provider/invocation 仍是完整 completion，不生产 `model.output.delta`。Phase 18.1 将复用这些 reader，但必须先冻结并实现 provider-neutral producer、持久化顺序、容量与取消契约；不新增 provider cursor 或第二套 stream endpoint。
 
 P0 已实现 SSE 与 P1 可选 WS：
 
@@ -1719,6 +1723,7 @@ uv run pytest tests/contracts/test_runtime_checkpoint_runs_contracts.py -q
 - [x] 已按架构图映射 Access、Runtime、Engine、Tools、Infra、Eval Gate、Observability 和部署拆分边界。
 - [x] 当前 run API 的 method、path、request、response、错误 envelope、幂等性、副作用和安全规则与运行 OpenAPI 精确一致，并由局部双向 drift contract 持续校验。
 - [x] 已实现并验证 events JSON seam、P0 RUN-006 SSE、CLI-EVT-001 与 P1 可选 WS 的边界。
+- [ ] Phase 18.1 尚未实现真实模型普通文本增量 producer；开工前必须补齐 delta payload/identity、跨 chunk 输出安全、event capacity、completed/usage/terminal 顺序、取消/unknown 与 provider 不重放契约，并在实现后用局部 OpenAPI/event/SQLite/PostgreSQL/streaming tests 验证。该未完成项不否定 RUN-006 transport 的既有验收。
 - [x] 已固定并实现 BGT-001、DLG-001、MOD-001、CFG-001 的输入、错误、安全、副作用和验证边界；typed fingerprint secret、`0016` topology/source/price、usage 错误优先级修正、完整门禁、同一冻结摘要的 fresh 代码 1+2 与审查后收口均已完成，对应 changes 已归档并同步主规格。
 - [x] 已明确 `reasoning.delta` 默认不可见。
 - [x] 已明确 API route 不得暴露 ORM、DBOS、provider SDK 或进程内 handle。

@@ -4,7 +4,7 @@
 
 适用读者：需要理解当前运行边界的 app developer，以及维护 package、template 和 adapter 合同的 scaffold maintainer。
 
-导航：[根 README](../../README.zh-CN.md) · [五层两翼开发 Agent](../building-an-agent.zh-CN.md) · [扩展指南](../extension-guide.zh-CN.md) · [Adapter 合同](../adapter-contracts.zh-CN.md) · [Context 与信任边界](../context-and-trust-boundary.zh-CN.md) · [安全策略](../security-policy.zh-CN.md) · [ADR](../adr/0001-p0-service-boundaries.zh-CN.md)
+导航：[根 README](../../README.zh-CN.md) · [五层两翼开发 Agent](../building-an-agent.zh-CN.md) · [工程原则](../engineering-principles.zh-CN.md) · [扩展指南](../extension-guide.zh-CN.md) · [Adapter 合同](../adapter-contracts.zh-CN.md) · [Context 与信任边界](../context-and-trust-boundary.zh-CN.md) · [安全策略](../security-policy.zh-CN.md) · [ADR](../adr/0001-p0-service-boundaries.zh-CN.md)
 
 本目录是项目架构图的固定位置。图稿用于解释关系，当前行为仍以 `Product-Spec.md`、`API-Contract.md`、公开 DTO/protocol、生产代码和测试为准；图与代码冲突时不能拿图替代证据。
 
@@ -61,6 +61,7 @@ make smoke-service # 需要 Docker Compose；真实 PostgreSQL/Redis/API/worker
 ## 维护规则
 
 - `.drawio` 是首要可编辑源；`.excalidraw` 用于协作编辑；`.png` 只做审阅预览。
-- 修改图语义时，同步更新 `Product-Spec.md` 的“架构依据”、`API-Contract.md` 的上游依据，以及 `DEV-PLAN.md` 中受影响 Phase 的关键文件或状态。
+- 修改图语义时，只更新真正受影响的控制真相源：产品行为变化才改 `Product-Spec.md`，公共 API/CLI/module contract 变化才改 `API-Contract.md`，Phase 所有权、文件、证据或状态变化才改 `DEV-PLAN.md`；不得只为时间戳一致而触碰未受影响契约。
 - 图中出现 “待实现 Phase N” 时，Phase 完成后必须同步更新图源和 PNG 预览，不能只更新代码和计划文档。
 - 修改边界时先更新对应产品/API/OpenSpec 契约，再改图源并重新导出 PNG；`.png` 不是可编辑真相源。
+- 架构或跨模块变更遵循[工程原则](../engineering-principles.zh-CN.md)：先识别不变量与变化轴，代码前更新适用合同，先建失败合同，并把机械可判定规则放入 checker/CI。

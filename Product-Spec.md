@@ -115,6 +115,9 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 | SCOPE-027 | CLI | P0 | Typer，包含 run、doctor、approval、eval、policy、scaffold agent |
 | SCOPE-028 | 示例 agent 薄样例 | P0 | RAG、ticket triage、repo analyst、dev assistant，各自验证扩展点 |
 | SCOPE-029 | 未来微服务拆分基础 | P0 | P0 不强制微服务部署，但必须定义模块/进程/接口边界，避免后续拆分重构 |
+| SCOPE-030 | 架构治理与持续演进基线 | P0 | 统一人与 Agent 使用的分层、依赖、模式选择、代码规范、长期计划和可执行架构门禁；按窄 change 演进，不做大爆炸重构 |
+| SCOPE-031 | 受控真实文本模型运行入口 | P0 | 在部署允许列表、Agent 冻结策略和单次请求意图的交集内调用真实模型；密钥、endpoint、预算、重试、并发和证据均由类型化配置与运行时边界控制 |
+| SCOPE-032 | 受控真实模型增量文本流 | P0 | 在 SCOPE-031 的冻结 route、预算和 provider 生命周期上生产 provider-neutral 文本增量，经既有 CanonicalEvent / SSE / CLI 传输；断线、取消、部分计量、背压和恢复不得触发重复 provider 副作用 |
 
 ### 2.2 不在本版本范围
 
@@ -150,6 +153,9 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 | TASK-009 | 维护者按 TDD 开发核心能力块并通过 CI | 脚手架维护者 | P0 |
 | TASK-010 | 维护者生成版本、tag、CHANGELOG 和 release artifact | 脚手架维护者 | P0 |
 | TASK-011 | 企业技术负责人审查脚手架边界、合规、测试和发布证据 | 企业技术负责人 | P0 |
+| TASK-012 | 维护者按共享架构原则、变更矩阵和可执行门禁逐步演进项目 | 脚手架维护者 | P0 |
+| TASK-013 | 开发者配置受控真实模型部署且不把凭据写入版本库或运行证据 | Agent 应用开发者 | P0 |
+| TASK-014 | 开发者通过既有事件入口消费真实模型增量文本，并在断线后只续读已持久化片段 | Agent 应用开发者 | P0 |
 
 ## 4. 用户流程
 
@@ -302,6 +308,61 @@ main 分支合并 Conventional Commits，或维护者手动触发 release workfl
 **完成状态：**
 核心包能自动生成版本、tag、CHANGELOG、wheel/sdist 和 release artifact；模板声明与当前项目版本精确匹配的 `agent-harness` 自依赖。
 
+### FLOW-006: 配置并调用受控真实文本模型
+
+**关联任务：** TASK-003, TASK-004, TASK-008, TASK-013
+**优先级：** P0
+**目标：** 开发者可以在不泄漏凭据、不绕过 Agent 模型策略和预算门禁的前提下，为一个 Agent 启用真实文本模型；local/fake 路径仍保持离线可用。
+
+**入口：**
+部署维护者先在 profile 定义模型 deployment 的非敏感配置和凭据引用，再通过本机 `.env`、进程环境变量或受控 secret file 注入对应秘密值；Agent descriptor 只能从部署允许范围内进一步收窄模型策略。
+
+**主路径：**
+1. 配置加载器按公开优先级合并 profile、Agent 配置、本机 `.env`、secret file、进程环境和受控显式 overrides，并在启动阶段完成 schema、凭据引用和 endpoint policy 校验。
+2. runtime 把部署允许列表、Agent 冻结模型策略和本次请求意图求交集，形成不可变 route plan；请求只能收窄，不能扩大部署或 Agent 权限。
+3. route plan 在预算预约、授权成功审计或 provider 网络调用之前固定 deployment、provider、model、endpoint origin、能力、timeout、retry、并发和价格身份；校验失败仍可写入不含秘密的本地拒绝事件与审计，但不得把它表示为路由已获授权。
+4. provider factory 从类型化凭据引用取得秘密值，在 adapter 边界创建客户端并执行真实文本调用；业务 Agent 不读取环境变量、不构造厂商 SDK 客户端。
+5. 调用结果以 provider-neutral response、usage、latency、attempt 和 route identity 进入既有预算、事件、trace 与 audit 链路，秘密值不得进入任何证据。
+
+**分支路径：**
+- 未配置真实 deployment 或未显式选择时继续使用 local/fake，不自动探测宿主机上的厂商环境变量。
+- 缺失凭据、未知 deployment/model、能力不匹配、endpoint 不受信、direct env 与 `_FILE` 冲突，或启用 cost hard limit 却缺少可验证价格时，必须在 provider 副作用前 fail closed。
+- provider 瞬时失败只能按冻结的有限 retry policy 重试；超过总 deadline、并发舱壁或重试上限后返回结构化失败并保留不含 secret 的证据。
+
+**边界情况：**
+- `.env` 只解析 `AGENT_HARNESS_*` 键；把 `OPENAI_API_KEY` 等 provider 原生变量仅写入该文件，不构成 Harness 已加载凭据。
+- `base_url` 通常不是秘密，但它决定凭据发往何处；含 userinfo、query、fragment、未批准 scheme/host 或未经显式允许的非 TLS endpoint 必须拒绝。
+- 首个实现范围只覆盖非流式真实文本模型；增量文本流由紧随其后的 P0 Phase 18.1 `controlled-model-streaming` 独立交付，不能混入首个入口，也不能无限期留在未排序的“以后”。Provider-neutral structured output、模型驱动工具循环和多 provider 运行治理继续分别使用后续窄 change。
+
+**完成状态：**
+受控真实文本模型入口尚未实现；`PydanticAIModelProvider` 适配器已存在，但当前 service composition 仍拒绝非 `fake` provider，配置 schema 也尚未覆盖完整 deployment、endpoint 与凭据引用。现有 RUN-006 只读取已持久化的 `CanonicalEvent`，当前 provider/invocation 也尚未生产真实模型文本增量。
+
+### FLOW-007: 通过既有事件入口消费受控真实模型增量文本
+
+**关联任务：** TASK-004, TASK-008, TASK-014
+**优先级：** P0
+**目标：** 开发者在不新增第二条流式通道、不泄漏 provider SDK 事件且不破坏预算和恢复语义的前提下，逐段收到真实模型文本，并能在传输断线后继续读取已提交事件。
+
+**入口：**
+Phase 18 的受控真实文本模型 deployment 已验收并显式声明文本流能力；调用方显式选择流式文本运行，再通过既有 RUN-006 SSE 或 CLI event stream 消费事件。
+
+**主路径：**
+1. runtime 复用 Phase 18 已冻结的 route plan、预算预约、attempt identity 与 provider client，不由 SSE reader 重新选择或调用模型。
+2. adapter 把 provider 增量归一化为只追加的文本片段；runtime 按稳定 operation、attempt 与 chunk 顺序形成有界 `model.output.delta`，先持久化 `CanonicalEvent`，再由既有 EventSink reader 输出。
+3. 文本完成后，runtime 分别提交 `model.output.completed`、可验证的 usage/cost settlement 和 run terminal；partial delta 不冒充 final result，provider 原始事件不越过 adapter。
+4. SSE 断线只停止本次读取，不默认取消 durable run；客户端以 `Last-Event-ID` 续读时只返回尚未读取的已持久化事件，绝不重启或重放 provider stream。
+
+**分支路径：**
+- 显式 run cancellation 或 provider deadline 会向 adapter 传播取消；如果 provider 不能证明已经停止，attempt 进入 interrupted/unknown，已观察文本和已知 usage 保留，未知费用不得记为零，也不得自动重试。
+- 慢消费者或 storage/event sink 跟不上 provider 时使用冻结的有界分片、合并和背压策略；不得静默丢片、乱序、无限缓存或绕过 event capacity reservation。
+
+**边界情况：**
+- Phase 18.1 只覆盖普通文本增量，不覆盖 structured delta、reasoning 暴露、tool-call delta、模型工具循环或 AG-UI / Vercel AI adapter。
+- 既有“已建立 SSE 连接且已有可见事件时首 frame 小于 1 秒”只衡量传输层；provider 首 delta、首个已提交 model delta 和客户端收到该 delta 必须分开记录，不能把外部 provider 时延伪装成 RUN-006 回归。
+
+**完成状态：**
+尚未实现。当前 CanonicalEvent 类型目录虽已预留 `model.output.delta` / `model.output.completed`，但这只定义合法事件词汇，不证明 provider token/text streaming、持久化顺序、容量预约或部分计量已经存在。
+
 ## 5. 功能需求
 
 ### REQ-001: Monorepo / uv workspace 结构
@@ -439,14 +500,20 @@ templates/service-app/
 统一 `.env`、YAML 和 typed settings，避免业务代码手读配置。
 
 **行为：**
-- `.env` 放本机密钥、连接串和开关；service profile 可从环境变量或只读 Docker secret file 注入同一 typed settings 字段。
-- `configs/profiles/*.yaml` 放环境 profile、provider、storage、observability、policy 默认。
+- `configs/profiles/*.yaml` 放可提交的环境 profile、provider deployment、endpoint policy、storage、observability、policy 等非敏感默认值和 secret 引用；不得保存密钥原值。
+- `.env` 是被版本库忽略的本机覆盖层，可以为本地开发注入 `AGENT_HARNESS_*` 类型化配置和秘密值；它的优先级高于 YAML，但不是 secret manager，也不因文件名不同而天然比 YAML 安全。
+- service profile 的秘密值从进程环境变量或只读 Docker secret file 注入同一 typed settings 字段；提交的 `.env.example` 只写变量名、占位符和安全说明。
 - `agents/*/config.yaml` 放 agent 元数据、package-local executor reference、预算、工具白名单、eval dataset、delegation edge。
 - `agent_harness.config` 负责加载、合并、校验。
+- 公共配置优先级固定为 profile YAML → Agent YAML（仅进入 `agent` 子树）→ `.env` → secret file → direct 进程环境 → 受控显式 overrides；后者覆盖前者，但 direct env 与对应 `_FILE` 同时出现时必须在应用任何覆盖前失败。
+- `.env` 和进程配置只把 `AGENT_HARNESS_*` 转成 `HarnessSettings`；provider 原生变量（例如 `OPENAI_API_KEY`）不得成为 Harness 内部不可见的第二条配置路径。真实 provider 必须由 composition root 通过类型化 credential reference 显式构造。
 
 **规则：**
 - MUST 所有配置有 Pydantic schema 校验。
 - MUST 业务 agent 不直接 `open("config.yaml")`。
+- MUST 业务 agent、runtime 和 migration 不直接读取 provider 原生环境变量或 secret 文件；只有配置加载边界解析 secret，composition root 只能取得类型化 secret 值或受控凭据对象。
+- MUST profile YAML 与 Agent YAML 不保存 API key、token、password、client secret 等秘密原值；Agent YAML 只能收窄 deployment/model/capability 允许范围，不得覆盖部署 endpoint、credential reference 或扩大允许列表。
+- MUST 本机 `.env` 保持在版本库忽略范围内；实现和文档不得把 `.env` 描述成生产 secret store。正式部署优先使用进程 secret 注入或受控 `_FILE`，并保持 direct/file 冲突 fail closed。
 - MUST 配置校验错误包含字段路径和修复提示。
 - MUST Docker secret file 只通过受控配置加载边界读取，拒绝目录、符号链接逃逸、不可读文件和空值；错误不得回显 secret 内容。
 - MUST P0 不引入只有单一实现的 `SecretProvider` 抽象；env、`.env` 与 Docker secret file 在同一 typed settings 合并边界收口，并在日志、错误、trace、eval 和 audit 前脱敏。
@@ -770,14 +837,18 @@ auth_method: str
 统一模型路由、fallback、成本、超时、上下文组装和 embedding 调用。
 
 **行为：**
-- `ModelRouter` 支持默认模型、任务级模型、fallback、timeout、成本预算。
+- `ModelRouter` 支持 deployment-aware 的默认模型、任务级模型、fallback、timeout、重试、并发舱壁、能力与成本预算；route identity 与 provider SDK 对象分离。
 - `ContextAssembler` 统一收口 system/user/history/retrieval/tool output/artifact refs，执行历史裁剪、检索注入、结果截断和 trust marker 传播。
 - `EmbeddingProvider` 支持 OpenAI-compatible embedding API。
 - P0 提供 local/mock embedding，用于测试和 CI。
 - P0 提供 embedding cache。
+- P0 的 local/fake model 永远可离线运行；真实文本模型由 REQ-025 的受控 deployment 配置显式启用，不能靠宿主机存在某个 provider 原生环境变量而自动开启。
 
 **规则：**
 - MUST 业务 agent 不直接写 provider 细节。
+- MUST 请求中的 provider/model 选择只表达受限意图；最终 route 必须是部署允许列表、Agent descriptor 冻结策略和请求意图的交集，任一较低信任层都不能扩大上一层授权。
+- MUST 在预算预约、授权成功审计和 provider 网络副作用前生成 immutable route plan，固定 deployment、provider、model、endpoint origin、capability、timeout/retry、price identity 与 credential reference；失败路径不得部分调用 provider，但可以提交不含秘密且不声称已授权的本地拒绝审计。
+- MUST endpoint 与 credential 绑定；只有通过 scheme/origin allowlist 的 endpoint 才能取得对应 credential，禁止把 secret 转发到请求、Agent YAML 或未经批准的 `base_url`。
 - MUST 模型/embedding 调用记录 token、cost、latency trace。
 - MUST token、cost、latency 证据拒绝 bool、负数与非有限值；cache hit 仍记录本次调用级 evidence，但不得把首次 provider latency、token 或 cost 伪装成本次 provider 调用。
 - MUST 单次模型调用预计超过预算阈值时触发 policy。
@@ -905,6 +976,8 @@ eval.score.recorded
 artifact.created
 ```
 
+该目录定义 `CanonicalEvent` 可以承载的稳定事件词汇，不表示每种事件已经有生产者。当前 AC-038 / RUN-006 已完成的是对已持久化事件的授权读取、SSE 映射和按 seq 恢复；真实模型 `model.output.delta` / `model.output.completed` 的生产、分片、容量、顺序、取消和部分 usage 由 REQ-026 / Phase 18.1 单独验收。
+
 **规则：**
 - MUST 每个 run 内 `seq` 单调递增。
 - MUST `terminal=true` 当且仅当 event type 为 `run.completed` / `run.failed` / `run.cancelled`；三种 run terminal event 必须设置 `terminal=true`、`visibility=public`，其他类型必须设置 `terminal=false`。EventBus 与所有持久化 sink 必须在分配 seq、消费容量、物化 artifact 或 fan-out 前双向拒绝 type/terminal/visibility 不一致的 envelope。每个 run 只能有一个 terminal event；它是该 run 的最后一条 CanonicalEvent，持久化后必须拒绝任何后续业务事件。
@@ -919,6 +992,7 @@ artifact.created
 - MUST 正常写入的 CanonicalEvent envelope 使用全局唯一的 canonical JSON serializer 计数并且不超过 `65536` bytes；serializer 对 `CanonicalEvent.to_payload()` 使用 UTF-8、`ensure_ascii=false`、排序键、紧凑分隔符并拒绝 NaN，换行和 SSE frame 前缀不计入 envelope bytes。payload 超限先 artifact 化，artifact 化后 envelope 仍超限则在持久化前稳定拒绝。EventBus、local JSONL、PostgreSQL/SQLite 校验和 SSE byte page 必须复用该 serializer；历史或直接数据库写入的超限 row 只能 fail closed，不能让 SSE reader 返回空页忙循环。
 - MUST SSE 是输出协议，不是内部事件模型。
 - MUST SSE 断线恢复以 `CanonicalEvent.seq` 为准；HTTP SSE adapter 应把 `Last-Event-ID` 映射为续读起点。
+- MUST 任何新增流式 producer 在外部副作用前为有界最大事件数预约容量；事件类型已经存在不能绕过 operation-kind registry、durable outbox、terminal reservation 或 envelope 上限。
 
 **验收标准：**
 - [x] AC-037: Given 一个 run, when event stream 完成, then terminal event 只有一个。
@@ -1277,6 +1351,101 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - [x] AC-071: Given release promotion 将版本从 `0.1.x` 提升到 `0.2.0`, when 更新根 workspace 与 service-app 模板依赖, then 两者都得到 `agent-harness==0.2.0`；uv `>=0.11.29,<0.12` 可读取当前 lock 并通过 release wrapper，CI 当前具体使用 `0.11.29`，单次发布证据记录实际 uv 版本。
 - [x] AC-072: Given build-system metadata 使用 `hatchling>=1.30.1,<2`, when release preview 或正式 tag build 生成 wheel/sdist, then 构建入口只使用 frozen lock 中精确 `hatchling 1.30.1`，manifest 记录该 backend identity，任何缺失或漂移都在产物授权前 fail closed。
 
+### REQ-024: 架构治理与持续演进纪律
+
+**优先级：** P0
+**关联任务：** TASK-008, TASK-009, TASK-011, TASK-012
+
+**用途：**
+把分层原则、设计原则、模式选择、代码规范和长期改造状态变成维护者与 Agent 共享的工程契约，避免靠单次对话记忆或一次性全仓重构维持质量。
+
+**行为：**
+- `docs/engineering-principles.md` 与中文版定义五层两翼的允许依赖方向、跨层 seam、设计原则和模式选择信号；`CONTRIBUTING.md` 与中文版定义人与 Agent 共用的代码、测试、验证、Git 和安全纪律。
+- `docs/plans/architecture-evolution-plan.md` 是长期架构演进的 living plan，记录冻结基线、阶段 DAG、进度、发现、决策、风险、验证、恢复方式、下一动作与 handoff；`docs/plans/architecture-evolution-change-matrix.md` 记录 change 依赖、共享接口、验收和文件所有权。
+- 架构演进按窄范围 change 进行：先固定问题和不变量，再定义可替换 seam 与失败合同，最后迁移调用方；已稳定的公共契约只在有明确收益和迁移计划时改变。
+- 设计模式按变化轴和风险选择。现有 Adapter/Strategy、Repository/UoW、Facade、composition root、EventBus、object capability、transactional outbox 与幂等恢复继续作为已验证先例；State、Command、Decorator、Circuit Breaker、Bulkhead 等只在对应问题出现时引入。
+
+**规则：**
+- MUST 不以“使用了多少经典模式”验收设计，也不得为模式名称制造无变化轴的抽象；每个新增抽象必须说明保护的不变量、隔离的变化、替代方案和删除成本。
+- MUST 单一职责、开闭、里氏替换、接口隔离和依赖倒置落实到模块所有权、public protocol/DTO 与合同测试；不能只写在文档里而允许实现反向依赖。
+- MUST composition root 管理进程级对象生命周期；禁止用隐藏的全局可变 Singleton 传递配置、storage、provider、budget、event bus 或 request state。确需单实例生命周期时仍通过显式 factory/container 注入并可替换测试实现。
+- MUST 跨层调用使用 DTO、protocol、facade、provider、repository/UoW 或 `CanonicalEvent`；vendor SDK、ORM session 和 provider 原始对象不得越过批准边界。
+- MUST 可机械判定的依赖、vendor import、ORM、公开 seam 和配置规则进入 checker、contract test 或 CI；文档与图只解释意图，不得冒充执行证据。
+- MUST 架构影响跨多个 session 时更新 living plan 的 `Progress`、`Surprises & Discoveries`、`Decision Log` 与 `Handoff Snapshot`；新 Agent 必须能从仓库文件和当前 Git/OpenSpec 状态续接，不能依赖上个对话的隐藏上下文。
+- MUST 不做大爆炸重构。共享接口、共享验收或共享文件所有权的 change 串行接力；只有依赖、接口、验收和文件所有权均可证明独立时，才允许使用独立 worktree 并行。
+
+**验收标准：**
+- [x] AC-073: Given 人或 Agent 从中英文仓库入口开始维护, when 查找架构与代码规则, then 能进入事实等价的工程原则和贡献指南，并能指出允许依赖方向、模式选择信号、禁止边界与最小充分验证入口。
+- [ ] AC-074: Given 一个受覆盖的反向层依赖、vendor SDK 泄漏、ORM session 越界或禁止配置路径, when 执行 `make quality` 或对应 contract, then 在实现合并前以稳定诊断失败；当前 checker 未覆盖的规则必须在 change 中显式列为剩余风险。
+- [x] AC-075: Given 上下文被压缩或更换维护 Agent, when 只读取 Product Spec、DEV-PLAN、架构演进 living plan、change matrix、Git 与 OpenSpec 当前状态, then 能重建已决策事项、未决风险、文件所有权和唯一下一动作，不需要依赖历史对话。
+- [ ] AC-076: Given 一项跨模块架构调整, when 进入实现, then 有窄 OpenSpec change、变化轴/不变量/备选方案说明、red contract、受影响文件所有权和回滚/恢复方式；不得以一次全仓重写替代分阶段验收。
+
+### REQ-025: 受控真实文本模型运行时
+
+**优先级：** P0
+**关联任务：** TASK-003, TASK-004, TASK-008, TASK-013
+**关联流程：** FLOW-006
+
+**用途：**
+把已经存在的 provider adapter 接入可控、可审计、可预算的真实文本模型路径，同时保留 local/fake 的离线确定性；真实模型不是“把 API key 放进某个文件然后让 SDK 自己发现”。
+
+**行为：**
+- `ModelSettings` 从单一 `provider/default_model/timeout` 扩展为 deployment-aware 配置。每个 deployment 至少声明稳定 id、provider kind、允许模型、默认/回退模型、`base_url` 或 provider 默认 endpoint、credential reference、连接/读取/总 deadline、有限 retry/backoff、最大并发/排队时限、价格目录引用与版本、能力标志。
+- credential reference 指向同一 typed settings 树中的 secret 字段；秘密值可以在本地由被忽略的 `.env` 注入，也可以由进程环境或受控 `_FILE` 注入。profile 与 Agent YAML 只保存引用和非敏感策略。
+- composition root 根据 deployment 构造 provider-specific client/model，再注册为 provider-neutral `ModelProvider`；业务 Agent、router 和预算服务不得取得 Pydantic AI/OpenAI 等 SDK 对象。
+- runtime 先形成 immutable route plan，再执行 policy/budget/provider；route plan 和 usage evidence 保存 deployment/provider/model/endpoint origin/capability/price/version/attempt 身份，但不保存 credential、Authorization header 或含密 URL。
+- 首个 `controlled-real-model-runtime` change 只交付非流式文本 completion；完成并归档后，下一项 P0 行为 change 固定为 Phase 18.1 `controlled-model-streaming`。Provider-neutral structured output、模型驱动工具循环和多 provider 运维继续分别后置，不能借首个真实调用入口或流式入口绕过 `ToolRegistry`、Policy/HITL、预算或 `CanonicalEvent`。
+
+**规则：**
+- MUST committed YAML、descriptor、请求、event、trace、audit、eval、error、health 与配置 snapshot 中都不出现秘密原值；`.env` 高于 YAML 的加载优先级不构成安全保证，正式部署不得把提交 `.env` 当 secret store。
+- MUST Harness 的真实模型配置使用 `AGENT_HARNESS_*` typed fields 和 credential reference；不得静默读取 `OPENAI_API_KEY` 等 provider 原生 ambient env 形成第二条未审计路径。兼容入口如确需读取，必须在 composition root 显式映射、记录来源类别并通过相同脱敏/冲突门禁。
+- MUST `base_url` 缺省时解析到 provider 官方默认 origin；显式值必须拒绝 userinfo、query、fragment 和未批准 scheme/origin。正式 profile 默认只允许 HTTPS exact origin；仅 local profile 可通过显式策略允许 loopback HTTP，且对应 credential 不得被转发到其他 origin。
+- MUST deployment allowlist 是部署上限，Agent descriptor 只能收窄，单次 request 只能再次收窄；未知、空交集、能力不匹配或 request 试图覆盖 endpoint/credential 时，在预算预约、授权成功审计和网络副作用前失败。失败路径可以提交去敏的本地拒绝事件与审计，但不得产生 provider-authorized route evidence。
+- MUST timeout、retry 与 concurrency 共同受 total deadline 和 Bulkhead 约束。只对配置列明的瞬时网络错误/状态码有限重试，不得在已观察到响应或 side-effect 状态未知后盲目重试；每次 attempt 都要进入 provider-neutral evidence。
+- MUST cost hard limit 启用时，route 的 input/output price 与目录版本必须完整、非负且有限；未知价格不能按零成本继续。最大重试可能造成的预算风险必须在 reservation 或 unknown/needs-review 状态中显式表达。
+- MUST provider timeout 尽可能使用异步客户端/transport 的可取消 deadline；仅在线程池外等待超时而不能终止已开始网络调用，不得宣称 provider 已取消。无法证明取消时必须标记 side-effect unknown 并禁止自动重复调用。
+- MUST 默认 CI、unit、contract、eval 和 `make smoke-local` 继续使用 fake/provider doubles，不访问外网、不需要真实 key；真实 provider smoke 必须显式 opt-in、使用非生产凭据、受 endpoint allowlist 约束，并只报告脱敏结果。
+
+**验收标准：**
+- [ ] AC-077: Given profile、Agent YAML、`.env`、secret file、direct env 与受控 overrides 同时提供配置, when 加载 settings, then 按公开优先级确定非冲突值，direct/`_FILE` 冲突先失败，`.env` 中非 `AGENT_HARNESS_*` provider 原生变量不被误当已加载凭据。
+- [ ] AC-078: Given 一个真实模型 deployment, when 通过 YAML 与 `AGENT_HARNESS_*` 加载, then deployment/provider/model allowlist、default/fallback、base URL、credential ref、timeouts、retry、concurrency、pricing 和 capability 全部进入 typed settings，任何诊断与序列化都不回显 secret。
+- [ ] AC-079: Given `base_url` 含 userinfo/query/fragment、非批准 origin、非显式 local loopback HTTP 或与 credential 绑定 origin 不一致, when application startup, then 在创建 SDK client 或发起 DNS/HTTP 请求前 fail closed，错误只包含安全字段路径和 origin 摘要。
+- [ ] AC-080: Given deployment、Agent descriptor 与 request 提供不同模型范围, when 路由一次调用, then immutable route plan 只选择三者交集；未知或越权选择在 budget reservation、授权成功 event/audit 和 provider call 前失败，允许提交不含秘密且不声称已授权的本地拒绝 evidence。
+- [ ] AC-081: Given 有效受控 deployment 和显式 opt-in 测试凭据, when 执行一次非流式真实文本 completion, then composition root 注册真实 provider，返回 provider-neutral text/usage/latency/route evidence，业务 Agent 无 vendor import，fake 路径仍可离线运行。
+- [ ] AC-082: Given provider 超时、429/可重试 5xx、并发饱和或取消, when 执行调用, then retry/Retry-After/backoff、total deadline、Bulkhead 与 unknown side-effect 语义符合冻结配置，attempt 可审计且不会静默重复预算或调用。
+- [ ] AC-083: Given 默认 CI 与 local profile, when 运行 quality/test/eval/smoke-local, then 不读取真实 provider key、不触网且继续使用 fake；给定单独授权和隔离凭据时，opt-in live smoke 才执行真实 endpoint，并把未执行状态准确报告为 skipped/hosted-unverified 而非 PASS。
+- [ ] AC-084: Given cost hard limit 启用但 route 价格缺失、credential reference 未解析或 provider capability 未声明, when 请求真实模型, then 在任何 provider 副作用前结构化失败，已有 local event/audit 证据不含 secret，预算状态不被伪装成零成本完成。
+
+### REQ-026: 受控真实模型增量文本流
+
+**优先级：** P0
+**关联任务：** TASK-004, TASK-008, TASK-014
+**关联流程：** FLOW-007
+
+**用途：**
+在 REQ-025 已冻结的 deployment、route、预算和 provider 生命周期上，把真实模型的普通文本增量转换为可持久化、可恢复、可审计的 provider-neutral 事件；复用 REQ-014 已实现的 CanonicalEvent / SSE / CLI 传输，不把 SDK stream 或 HTTP 连接变成第二个运行状态真相源。
+
+**行为：**
+- Phase 18.1 `controlled-model-streaming` 只交付普通文本流。Provider adapter 以异步、可取消的 provider-neutral stream seam 输出只追加文本片段和最终结果；SDK event、cursor、resume token、headers、logprobs、reasoning 与 tool-call delta 不进入公共 DTO。
+- runtime 在 provider 副作用前冻结 route、最大 token/cost reservation 和受信 event-capacity 上限。SDK 的任意细粒度 token 不得直接形成无界事件；增量按冻结的最大分片数、单片大小与合并策略生成稳定 operation/attempt/chunk identity。
+- 正常持久化顺序固定为 `model.request.started → model.output.delta* → model.output.completed → model.usage.updated → run terminal`。`model.output.completed` 必须携带可验证的最终长度、checksum 或 artifact reference；经过同一输出安全与归一化处理后的最终公开文本，必须与已提交公开增量的规范化拼接结果一致。
+- RUN-006 与 CLI 只读取已提交 `CanonicalEvent`。`Last-Event-ID` / `after_seq` 只定位 event store 中的后继事件，不传给 provider，也不恢复、重启或重放 provider 调用。
+
+**规则：**
+- MUST SSE/CLI subscriber 断线只停止该 reader，不默认取消 durable run/provider。只有显式 run cancellation 或冻结 deadline 才请求 adapter 取消；请求已发送后若无法证明远端停止，attempt 必须标记 interrupted/unknown，保留已提交前缀与 reservation，禁止自动 retry/fallback、伪造 `model.output.completed`、按零 usage/cost 结算或提前发布 run terminal。
+- MUST 只在首个增量尚未观察且调用明确未发生时，才允许按 REQ-025 的安全前置失败分类重试；观察或提交任一增量后，任何 retry 都必须拒绝，避免拼接两个生成结果和重复计费。
+- MUST 增量内容在公开前通过能跨 chunk 保持状态的脱敏与输出安全边界。若某项输出 guardrail 只能对完整结果判断，则该结果不能先作为公开 speculative delta 提交；不得依赖逐 chunk 独立正则声称跨边界 secret 已被遮蔽。
+- MUST provider 读取、event commit 与容量消费使用有界背压；storage/event sink 变慢时不得无限缓存、静默丢片、乱序或绕过预约。具体是等待、受控合并还是显式终止，由 change 契约冻结并在 SQLite/PostgreSQL crash-recovery 中逐值证明。
+- MUST partial delta 的字符数、chunk 数或本地估算不冒充可信 provider usage。正常完成使用 provider 最终 usage；取消/未知时只记录 provider 可验证的部分值，其余保持 unknown/needs_review，并遵守共享预算 terminal fencing。
+- MUST 分开记录 SSE 握手/已有事件首 frame、provider 首 delta、首个已持久化 model delta 和客户端收到该 delta 的时延。AC-066 的 `<1s` 只约束已有事件的 SSE transport，不对外部 provider 首 token 作统一 SLA。
+- MUST 默认 CI、unit、contract、eval 和 local smoke 使用可确定分片、取消、背压与恢复的 fake stream double，不访问外网；真实 provider streaming smoke 仍需显式授权、隔离凭据和受信 endpoint，未运行只能记录 external-blocked/hosted-unverified。
+
+**验收标准：**
+- [ ] AC-085: Given 有效的 streaming-capable route 与确定性 provider stream, when 完成一次普通文本流, then 按稳定 operation/attempt/chunk identity 持久化有界且有序的 provider-neutral `model.output.delta`，随后严格按 completed、usage、run terminal 顺序收口；公开增量的规范化拼接结果与经过同一安全处理的最终 public text/checksum 一致，公共 DTO/event 不含 SDK 类型或原始事件。
+- [ ] AC-086: Given 已发送请求后发生显式取消、deadline 或结果未知, when provider 不能证明远端已停止, then 已提交文本前缀和 reservation 保留，attempt 进入 interrupted/unknown，未发布虚假的 output completed 或 run terminal，未知 usage/cost 不记零，且不会自动 retry/fallback 或再次调用 provider。
+- [ ] AC-087: Given SSE/CLI reader 在流中断线后携带最后可见 cursor 重连, when 继续读取同一 run, then 只按 seq 返回未读的已提交 delta/completion/usage/terminal，断线本身不取消 run，reader 不持有 provider cursor，也不恢复、重启或重放 provider 调用。
+- [ ] AC-088: Given provider 产生跨 chunk 敏感模式、超过分片/容量上限或 storage/消费者变慢, when 执行流式调用, then 跨 chunk 安全门禁、受信合并/背压、event capacity 和 envelope 上限按冻结契约 fail closed 或有界推进，无 secret、静默丢片、乱序和无界缓存；默认 fake stream 全面验证，opt-in live smoke 分别报告 provider 首 delta 与首个已提交 delta 时延。
+
 ### AI 能力规格
 
 | AI 功能 | 能力类型 | 质量条 | 触发方式 | 不确定时 | 服务降级 |
@@ -1287,6 +1456,8 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | Repo analyst 示例 | 文本理解/文件工具 | 不越过 workspace；长输出走 artifact_ref | 用户调用示例 agent | 请求缩小范围或生成 partial report | 禁用 shell，仅 file read/search |
 | Dev assistant 示例 | agent / 工具调用 | 危险动作必须触发 approval；audit 完整 | 用户调用示例 agent | 停在 approval 或返回 policy denial | 禁用危险 tool 或 require_approval |
 | Trace -> Eval Case | 文本抽取/规则处理 | draft 不含 secret；approved 必须人工确认 | failed/low-score trace 或 CLI | 标记 needs_review，不自动 approved | 只写 local draft |
+| 受控真实文本模型（非流式基线） | 概率性文本生成 | route/secret/budget/usage 合同通过；opt-in live smoke 仅在显式授权和隔离凭据下运行 | deployment 与 Agent 策略共同显式启用 | 未知 route、价格、能力或 side effect 时 fail closed/needs_review，不猜测成功 | 运维者可显式改用 local/fake；真实调用失败时 runtime 不自动切 fake，也不得切换到未批准 endpoint/model |
+| 受控真实模型增量文本流 | 概率性文本流 | delta 顺序/final checksum/capacity/跨 chunk 安全/取消/部分 usage/Last-Event-ID 合同通过；真实首 delta smoke 单独 opt-in | streaming-capable route 与调用方共同显式启用 | 已观察 delta 后失败则保留 committed prefix 并进入 interrupted/unknown，不重试或伪造完成 | reader 可重连续读 committed events；运维者可在后续新 run 显式选择 non-stream/fake，不把当前失败流静默切换 |
 
 **AI 护栏（绝不能做）：**
 - 绝不能绕过 workspace、policy、approval 直接执行危险动作。
@@ -1294,6 +1465,10 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - 绝不能默认自动把 failed trace 写入 approved dataset。
 - 绝不能把 provider 原始事件直接暴露为公共 API 契约。
 - 绝不能在业务 agent 中直接耦合厂商 SDK。
+- 绝不能让请求或 Agent descriptor 覆盖 deployment 的 endpoint/credential，或把真实凭据发送到未经批准的 `base_url`。
+- 绝不能把 provider timeout 当作已取消证明，也不能在 side-effect unknown 后自动重试并把潜在费用记为零。
+- 绝不能把 SSE subscriber 断线当作重新调用 provider 的理由，也不能把 raw token/SDK event 直接映射成无界公共事件。
+- 绝不能用逐 chunk 独立脱敏冒充跨 chunk 输出安全；无法在增量公开前证明安全的内容必须延迟到完整结果门禁后发布。
 
 ## 6. 数据模型
 
@@ -1399,13 +1574,13 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 
 | 类别 | 要求 | 优先级 |
 |---|---|---|
-| 性能 | local profile 单 agent fake run 应在 5 秒内完成；SSE 首事件应在 1 秒内返回；tool 输出必须支持截断和 artifact_ref | P0 |
-| 安全 | API Key/Bearer Token；PolicyEngine；HITL；workspace sandbox；secret redaction；默认危险动作审批 | P0 |
+| 性能 | local profile 单 agent fake run 应在 5 秒内完成；SSE 已有事件首 frame 应在 1 秒内返回；真实模型流必须分别记录 provider 首 delta、首个已持久化 delta 和客户端收到该 delta 的时延，不对外部 provider 复用传输层 `<1s` SLA；tool 输出必须支持截断和 artifact_ref | P0 |
+| 安全 | API Key/Bearer Token；PolicyEngine；HITL；workspace sandbox；secret redaction；默认危险动作审批；模型 credential 与 endpoint origin 绑定，禁止向未批准 `base_url` 转发秘密 | P0 |
 | 隐私 | secret 不进入 trace/eval/audit/local-jsonl；trace -> eval case 必须脱敏和人工确认 | P0 |
 | 兼容性 | macOS/Linux 开发环境；Python 3.12+；GitHub Actions/GitLab CI；PostgreSQL service profile；SQLite local profile | P0 |
 | 可靠性 | DBOS durable execution；checkpoint/resume；idempotency key；local/jsonl fallback；CI smoke | P0 |
-| 可维护性 | 核心包可 build wheel；adapter contract tests；README/docs/ADR；release automation | P0 |
-| 可演进性 | P0 不强制微服务，但 API、worker、tool/model、storage、event/observability 必须有稳定接口和未来拆分路径 | P0 |
+| 可维护性 | 核心包可 build wheel；adapter contract tests；README/docs/ADR；人与 Agent 共用工程原则/贡献规范；可机械架构规则进入 checker/CI；release automation | P0 |
+| 可演进性 | P0 不强制微服务或大爆炸重构，但 API、worker、tool/model、storage、event/observability 必须有稳定接口、窄 change DAG、文件所有权和可跨上下文续接的 living plan | P0 |
 | 可测试性 | TDD；unit/contract/integration/eval/smoke；fake providers；CI artifacts | P0 |
 | 可访问性 | P0 不做产品 UI；OpenAPI/Redoc 保持默认可访问性 | P1 |
 | 合规 | Apache-2.0、NOTICE、license check、引用声明 | P0 |
@@ -1431,6 +1606,9 @@ P0 完成条件：
 - [x] CanonicalEvent terminal event 唯一性、JSON events `after_seq` resume 与 SSE `Last-Event-ID` resume 测试通过。
 - [x] README 和深度文档已覆盖目录边界、扩展方式、安全策略、release process。
 - [x] README / architecture docs 已覆盖未来微服务拆分边界；service profile 可验证 API 与 worker 分进程协作。
+- [ ] 工程原则、贡献规范和架构演进计划已进入中英文导航，且新引入的可机械依赖规则有 checker/contract/CI 证据。
+- [ ] 受控真实文本模型能在显式 deployment、受信 endpoint 和隔离凭据下 opt-in 运行；默认 local/CI 仍离线，secret、route、budget、retry 与 usage 证据满足 REQ-025。
+- [ ] 受控真实模型普通文本流能通过既有 CanonicalEvent / SSE / CLI 有界输出并恢复；增量顺序、跨 chunk 安全、容量、取消、部分计量、禁止重放 provider 与时延拆分满足 REQ-026。
 - [ ] GitHub Actions 和 GitLab CI 都能跑等价质量门禁。
 - [ ] Release automation dry-run 能生成版本、tag、CHANGELOG 预览和 wheel/sdist artifacts。
 - [x] Apache-2.0 LICENSE、NOTICE 和 license check 存在。
@@ -1520,6 +1698,9 @@ P0 完成条件：
 - 项目架构图 PNG 预览版本：`docs/architecture/pydantic-ai-agent-architecture.png`、`docs/architecture/agent-harness-technical-architecture.png`、`docs/architecture/agent-harness-runtime-trust-boundaries.png`、`docs/architecture/agent-harness-deployment-boundaries.png`，用于人工审阅和多模态模型快速理解；可编辑源仍以 `.drawio` / `.excalidraw` 为准。
 - 项目说明：`AGENT-PACK.md`，用于区分当前 Agent Pack 能力包与新脚手架产品。
 - Pydantic AI 官方文档：overview、streaming、durable execution、multi-agent、Logfire integration、Harness overview。
+- Pydantic AI OpenAI provider 官方文档：确认 provider 原生 `OPENAI_API_KEY`、默认 `https://api.openai.com/v1`、显式 `OpenAIProvider`、自定义 `AsyncOpenAI` client 的 `base_url`/organization/project/retry 以及 model settings 均属于可配置 surface；本项目必须在 adapter/composition boundary 收口这些能力，而不是让业务 Agent 直接构造 SDK 对象。
+- Pydantic AI HTTP request retries 官方文档：确认 retry 通过自定义 HTTP transport/client 配置，需显式限定 retryable error、`Retry-After`、backoff、最大等待与尝试次数；本项目在此基础上额外要求总 deadline、预算、attempt evidence 与 side-effect unknown 的 fail-closed 语义。
+- 当前仓库配置与模型实现：`packages/agent-harness/src/agent_harness/config/settings.py`、`config/schemas.py`、`runtime/services.py` 与 `adapters/models/pydantic_ai.py`；用于确认现有优先级、`AGENT_HARNESS_*` 边界、fake-only composition 和真实 adapter 配置缺口。
 - SQLAlchemy 2.0 官方文档：typed declarative、async ORM。
 - SQLModel 官方文档/PyPI：用于 ORM 选型对比，最终不进入核心。
 - PGroonga 官方资料：用于确认 CJK/multilingual PostgreSQL full-text search adapter。

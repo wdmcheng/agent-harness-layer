@@ -4,7 +4,7 @@
 
 Audience: application developers who need to understand current runtime boundaries, and scaffold maintainers responsible for package, template, and adapter contracts.
 
-Navigation: [root README](../../README.md) · [Build an Agent](../building-an-agent.md) · [extension guide](../extension-guide.md) · [adapter contracts](../adapter-contracts.md) · [context/trust boundaries](../context-and-trust-boundary.md) · [security policy](../security-policy.md) · [ADR](../adr/0001-p0-service-boundaries.md)
+Navigation: [root README](../../README.md) · [Build an Agent](../building-an-agent.md) · [engineering principles](../engineering-principles.md) · [extension guide](../extension-guide.md) · [adapter contracts](../adapter-contracts.md) · [context/trust boundaries](../context-and-trust-boundary.md) · [security policy](../security-policy.md) · [ADR](../adr/0001-p0-service-boundaries.md)
 
 This directory is the fixed home for project architecture diagrams. Diagrams explain relationships; current behavior is still governed by `Product-Spec.md`, `API-Contract.md`, public DTOs/protocols, production code, and tests. A diagram cannot replace evidence when it conflicts with code.
 
@@ -61,6 +61,7 @@ Troubleshooting: if diagrams disagree with code, first check whether the diagram
 ## Maintenance rules
 
 - `.drawio` is the primary editable source; `.excalidraw` supports collaborative editing; `.png` is a review preview only.
-- A semantic diagram change also updates the architecture basis in `Product-Spec.md`, upstream basis in `API-Contract.md`, and affected key files or state in `DEV-PLAN.md`.
+- A semantic diagram change updates only the controlling sources it actually affects: `Product-Spec.md` for product behavior, `API-Contract.md` for a changed public API/CLI/module contract, and `DEV-PLAN.md` for changed phase ownership, files, evidence, or state. Do not touch an unaffected contract merely to keep timestamps aligned.
 - If a diagram says “to be implemented in Phase N,” completion of that phase must update both the diagram source and PNG preview—not only code and plans.
 - A boundary change first updates the applicable product/API/OpenSpec contract, then the diagram source and exported PNG. The PNG is not editable truth.
+- An architecture or cross-module change follows the [engineering principles](../engineering-principles.md): identify the invariant and variation axis, update applicable contracts before code, create a red contract, and put mechanically decidable rules in checker/CI.

@@ -1,5 +1,16 @@
 # 变更记录
 
+## [v1.20] - 2026-07-27
+### 架构演进治理、受控真实模型配置与增量文本流计划
+
+- 新增 SCOPE-030 至 SCOPE-032、TASK-012 至 TASK-014、FLOW-006/007、REQ-024 至 REQ-026 与 AC-073 至 AC-088，把架构原则、人与 Agent 共用代码规范、living plan、change matrix、受控真实文本模型入口和 provider-neutral 增量文本流纳入产品事实源。
+- 明确本轮不是大爆炸重构，也不按设计模式数量验收；后续以变化轴、不变量、窄 OpenSpec change、red contract、文件所有权和可执行架构门禁逐步演进。
+- 修订 REQ-004 的配置边界：公开合并顺序为 profile YAML → Agent YAML → `.env` → secret file → direct 进程环境 → 受控 overrides；`.env` 高于 YAML 但不是 secret manager，且只解析 `AGENT_HARNESS_*`，provider 原生 ambient env 不能成为第二条不可见配置路径。
+- 扩充真实模型 deployment 配置契约：区分 deployment id 与 provider kind，覆盖模型 allowlist/default/fallback、`base_url`/endpoint policy、credential reference、连接/读取/总 deadline、retry/backoff、并发舱壁、价格目录版本和 capability flags。
+- 固定真实模型安全路由：部署允许列表、Agent 冻结策略和请求意图求交集，先生成 immutable route plan，再进入预算预约、授权成功审计与 provider 副作用；拒绝路径仍可写去敏本地审计。`base_url` 虽通常非秘密，但必须与 credential origin 绑定并拒绝未批准 scheme/origin。
+- 首个实现 change 仍为 `controlled-real-model-runtime`，只做非流式真实文本 completion，以先冻结 deployment、route、secret、endpoint、预算和取消基线；其完成并归档后立即进入独立 P0 Phase 18.1 `controlled-model-streaming`，不再把 streaming 留成无顺序的笼统后置项。Structured output、模型工具循环与多 provider 运维继续后置。
+- Phase 18.1 复用既有 CanonicalEvent / RUN-006 / CLI reader，不新增第二个流状态源；固定有界 delta/coalescing 与 event-capacity reservation、completed/usage/terminal 顺序、跨 chunk 输出安全、subscriber 断线不隐式取消、显式取消后的 partial usage/unknown、禁止 provider 重放，以及 transport 首 frame 与 provider 首 delta 的指标分离。当前 adapter/composition 仍不具备这些能力，本次只落盘需求与计划，不宣称实现完成。
+
 ## [v1.19] - 2026-07-25
 ### API 文档生产关闭边界
 

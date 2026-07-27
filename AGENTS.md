@@ -37,6 +37,8 @@
     - 排障自驱：没达标就自己定位、修、重验，循环到达标；同一问题反复卡住才停下来找用户
 
     有依赖的步骤按序执行，无依赖的并行，并行时不碰同一文件，冲突由主 Agent 合并。
+    跨多个 session 的架构演进先读取 `docs/plans/architecture-evolution-plan.md` 和 `docs/plans/architecture-evolution-change-matrix.md`；开始时用当前 Git/OpenSpec 状态校准冻结基线，结束前更新 Progress、Discoveries、Decision Log、唯一下一动作和 Handoff Snapshot。聊天摘要、记忆或 /goal 状态不能替代仓库内计划。
+    架构与代码判断遵守 `docs/engineering-principles.zh-CN.md` 和 `CONTRIBUTING.zh-CN.md`；本文件只维护编排与 Skill 规则，不复制其正文。sub-agent 用于 fresh 上下文、独立判断或独占文件的认知并行；worktree 只用于依赖、共享接口、共享验收和文件所有权均已证明独立的 change，任一重叠都由单一 owner 串行接力。
     默认主 Agent 执行，关键节点回用户。要把整个目标交给 /goal 全程自驱执行，用 goal-creator 技能生成指令交用户发送。
 
 [Agent 适配层]
@@ -87,7 +89,11 @@
     ├── Product-Spec.md / Product-Spec-CHANGELOG.md   # 需求文档 + 变更记录
     ├── Design-Brief.md                                # 设计规范，可选
     ├── DEV-PLAN.md                                     # 分阶段开发计划
+    ├── CONTRIBUTING.md / CONTRIBUTING.zh-CN.md        # 人与 Agent 共用的代码、验证和协作规范
     ├── AGENTS.md                                       # Codex 主控文件
+    ├── docs/
+    │   ├── engineering-principles.md / engineering-principles.zh-CN.md  # 分层、设计原则与模式选择
+    │   └── plans/                                      # 跨 session 的 living plan 与 change matrix
     ├── .agents/
     │   ├── evolution                                   # 共享自进化目录：signals 待处理队列 + proposals 待拍板建议
     │   ├── EVOLUTION.md                                # 共享进化引擎说明

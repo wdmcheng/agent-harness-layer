@@ -39,7 +39,7 @@ local profile 使用 SQLite、进程内队列、本地 JSONL 证据和 fake mode
 | 调用 HTTP API | [service-app HTTP API](templates/service-app/README.zh-CN.md#http-api) |
 | 直接使用 Python 包 | [Python API](#python-api) |
 | 理解架构和安全边界 | [模块设计思路](#模块设计思路)和[深度文档](#深度文档) |
-| 维护可复用脚手架 | [开发者指南](#开发者指南)和[贡献指南](#贡献指南) |
+| 维护可复用脚手架 | [开发者指南](#开发者指南)和完整[贡献指南](CONTRIBUTING.zh-CN.md) |
 
 ## 把项目任务交给 AI / Agent
 
@@ -412,13 +412,11 @@ service profile 现在已物理拆分 API 与 runtime worker。model/tool gatewa
 
 ## 开发者指南
 
-修改行为前按顺序读取对应真相源：
+人和 Agent 的完整工作流、文件所有权、机械规则真相源、验证矩阵与 Git/安全边界，见
+[贡献指南](CONTRIBUTING.zh-CN.md)。
 
-1. `Product-Spec.md`：产品范围与验收。
-2. `API-Contract.md`：endpoint、CLI/module seam、字段和错误语义。
-3. `DEV-PLAN.md`：阶段所有权与证据。
-4. 对应 `openspec/specs/*/spec.md`，或 active `openspec/changes/<change>/`。
-5. 相关架构、扩展、安全或 adapter 指南。
+不要把本 README 当成第二份工作流规范。事实源顺序（包括适用的已同步 OpenSpec 主规格和 active
+delta）、最小充分验证及授权边界统一以贡献指南为准。
 
 必须保持这些依赖规则：
 
@@ -430,18 +428,13 @@ service profile 现在已物理拆分 API 与 runtime worker。model/tool gatewa
 - delegation 必须经过 `AgentRegistry`、`PolicyEngine` 和 runtime service。
 - 所有运行记录及其证据必须保留 `tenant_id`、`agent_id`、`run_id`；request/trace ID 用于追加关联，不能替代这三个所有权键。
 
-普通代码改动至少运行：
-
-```bash
-make quality
-make test
-make eval
-make smoke-local
-```
-
-如果改动影响 PostgreSQL、Redis、DBOS、migration、API/worker 协作、持久化恢复或 service-only 认证，还要运行 `make smoke-service`。SQLite local 结果不能替代 service 证据。
+验证命令按 `CONTRIBUTING.zh-CN.md` 的权威矩阵选择；本 README 不再维护第二套固定命令组合。
+只报告实际执行的检查及其能证明的边界。
 
 ## 贡献指南
+
+人和 Agent 共同遵守的权威贡献流程见 [`CONTRIBUTING.zh-CN.md`](CONTRIBUTING.zh-CN.md)，
+另有 [English edition](CONTRIBUTING.md)。
 
 1. 从聚焦的问题或 change contract 开始，不混入无关清理。
 2. 行为变化前先更新相关 Product/API/OpenSpec 契约。
@@ -493,6 +486,8 @@ local profile 先检查 run events 和本地 JSONL。service profile 检查 migr
 
 | 你要回答的问题 | 文档 |
 |---|---|
+| 人和 Agent 应如何规划、隔离、验证并交付一次变更？ | [贡献指南](CONTRIBUTING.zh-CN.md) |
+| 架构变更遵守哪些分层、设计原则和模式选择规则？ | [工程原则](docs/engineering-principles.zh-CN.md) |
 | 如何用五层两翼做出一个可运行 Agent？ | [五层两翼开发 Agent 指南](docs/building-an-agent.zh-CN.md) |
 | 本项目与 Pydantic AI Harness、Agently 是什么关系？ | [框架定位与能力对照说明](docs/framework-positioning.zh-CN.md) |
 | 如何把项目初始化或功能实现交给 AI / Agent？ | [AI / Agent 项目操作指南](templates/service-app/docs/ai-agent-guide.zh-CN.md) |
