@@ -10,6 +10,7 @@
 - 固定真实模型安全路由：部署允许列表、Agent 冻结策略和请求意图求交集，先生成 immutable route plan，再进入预算预约、授权成功审计与 provider 副作用；拒绝路径仍可写去敏本地审计。`base_url` 虽通常非秘密，但必须与 credential origin 绑定并拒绝未批准 scheme/origin。
 - 首个实现 change 仍为 `controlled-real-model-runtime`，只做非流式真实文本 completion，以先冻结 deployment、route、secret、endpoint、预算和取消基线；其完成并归档后立即进入独立 P0 Phase 18.1 `controlled-model-streaming`，不再把 streaming 留成无顺序的笼统后置项。Structured output、模型工具循环与多 provider 运维继续后置。
 - Phase 18.1 复用既有 CanonicalEvent / RUN-006 / CLI reader，不新增第二个流状态源；固定有界 delta/coalescing 与 event-capacity reservation、completed/usage/terminal 顺序、跨 chunk 输出安全、subscriber 断线不隐式取消、显式取消后的 partial usage/unknown、禁止 provider 重放，以及 transport 首 frame 与 provider 首 delta 的指标分离。当前 adapter/composition 仍不具备这些能力，本次只落盘需求与计划，不宣称实现完成。
+- 修复 live 验收 identity 冲突：保留 v1.17 dependency lock 的 `AC-070`，把 v1.19 后加入的 API docs 关闭行为从旧 `AC-070` 迁移为 `AC-089`；历史 changelog 与 OpenSpec archive 保持原样，由本条提供行为限定的迁移追溯。
 
 ## [v1.19] - 2026-07-25
 ### API 文档生产关闭边界

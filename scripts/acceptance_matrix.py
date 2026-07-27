@@ -32,13 +32,22 @@ from acceptance_matrix_policy import (
 def requirement_groups(spec_path: Path) -> dict[str, set[str]]:
     """按 requirement 分组读取 Product Spec 中全部 REQ/AC 标识。
 
-    矩阵通过列出 REQ 显式选择持续验收范围；validator 不再把开发期优先级
-    当作永久筛选条件，但会要求所选 REQ 的全部 AC 同时进入矩阵。
+    分组会把 AC 收入集合，因此必须先在完整 Product Spec 上验证 live AC identity
+    全局唯一，避免同一 REQ 或跨 REQ 的重号在集合折叠后失去证据。矩阵仍通过
+    显式列出 REQ 选择持续验收范围，并要求所选 REQ 的全部 AC 同时进入矩阵。
     """
 
     if not spec_path.is_file():
         raise MatrixError(f"spec file is missing: {spec_path}")
     text = spec_path.read_text(encoding="utf-8")
+    acceptance_counts = Counter(AC_ID.findall(text))
+    duplicate_acceptance = sorted(
+        identifier for identifier, count in acceptance_counts.items() if count > 1
+    )
+    if duplicate_acceptance:
+        raise MatrixError(
+            "duplicate Product-Spec acceptance identities: " + ", ".join(duplicate_acceptance)
+        )
     matches = list(REQ_HEADING.finditer(text))
     result: dict[str, set[str]] = {}
     for index, match in enumerate(matches):

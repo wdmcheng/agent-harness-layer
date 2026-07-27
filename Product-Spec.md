@@ -488,7 +488,7 @@ templates/service-app/
 
 **验收标准：**
 - [x] AC-006: Given 复制后的模板目录, when 执行 `make dev` with local profile, then health、OpenAPI、Swagger UI 和 Redoc 入口均可用，文档 UI 默认只请求本地资源，显式切为 `online` 后才请求与本地锁定版本一致的 CDN 资源。
-- [x] AC-070: Given `service.api_docs.enabled=false`, when service-app 启动, then `/docs`、`/redoc`、`/openapi.json`、Swagger OAuth2 redirect 和 `/static/api-docs/*` 均返回 404，且缺失或损坏的文档静态资源不阻断应用启动；`local` 默认开启、`service` 默认关闭，并可由类型化环境变量显式覆盖。
+- [x] AC-089: Given `service.api_docs.enabled=false`, when service-app 启动, then `/docs`、`/redoc`、`/openapi.json`、Swagger OAuth2 redirect 和 `/static/api-docs/*` 均返回 404，且缺失或损坏的文档静态资源不阻断应用启动；`local` 默认开启、`service` 默认关闭，并可由类型化环境变量显式覆盖。
 - [x] AC-007: Given 模板目录, when 执行 `make smoke-service`, then Docker Compose PostgreSQL/Redis service smoke 通过。
 
 ### REQ-004: 配置系统
@@ -1324,6 +1324,8 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - [x] AC-060: Given service profile, when 分别启动 API 进程和 worker 进程并提交 run, then run 可被 worker 执行并通过共享 storage/queue 产出事件。
 - [x] AC-061: Given 业务 agent 代码, when 静态扫描 import, then 不直接 import 具体 model/tool/storage/observability vendor SDK 或直接操作 ORM session。
 - [x] AC-062: Given CanonicalEvent / DTO contract tests, when API、worker、tool/model adapter 交换数据, then 关联字段和 schema 校验保持一致。
+- [x] AC-065: Given local profile 与 fake provider, when 从入口创建并完成 single agent run, then 稳定 smoke 记录的总时延小于 5 秒。
+- [x] AC-066: Given 已建立 SSE 连接且存在可见事件, when 服务开始流式响应, then 首个 event frame 在 1 秒内返回；测试必须区分握手前错误和握手后错误事件。
 
 ### REQ-023: 依赖兼容范围与可复现解析
 
@@ -1584,11 +1586,6 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | 可测试性 | TDD；unit/contract/integration/eval/smoke；fake providers；CI artifacts | P0 |
 | 可访问性 | P0 不做产品 UI；OpenAPI/Redoc 保持默认可访问性 | P1 |
 | 合规 | Apache-2.0、NOTICE、license check、引用声明 | P0 |
-
-非功能验收：
-
-- [x] AC-065: Given local profile 与 fake provider, when 从入口创建并完成 single agent run, then 稳定 smoke 记录的总时延小于 5 秒。
-- [x] AC-066: Given 已建立 SSE 连接且存在可见事件, when 服务开始流式响应, then 首个 event frame 在 1 秒内返回；测试必须区分握手前错误和握手后错误事件。
 
 ## 9. P0 完成定义
 

@@ -11,8 +11,8 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；本轮只澄清 RUN-006 是 committed CanonicalEvent transport、不是 provider stream producer，并为 Phase 18.1 保留先更新 delta/capacity/settlement 契约的门禁，没有新增 endpoint 或改变当前 payload。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-16 及后续 `relax-release-uv-patch-range` 均已同步主规格并归档。2026-07-27 只读核对 `openspec list --json` 为空，当前没有 active change；下一项实现前才为聚焦行为创建并审查 change。
-- Git / 代码状态: v1.20 以 `develop@7bbbaa24` clean tree 为初始基线，已形成文档专用本地提交；其后按用户授权把 Phase 18.1 规划作为同一变更重新冻结、fresh review 并 amend。精确最终 HEAD 与工作树必须以当前 Git 查询为准；整个 v1.20 不修改生产代码、测试、依赖或运行配置，也不执行 push、tag、release、真实 provider 调用、依赖升级或部署。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-16、`relax-release-uv-patch-range` 与 Phase 17.1 `acceptance-criteria-identity-uniqueness` 均已同步主规格并归档。Phase 17.1 归档路径为 `openspec/changes/archive/2026-07-28-acceptance-criteria-identity-uniqueness/`；当前无 active change。
+- Git / 代码状态: Phase 17.1 以 `develop@4922784d0057` clean tree 为初始基线；当前 worktree 已包含 live `AC-070/AC-089` 迁移、全局唯一性 checker、独立 policy、合同测试、changelog、主规格同步、OpenSpec 归档与阶段状态。精确 HEAD 与工作树必须以当前 Git 查询为准；不执行 commit、push、tag、release、真实 provider 调用、依赖升级或部署。
 - 长期计划: `docs/plans/architecture-evolution-plan.md` 记录跨 session 的冻结基线、进度、发现、决策和 handoff；`docs/plans/architecture-evolution-change-matrix.md` 记录阶段依赖、共享接口、验收与文件所有权。上下文压缩或更换 Agent 后必须先以磁盘文件和当前 Git/OpenSpec 状态重新校准。
 - 计划模式: 迭代模式。Phase 1-16 保持历史冻结；新增 Phase 17-21 采用窄 change 演进，不进行全仓一次性重构。
 
@@ -21,12 +21,12 @@
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
 | 总体状态 | 架构演进规划基线已审查；Phase 18.1 规划纳入同一 v1.20 变更 | Phase 1-16 既有交付及后续 change 均已归档；v1.20 建立 REQ-024/025/026、工程原则、贡献规范、living plan 和 change matrix，并把非流式基线与流式后继拆成两个有序 P0 change；不改生产代码。 |
-| 当前 Phase | Phase 17 文档基线已完成；Phase 17.1 待授权 | AC-073/075 已由中英文入口/互链审查和无对话 fresh handoff 复原证明；AC-074/076、真实模型 AC-077–084 与增量文本流 AC-085–088 未完成。 |
+| 当前 Phase | Phase 17.1 已完成并归档 | TDD 实现、冻结 evidence、direct validator、fresh 实现 review、主规格同步和 OpenSpec 归档均已完成；最终门禁复审 Stage 1/2 PASS、0 HIGH / 0 MEDIUM / 0 LOW。 |
 | 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14, Phase 15, Phase 16 | 既有 changes 已同步主规格并归档；历史验证只证明各自冻结范围，不证明新 Phase 17-21。 |
-| 当前 OpenSpec change | 无 | `openspec list --json` 为空。本轮是需求/规划更新；先以独立治理 change 处理重复 `AC-070`，首个生产行为 change 为 `controlled-real-model-runtime`，其归档后的下一项固定为 `controlled-model-streaming`；每项都必须单独 propose、严格校验和审查后才能修改对应实现。 |
+| 当前 OpenSpec change | 无 | `acceptance-criteria-identity-uniqueness` 已归档；Phase 18 尚未获得授权，未创建 `controlled-real-model-runtime`。 |
 | Phase 16 本地验证 | PASS | 2026-07-24 后续修正中，固定 uv `0.11.29` 与本机 uv `0.11.31` 都通过 lock check、frozen release sync、无隔离 build、release dry-run 与 17 项范围/identity 合同，两版 wheel/sdist 和 preview artifact checksum 完全一致；本机 `0.11.31` 下 quality PASS、审查修复后全量 pytest `1306 passed, 223 skipped`。207 项 lock identity SHA-256 保持 `bb9046c25267f611007c6b74ee74c3ff8e55f885b3f92d091aed0642c5adef58`。 |
-| 当前阻塞项 | 等待授权，不是技术阻塞 | 下一动作需要用户授权 Phase 17.1。后续的真实 provider live smoke 还将依赖另行授权的隔离凭据和网络，但不阻塞 Phase 18 的 schema、adapter/composition 和离线合同。 |
-| 当前建议下一步 | 等待用户裁决 Phase 17.1 | 由用户决定是否授权 `acceptance-criteria-identity-uniqueness`；该治理 change 验证、审查并归档后，再决定是否创建 `controlled-real-model-runtime`。除非用户另行授权，不 commit、push、tag、release、使用真实凭据或部署。 |
+| 当前阻塞项 | 无实现或验收阻塞 | 实现冻结 identity `8789075d…42d15` 下 18 个 CI producer gate 全部 PASS；`test-aggregate` 为 `1352 passed, 223 skipped`，direct validator 为 `98/98`，strict validation 与 `git diff --check` PASS。其后只修改 tasks 与阶段状态；owner 明确裁决不为这些状态记录重跑 evidence。 |
+| 当前建议下一步 | 等待 scoped local commit 授权 | Phase 17.1 已同步并归档但尚未提交；不自动 commit、push 或启动 Phase 18。提交完成后再由用户决定是否授权 `controlled-real-model-runtime`。 |
 
 ## 剩余工作
 
@@ -536,7 +536,7 @@ Phase 1 Monorepo / quality spine
 **Change 关系与完成状态**：
 - 实施顺序固定为 `service-app-template-surface` → `p0-example-agent-flows` → `agent-scaffold-cli`；三者共享 API/CLI composition、模板文档和最终验收，不能独立开工。
 - 三个 change 的 tasks 分别为 `11/11`、`26/26`、`16/16`，实现与组合验收全部完成；最终 fresh code-reviewer Stage 1/2 PASS，审查备注也已在 `72e3fdf` 收口。
-- 三个 change 及 Phase 9-11 changes 已由 `45d87bf` 统一归档，主规格完成同步，当前无 active change。
+- 三个 change 及 Phase 9-11 changes 已由 `45d87bf` 统一归档，主规格完成同步；在该批次归档快照中无 active change，仓库当前 active change 以本文件顶部状态为准。
 
 **交付内容**：
 - 完成 `templates/service-app` 的 FastAPI、CLI、worker、configs、tests、docs、docker-compose 和 README。
@@ -968,7 +968,7 @@ Phase 1 Monorepo / quality spine
 - Workspace 外消费者兼容：复制核心 package 或解包 sdist 后移除 workspace source，以默认 build isolation 真实构建，证明兼容 build-system metadata 可独立解析；仓库内部无隔离构建证据不得替代该验收。
 - 四步走：fresh code-reviewer Stage 1/2 PASS；dependency/promotion/workspace contract 和全量 pytest 通过；ruff/pyright/import boundary 通过；install/build/release dry-run/license/local/service smoke 按受影响共享配置完整验证。
 
-**当前状态**：`relax-dependency-version-constraints` 已归档，根与模板 `agent-harness` 自依赖保持精确项目版本，外部依赖使用有界兼容范围，`uv.lock` 的 207 项 `(name, version, source)` identity 保持不变。后续 `relax-release-uv-patch-range` 把根与 release wrapper 统一为 `>=0.11.29,<0.12`，CI 当前具体选择 `0.11.29`，preview/build/publish 证据绑定实际 uv；`no-release` 记录 `uv_version: null` 且不启动 uv。固定 uv `0.11.29` 与本机 `0.11.31` 均通过 lock、frozen release sync、build、release dry-run 与范围合同，产物 checksum 一致；`0.11.31` 下 quality PASS、审查修复后全量 pytest `1306 passed, 223 skipped`。该 change 的主规格已同步，并由 OpenSpec CLI 归档到 `openspec/changes/archive/2026-07-23-relax-release-uv-patch-range/`；当前无 active change，未执行 push、tag、release、真实 publish、依赖升级或部署。
+**Phase 16 归档时状态**：`relax-dependency-version-constraints` 已归档，根与模板 `agent-harness` 自依赖保持精确项目版本，外部依赖使用有界兼容范围，`uv.lock` 的 207 项 `(name, version, source)` identity 保持不变。后续 `relax-release-uv-patch-range` 把根与 release wrapper 统一为 `>=0.11.29,<0.12`，CI 当前具体选择 `0.11.29`，preview/build/publish 证据绑定实际 uv；`no-release` 记录 `uv_version: null` 且不启动 uv。固定 uv `0.11.29` 与本机 `0.11.31` 均通过 lock、frozen release sync、build、release dry-run 与范围合同，产物 checksum 一致；`0.11.31` 下 quality PASS、审查修复后全量 pytest `1306 passed, 223 skipped`。该 change 的主规格已同步，并由 OpenSpec CLI 归档到 `openspec/changes/archive/2026-07-23-relax-release-uv-patch-range/`；在 2026-07-23 的该归档快照中无 active change，未执行 push、tag、release、真实 publish、依赖升级或部署。当前 active change 以本文件顶部“当前 OpenSpec change”为准。
 
 ---
 
@@ -999,7 +999,7 @@ Phase 1 Monorepo / quality spine
 
 **Codex 执行时间估计**：4-8 小时，包括现状核对、双语文档、计划矩阵和一致性验证；不含实现、代码审查或 commit。
 
-**当前状态**：Phase 17 文档基线已完成独立审查与 fresh handoff 复原测试，并形成文档专用本地提交；Phase 18.1 规划按用户授权作为同一 v1.20 变更重新冻结、review 后 amend。AC-074/076 留给后续窄 change 的机械门禁与实现证据，不因本 Phase 文档收口而勾选。
+**当前状态**：Phase 17 文档基线已完成独立审查与 fresh handoff 复原测试；治理基线、Phase 18.1 规划与审查修订已落入 `4922784d`。AC-074/076 留给后续窄 change 的机械门禁与实现证据，不因本 Phase 文档收口而勾选。
 
 ---
 
@@ -1246,7 +1246,7 @@ Phase 1 Monorepo / quality spine
 | Provider token/delta 数量不定，而当前 usage operation 只为固定 prerequisite events 预约容量；直接逐 token 入 EventBus 会耗尽 seq、制造无界缓存或在副作用后才失败。 | provider stream、event capacity、outbox、SQLite/PostgreSQL recovery。 | Phase 18.1 | 未处理 | 在 provider 副作用前冻结最大 chunk 数、合并策略、单片 envelope 与 stream operation reservation；逐片 durable commit 后再拉取下一片，超限按受审契约有界失败或合并。 |
 | 逐 chunk 独立脱敏会漏掉跨 chunk secret，SSE 断线若与 provider cancel/retry 混用还会公开不可撤回内容并重复计费。 | output guardrail、redaction、RUN-006/CLI、partial usage、budget。 | Phase 18.1 | 未处理 | 使用跨 chunk 有状态安全门禁；完整结果才能判断时禁止公开 speculative delta。reader 断线不取消 run，显式取消后的未知结果不重试、不记零、不提前 terminal。 |
 | 架构规则若只写文档会继续漂移，若一次性扩大 checker 又会造成高噪音和大范围修复。 | 全仓依赖、review、CI。 | Phase 17、Phase 21 | 部分处理 | Phase 17 建立共享原则与 change matrix；每个后续 change 只把已稳定且与本次行为相关的机械规则加入 checker/contract/CI。 |
-| Product Spec 与需求验收矩阵当前存在两个不同语义的 `AC-070`；Python policy dict 的同键只能保留一项，可能让 evidence identity 被覆盖。 | acceptance matrix、CI producer/test mapping、发布证据。 | Phase 17.1；Phase 18 实现前置 | 已发现未处理 | 不在本轮顺手重编号；后续先冻结所有引用和历史兼容策略，以独立 change 修复唯一标识并验证 validator/evidence migration。 |
+| Product Spec 与需求验收矩阵曾存在两个不同语义的 `AC-070`；Python policy dict 的同键只能保留一项，可能让 evidence identity 被覆盖。 | acceptance matrix、CI producer/test mapping、发布证据。 | Phase 17.1；Phase 18 实现前置 | 已闭合 | live 规格已保留 dependency lock `AC-070`、迁移 API docs 为 `AC-089`，全局唯一性门禁、合同、冻结 evidence、fresh review 与 direct validator 均已闭合；历史归档保持不变。 |
 | Pydantic AI Harness 是独立可选 capability library，过早设为必选会扩大依赖面。 | CodeMode、memory、guardrails、managed prompts、repo/filesystem tools 等未来 capability integration。 | Phase 8、Phase 10、Phase 14 | 未处理 | P0 不直接依赖 `pydantic-ai-harness`；只有具体能力块需要时才新增 adapter/integration seam、锁定版本并扩展 import boundary 检查。 |
 | DBOS 2.26.0 是关键 service runtime 依赖，过早耦合会污染领域模型。 | Durable runtime、checkpoint、worker lifecycle。 | Phase 5、Phase 13 | 已缓解 | Phase 13 通过 `DBOSRuntimeAdapter`、稳定 executor/workflow identity 与 shared checkpoint 隔离；内部 run/checkpoint DTO 不依赖 DBOS 类型。 |
 | Redis runtime 版本与许可证变化影响 Apache-2.0 发布合规判断。 | Docker Compose service profile、durable queue adapter、发布合规。 | Phase 13、Phase 15 | 已缓解 | Phase 15 已把 Compose server 固定为 BSD-3-Clause 的 `7.2.14` digest，client `redis-py 8.0.1` 作为独立 MIT 依赖管理；Redis 7.4+/8.x 不得因 client 同版本而混用，后续升级与发布仍必须走 ADR、NOTICE 与 license review。 |

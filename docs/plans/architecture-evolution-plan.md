@@ -4,7 +4,7 @@
 >
 > 首次冻结：2026-07-27
 >
-> 当前状态：Phase 17 治理基线已审查并形成文档专用本地提交；v1.20 同一变更进一步冻结 Phase 18.1 增量文本流计划，Phase 17.1 仍待用户授权
+> 当前状态：Phase 17.1 已完成 TDD、冻结 evidence、direct validator、fresh review、主规格同步与 OpenSpec 归档；尚未 commit
 >
 > 配套矩阵：[`architecture-evolution-change-matrix.md`](architecture-evolution-change-matrix.md)
 
@@ -26,17 +26,17 @@
 
 | 项目 | 当前事实 |
 |---|---|
-| 快照日期 | 2026-07-27 |
+| 快照日期 | 2026-07-28 |
 | 分支 | `develop` |
-| 冻结基线 HEAD | `7bbbaa2407280f0e73813431510f955fb8f649fe`（`fix: 隔离模板 API 文档测试配置`） |
-| 基线工作树 | 在开始本轮文档写入前，`git status --short` 无输出 |
-| 当前 Git 事务 | v1.20 是文档专用本地变更；Phase 18.1 规划按用户授权在 final fresh review 后并入同一提交。文档不能自引用最终 commit hash，精确 HEAD、暂存区和工作树必须以当前 `git rev-parse HEAD` / `git status --short` 为准；该变更不含生产代码、测试、依赖或运行配置 |
-| OpenSpec | `openspec list --json` 返回 `changes: []` |
+| 冻结基线 HEAD | `4922784d0057eace1966e5d25c5ba27e81012a9f`（`docs: 建立架构演进治理基线`） |
+| 基线工作树 | Phase 17.1 开始前 `git status --short` 无输出 |
+| 当前 Git 事务 | 用户已授权并完成 Phase 17.1；当前 diff 治理 live AC identity、验收矩阵、policy/checker、合同测试、历史追溯、主规格同步与归档状态，不包含 Phase 18、commit 或 push |
+| OpenSpec | `acceptance-criteria-identity-uniqueness` 的 tasks `9/9`，已同步 `dual-ci-acceptance-evidence` 主规格并归档到 `openspec/changes/archive/2026-07-28-acceptance-criteria-identity-uniqueness/`；当前无 active change |
 | 已完成历史 | Phase 1-16 已归档；归档事实以 Git、`openspec list --json` 和归档目录为准 |
-| 当前阶段 | Phase 17 文档基线已完成；Phase 18.1 规划纳入同一 v1.20 文档变更；Phase 17.1 `acceptance-criteria-identity-uniqueness` 待授权 |
+| 当前阶段 | Phase 17.1 已完成并归档；TDD 红绿闭环、live identity/policy/matrix/changelog 迁移、冻结 evidence、direct validator、fresh 实现 review 与主规格同步均已完成 |
 | 前两项预定生产行为 change | 先 `controlled-real-model-runtime`，其完成并归档后再 `controlled-model-streaming`；两者都必须在 Phase 17.1 完成并归档后分别获得授权 |
-| 当前阻塞 | 无技术阻塞；下一动作需要用户决定是否授权 Phase 17.1 治理 change |
-| 明确未做 | 未创建 active change；未接入真实模型；RUN-006 仍只是 committed CanonicalEvent reader；未实现 provider 文本增量 producer、structured output、tool loop 或多 provider 运维 |
+| 当前阻塞 | 无实现、验收或 OpenSpec 生命周期阻塞；当前仅等待用户是否授权 scoped local commit |
+| 明确未做 | 尚未执行本地提交；未接入真实模型；RUN-006 仍只是 committed CanonicalEvent reader；未实现 provider 文本增量 producer、structured output、tool loop 或多 provider 运维 |
 
 `DEV-PLAN.md` 顶部已在本轮按当前 Git/OpenSpec 事实同步到 Phase 17，并保留 Phase 1-16 的历史阶段内容。后续 Agent 仍须按恢复顺序重新核对当前磁盘、Git 与 OpenSpec，不能把任一文档状态块当作无需验证的运行时事实。
 
@@ -76,7 +76,7 @@
 - `packages/agent-harness/src/agent_harness/adapters/models/pydantic_ai.py::PydanticAIModelProvider` 只接收 instructions/factory，把 `result.output` 转为字符串；线程池外层 timeout 只能停止等待，不能取消已经开始的网络调用。
 - `ModelProvider` / `ModelRouter.execute` / `ModelInvocationService.complete` 当前只有一次性完整 response seam；模型生产路径只发布 request-started 与最终 usage evidence。虽然事件枚举已有 `model.output.delta` / `model.output.completed`，RUN-006 与 CLI 只读取已持久化事件，不能生产或恢复 provider stream。
 - 当前 model usage operation 的 event-capacity binding 只覆盖固定 started/final prerequisite；streaming 若逐 SDK token 入 event 会突破副作用前有界预约不变量。Phase 18.1 必须先冻结最大 delta/coalescing、稳定 identity、跨 chunk 安全与 partial settlement。
-- `Product-Spec.md` 当前有两个语义不同的 `AC-070`：API docs 关闭边界和依赖 lock 规则。`docs/acceptance-matrix.md` 也有两行同 ID；以 AC ID 为唯一键的 acceptance policy 映射无法同时表达两种语义，当前 dependency-lock 映射会遮蔽 API-docs 语义，而 matrix validator 又会拒绝重复行。
+- Phase 17.1 开始前，`Product-Spec.md` 与 `docs/acceptance-matrix.md` 各有两个语义不同的 `AC-070`，导致 policy 映射覆盖和 matrix validator 重号失败。当前 live 规格已保留 dependency lock `AC-070`，把 API docs 迁移为 `AC-089`，并新增全局唯一性门禁；历史归档保持不变。
 - composition 仍存在字符串键 service locator，具体 `SQLAlchemyStorage` 依赖扩散，运行状态分支逐渐变厚，并已发现两个跨域语义强连通分量。这些是 Phase 21 的调查入口，不是尚未复核就可直接重构的结论。
 
 ## 4. 范围与非目标
@@ -93,14 +93,13 @@
 
 ### 4.2 本轮非目标
 
-本轮只创建计划与治理文档，不做以下事项：
+本轮是 Phase 17.1 验收 identity 治理。TDD、冻结 evidence、direct validator、fresh 实现 review、主规格同步与归档已完成；当前只等待 scoped local commit 授权，不做以下事项：
 
-- 不修改 `packages/`、`templates/`、`tests/`、CI 或配置样例。
-- 不创建 `controlled-real-model-runtime`、`controlled-model-streaming` 或其他实现型 OpenSpec change。
-- 不把 fake-only 基线描述成真实模型已可用。
-- 不同步或归档 OpenSpec 主规格。
-- 不改写 `DEV-PLAN.md` 的 Phase 1-16 历史交付与证据；本轮只同步当前状态和新增 Phase 17-21 索引。
-- 除用户已授权的 v1.20 文档同提交 amend 外，不推送、发布、部署或调用真实 provider。
+- 不修改 `packages/`、`templates/`、runtime、CI workflow 或配置样例；既有 dependency 与 API docs 行为测试只作为回归证据。
+- 不创建 `controlled-real-model-runtime`、`controlled-model-streaming` 或其他 Phase 18+ 实现型 OpenSpec change，不把 fake-only 基线描述成真实模型已可用。
+- 不同步或归档 OpenSpec 主规格，不改写 `openspec/changes/archive/` 的历史事实。
+- 不改写 `DEV-PLAN.md` 的 Phase 1-16 历史交付与证据；仅为避免历史快照冒充当前状态而补充明确的时间限定。
+- 不执行 commit、push、发布、部署或真实 provider 调用；后续任何本地提交、sync 或 archive 都需要用户另行明确授权。
 
 ### 4.3 Phase 18 的硬性非目标
 
@@ -173,7 +172,7 @@ flowchart TD
 
 **独立治理修复**
 
-当前重复 `AC-070` 必须由独立窄 change `acceptance-criteria-identity-uniqueness` 处理，不能在本轮顺手重编号，也不能塞进真实模型 change。该 change 要先盘点 Product Spec、验收矩阵、policy/checker、测试和历史引用，设计可追踪的 identity 迁移；历史归档材料默认保持不可变，通过迁移说明维持追溯。它属于规格与验收治理修复，不改变“首个生产行为实现 change 是 `controlled-real-model-runtime`”的决策。Phase 18 的只读研究与 proposal 草拟可以在 Phase 17 文档冻结后开始，但实现与新增验收映射必须等待该 identity change 完成并归档。
+Phase 17.1 开始前的重复 `AC-070` 已由独立窄 change `acceptance-criteria-identity-uniqueness` 处理并归档，没有塞进真实模型 change，也没有改写历史归档材料。该治理修复不改变“首个生产行为实现 change 是 `controlled-real-model-runtime`”的决策；Phase 18 仍须获得用户明确授权后才能创建和实现。
 
 **Codex 执行时间估计**
 
@@ -370,6 +369,26 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 
 ### Phase 17
 
+- [x] 2026-07-27：用户通过 `/goal` 明确授权 Phase 17.1；在 `develop@4922784d0057`、clean worktree、无 active change 的基线上开始单 owner 串行治理。
+- [x] 2026-07-27：完成 live/历史 `AC-070` inventory 与 Git 引入顺序核对；保留先出现的 dependency lock `AC-070`，将后出现的 API docs identity 迁移到未占用的 `AC-089`，归档材料保持不可变。
+- [x] 2026-07-27：创建 `acceptance-criteria-identity-uniqueness`，完成中文 proposal/spec/design/tasks，并通过 `openspec validate acceptance-criteria-identity-uniqueness --type change --strict`。
+- [x] 2026-07-27：首轮 fresh artifact review 完成；行为契约本身覆盖完整，但因 living plan、change matrix 与 `DEV-PLAN.md` 的授权、active change、strict 状态和唯一下一动作冲突，Stage 1 以 1 HIGH FAIL；未进入实现。
+- [x] 2026-07-27：修复首轮状态真相冲突并重新 strict validation；第二轮 fresh artifact review 确认该 HIGH 已闭合，但发现 `test_dev_plan_reports_archived_uv_change` 的陈旧全局 active 状态断言未纳入 tasks，Stage 1 以 1 MEDIUM FAIL；未进入实现。
+- [x] 2026-07-27：把 dependency 状态合同的 red-first 修订纳入 proposal/design/tasks/所有权并重新 strict validation；第三轮 fresh artifact review 确认任务闭环，但发现文档仍把已完成的修订和 strict 写成下一动作，Stage 1 以 1 MEDIUM FAIL；未进入实现。
+- [x] 2026-07-27：将 Phase 16 的“无 active change”限定为当时归档快照，并把当前状态统一为修订与 strict 已完成。
+- [x] 2026-07-27：第四轮 fresh artifact review 确认前三轮 findings 均闭合，但发现 change matrix 的 Phase 17 历史行仍保留“final review 后 amend”的陈旧待办，Stage 1 以 1 MEDIUM FAIL；未进入实现。
+- [x] 2026-07-27：把 Phase 17 矩阵行改为已落入 `4922784d` 的历史终态，删除陈旧待办。
+- [x] 2026-07-27：第五轮 fresh artifact review 完成，Stage 1/2 与 Spec/Standards 双轴 PASS，0 HIGH / 0 MEDIUM / 0 LOW；允许进入 TDD 红灯。
+- [x] 2026-07-27：用户明确要求先提交文档再继续开发；提交范围仅含当前 Phase 17.1 状态文档与 OpenSpec artifacts，不 push。
+- [x] 2026-07-27：用户授权后的范围/权限状态补丁使第五轮 verdict 失效；后续审查继续发现并修复 commit 权限冲突、Phase 17 旧范围、实现状态虚报和两处 DEV-PLAN 陈旧状态，未据旧 verdict 提交。
+- [x] 2026-07-27：用户明确裁决状态类 artifact review finding 不再阻断开发；以 `owner-waived` 进入 TDD，不把该裁决写成 reviewer PASS，也未提交文档候选。
+- [x] 2026-07-27：完成 tasks 1.1-1.3 红灯；同 REQ/跨 REQ 重号、`AC-089` producer/test/live 迁移共 5 项按预期红，陈旧 uv change 状态合同先红后收窄为只约束自身归档。
+- [x] 2026-07-27：在分组前增加 Product Spec live AC 全局计数；保留 dependency lock `AC-070`，把 API docs 迁移为 `AC-089`，同步矩阵、required policy、changelog，并证明 archive 零 diff。
+- [x] 2026-07-27：聚焦合同 PASS；`make quality` PASS；`make test` 为 `1352 passed, 223 skipped`。随后仅修订不合规注释并把 `AC-065/066` 原文移回矩阵已声明的 `REQ-022`，按用户要求不重跑全量，受影响 Ruff 与 validator 合同 PASS。
+- [x] 2026-07-27：fresh 实现 review 对冻结代码与契约给出 Stage 1/2 PASS，0 HIGH、0 MEDIUM；唯一 LOW 为三处陈旧状态措辞，按用户授权只修状态文档，不重跑测试、不重开 review。
+- [x] 2026-07-27：用户明确授权按正式门禁重生实现冻结 evidence；identity `8789075d…42d15` 下 18 个 CI producer gate 全部 PASS，`test-aggregate` 为 `1352 passed, 223 skipped`，direct validator 为 `98/98`，strict validation 与 `git diff --check` PASS。
+- [x] 2026-07-27：随后只勾选 tasks 并同步 ready-to-archive 状态；owner 纠正“只改状态没必要再跑证据”，已停止第二轮刷新。被取消的刷新不作为证据，ready-to-archive 结论复用前述冻结结果。
+- [x] 2026-07-28：用户明确选择同步并归档；将 delta 智能合并到 `dual-ci-acceptance-evidence` 主规格，逐段比较无差异后执行归档，目标为 `openspec/changes/archive/2026-07-28-acceptance-criteria-identity-uniqueness/`。
 - [x] 2026-07-27：核对分支、HEAD、初始工作树和 OpenSpec active list。
 - [x] 2026-07-27：读取当前 Product Spec、DEV-PLAN 相关范围及模型/config/runtime 关键源码。
 - [x] 2026-07-27：创建长期计划与 change matrix，并写入 handoff 规则。
@@ -377,7 +396,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 - [x] 2026-07-27：完成 Phase 17 文档 fresh 独立静态审查；首轮 3 MEDIUM + 1 LOW 已修订，冻结后 Stage 1/2 PASS。
 - [x] 2026-07-27：完成无对话 fresh handoff 复原测试；修复陈旧 Phase 13 风险状态和 fake fallback/change identity 歧义后 PASS。
 - [x] 2026-07-27：在主控独占范围内按当前 Git/OpenSpec 事实同步 `DEV-PLAN.md` 顶部状态与 Phase 17-21 索引，不改写 Phase 1-16 历史证据。
-- [ ] 获得授权后用独立窄 change 修复重复 `AC-070` 的规格/验收 identity；未完成前不新增依赖该重复 ID 的验收映射。
+- [x] 按用户 `owner-waived` 的 artifact 状态门禁裁决，用 TDD 修复重复 `AC-070` 的规格/验收 identity；不把 waiver 记成 reviewer PASS。
 
 ### Phase 18
 
@@ -422,6 +441,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | 2026-07-27 | 当前 model usage operation 只预约固定 started/final events；SDK delta 数不定，逐 token 入 event 会破坏副作用前容量预约 | Phase 18.1 必须在调用前冻结最大 chunk/coalescing 与 stream operation capacity，必要 migration 先在 design 证明 |
 | 2026-07-27 | EventBus 的逐 payload 脱敏不能证明跨 chunk secret 安全，公开 delta 一旦提交无法撤回 | 增量公开需要有状态输出安全；只能完整判断的结果不得提前公开 speculative delta |
 | 2026-07-27 | Product Spec 与验收矩阵各自重复使用 `AC-070`；以 ID 为键的 policy 映射只能承载一套语义，validator 又会拒绝矩阵重复行 | 规格 identity 已不唯一，当前验收证据可能被覆盖或无法通过唯一性校验；必须独立窄 change 盘点引用并迁移，不能顺手重编号 |
+| 2026-07-27 | Git 历史证明 dependency lock `AC-070` 于 `fa5ad90c` 先出现，API docs 同号验收于 `3aedac83` 后加入；当前 `requirement_groups` 又用 `set` 吞掉跨 REQ 重号 | 保留先出现的 dependency identity；只迁移后加入的 API docs identity，并新增 Product Spec 全局唯一性失败合同，避免依赖矩阵重复行才偶然发现问题 |
 | 2026-07-27 | service locator、具体 storage 扩散、状态分支和语义 SCC 同时存在 | 不在真实模型 change 中顺手重构；延后到 Phase 21，以当前依赖图逐项切 seam |
 
 后续发现按时间追加。若发现推翻了阶段依赖、共享接口或安全假设，先更新 Decision Log 和 change matrix，再继续实现。
@@ -442,6 +462,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | D-010 | 2026-07-27 | 文档、strict validation 和测试均不单独代表实现完成 | 必须同时有代码证据、验收证据、fresh review 与正确 OpenSpec 生命周期状态 |
 | D-011 | 2026-07-27 | 重复 `AC-070` 通过独立 `acceptance-criteria-identity-uniqueness` change 处理 | identity 迁移影响 Spec、矩阵、policy/checker 和历史追溯；顺手改一个编号会制造新的证据错配，且不得污染真实模型 change |
 | D-012 | 2026-07-27 | Phase 18 完成后的下一项 P0 行为 change 固定为 `controlled-model-streaming`；以本决策取代 D-002 中对 streaming 只作无序“后置”的部分 | 非流式入口先建立可控 route/provider/cancel/usage 基线；流式能力随后独立处理有界事件、跨 chunk 安全、部分计量与只重放 committed events，既不混入首 change，也不无限期后置；D-002 对 structured/tool/multi-provider 的后置判断继续有效 |
+| D-013 | 2026-07-27 | Phase 17.1 保留 dependency lock 的 `AC-070`，把后加入的 API docs 验收迁移为 `AC-089` | Git 引入顺序提供可复核裁决；新增未占用 identity 比重排 `AC-071` 至 `AC-088` 更小、更可追溯，且不改写归档事实 |
 
 Decision Log 只追加或用新决策显式 supersede 旧决策，不静默改写历史理由。
 
@@ -584,14 +605,6 @@ test -f docs/plans/architecture-evolution-change-matrix.md
 
 ## 16. 下一动作
 
-Phase 17 文档收口已经完成。当前唯一安全的下一步不是写真实 provider，而是由用户决定是否授权 Phase 17.1：
+Phase 17.1 已同步主规格并归档。当前唯一下一动作是由 owner 决定是否授权创建包含实现、主规格与归档材料的 scoped local commit；在明确授权前保持当前工作树，不启动 Phase 18。
 
-1. 以当前 Git 命令核对 v1.20 文档提交/工作树，并保持 `openspec list --json` 为空；不自行创建 change。
-2. 用户若授权，创建独立治理 change `acceptance-criteria-identity-uniqueness`；它只修复 AC identity、引用和机械唯一性门禁，不改真实模型行为，也不重写历史归档事实。
-3. 该 change 先完整盘点引用，再完成 strict validation、fresh review、实现验证，并在另行授权下同步/归档。
-4. identity change 完成验证、审查与归档后，由用户决定是否授权创建 `controlled-real-model-runtime`；只读研究或 proposal 草拟可以提前，但不得修改生产实现或新增验收映射。
-5. 获授权后，先在 `openspec/changes/controlled-real-model-runtime/` 写中文 proposal/spec/design/tasks，明确首 change 的非目标、两级 allowlist、冻结 route plan、endpoint/secret/timeout/retry/bulkhead/price/capability 契约和可选真实 smoke。
-6. 对该 change 执行 strict validation 与 fresh code-reviewer Stage 1/2 审查；PASS 后才进入先红后绿的实现。
-7. Phase 18 只有在实现验证、fresh review、主规格同步与归档全部完成后，才由用户另行授权创建 `controlled-model-streaming`；先更新 `API-Contract.md`，再冻结有界 delta/capacity、跨 chunk 安全、取消/unknown、部分 usage 和 committed-only replay，不能直接跳到 Phase 19。
-
-在用户授权相应 change 之前，不创建 change 目录、不修改实现，也不把本计划的完成勾选解释成真实模型已经可用。
+当前实现、契约、review、冻结 evidence、direct validator、主规格同步和 OpenSpec 归档已闭合。未经用户明确授权，不自动 commit、push、发布或启动 Phase 18。

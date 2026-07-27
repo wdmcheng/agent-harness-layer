@@ -175,11 +175,10 @@ def test_uv_acceptance_nodes_match_current_tests_and_policy() -> None:
 
 
 def test_dev_plan_reports_archived_uv_change() -> None:
-    """DEV-PLAN 顶部状态必须与 uv change 的最终归档位置一致。"""
+    """uv 版本策略 change 的归档合同只约束自身生命周期，不限制后续 active change。"""
 
     current = (ROOT / "DEV-PLAN.md").read_text(encoding="utf-8").split("## 剩余工作", 1)[0]
 
-    assert "当前无 active change" in current
-    assert "| 当前 OpenSpec change | 无 |" in current
+    assert "relax-release-uv-patch-range" not in current.split("当前 OpenSpec change", 1)[1]
     assert not (ROOT / "openspec/changes/relax-release-uv-patch-range").exists()
     assert (ROOT / "openspec/changes/archive/2026-07-23-relax-release-uv-patch-range").is_dir()

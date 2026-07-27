@@ -54,6 +54,7 @@ REQUIRED_PRODUCER_GATES = {
     "AC-070": frozenset({"lock", "install", "license", "release-dry-run", "test-aggregate"}),
     "AC-071": frozenset({"test-aggregate"}),
     "AC-072": frozenset({"test-aggregate", "release-dry-run"}),
+    "AC-089": frozenset({"test-aggregate"}),
 }
 REQUIRED_TEST_MAPPINGS = {
     "AC-003": frozenset(
@@ -200,6 +201,14 @@ REQUIRED_TEST_MAPPINGS = {
             "test_promotion_rebuilds_from_tag_and_registry_plans_only_formal_artifacts",
             "tests/contracts/test_release_preview_contracts.py::"
             "test_releasable_history_generates_explained_version_and_isolated_artifacts",
+        }
+    ),
+    "AC-089": frozenset(
+        {
+            "tests/contracts/test_typed_config_profiles_secret_files_contracts.py::"
+            "test_local_and_service_profiles_load_typed_settings",
+            "templates/service-app/tests/test_app_surface.py::"
+            "test_api_docs_can_be_disabled_without_reading_assets",
         }
     ),
 }

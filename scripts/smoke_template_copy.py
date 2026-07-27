@@ -251,9 +251,7 @@ def main() -> int:
             env=env,
         )
         if configured_docs.stdout.strip() != "configured-service-api-docs=enabled":
-            raise RuntimeError(
-                "copied service profile did not load API docs enablement from .env"
-            )
+            raise RuntimeError("copied service profile did not load API docs enablement from .env")
         _run(
             ["make", "test"],
             cwd=copied,
