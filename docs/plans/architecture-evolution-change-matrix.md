@@ -49,7 +49,7 @@ Phase 21 的只读 inventory 可以提早进行；写入型 change 默认等 Pha
 |---|---|---|---|---|---|---|---|---|---|---|
 | 17 | `architecture-governance-baseline`（非 OpenSpec 文档批次） | 冻结工程原则、贡献规则、living plan、handoff 与矩阵；同一 v1.20 修订补充 Phase 18.1 规划 | 无 | 工程原则、贡献流程、OpenSpec/Agent Pack 门禁语言 | 文档互链、事实优先级、状态语义、handoff 可恢复 | `docs/plans/architecture-evolution-*.md`；`docs/engineering-principles*.md`；`CONTRIBUTING*.md` 按本轮独立 owner 分配；Product Spec/DEV/API Contract 由主控整合 | 可做认知并行；写入必须按文件独占 | 当前工作树即可；无需为纯文档另开实现 worktree | 4-8 小时；Phase 18.1 规划补充另计本轮执行 | `已完成`；治理基线、Phase 18.1 规划与审查修订已落入 `4922784d`，不代表 checker 或模型能力已实现 |
 | 17.1 | `acceptance-criteria-identity-uniqueness` | 消除重复 `AC-070` 对 Spec、矩阵和 policy/checker 语义的覆盖，建立机械唯一性门禁和历史追溯 | Phase 17 文档冻结；用户已授权 | AC identity grammar、Product Spec、acceptance matrix、required producer/test policy | 每个 live AC identity 唯一；dependency lock 保留 `AC-070`，API docs 迁移为 `AC-089`，两者各自保留正确行为、producer、test 和 evidence；历史引用可追溯 | `Product-Spec.md`、`Product-Spec-CHANGELOG.md`、`DEV-PLAN.md`、`docs/acceptance-matrix.md`、`scripts/acceptance_matrix{,_policy}.py`、`tests/contracts/test_dependency_version_policy_contracts.py`、`tests/contracts/test_acceptance_identity_uniqueness_contracts.py` 与相关 contract tests；本计划/矩阵由主控同步 | 串行；不与会修改 Product Spec/验收矩阵的 change 并行 | 单一 worktree；禁止局部顺手重编号 | 2-5 小时 | `已归档`；TDD、冻结 evidence、direct validator、fresh review 与主规格同步已闭合，归档路径为 `openspec/changes/archive/2026-07-28-acceptance-criteria-identity-uniqueness/` |
-| 18 | `controlled-real-model-runtime` | 受控接入一个真实 text completion deployment，同时保留显式 fake 路径 | Phase 17 文档冻结并审查；Phase 17.1 已验证并归档；用户授权 | typed config、agent descriptor、`ModelRequest`/`ModelRoutePlan`/`ModelResponse`、budget/evidence、composition | deployment∩agent allowlist；请求只缩权；secret/endpoint/timeout/retry/bulkhead/price/capability；离线兼容与 opt-in smoke | `config/{schemas,settings,secret_files}.py`；`models/{providers,router,invocation}.py`；`adapters/models/pydantic_ai.py`；`runtime/services.py`；`registry/**`；profile/agent config；相关 tests/docs | **串行**。config/model/router/composition/tests/docs 全部共享 | 单一 worktree、单一 owner；禁止拆成并行 provider/config 子 change | 20-32 小时；真实 smoke 另 1-3 小时墙钟 | `计划`；目录未创建 |
+| 18 | `controlled-real-model-runtime` | 受控接入一个真实 text completion deployment，同时保留显式 fake 路径 | Phase 17 文档冻结并审查；Phase 17.1 已验证、提交并归档；用户已授权 | typed config、agent descriptor、`ModelRequest`/`ModelRoutePlan`/`ModelResponse`、model catalog、Policy/HITL continuation、budget/evidence、composition | deployment∩agent allowlist；请求只缩权；secret/endpoint/model-catalog/timeout/retry/bulkhead/price/capability；审批完整绑定与单次消费；离线兼容与 opt-in smoke | `config/{__init__,schemas,settings,secret_files,model_endpoints,model_catalog}.py`；`models/{__init__,providers,router,invocation,_invocation_settlement,usage,usage_events}.py`；`adapters/models/{fake,pydantic_ai}.py`；`policy/engine.py`；`audit/service.py`；`approvals/{service,_continuation}.py`；`runtime/{services,shared_budget,executor,continuation,_run_continuation}.py`；`storage/_shared_budget_repository_records.py`；`registry/**`；`contracts/boundaries.py`；`packages/agent-harness/src/agent_harness/{cli.py,cli_access.py,scaffold_templates.py,_scaffold_support.py}`；`packages/agent-harness/pyproject.toml`；`uv.lock`；`compliance/third-party.toml`；`templates/service-app/app/runtime.py`；profile/agent config；`scripts/{smoke_live_model.py,import_boundary_check.py,ci_evidence.py,acceptance_matrix_policy.py}`；`tests/contracts/test_controlled_real_model_config_contracts.py`；`tests/contracts/test_controlled_real_model_routing_contracts.py`；`tests/contracts/test_controlled_real_model_runtime_composition_contracts.py`；`tests/contracts/test_controlled_real_model_retry_budget_contracts.py`；`tests/contracts/test_controlled_real_model_budget_snapshot_contracts.py`；`tests/contracts/test_controlled_real_model_offline_contracts.py`；`tests/contracts/test_controlled_real_model_policy_approval_contracts.py`；`tests/contracts/test_agent_scaffold_validation_atomicity_contracts.py`；`tests/contracts/test_vendor_boundary_doctor_contracts.py`；`tests/contracts/test_dependency_version_policy_contracts.py`；`tests/contracts/test_license_dependency_contracts.py`；`tests/contracts/test_license_dependency_identity_contracts.py`；`tests/contracts/test_license_runtime_inventory_contracts.py`；`tests/integration/test_controlled_real_model_live_smoke.py`；`Makefile`；`.github/workflows/ci.yml`；`.gitlab-ci.yml`；`docs/acceptance-matrix.md`；`API-Contract.md` 与双语维护文档 | **串行**。config/model/router/fake+real adapter/vendor boundary/dependency+license/policy/approval/settlement/shared-budget/storage validator/scaffold/composition/CLI/template/CI/tests/docs 全部共享；现有 API/worker/eval caller 继续复用 `RuntimeComponents.close()`，若红灯要求修改其入口或其他 repository，先扩充契约并重新 review | 单一 worktree、单一 owner；禁止拆成并行 provider/config/dependency/scaffold/policy/approval/settlement/storage/CLI/CI 子 change | 20-32 小时；真实 smoke 另 1-3 小时墙钟 | `契约修订待重审`；第四轮 fresh Reviewer 1 已确认行为契约覆盖完整，唯一 1 HIGH 为审后 scoped 本地提交的新授权与旧禁止 commit 文字冲突，当前已统一；必须重新 strict/diff/hash 并从新的 Reviewer 1 重启，Reviewer 1 PASS 后才并行 Reviewer 2/3，三者全部 PASS 后本会话只创建 scoped 契约提交，红灯与实现移交新会话 |
 | 18.1 | `controlled-model-streaming` | 在 Phase 18 route/provider lifecycle 上生产有界、可持久化、可恢复的 provider-neutral 普通文本增量，复用既有 RUN-006/CLI reader | Phase 17.1 与 Phase 18 已验证、fresh review、同步并归档；用户授权 | provider stream protocol、route/attempt、CanonicalEvent、event capacity/outbox、usage/budget settlement、RUN-006/CLI committed reader | bounded delta/coalescing；稳定 chunk identity；跨 chunk 安全；completed/usage/terminal 顺序；reader 断线不取消 run；取消/unknown 不重试不记零；Last-Event-ID 不重放 provider；offline/live 时延证据 | `models/{providers,router,invocation,_invocation_settlement,usage_events}.py`；Pydantic AI/fake adapter；`events/{capacity,bus}.py`；event/usage/evidence repositories 与 local/PostgreSQL sinks；runtime composition；API Contract；model/capacity/recovery/SSE/CLI tests/docs；migration 仅在 design 证明需要时纳入 | **串行**。provider、event capacity、settlement、recovery、tests/docs 是同一安全不变量 | 单一 worktree、单一 owner；只读威胁建模可并行，禁止把 stream adapter 与 capacity/outbox 拆开写 | 20-30 小时；若需 migration 暂按 24-36 小时；live smoke 另 1-3 小时墙钟 | `计划`；目录未创建 |
 | 19 | `provider-neutral-structured-output` | 增加稳定 schema identity、结构化结果、验证与失败语义，不泄漏 SDK 类型 | Phase 18.1 已验收并归档 | Phase 18/18.1 route/provider/result seam；`ModelRequest`/`ModelResponse`；agent input/output schema refs；usage/evidence | text/non-stream 兼容；schema invalid/unsupported/repair exhausted 可追踪；修复尝试受预算和次数约束；structured streaming 仍非目标 | `models/providers.py`、新的 structured DTO/service、Pydantic AI adapter、registry schema refs、contract/eval tests、相关 docs | 串行；与 Phase 18/18.1 不并行 | 从 Phase 18.1 归档 HEAD 新开 worktree；不得在旧基线开发 | 16-28 小时 | `计划` |
 | 20A | `provider-neutral-tool-call-contract` | 模型只产出稳定 tool intent；完成参数 schema/来源校验但不执行工具 | Phase 19 已归档 | structured result、tool intent DTO、`ToolRegistry` metadata、CanonicalEvent | provider SDK tool-call 不外泄；未知工具/无效参数零工具副作用 | model/tool DTO、adapter normalization、`tools/registry.py` 只读/解析 seam、events/tests/docs | 与 20B/20C 串行；认知调查可并行 | 独立 worktree可以，但只能在 Phase 19 新 HEAD 上；同一时刻不启动 20B | 8-12 小时 | `计划` |
@@ -63,6 +63,31 @@ Phase 21 的只读 inventory 可以提早进行；写入型 change 默认等 Pha
 | 21E | `architecture-checker-expansion` | 把已稳定且可机械判断的层依赖、public/internal seam、vendor/ORM/config 规则逐条接入 checker/contract/CI | 21-0；相关边界 change 已稳定 | import boundary declarations、checker diagnostics、CI required jobs | 新规则有稳定正反例；既有合法路径不误报；无法稳定机械判断的规则仍留在 review checklist | `scripts/import_boundary_check.py` 或独立 checker、contract fixtures、CI/Make 入口、维护文档 | 可与无共享规则/fixture/CI owner 的行为 change 做认知并行；集成写入串行 | 默认由主控集成；每批只加入一个可解释规则族 | 10-18 小时 | `计划` |
 
 ## 4. 首个 Change 的串行边界
+
+### 4.0 Phase 18 async 协议既有测试所有权补充
+
+Phase 18 把公共 `ModelProvider.complete()`、`ModelRouter.execute()`、兼容入口 `ModelRouter.route()` 与 fake provider 迁移为 async seam；`route()` 只允许 plan 后 `await execute()`，不得引入同步桥接。除第 3 节 Phase 18 行已列的新增测试外，同一 change 的单一 owner 还精确拥有以下既有同步 provider doubles、同步 Pydantic AI adapter seam、直接 adapter callers 或 route caller：
+
+- `tests/contracts/agent_delegation_service_runtime_test_support.py`
+- `tests/contracts/test_embedding_usage_lifecycle_contracts.py`
+- `tests/contracts/test_model_usage_idempotency_contracts.py`
+- `tests/contracts/test_model_usage_invocation_contracts.py`
+- `tests/contracts/test_model_usage_local_capacity_contracts.py`
+- `tests/contracts/test_model_usage_postgresql_concurrency_contracts.py`
+- `tests/contracts/test_model_usage_recovery_contracts.py`
+- `tests/contracts/test_model_usage_runtime_composition_contracts.py`
+- `tests/contracts/test_shared_parent_budget_invocation_contracts.py`
+- `tests/contracts/test_usage_execution_authority_contracts.py`
+- `tests/contracts/test_usage_identity_boundary_contracts.py`
+- `tests/contracts/test_usage_invalid_provider_result_contracts.py`
+- `tests/contracts/test_agent_registry_adapter_error_contracts.py`
+- `tests/contracts/test_pydantic_ai_usage_validation_contracts.py`
+- `tests/contracts/test_model_usage_provider_adapter_contracts.py`
+- `tests/contracts/test_agent_registry_router_model_contracts.py`
+- `tests/integration/test_service_approval_delegation_contracts.py`
+- `tests/integration/test_service_delegation_ordering_resume_contracts.py`
+
+这些文件只允许为 async/await 协议迁移及保持原有断言语义而修改，不能借机弱化预算、恢复、usage、错误或 delegation 合同。实现必须先观察 coroutine/await、`Agent.run()` 或 deadline 合同不匹配的可解释红灯，再迁移 doubles/callers；`test_model_usage_provider_adapter_contracts.py` 的同步 helper/agent 替身迁移必须保留 timeout secret 脱敏、成功 usage 持久化与 missing-usage 断言。静态扫描或红灯若证明还有第 19 个未列既有测试必须修改，先停止实现，更新 proposal/design/tasks/本矩阵并重新完成契约 `1+2` review，不能用“相关测试”扩权。
 
 `controlled-real-model-runtime` 不允许按“配置组、provider 组、测试组”拆为并行 worktree，原因是它们共同决定同一个安全不变量：
 
@@ -172,7 +197,7 @@ RUN-006 / CLI reader 可以保持独立的 transport seam，但其 contract test
 
 1. 只把有证据的行推进一个状态；
 2. 更新直接依赖、共享 seam、验收和文件集的任何变化；
-3. 记录 external-blocked，而不是把未跑的真实 smoke记成通过；
+3. Phase 18 非流式 smoke 缺授权、opt-in、隔离 credential 或受信 endpoint 任一前置时保持零调用并记录 hosted-unverified/CI skipped；仅当前置完整且已授权后发生网络、配额或 provider 故障时记录 external-blocked，二者都不得记成通过；
 4. 把下一 owner、下一文件和下一门禁同步回上位计划的 Handoff Snapshot。
 
 如果 change 产生了超出矩阵的共享接口、验收或文件，立即停止并行写入，先更新 proposal/design、本矩阵和 review 范围。任何 post-review 实质 diff 都使旧 verdict 失效。
@@ -182,7 +207,7 @@ RUN-006 / CLI reader 可以保持独立的 transport seam，但其 contract test
 1. Phase 17.1 已同步主规格并归档：dependency lock 保留 `AC-070`，API docs 迁移为 `AC-089`，全局唯一性 checker、独立 policy、矩阵与 changelog 已闭合，历史 archive 未被改写。
 2. fresh 实现 review 已复用冻结验证证据完成静态审查，Stage 1/2 PASS；状态类 artifact finding 的用户 `owner-waived` 仍不写成 artifact reviewer PASS。
 3. 实现冻结 identity `8789075d…42d15` 下 18 个 CI producer gate 全部 PASS；`test-aggregate` 为 `1352 passed, 223 skipped`，direct validator 为 `98/98`，strict validation 与 `git diff --check` PASS；完成状态记录按 owner 裁决不重跑 evidence。
-4. 当前唯一动作是由 owner 决定是否创建 scoped local commit；未经授权不 commit、push，也不创建 Phase 18 change。
-5. scoped local commit 收口后，才由用户决定是否授权 `controlled-real-model-runtime`；Phase 18 完成并归档且再次授权后才创建 `controlled-model-streaming`。
+4. Phase 17.1 已由 `2e91771` 提交；用户已授权 Phase 18。active change `controlled-real-model-runtime` 已先后补齐 policy/approval-before-reservation、受信 endpoint/model catalogs、shared-budget storage validator、既有耐久审批 continuation 与精确红灯所有权；第五轮 fresh Reviewer 1 按用户裁决忽略不影响实现的旧提交状态措辞，只发现 cost-disabled route 的 API 价格来源可空语义与 OpenSpec 冲突，当前已统一为价格、来源与 cost bounds 成组为 null。唯一动作是重跑 strict/diff、冻结哈希并派新的 fresh Reviewer 1；其 Stage 1/2 PASS 后才并行派 Reviewer 2/3，三者必须全部 PASS。全员通过后本会话只创建一次 scoped 契约提交，红灯与生产实现移交新会话。
+5. Reviewer 1 先 PASS、随后并行的 Reviewer 2 与 3 也全部 PASS 前不创建提交；三者全员 PASS 后只创建一次 scoped 本地契约提交。本轮不写红灯或生产实现，不执行其他 commit、push、发布、部署、调用真实 provider、sync 或 archive。Phase 18 后续实现与归档由新会话继续，完成并归档且再次授权后才创建 `controlled-model-streaming`。
 
 当前不存在可并行启动的实现 change。

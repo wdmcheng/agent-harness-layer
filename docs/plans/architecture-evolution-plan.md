@@ -4,7 +4,7 @@
 >
 > 首次冻结：2026-07-27
 >
-> 当前状态：Phase 17.1 已完成 TDD、冻结 evidence、direct validator、fresh review、主规格同步与 OpenSpec 归档；尚未 commit
+> 当前状态：Phase 17.1 已由 `2e91771` 提交并归档；Phase 18 重启后 Reviewer 3 发现同步 Pydantic AI adapter seam 的既有 provider-adapter contract 未纳入 async 迁移，当前已补为第 18 个精确测试 owner；本次实质 diff 使旧 verdict 失效，随后从新的 Reviewer 1 重启全员通过的 `1+2` 门禁
 >
 > 配套矩阵：[`architecture-evolution-change-matrix.md`](architecture-evolution-change-matrix.md)
 
@@ -28,15 +28,15 @@
 |---|---|
 | 快照日期 | 2026-07-28 |
 | 分支 | `develop` |
-| 冻结基线 HEAD | `4922784d0057eace1966e5d25c5ba27e81012a9f`（`docs: 建立架构演进治理基线`） |
-| 基线工作树 | Phase 17.1 开始前 `git status --short` 无输出 |
-| 当前 Git 事务 | 用户已授权并完成 Phase 17.1；当前 diff 治理 live AC identity、验收矩阵、policy/checker、合同测试、历史追溯、主规格同步与归档状态，不包含 Phase 18、commit 或 push |
-| OpenSpec | `acceptance-criteria-identity-uniqueness` 的 tasks `9/9`，已同步 `dual-ci-acceptance-evidence` 主规格并归档到 `openspec/changes/archive/2026-07-28-acceptance-criteria-identity-uniqueness/`；当前无 active change |
+| 冻结基线 HEAD | `2502fe7b7d10b1c461664213671de0c8ef757eb6`（`chore(agent-pack): 同步验证证据复用规则`） |
+| 基线工作树 | 2026-07-28 Phase 18 启动前 `git status --short` 无输出 |
+| 当前 Git 事务 | Phase 17.1 已由 `2e91771` 原子提交；用户已通过 `/goal` 授权 Phase 18，当前重冻结既有聚焦 OpenSpec 契约与状态真相，未修改生产代码、测试或配置 |
+| OpenSpec | `acceptance-criteria-identity-uniqueness` 的 tasks `9/9`，已同步 `dual-ci-acceptance-evidence` 主规格并归档到 `openspec/changes/archive/2026-07-28-acceptance-criteria-identity-uniqueness/`；当前 active change 为 `controlled-real-model-runtime`，中文 artifacts 已形成冻结候选并通过 strict validation，契约 review 尚未通过 |
 | 已完成历史 | Phase 1-16 已归档；归档事实以 Git、`openspec list --json` 和归档目录为准 |
-| 当前阶段 | Phase 17.1 已完成并归档；TDD 红绿闭环、live identity/policy/matrix/changelog 迁移、冻结 evidence、direct validator、fresh 实现 review 与主规格同步均已完成 |
+| 当前阶段 | Phase 18 契约冻结阶段；重启后的 Reviewer 3 发现 `test_model_usage_provider_adapter_contracts.py` 仍依赖将删除的 `run_sync/_run_sync_with_timeout` seam，当前已补为第 18 个精确测试 owner并冻结原脱敏/usage 断言；红灯测试与生产实现尚未开始 |
 | 前两项预定生产行为 change | 先 `controlled-real-model-runtime`，其完成并归档后再 `controlled-model-streaming`；两者都必须在 Phase 17.1 完成并归档后分别获得授权 |
-| 当前阻塞 | 无实现、验收或 OpenSpec 生命周期阻塞；当前仅等待用户是否授权 scoped local commit |
-| 明确未做 | 尚未执行本地提交；未接入真实模型；RUN-006 仍只是 committed CanonicalEvent reader；未实现 provider 文本增量 producer、structured output、tool loop 或多 provider 运维 |
+| 当前阻塞 | 契约 `1+2` review 尚未通过；旧 Reviewer 1/2 曾对上一哈希 PASS，但重启后的 Reviewer 3 以 1 HIGH 发现第 18 个 async 测试所有权缺口。当前修订是实质 diff，旧 verdict 全部失效；必须重冻结并从新的 Reviewer 1 开始，Reviewer 1 PASS 后才可并行 Reviewer 2/3，三者必须全部 Stage 1/2 PASS |
+| 明确未做 | Phase 18 fresh 契约 review 尚未 PASS，尚未建立红灯合同或生产实现；未接入真实模型；尚未执行已条件授权的 scoped 本地契约提交，也未执行其他 commit、真实 provider 调用、push、发布、部署、sync 或 archive；RUN-006 仍只是 committed CanonicalEvent reader |
 
 `DEV-PLAN.md` 顶部已在本轮按当前 Git/OpenSpec 事实同步到 Phase 17，并保留 Phase 1-16 的历史阶段内容。后续 Agent 仍须按恢复顺序重新核对当前磁盘、Git 与 OpenSpec，不能把任一文档状态块当作无需验证的运行时事实。
 
@@ -93,13 +93,13 @@
 
 ### 4.2 本轮非目标
 
-本轮是 Phase 17.1 验收 identity 治理。TDD、冻结 evidence、direct validator、fresh 实现 review、主规格同步与归档已完成；当前只等待 scoped local commit 授权，不做以下事项：
+本轮是已获授权的 Phase 18 `controlled-real-model-runtime` 契约收口，Phase 17.1 已完成 scoped local commit。当前只完成变更契约全票 1+2 审查，并在全员 PASS 后创建一次 scoped 本地契约提交；TDD 与受控真实非流式文本模型 runtime 实现移交新会话。本轮不做以下事项：
 
-- 不修改 `packages/`、`templates/`、runtime、CI workflow 或配置样例；既有 dependency 与 API docs 行为测试只作为回归证据。
-- 不创建 `controlled-real-model-runtime`、`controlled-model-streaming` 或其他 Phase 18+ 实现型 OpenSpec change，不把 fake-only 基线描述成真实模型已可用。
+- 不创建或实现 `controlled-model-streaming` 或其他 Phase 18.1+ change，不把非流式基线描述成 streaming 已可用。
+- 不夹带 structured output、tool loop、多 provider 运维控制面、Vault/KMS、依赖升级或无契约依据的大重构。
 - 不同步或归档 OpenSpec 主规格，不改写 `openspec/changes/archive/` 的历史事实。
 - 不改写 `DEV-PLAN.md` 的 Phase 1-16 历史交付与证据；仅为避免历史快照冒充当前状态而补充明确的时间限定。
-- 不执行 commit、push、发布、部署或真实 provider 调用；后续任何本地提交、sync 或 archive 都需要用户另行明确授权。
+- 除上述已条件授权的一次 scoped 本地契约提交外，不执行其他 commit、push、发布、部署或真实 provider 调用；后续实现提交、sync 或 archive 都需要用户另行明确授权。
 
 ### 4.3 Phase 18 的硬性非目标
 
@@ -189,11 +189,12 @@ Phase 17.1 开始前的重复 `AC-070` 已由独立窄 change `acceptance-criter
 - 稳定 `deployment_id` 与 `provider_kind`；
 - deployment 级 allowed/default/fallback models；
 - endpoint/base URL policy，包括 HTTPS、host allowlist、credential forwarding 和显式 loopback 例外；
+- endpoint policy 绑定的可选 completion classifier identity；默认/官方 endpoint 未绑定时 response retry 集合为空；
 - `credential_ref`，以及 direct env / `_FILE` 的受控解析；
 - connect/read/total timeout；
 - 有界 retry/backoff 和不可重试/结果未知分类；
 - concurrency limit / bulkhead；
-- price catalog reference 与 version；
+- 受信 model catalog reference/version/digest、request-shape、输入上界与 price source；deployment 只引用，不自证 envelope/价格；
 - capability flags，首 change 只允许 text completion。
 
 **路由与执行顺序**
@@ -201,17 +202,19 @@ Phase 17.1 开始前的重复 `AC-070` 已由独立窄 change `acceptance-criter
 1. 从 profile、agent descriptor 与 typed settings 解析 deployment。
 2. 计算 deployment allowlist 与 agent allowlist 的交集。
 3. 用请求进行缩权选择；任何扩大或未知值在零 provider 副作用时失败。
-4. 冻结 `ModelRoutePlan`，包含 endpoint、credential ref identity、capabilities、价格、timeout/retry 与 model。
-5. 完成 hard eligibility、soft policy/fallback/approval 以及共享预算预约。
-6. 构造受控 provider client，执行一次文本调用。
-7. 归一化 text、usage、cost、latency、attempt 和错误 evidence，完成结算；原始 SDK 对象不外泄。
+4. 通过受信 endpoint/model catalogs 冻结 `ModelRoutePlan`，包含 endpoint、credential ref identity、model catalog ref/version/digest、request-shape、输入上界/价格、completion classifier identity、capabilities、timeout/retry 与 model，并完成 prompt/output/strategy/price/公式等动态 hard eligibility；失败时 reservation/client/network 均为零。
+5. 用 bound execution identity 执行 exact `PolicyCheck(action=model.invoke, resource=agent:<agent_id>:model)` 并由既有 `AuditService` 写 `policy.decision`。Deny 或等待既有 `policy_approval` checkpoint/ApprovalRecord 时 reservation/permit/client/mark/network 均为零；获批 continuation 必须验证全绑定、单次 lease并重新检查 hard route/catalog/current owner balance。
+6. Policy 允许或有效审批 continuation 通过后，建立共享预算/settlement reservation，再取得 deployment Bulkhead permit；此时仍未构造真实 client、未写 durable mark、未联网。Policy audit 只证明原始 decision，不证明 provider 已开始。
+7. 从 composition 注入的 lazy factory 获取或构造绑定 frozen route 的 client lease；构造不得联网，失败按 not-started 回滚 reservation/permit，mark/network delta 均为零。
+8. Client lease 成功后提交 durable `side_effect_started`，最后 adapter send；重试复用同一 reservation/permit/client lease/mark。只有 endpoint policy/version 绑定受信 completion classifier 且 exact signal 为 not-started 时才允许 429/5xx response retry，否则 unknown/no-retry。
+9. 归一化 text、usage、cost、latency、attempt 和错误 evidence，完成结算；原始 SDK 对象不外泄。
 
 **关键兼容要求**
 
 - 现有 fake tests、eval 和 local smoke 不需要真实 credential。
 - 真实 provider 配置无效时 application startup fail closed；不能到第一次 run 才隐式猜配置。
 - 真实 provider 失败不能自动切 fake。配置的 fallback 只能来自冻结 allowlist，并重新走预算/策略判断。
-- provider smoke 必须显式 opt-in；缺 credential 或网络时记录 `external-blocked`，不能伪造 PASS，也不能让默认离线 CI 失败。
+- provider smoke 必须显式 opt-in；缺本会话授权、opt-in、隔离 credential 或受信 endpoint 时记录 `hosted-unverified` 并保持零调用；仅在已授权且本地条件完整后发生外部网络/provider 阻断时记录 `external-blocked`。两者都不能伪造 PASS，默认离线 CI 以 skipped evidence 记录 hosted-unverified。
 - 如果 total timeout 到达但 SDK 调用无法确认取消，状态必须表达副作用未知，并禁止自动重试。
 
 **预计核心文件面**
@@ -221,6 +224,7 @@ Phase 17.1 开始前的重复 `AC-070` 已由独立窄 change `acceptance-criter
 - `packages/agent-harness/src/agent_harness/adapters/models/pydantic_ai.py`
 - `packages/agent-harness/src/agent_harness/runtime/services.py`
 - `packages/agent-harness/src/agent_harness/registry/{descriptor.py,_loader.py,registry.py}`
+- `packages/agent-harness/src/agent_harness/{scaffold_templates.py,_scaffold_support.py}` 与 `tests/contracts/test_agent_scaffold_validation_atomicity_contracts.py`
 - `templates/service-app/configs/profiles/**`、`templates/service-app/agents/**/config.yaml`、`.env.example`
 - 对应 contract/integration/smoke tests 与维护文档
 
@@ -229,7 +233,7 @@ Phase 17.1 开始前的重复 `AC-070` 已由独立窄 change `acceptance-criter
 - OpenSpec proposal/spec/design/tasks 严格校验通过，并经 fresh code-reviewer Stage 1/2 PASS 后才开始实现。
 - 先有失败的配置、越权、endpoint、timeout/retry、预算和 adapter regression，再实现。
 - `make quality`、相关 contract/integration tests、`make smoke-local` 通过；如果触及 service composition，再跑 `make smoke-service`。
-- 至少一个真实 provider opt-in smoke 在有凭据/网络时有去敏证据；无外部条件时明确保持 external-blocked，不据此宣称真实端到端已验证。
+- 至少一个真实 provider opt-in smoke 在四项前置齐全且另行授权时有去敏证据；任一前置缺失时唯一保持 hosted-unverified/CI skipped，条件齐全后发生外部阻断才记 external-blocked，均不据此宣称真实端到端已验证。
 - 代码审查确认首 change 没有夹带 structured output、tool loop、streaming 或多 provider 运维。
 
 **Codex 执行时间估计**
@@ -273,7 +277,7 @@ Phase 17.1 开始前的重复 `AC-070` 已由独立窄 change `acceptance-criter
 - Phase 17.1 与 Phase 18 均已验证、fresh review、同步并归档；`controlled-model-streaming` 的中文 proposal/spec/design/tasks 与先行 API/event contract 通过 strict + fresh Stage 1/2 review。
 - AC-085 至 AC-088 先有 local/真实 PostgreSQL red contracts，再实现；未修复 AC identity 唯一性前不得写入假 acceptance mapping。
 - 正常、跨 chunk secret、容量耗尽、storage 慢、显式取消/deadline、unknown、reader 断线/重连、crash recovery 与终态 fencing 全部有证据。
-- 默认 fake/local/CI 不触网；真实 streaming smoke 只在显式授权和隔离凭据下运行，缺外部条件保持 external-blocked。
+- 默认 fake/local/CI 不触网；真实 streaming smoke 也继承 Phase 18 的四前置状态机：缺本会话授权、opt-in、隔离 credential 或受信 endpoint 任一项时保持零调用并记录 hosted-unverified/CI skipped；仅在前置完整且已授权后发生网络、配额或 provider 故障时记录 external-blocked。
 - fresh 实现审查确认没有夹带任何非目标；实质修订后重新从 Stage 1 审查。
 
 **Codex 执行时间估计**
@@ -400,8 +404,58 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 
 ### Phase 18
 
-- [ ] 用户明确授权创建 `controlled-real-model-runtime`。
-- [ ] 创建中文 proposal/spec/design/tasks，严格校验并通过 fresh 变更契约审查。
+- [x] 2026-07-28：用户通过 `/goal` 明确授权 Phase 18；在 `develop@2502fe7b7d10`、clean worktree、无 active change 的基线上开始单 owner 串行恢复与契约起草。
+- [x] 2026-07-28：创建 active change `controlled-real-model-runtime`，完成中文 proposal/spec/design/tasks 并通过 strict validation；这只证明契约可解析，不代表契约 review 或实现完成。
+- [x] 2026-07-28：修复上一轮状态真相、live smoke 状态与 retry status 的 3 项 MEDIUM并重新 strict；随后 fresh Reviewer 1 发现 reservation/provider cap、provider identity、Phase 18.1 smoke 状态和 handoff 真相 1 HIGH / 3 MEDIUM，未进入 Stage 2。
+- [x] 2026-07-28：补齐输入上界、output cap 强制、token/cost 公式、唯一 provider identity 和后继 smoke 状态，并同步当前 handoff；修订候选重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 发现锁定 OpenAI SDK 仍检查 ambient identity/header env，且动态预算拒绝早于 client 构造与 startup 预构造 client 相冲突；Stage 1 以 2 HIGH FAIL，未进入 Stage 2。
+- [x] 2026-07-28：改为不修改进程环境的私有 lazy client factory + 出站 header/origin allowlist transport；动态 hard eligibility 失败固定 reservation/client/network 三类计数为零，合法 route 在 reservation/permit 后才获取 client lease；修订候选重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 发现跨 artifacts 未完整固定 client lease → 当时拟引入的独立授权记录顺序、`completion_observed=false` 缺少可信生产来源，且 change matrix 漏列 CLI/CI/lifecycle ownership；Stage 1 以 2 HIGH / 1 MEDIUM FAIL，未进入 Stage 2。
+- [x] 2026-07-28：补入 endpoint policy 绑定的 `trusted_response_header_not_started/v1`、原始单值 header 判定与默认 endpoint 禁止 response retry；同步逐边界顺序、snapshot/evidence identity、冻结测试节点及 CLI/CI/lifecycle 所有权，修订候选重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 确认行为契约已闭合，但发现矩阵/proposal 未精确列出 shared-budget、settlement helper、公共 exports 与独立 live-smoke 脚本；Stage 1 以 1 MEDIUM FAIL，未进入 Stage 2。
+- [x] 2026-07-28：补齐 `runtime/shared_budget.py`、`models/_invocation_settlement.py`、config/model exports 与 `scripts/smoke_live_model.py` 的独占所有权，并明确现有 API/worker/eval caller 继续复用 `RuntimeComponents.close()`；若红灯要求修改入口或 repository，必须先扩充契约并重新 review。修订候选重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 确认其余契约与所有权闭合，但 `adapters/models/fake.py` 未精确纳入 async provider 迁移范围；Stage 1 以 1 MEDIUM FAIL，未进入 Stage 2。
+- [x] 2026-07-28：在 proposal/design/tasks/change matrix 与长期所有权规则中逐字补入 `adapters/models/fake.py`；修订候选重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 发现 `openai` 尚未进入公共 banned vendor 集合，且 `contracts/boundaries.py`、`scripts/import_boundary_check.py` 与 checker regression 未纳入冻结所有权；Stage 1 以 1 HIGH FAIL，未进入 Stage 2。
+- [x] 2026-07-28：把 vendor boundary 声明、通用 import checker 与 `test_vendor_boundary_doctor_contracts.py` 纳入 proposal/design/tasks/change matrix 和长期所有权，并要求先建立 `openai` 越界导入红灯；修订候选重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 发现现有 boundary 按任意 `adapters`/`integrations` 路径片段放行，模板 app 或业务 Agent 可用误导性同名子目录绕过；Stage 1 以 1 HIGH FAIL，未进入 Stage 2。
+- [x] 2026-07-28：把允许范围冻结为仓库相对前缀 `packages/agent-harness/src/agent_harness/adapters/`，明确当前没有额外 integration root，并在 spec/design/tasks 中要求模板 Agent `adapters` 与 template app `integrations` 伪造路径负向回归；修订候选重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 发现生产 adapter 直接构造 `AsyncOpenAI`，但 `openai` 只作为传递依赖存在，且直接 dependency、lock 关系、license policy 与 build/license 验证未冻结；Stage 1 以 1 MEDIUM FAIL，未进入 Stage 2。
+- [x] 2026-07-28：选择把当前 lock 已有 `openai==2.44.0` 提升为核心 `openai>=2.44.0,<3` 直接依赖，不改变 207 项 package identity；纳入 core pyproject、uv.lock、Apache-2.0 third-party policy、dependency/license contracts、`uv lock --check`、build 与 license gate。修订候选重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 发现 ready-to-archive 验证未显式运行独立 `make eval`，且 durable mark 前取消的确定性回滚、`model.invocation_cancelled` 与 source link 未完整进入 OpenSpec；Stage 1 以 2 MEDIUM FAIL，未进入 Stage 2，Reviewer 2/3 未派发。
+- [x] 补齐上述两项契约并重新 strict validation PASS，随后从新的 fresh Reviewer 1 重启全员通过的 `1+2` 门禁。
+- [x] 2026-07-28：新一轮 Reviewer 1 Stage 1/2 PASS 后才并行派 Reviewer 2/3；Reviewer 3 Stage 1/2 PASS，但 Reviewer 2 因本 change 新增的 `API-Contract.md` 正文以 `Phase 18/18.1` 限定长期语义而以 1 MEDIUM Stage 2 FAIL，因此三人全员门禁未通过，未进入红灯或实现。
+- [x] 将上述四处开发阶段标签改为稳定的受控真实非流式文本能力、`MOD-002` seam 与受控增量文本流契约措辞，并重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 确认 API Contract 新增行已清除开发阶段叙事，但发现 `typed-config` 两处与 `agent-registry-model-context` 一处拟同步 requirement 仍用 `Phase 18` 限定稳定 strategy/classifier/provider identity；Stage 1 PASS、Stage 2 以 1 MEDIUM FAIL，Reviewer 2/3 未派发。
+- [x] 将三处 delta requirement 改为受控真实非流式文本能力或 `MOD-002` seam 措辞，并重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 在 Stage 1 PASS 后发现拟同步 budget snapshot requirement 仍写 `P0 delegation targets`；该优先级标签不是稳定协议/领域标识，Stage 2 以 1 MEDIUM FAIL，Reviewer 2/3 未派发。
+- [x] 将 `P0 delegation targets` 改为稳定的单层 delegation targets 能力措辞；三份 delta 的 `P0/P1/Phase N` 扫描为空，重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 发现每个 Agent config 新增必填 `deployment_id`/`allowed_models` 后，现有 `scaffold_templates.py` 仍生成旧字段，且 `_scaffold_support.py`、正式 Registry/离线运行回归及文件所有权未进入契约；Stage 1 以 1 MEDIUM FAIL，Reviewer 2/3 未派发。
+- [x] 纳入 scaffold 生产生成器、验证支持与聚焦 contract，冻结 `fake_default`/`fake-scaffold`、正式 Registry 和离线 runtime 行为，并重新 strict validation PASS。
+- [x] 2026-07-28：下一轮 fresh Reviewer 1 发现 `API-Contract.md` 的 `examples.basic` descriptor 仍使用 `fake_local`，与 canonical `fake_default` 冲突；同时 `DEV-PLAN.md` Phase 18 章节状态仍停在更早 `openai` 直接依赖审查轮次。Stage 1 以 2 MEDIUM FAIL，Reviewer 2/3 未派发。
+- [x] 统一 API descriptor 为 `fake_default`，同步 DEV-PLAN Phase 18 章节状态，并重新 strict validation PASS。
+- [x] 2026-07-28：尝试为上述冻结候选创建新的 fresh Reviewer 1，首次派发及三次 10 秒间隔重试均返回 `agent thread limit reached`；按容量门禁停止，不复用旧 reviewer、不派 Reviewer 2/3、不进入红灯或实现。
+- [x] 2026-07-28：同一容量阻塞连续三个目标轮次复现；每轮均在首次失败后只做三次 10 秒间隔重试。按目标门禁将本目标标记为阻塞，保留当前契约候选，不把用户关于审查全票规则的纠正写入进化信号。
+- [x] 2026-07-28：在新 session 重新核对 `develop@2502fe7b7d10`、唯一 active change、空进化队列、完整上游/契约原文与 CodeGraph 当前源码；上一 session 的容量阻塞仅保留为历史状态，本 session 从重冻结与 fresh Reviewer 1 重新开始。
+- [x] 2026-07-28：fresh Reviewer 1 Stage 1 以 2 HIGH / 1 MEDIUM FAIL：执行顺序漏掉 reservation 前的 soft policy/fallback/approval、受信 endpoint policy/default catalog 来源未定义、`budget-tree-v2` 共用 storage validator 未纳入所有权；Stage 2 未执行，Reviewer 2/3 未派发，未进入红灯或实现。
+- [x] 2026-07-28：按上游 REQ-012/BGT-001 修正 hard eligibility → soft policy/fallback/approval → reservation 顺序并新增零副作用红灯；新增 typed endpoint policy mapping、版本化只读 default catalog 与 unknown/mismatch fail-closed 节点；把 `_shared_budget_repository_records.py` 和共用 validator contract 纳入串行所有权。
+- [x] 2026-07-28：第二轮 fresh Reviewer 1 Stage 1 以 2 HIGH / 2 MEDIUM FAIL：deployment 仍能自证模型输入上界/价格；approval 只有顺序文字而没有复用既有耐久 continuation 的正向合同；当时拟引入的独立授权记录无权威定义；change matrix 未逐文件列出全部冻结红灯。Stage 2 未执行，Reviewer 2/3 未派发。
+- [x] 2026-07-28：新增受信 typed model catalog、canonical digest、cost-disabled null 语义与 `config/model_catalog.py` owner；把 exact PolicyCheck、`policy.decision` audit、既有 checkpoint/ApprovalRecord/resolution lease/ApprovalGrant/approved continuation 的完整绑定、hard balance 重检、单次调用与 replay fail-closed 写入 API/OpenSpec；删除执行链中的独立 provider authorization evidence，并逐项列明冻结测试文件。
+- [x] 2026-07-28：第三轮 fresh Reviewer 1 Stage 1 以 1 HIGH / 2 MEDIUM FAIL：契约误写不存在的 `approval.requested`、client factory 场景标题仍暗示独立授权步骤、change matrix 当前下一动作停在第一轮。Stage 2 未执行，Reviewer 2/3 未派发。
+- [x] 2026-07-28：将审批证据统一为现有 `approval.required|resolved`，把场景标题改为“不伪造 provider started”，同步矩阵下一动作；用户将本会话范围收窄为契约全员 review 后创建一次本地提交，TDD 红灯与生产实现移交新会话。
+- [x] 2026-07-28：第四轮 fresh Reviewer 1 确认全部行为契约映射 PASS，但因 proposal/tasks/DEV/living plan/matrix 仍有旧“本轮不 commit”文字，与用户新授权的一次审后 scoped 契约提交冲突，Stage 1 以 1 HIGH FAIL；Stage 2 未执行，Reviewer 2/3 未派发。
+- [x] 2026-07-28：统一授权边界：仅在契约严格 `1+2` 全员 Stage 1/2 PASS 后创建一次 scoped 本地契约提交；不授权红灯、生产实现、其他 commit、push、sync/archive、部署或真实 provider。
+- [x] 2026-07-28：第五轮 fresh Reviewer 1 按用户裁决忽略不影响实现的旧提交状态措辞，只以 1 HIGH 指出 API Contract 把 route ref/version 概括为必填，却未为 cost-disabled 的 `price_source_ref/version=null` 声明例外；Stage 2 未执行，Reviewer 2/3 未派发。
+- [x] 2026-07-28：统一 API/OpenSpec/design/tasks：cost enabled 时价格与非空 price-source identity 成组存在；cost disabled 时两项价格、price-source identity、静态/动态 cost bounds 与 cost reservation 成组为 null，token 维度继续执行。
+- [x] 2026-07-28：第六轮 fresh Reviewer 1 确认第五轮 cost-disabled finding 已闭合，但以 1 HIGH 指出 async provider 协议迁移必然影响的 16 个既有同步 provider doubles / 直接 adapter callers 未进入精确测试文件所有权；Stage 2 未执行，Reviewer 2/3 未派发。
+- [x] 2026-07-28：把 16 个既有测试逐文件纳入 proposal/design/tasks/change matrix 的单一 owner，固定 red-first 的 coroutine/await 迁移与原断言不得弱化；发现第 17 个必须修改文件时必须先补契约并重审。
+- [x] 2026-07-28：第七轮 fresh Reviewer 1 发现现有同步 `ModelRouter.route()` 直接调用将迁为 async 的 `execute()`，且 `tests/contracts/test_agent_registry_router_model_contracts.py` 同步消费 route 返回值；这是已冻结 16 个文件之外的第 17 个确定性 caller，Stage 1 以 1 HIGH FAIL，Reviewer 2/3 未派发。
+- [x] 2026-07-28：明确 `ModelRouter.route()` 一并成为只做 plan 后 `await execute()` 的 async wrapper，不允许同步桥接；把该 route caller 测试纳入第 17 个精确 owner 文件，发现第 18 个必须先补契约并重审。
+- [x] 2026-07-28：新的 Reviewer 1 与随后单独完成的 Reviewer 2 均在冻结哈希上 Stage 1/2 PASS；Reviewer 3 因容量未能与 Reviewer 2 并行启动，首次派发及三次 10 秒重试均返回 `agent thread limit reached`，因此未提交。
+- [x] 2026-07-28：用户重启且确认文件未改后，主 Agent 核对 branch/HEAD/worktree/OpenSpec 与 10 个哈希无漂移并直接派 fresh Reviewer 3；Reviewer 3 Stage 1 以 1 HIGH 发现 `tests/contracts/test_model_usage_provider_adapter_contracts.py` 依赖将删除的 `run_sync/_run_sync_with_timeout` seam，却未在 17 文件清单中，Stage 2 未执行。
+- [x] 2026-07-28：用同步 adapter seam 静态扫描建立 red-capable ownership 回路，确认当前三份 Pydantic AI 同步 seam 测试中只有该文件漏列；补为第 18 个 owner，并冻结 async `Agent.run()`/deadline 迁移不得弱化 timeout secret 脱敏、成功 usage 持久化与 missing-usage 断言。实质 diff 后旧 reviewer verdict 失效。
+- [ ] 运行 strict/diff、冻结当前哈希并派 fresh Reviewer 1。
+- [ ] 从 fresh Reviewer 1 重启 `1+2` 契约审查；Reviewer 1、随后并行的 Reviewer 2 与 3 必须全部 Stage 1/2 PASS。
 - [ ] 先建立失败 regression，再实现受控真实文本模型。
 - [ ] 完成离线门禁、可选真实 provider smoke、实现审查、主规格同步与归档裁决。
 
@@ -443,6 +497,9 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | 2026-07-27 | Product Spec 与验收矩阵各自重复使用 `AC-070`；以 ID 为键的 policy 映射只能承载一套语义，validator 又会拒绝矩阵重复行 | 规格 identity 已不唯一，当前验收证据可能被覆盖或无法通过唯一性校验；必须独立窄 change 盘点引用并迁移，不能顺手重编号 |
 | 2026-07-27 | Git 历史证明 dependency lock `AC-070` 于 `fa5ad90c` 先出现，API docs 同号验收于 `3aedac83` 后加入；当前 `requirement_groups` 又用 `set` 吞掉跨 REQ 重号 | 保留先出现的 dependency identity；只迁移后加入的 API docs identity，并新增 Product Spec 全局唯一性失败合同，避免依赖矩阵重复行才偶然发现问题 |
 | 2026-07-27 | service locator、具体 storage 扩散、状态分支和语义 SCC 同时存在 | 不在真实模型 change 中顺手重构；延后到 Phase 21，以当前依赖图逐项切 seam |
+| 2026-07-28 | 新 session 的 CodeGraph 当前源码仍显示 `build_agent_execution_services()` 拒绝非 `fake` provider，router/invocation blast radius 跨 runtime 与大量合同测试 | Phase 18 仍是未实现状态且必须单 owner 串行；先完成契约全票审查，再从公共 seam 建红灯，不能把现有 adapter 当成 composition 已接通 |
+| 2026-07-28 | 当前 shared-budget repository validator 只从旧 provider/default/fallback 推导 route，不认识 deployment、allowed models 或 v2 schema | Phase 18 必须显式拥有 `storage/_shared_budget_repository_records.py` 与共用 SQLite/PostgreSQL validator contract，不能只改 runtime snapshot producer |
+| 2026-07-28 | 当前 `BoundModelInvocationService.complete_approved()`、`policy_approval` checkpoint、ApprovalRecord/resolution lease/ApprovalGrant continuation 已存在，但没有生产模型调用路径接入；另无权威 model/input-bound/price catalog | Phase 18 复用既有 Policy/HITL 状态机并只增加模型协调 seam，不新增审批 bool/事件/状态机；新增独立 typed model catalog，deployment 只引用且恢复冻结 identity |
 
 后续发现按时间追加。若发现推翻了阶段依赖、共享接口或安全假设，先更新 Decision Log 和 change matrix，再继续实现。
 
@@ -463,6 +520,15 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | D-011 | 2026-07-27 | 重复 `AC-070` 通过独立 `acceptance-criteria-identity-uniqueness` change 处理 | identity 迁移影响 Spec、矩阵、policy/checker 和历史追溯；顺手改一个编号会制造新的证据错配，且不得污染真实模型 change |
 | D-012 | 2026-07-27 | Phase 18 完成后的下一项 P0 行为 change 固定为 `controlled-model-streaming`；以本决策取代 D-002 中对 streaming 只作无序“后置”的部分 | 非流式入口先建立可控 route/provider/cancel/usage 基线；流式能力随后独立处理有界事件、跨 chunk 安全、部分计量与只重放 committed events，既不混入首 change，也不无限期后置；D-002 对 structured/tool/multi-provider 的后置判断继续有效 |
 | D-013 | 2026-07-27 | Phase 17.1 保留 dependency lock 的 `AC-070`，把后加入的 API docs 验收迁移为 `AC-089` | Git 引入顺序提供可复核裁决；新增未占用 identity 比重排 `AC-071` 至 `AC-088` 更小、更可追溯，且不改写归档事实 |
+| D-014 | 2026-07-28 | 用户已授权启动 Phase 18；以 `develop@2502fe7b7d10` 为本轮冻结基线，单一 owner 串行拥有 config、route、adapter、budget/evidence、composition、tests 与文档 | 这些表面共同决定“请求只缩权且 provider 副作用前已冻结授权与预算”的安全不变量；只读调查和 fresh review 可独立，写入不得拆成并行实现 |
+| D-015 | 2026-07-28 | 新 session 不复用上一 session 的 reviewer 或容量结论；重新冻结当前磁盘事实后从 fresh Reviewer 1 重启，Reviewer 1 通过后再并行 Reviewer 2/3，三者必须全部 Stage 1/2 PASS | 保证审查独立、判定绑定当前哈希，并把旧容量阻塞与本轮实际容量状态分开；任一 reviewer FAIL 都回到修订与新的 Reviewer 1 |
+| D-016 | 2026-07-28 | 真实 route 的 endpoint 信任由 typed `endpoint_policies` 与 `config/model_endpoints.py` 的版本化只读 provider-default catalog共同给出；deployment 自报 ref/version 不构成批准 | 将可配置 exact-origin/classifier policy 与 SDK/env 默认彻底分离；unknown/mismatch 在 storage/queue/client/DNS/HTTP 前 fail closed，policy identity 进入 route/snapshot/digest |
+| D-017 | 2026-07-28 | 真实 route 的输入上界与价格只从 typed `model_catalogs` 和 `config/model_catalog.py` 解析；deployment 只引用 canonical ref/version，route/snapshot/operation/evidence 冻结 digest 与解析值 | 防止 deployment 通过内部一致的低报或高报值自证预算；cost-disabled 使用 null 而不是零价，reload 只影响新 root |
+| D-018 | 2026-07-28 | 模型 soft policy/approval 复用既有 `PolicyEngine`、`policy.decision` audit、checkpoint/ApprovalRecord/resolution lease/ApprovalGrant/continuation；不新增模型授权证据、公开 approval bool 或第二套状态机 | 等待审批零模型副作用；获批 grant 全绑定、单次消费并重检 hard route/catalog/current balance，crash/replay 只恢复原 settlement |
+| D-019 | 2026-07-28 | cost-enabled route 的价格与非空 price-source identity 成组冻结；cost-disabled route 的价格、price-source identity、静态/动态 cost bounds 与 cost reservation 成组为 null | 清除 API 对 ref/version 一概必填与 typed catalog null 语义的冲突；禁用成本不能伪装零价，也不能保留暗示价格有效的陈旧来源 |
+| D-020 | 2026-07-28 | 公共 async provider 协议迁移精确拥有 16 个已识别的既有同步 provider double / 直接 adapter caller 测试文件；只能为 async/await 迁移并保持原断言而修改 | async seam 是横切协议变更，不能只列新增测试；若红灯证明还有未列文件，先更新契约所有权并重审，禁止实现期用“相关测试”扩面 |
+| D-021 | 2026-07-28 | `ModelRouter.route()` 与 complete/execute 一并迁为 async wrapper，只做 plan 后 `await execute()`；第 17 个 route caller 测试纳入精确所有权 | 同步 route 无法安全包装 async execute，线程或嵌套 event loop 会制造第二执行模型；公开兼容入口统一 async 可保持单一副作用路径 |
+| D-022 | 2026-07-28 | `tests/contracts/test_model_usage_provider_adapter_contracts.py` 作为第 18 个 async 迁移 owner，原 `run_sync/_run_sync_with_timeout` 测试替身迁为 async `run()` 与新 deadline seam | 该文件直接证明 timeout 错误脱敏、成功 usage 持久化与 missing-usage 语义；删除同步 adapter seam 时必须同步迁移测试而不能删弱断言 |
 
 Decision Log 只追加或用新决策显式 supersede 旧决策，不静默改写历史理由。
 
@@ -477,7 +543,7 @@ Decision Log 只追加或用新决策显式 supersede 旧决策，不静默改�
 | retry 重复计费 | 响应丢失后再次发起生成 | 有界分类重试；结果未知进入 needs-review；预算/evidence 记录 attempt | 模糊失败默认不重试 |
 | 预算与 route 漂移 | reload、fallback 或请求改写价格/model | route plan 冻结 catalog/version/model/capabilities；先 reservation 后 provider | plan identity 漂移 fail closed |
 | fake 掩盖真实失败 | 真实配置错误后返回 fake 文本 | fake 只允许显式选择；真实失败保持失败/unknown | 禁止 silent fallback |
-| 外部 smoke 不稳定 | 无 credential、网络、配额或 provider 故障 | 默认 CI 离线；真实 smoke opt-in、去敏、标记 external-blocked | external-blocked 不得记 PASS |
+| 外部 smoke 不稳定 | 缺授权、opt-in、隔离 credential、受信 endpoint，或在前置完整后发生网络、配额、provider 故障 | 默认 CI 离线；任一本地前置缺失时保持零调用并记录 hosted-unverified/CI skipped；仅在已授权且前置完整后发生外部故障时记录 external-blocked | hosted-unverified 与 external-blocked 均不得记 PASS，且缺本地前置不得误记 external-blocked |
 | 配置兼容破坏 | 新字段使现有 local/service profile 启动失败 | 新能力显式 opt-in；默认 fake profile 保持可解析；覆盖 precedence 回归 | local/service 既有 smoke 必过 |
 | scope creep | Phase 18 出现 streaming/schema/tools，或 Phase 18.1 出现 structured/reasoning/tool-call stream 与运维控制面 | 各 proposal 非目标与文件 ownership 审查；按 DAG 拆新 change | review 发现夹带即 Stage 1 FAIL |
 | 无界 delta / event capacity 耗尽 | SDK token 数直接决定 event 数，或 provider 开始后才发现 seq/容量不足 | Phase 18.1 在副作用前冻结最大 chunk/coalescing、operation reservation、envelope 与超限行为；local/PostgreSQL recovery 逐值验证 | 无受信上限和预约不得启动 provider stream |
@@ -496,7 +562,7 @@ Decision Log 只追加或用新决策显式 supersede 旧决策，不静默改�
 1. **基线证据**：branch、HEAD、工作树、active changes、当前源码 symbol/call path。
 2. **契约证据**：OpenSpec strict validation 与 fresh code-reviewer 的 Stage 1/2 结论；两者互不替代。
 3. **实现证据**：先红后绿的 regression、scoped tests、quality、integration、smoke 及去敏输出。
-4. **外部证据**：真实 provider credential/network 条件下的 opt-in smoke；不可用时只记录 external-blocked。
+4. **外部证据**：真实 provider smoke 缺授权、opt-in、隔离 credential 或受信 endpoint 任一前置时只记录 hosted-unverified/CI skipped 且零调用；四项齐全并已授权后发生网络/provider 阻断才记录 external-blocked。
 5. **生命周期证据**：主规格同步、归档、`openspec list --json`、侧车文档与 Git diff/commit scope。
 
 ### 12.2 每个实现 change 的验证选择
@@ -581,7 +647,7 @@ test -f docs/plans/architecture-evolution-change-matrix.md
 ### 14.2 后续所有权规则
 
 - 具体 owner 以 change matrix 的当前版本为准；active change 的 `design.md` / `tasks.md` 必须复制其独占范围。
-- `config/schemas.py`、`config/settings.py`、`models/providers.py`、`models/router.py`、`runtime/services.py`、registry 配置、组合测试和相关文档在 Phase 18 视为同一共享面，默认由单一 change 串行拥有。
+- `config/{__init__,schemas,settings,secret_files,model_endpoints,model_catalog}.py`、`models/{__init__,providers,router,invocation,_invocation_settlement,usage,usage_events}.py`、`adapters/models/{fake,pydantic_ai}.py`、`policy/engine.py`、`audit/service.py`、`approvals/{service,_continuation}.py`、`runtime/{services,shared_budget,executor,continuation,_run_continuation}.py`、`storage/_shared_budget_repository_records.py`、`contracts/boundaries.py`、registry 配置、`scaffold_templates.py`、`_scaffold_support.py`、scaffold validation contracts、CLI/template lifecycle、`packages/agent-harness/pyproject.toml`、`uv.lock`、`compliance/third-party.toml`、`scripts/{smoke_live_model.py,import_boundary_check.py}`、vendor/dependency/license/policy-approval contracts、CI/evidence gate、组合测试和相关文档在 Phase 18 视为同一共享面，默认由单一 change 串行拥有。
 - `models/providers.py`、router/invocation/settlement、Pydantic AI/fake adapter、event capacity/outbox/recovery、SQLite/PostgreSQL sink/tests、runtime composition、`API-Contract.md` 和相关文档在 Phase 18.1 视为同一流式安全面，默认单一 worktree、单一 owner；不能把 provider stream 与容量/结算拆成并行实现。
 - `Makefile`、CI workflow、共享 checker、公共 export 和 `DEV-PLAN.md` 属于集成文件，只能由主控或矩阵指定的唯一 owner 修改。
 - 文件不同但公共 DTO、验收或迁移相同，仍视为关联 change，不能用“没改同一文件”主张独立。
@@ -605,6 +671,6 @@ test -f docs/plans/architecture-evolution-change-matrix.md
 
 ## 16. 下一动作
 
-Phase 17.1 已同步主规格并归档。当前唯一下一动作是由 owner 决定是否授权创建包含实现、主规格与归档材料的 scoped local commit；在明确授权前保持当前工作树，不启动 Phase 18。
+Phase 17.1 已由 `2e91771` 提交并归档，用户已授权 Phase 18 契约收口。active change `controlled-real-model-runtime` 的第 18 个 async 测试所有权缺口已修订：`test_model_usage_provider_adapter_contracts.py` 明确迁移同步 Pydantic AI seam，同时保留 timeout secret 脱敏、usage 持久化与 missing-usage 断言。当前唯一下一动作是运行 red-capable ownership 回路、strict/diff，冻结新哈希并派新的 fresh Reviewer 1；只有它 Stage 1/2 PASS，才并行派 Reviewer 2 与 3，三位 reviewer 必须全部 Stage 1/2 PASS。全员通过后本会话只创建一次 scoped 契约提交；不建立红灯测试、不修改生产实现，后两项移交新会话。
 
-当前实现、契约、review、冻结 evidence、direct validator、主规格同步和 OpenSpec 归档已闭合。未经用户明确授权，不自动 commit、push、发布或启动 Phase 18。
+本轮授权只额外包含契约严格 `1+2` 全员 Stage 1/2 PASS 后的一次 scoped 本地契约提交；不包含红灯测试、生产实现、其他 commit、push、发布、部署、真实 provider 调用、OpenSpec sync 或 archive。新会话继续 Phase 18 实现并最终只收口到 `ready-to-archive`，后续生命周期动作由用户另行裁决。
