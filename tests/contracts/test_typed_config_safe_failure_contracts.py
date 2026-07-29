@@ -168,6 +168,59 @@ def test_secret_file_conflict_scrubs_traceback_frame_locals(
     assert settings_frames > 0
 
 
+@pytest.mark.parametrize("scenario", ["alias", "direct_file"])
+def test_secret_file_helper_conflicts_scrub_loop_values_from_traceback(
+    tmp_path: Path,
+    scenario: str,
+) -> None:
+    """helper 独立报冲突时，循环标量与原始 mapping 都不得把秘密留进 traceback。"""
+
+    trusted_root = tmp_path / "secrets"
+    trusted_root.mkdir()
+    candidate = trusted_root / "fingerprint-key"
+    candidate.write_text("unused-file-secret", encoding="utf-8")
+    secret_fixtures = (
+        "unique-helper-before-secret-fixture",
+        "unique-helper-current-secret-fixture",
+        "unique-helper-after-secret-fixture",
+    )
+    if scenario == "alias":
+        process_env = {
+            "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY": secret_fixtures[0],
+            "agent_harness_budget__fingerprint_key": secret_fixtures[1],
+            "AGENT_HARNESS_STORAGE__DSN": secret_fixtures[2],
+        }
+        expected_code = "config.invalid"
+    else:
+        process_env = {
+            "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY": secret_fixtures[0],
+            "AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE": str(candidate),
+            "AGENT_HARNESS_STORAGE__DSN": secret_fixtures[2],
+        }
+        expected_code = "config.secret_file_conflict"
+
+    with pytest.raises(SettingsLoadError) as exc_info:
+        secret_files_module.load_secret_file_env(
+            process_env,
+            secret_root=trusted_root,
+        )
+
+    assert exc_info.value.errors[0].code == expected_code
+    current = exc_info.value.__traceback__
+    helper_frames = 0
+    while current is not None:
+        if (
+            current.tb_frame.f_globals.get("__name__") == "agent_harness.config.secret_files"
+            and current.tb_frame.f_code.co_name == "load_secret_file_env"
+        ):
+            helper_frames += 1
+            locals_repr = repr(current.tb_frame.f_locals)
+            for secret_fixture in secret_fixtures:
+                assert secret_fixture not in locals_repr
+        current = current.tb_next
+    assert helper_frames == 1
+
+
 def test_later_secret_file_failure_scrubs_earlier_value_from_traceback(
     tmp_path: Path,
 ) -> None:

@@ -4,34 +4,36 @@ from __future__ import annotations
 
 import hashlib
 import json
-from time import perf_counter
-from typing import Any, Protocol, cast
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol
 
 from agent_harness.events import EventBus
 from agent_harness.identity import IdentityContext
+from agent_harness.models._invocation_execution import (
+    ModelApprovalRequired,
+    ModelInvocationExecutionMixin,
+)
 from agent_harness.models._invocation_settlement import (
     ModelProviderInvocationError,
-    _ModelSettlementMixin,
 )
 from agent_harness.models.providers import ModelRequest, ModelResponse
-from agent_harness.models.router import ModelRoutePlan, ModelRouter, ModelRouterConfig
+from agent_harness.models.router import ModelRouter, ModelRouterConfig
 from agent_harness.models.usage import (
-    ModelUsageEvidence,
     UsageEvidenceContext,
     stable_usage_call_id,
 )
-from agent_harness.models.usage_events import UsageEvidenceLifecycle
 from agent_harness.observability.facade import TelemetryFacade
-from agent_harness.security.redaction import redact_secrets
+from agent_harness.policy import PolicyEngine
 from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
-from agent_harness.storage.event_capacity_repositories import EventCapacityExceeded
 from agent_harness.storage.evidence_repositories import (
     EvidenceOperationKind,
 )
 from agent_harness.storage.shared_budget import (
-    BudgetReservationRejected,
     OperationIdentity,
 )
+
+if TYPE_CHECKING:
+    from agent_harness.registry.descriptor import AgentModelPolicy
 
 
 class _SharedBudgetIdentityRuntime(Protocol):
@@ -62,7 +64,9 @@ class _ApprovedModelGrant(Protocol):
     """
 
     approval_id: str
+    lease_id: str
     tenant_id: str
+    identity_id: str
     agent_id: str
     run_id: str
     action: str
@@ -78,11 +82,13 @@ class BoundModelInvocationService:
         *,
         service: ModelInvocationService,
         context: UsageEvidenceContext,
+        identity: IdentityContext,
     ) -> None:
         """绑定可信服务与单一运行上下文，后续调用不再接收可伪造身份字段。"""
 
         self._service = service
         self._context = context
+        self._identity = identity
 
     async def complete(
         self,
@@ -99,6 +105,7 @@ class BoundModelInvocationService:
                 context=self._context,
                 operation_key=operation_key,
             ),
+            actor=self._identity,
         )
 
     async def complete_approved(
@@ -110,35 +117,21 @@ class BoundModelInvocationService:
     ) -> ModelResponse:
         """审批 continuation 只绕过 soft gate，硬上限与当前余额必须重新检查。"""
 
-        expected_hash = hashlib.sha256(
-            json.dumps(
-                request.to_payload(),
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).hexdigest()
-        if (
-            grant.tenant_id != self._context.tenant_id
-            or grant.agent_id != self._context.agent_id
-            or grant.run_id != self._context.run_id
-            or grant.action != "model.invoke"
-            or grant.resource != f"agent:{self._context.agent_id}:model"
-            or grant.arguments_hash != expected_hash
-        ):
-            raise ValueError("model approval grant does not match bound invocation")
-        return await self._service.complete(
+        return await self._service.complete_with_approval(
             request,
             context=self._context,
             usage_call_id=stable_usage_call_id(
                 context=self._context,
-                operation_key=f"{operation_key}:approved:{grant.approval_id}",
+                # approval_id 是该 lease 唯一的模型操作槽位；不能让业务 executor
+                # 通过更换 operation_key 把一次批准扩成多次 provider 调用。
+                operation_key=f"approved:{grant.approval_id}",
             ),
-            soft_approved=True,
+            actor=self._identity,
+            grant=grant,
         )
 
 
-class ModelInvocationService(_ModelSettlementMixin):
+class ModelInvocationService(ModelInvocationExecutionMixin):
     """在 provider 副作用前建立 settlement，并只补投 evidence。"""
 
     def __init__(
@@ -149,6 +142,8 @@ class ModelInvocationService(_ModelSettlementMixin):
         event_bus: EventBus,
         telemetry: TelemetryFacade | None = None,
         shared_budget: _SharedBudgetIdentityRuntime | None = None,
+        agent_policy_resolver: Callable[[str], AgentModelPolicy] | None = None,
+        policy_engine: PolicyEngine | None = None,
     ) -> None:
         """保存路由、持久化、事件和可选共享预算协作者。"""
 
@@ -157,6 +152,13 @@ class ModelInvocationService(_ModelSettlementMixin):
         self._event_bus = event_bus
         self._telemetry = telemetry
         self._shared_budget = shared_budget
+        self._agent_policy_resolver = agent_policy_resolver
+        self._policy_engine = policy_engine
+
+    async def aclose(self) -> None:
+        """由组合根关闭 provider-neutral 路由链，不暴露 vendor client。"""
+
+        await self._router.aclose()
 
     def bind_execution(
         self,
@@ -170,9 +172,9 @@ class ModelInvocationService(_ModelSettlementMixin):
     ) -> BoundModelInvocationService:
         """把原始 invocation seam 封闭为单个 runtime execution 的 facade。"""
 
-        del identity
         return BoundModelInvocationService(
             service=self,
+            identity=identity,
             context=UsageEvidenceContext(
                 tenant_id=tenant_id,
                 run_id=run_id,
@@ -188,198 +190,101 @@ class ModelInvocationService(_ModelSettlementMixin):
         *,
         context: UsageEvidenceContext,
         usage_call_id: str,
-        soft_approved: bool = False,
+        actor: IdentityContext | None = None,
     ) -> ModelResponse:
-        """执行一次 model 调用；任何 provider 副作用都晚于 durable 预约。"""
+        """执行普通策略路径；公开调用面不接受布尔型审批旁路。"""
 
-        # 重放检查和预约必须先于 provider 副作用，才能在重试中保持幂等结算。
-        call_id = usage_call_id
-        replay = await self._replay_settlement_before_current_snapshot(
-            request=request,
+        return await self._complete(
+            request,
             context=context,
-            usage_call_id=call_id,
+            usage_call_id=usage_call_id,
+            soft_approved=False,
+            actor=actor,
         )
-        if replay is not None:
-            return await self._resume_existing_settlement(
-                claim=replay.usage,
-                usage_call_id=call_id,
-            )
-        await self._event_bus.reconcile_local_capacity(run_id=context.run_id)
-        started_evidence: ModelUsageEvidence | None = None
-        try:
-            plan = await self._plan(
-                request=request,
-                context=context,
-                approved=soft_approved,
-            )
-            started_evidence = self._started_evidence(
-                context=context,
-                provider=plan.provider,
-                model=plan.model,
-                decision=self._safe_decision(
-                    plan.decision.to_payload(),
-                    {"provider_called": plan.decision.action != "policy_required"},
-                ),
-            )
-            settlement = await self._start_settlement(
-                evidence=started_evidence,
-                usage_call_id=call_id,
-                request=request,
-                plan=plan,
-            )
-        except BudgetReservationRejected as exc:
-            if started_evidence is None:
-                started_evidence = self._started_evidence(
-                    context=context,
-                    provider=request.provider or self._router.config.default_provider,
-                    model=request.model or self._router.config.default_model,
-                    decision={"provider_called": False},
-                )
-            try:
-                await self._record_budget_rejection(
-                    evidence=started_evidence,
-                    usage_call_id=call_id,
-                    reason=exc.reason,
-                )
-            except EventCapacityExceeded:
-                # Hard budget 的公开优先级高于 capacity exhaustion；容量不足时
-                # 无法再新增 rejection event，但不能用较低优先级错误覆盖它。
-                pass
-            raise
-        # 已存在但尚不可安全启动时只恢复其确定性结果，绝不能再次调用 provider。
-        if not settlement.usage.created and not settlement.safe_to_start:
-            return await self._resume_existing_settlement(
-                claim=settlement.usage,
-                usage_call_id=call_id,
-            )
-        lifecycle = UsageEvidenceLifecycle(
-            event_bus=self._event_bus,
-            evidence=started_evidence,
-            usage_call_id=call_id,
-        )
-        started = await lifecycle.publish_started()
-        if self._telemetry is not None:
-            await self._telemetry.publish_event(started)
 
-        if plan.decision.action != "policy_required":
-            await self._mark_side_effect_started(
-                context=context,
-                usage_call_id=call_id,
-                ownership=settlement.ownership,
-            )
-
-        invoked_at = perf_counter()
-        try:
-            provider_response = self._router.execute(request, plan=plan)
-            # adapter 可能错误地用 model_construct 绕过 DTO；副作用后必须重新校验。
-            response = ModelResponse.model_validate(provider_response.model_dump(mode="python"))
-            if response.provider != plan.provider or response.model != plan.model:
-                raise ValueError("model response identity does not match routing plan")
-            provider_called = plan.decision.action != "policy_required"
-            evidence = ModelUsageEvidence(
-                usage_kind="model",
-                tenant_id=context.tenant_id,
-                provider=response.provider,
-                model=response.model,
-                input_tokens=response.token_usage.get("input_tokens"),
-                output_tokens=response.token_usage.get("output_tokens"),
-                cost_usd=response.cost_usd,
-                cost_status=response.cost_status,
-                latency_ms=response.latency_ms,
-                decision=self._safe_decision(
-                    plan.decision.to_payload(),
-                    response.decision.to_payload(),
-                    {"provider_called": provider_called},
-                ),
-                run_id=context.run_id,
-                agent_id=context.agent_id,
-                request_id=context.request_id,
-                trace_id=context.trace_id,
-            )
-        except Exception:
-            evidence = self._started_evidence(
-                context=context,
-                provider=plan.provider,
-                model=plan.model,
-                decision=self._safe_decision(
-                    plan.decision.to_payload(),
-                    {"provider_called": True},
-                ),
-                latency_ms=int((perf_counter() - invoked_at) * 1000),
-            )
-            await self._finalize(
-                evidence=evidence,
-                usage_call_id=call_id,
-                outcome="failed",
-                error_code="model.provider_failed",
-                ownership=settlement.ownership,
-                response=None,
-            )
-            raise ModelProviderInvocationError("model provider invocation failed") from None
-
-        rejected = response.decision.action == "policy_required"
-        await self._finalize(
-            evidence=evidence,
-            usage_call_id=call_id,
-            outcome="rejected" if rejected else "completed",
-            error_code="model.policy_required" if rejected else None,
-            ownership=settlement.ownership,
-            response=response,
-        )
-        return response
-
-    async def _plan(
+    async def _validate_approved_grant(
         self,
         *,
         request: ModelRequest,
         context: UsageEvidenceContext,
-        approved: bool,
-    ) -> ModelRoutePlan:
-        """依据共享预算树快照或默认路由生成本次调用计划。
+        identity: IdentityContext,
+        grant: _ApprovedModelGrant,
+    ) -> None:
+        """校验 bound 语义与 durable lease，拒绝业务 executor 伪造批准能力。"""
 
-        快照、账本和归属在同一个 UoW 中读取，确保路由限制来自同一持久化视图；任何
-        缺失或无效快照都转换成稳定预算拒绝，而不是悄悄回退到当前进程配置。
-        """
-
-        if self._shared_budget is None:
-            return self._router.plan(request, approved=approved)
-        # 三项读取必须保持一致，否则并发迁移预算树时可能组合出不存在的路由视图。
+        expected_hash = hashlib.sha256(
+            json.dumps(
+                request.to_payload(),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        if (
+            grant.tenant_id != context.tenant_id
+            or grant.identity_id != identity.user_id
+            or grant.agent_id != context.agent_id
+            or grant.run_id != context.run_id
+            or grant.action != "model.invoke"
+            or grant.resource != f"agent:{context.agent_id}:model"
+            or grant.arguments_hash != expected_hash
+        ):
+            raise ValueError("model approval grant does not match bound invocation")
         async with self._storage.uow() as uow:
-            ownership = await uow.shared_budget.resolve_operation_ownership(
-                tenant_id=context.tenant_id,
-                run_id=context.run_id,
-            )
-            ledger = await uow.shared_budget.get_ledger(
-                context.tenant_id,
-                ownership.budget_owner_run_id,
-            )
-            snapshot = await uow.shared_budget.get_tree_snapshot(
-                context.tenant_id,
-                ownership.budget_owner_run_id,
-            )
-        if ledger is None:
-            # `_start_settlement` 负责把 snapshot_invalid 保存为稳定拒绝 evidence。
-            try:
-                return self._router.plan(request, approved=approved)
-            except KeyError as exc:
-                raise BudgetReservationRejected(reason="snapshot_invalid") from exc
-        if snapshot is None:
-            try:
-                return self._router.plan(request, approved=approved)
-            except KeyError as exc:
-                raise BudgetReservationRejected(reason="snapshot_invalid") from exc
-        try:
-            config = self._shared_budget.model_router_config(
-                snapshot=snapshot,
-                agent_id=context.agent_id,
-                base=self._router.config,
-            )
-        except ValueError as exc:
-            raise BudgetReservationRejected(reason="snapshot_invalid") from exc
-        try:
-            return self._router.plan(request, config=config, approved=approved)
-        except KeyError as exc:
-            raise BudgetReservationRejected(reason="snapshot_invalid") from exc
+            lease = await uow.approvals.get_resolution(grant.approval_id)
+        if (
+            lease is None
+            or lease.lease_id != grant.lease_id
+            or lease.state not in {"claimed", "execution_owned", "recovery_pending"}
+            or lease.approval.status != "waiting"
+        ):
+            raise ValueError("model approval grant does not match an active approval lease")
+        approval = lease.approval
+        persisted = (
+            approval.tenant_id,
+            str(approval.metadata.get("identity_id") or approval.requested_by),
+            approval.agent_id,
+            approval.run_id,
+            approval.action,
+            approval.resource,
+            str(approval.metadata.get("arguments_hash") or ""),
+        )
+        actual = (
+            grant.tenant_id,
+            grant.identity_id,
+            grant.agent_id,
+            grant.run_id,
+            grant.action,
+            grant.resource,
+            grant.arguments_hash,
+        )
+        if actual != persisted:
+            raise ValueError("model approval grant does not match persisted approval")
+
+    async def complete_with_approval(
+        self,
+        request: ModelRequest,
+        *,
+        context: UsageEvidenceContext,
+        usage_call_id: str,
+        actor: IdentityContext,
+        grant: _ApprovedModelGrant,
+    ) -> ModelResponse:
+        """只接受全绑定 durable grant，并在校验后绕过一次 soft policy gate。"""
+
+        await self._validate_approved_grant(
+            request=request,
+            context=context,
+            identity=actor,
+            grant=grant,
+        )
+        return await self._complete(
+            request,
+            context=context,
+            usage_call_id=usage_call_id,
+            soft_approved=True,
+            actor=actor,
+        )
 
     async def recover_pending(self, *, run_id: str) -> int:
         """只补投已有确定性结果；started/未知结果继续阻止 terminal。"""
@@ -403,75 +308,24 @@ class ModelInvocationService(_ModelSettlementMixin):
                 or result is None
             ):
                 continue
-            evidence = ModelUsageEvidence.model_validate(result["evidence"])
+            validated = self._validated_settlement_result(
+                result,
+                state=state,
+                error_code=error_code,
+            )
             await self._publish_final(
-                evidence=evidence,
+                evidence=validated.evidence,
                 usage_call_id=str(usage_call_id),
-                outcome=str(result["outcome"]),
+                outcome=validated.outcome,
                 error_code=error_code,
             )
             recovered += 1
         return recovered
 
-    @staticmethod
-    def _started_evidence(
-        *,
-        context: UsageEvidenceContext,
-        provider: str,
-        model: str,
-        decision: dict[str, object],
-        latency_ms: int = 0,
-    ) -> ModelUsageEvidence:
-        """构造 provider 尚未产生计量时的 started 或失败证据基础对象。"""
-
-        return ModelUsageEvidence(
-            usage_kind="model",
-            tenant_id=context.tenant_id,
-            provider=provider,
-            model=model,
-            input_tokens=None,
-            output_tokens=None,
-            cost_usd=None,
-            cost_status="unavailable",
-            latency_ms=latency_ms,
-            decision=decision,
-            run_id=context.run_id,
-            agent_id=context.agent_id,
-            request_id=context.request_id,
-            trace_id=context.trace_id,
-        )
-
-    @staticmethod
-    def _final_event_id(tenant_id: str, usage_call_id: str) -> str:
-        """为每个租户调用槽位生成稳定终态事件标识，支持安全补投。"""
-
-        return f"usage:{tenant_id}:{usage_call_id}:final"
-
-    @staticmethod
-    def _safe_decision(*parts: dict[str, object]) -> dict[str, Any]:
-        """按后传入优先合并决策片段，并在进入持久化前整体脱敏。"""
-
-        merged: dict[str, object] = {}
-        for part in parts:
-            merged.update(part)
-        safe = redact_secrets(merged)
-        if not isinstance(safe, dict):  # pragma: no cover - mapping input 保证输出形状
-            raise RuntimeError("model decision redaction changed payload shape")
-        return cast(dict[str, Any], safe)
-
-    @staticmethod
-    def _durable_response(response: ModelResponse) -> dict[str, Any]:
-        """恢复所需 response 必须先整体脱敏，再进入内部 outbox/shared claim。"""
-
-        safe = redact_secrets(response.to_payload())
-        if not isinstance(safe, dict):  # pragma: no cover - DTO payload 保证 mapping
-            raise RuntimeError("model response redaction changed payload shape")
-        validated = ModelResponse.model_validate(safe)
-        return validated.to_payload()
-
 
 __all__ = [
     "BoundModelInvocationService",
     "ModelInvocationService",
+    "ModelApprovalRequired",
     "ModelProviderInvocationError",
 ]

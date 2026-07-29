@@ -172,7 +172,9 @@ async def assert_budget_topology() -> dict[str, object]:
                         trace_id=f"budget-topology-{label}-{suffix}",
                     )
                 )
-                snapshot_id = f"budget-topology-{label}-{suffix}"
+                # 真实探针必须走与生产仓储相同的冻结快照版本门禁；自定义标签会在
+                # ledger 创建阶段被 fail closed，无法证明后续的拓扑与结算不变量。
+                snapshot_id = f"budget-tree-v1:service-smoke-topology-{label}-{suffix}"
                 await uow.shared_budget.create_ledger(
                     LedgerCreate(
                         tenant_id=tenant_id,

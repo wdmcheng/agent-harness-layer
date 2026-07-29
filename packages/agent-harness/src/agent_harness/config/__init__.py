@@ -15,10 +15,25 @@ from agent_harness.config.schemas import (
     BudgetSettings as BudgetSettings,
 )
 from agent_harness.config.schemas import (
+    CompletionClassifierSettings as CompletionClassifierSettings,
+)
+from agent_harness.config.schemas import (
     HarnessSettings as HarnessSettings,
 )
 from agent_harness.config.schemas import (
     IdentitySettings as IdentitySettings,
+)
+from agent_harness.config.schemas import (
+    ModelCatalogEntrySettings as ModelCatalogEntrySettings,
+)
+from agent_harness.config.schemas import (
+    ModelCredentialSettings as ModelCredentialSettings,
+)
+from agent_harness.config.schemas import (
+    ModelDeploymentSettings as ModelDeploymentSettings,
+)
+from agent_harness.config.schemas import (
+    ModelEndpointPolicySettings as ModelEndpointPolicySettings,
 )
 from agent_harness.config.schemas import (
     ModelSettings as ModelSettings,
@@ -48,9 +63,14 @@ _SCHEMA_MODEL_EXPORTS = [
     "ApiDocsSettings",
     "AuthSettings",
     "BudgetSettings",
+    "CompletionClassifierSettings",
     "HarnessSettings",
     "IdentitySettings",
     "ModelSettings",
+    "ModelCatalogEntrySettings",
+    "ModelCredentialSettings",
+    "ModelDeploymentSettings",
+    "ModelEndpointPolicySettings",
     "ObservabilitySettings",
     "ObservabilityProviderSettings",
     "PolicySettings",

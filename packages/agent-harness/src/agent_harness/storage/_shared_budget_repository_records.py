@@ -65,6 +65,7 @@ def _snapshot_route_valid(
     route: object,
     *,
     allowed_model_routes: set[tuple[str, str]],
+    schema_version: str,
 ) -> bool:
     """验证单条冻结路由的字段、价格和模型授权范围是否完整一致。"""
 
@@ -74,17 +75,20 @@ def _snapshot_route_valid(
     usage_kind = typed.get("usage_kind")
     provider = typed.get("provider")
     model = typed.get("model")
-    # 价格来源和版本是可审计身份的一部分，缺失时不能由运行时默认值补全。
     if (
         usage_kind not in {"model", "embedding"}
         or not _non_empty_string(provider)
         or not _non_empty_string(model)
-        or not _non_empty_string(typed.get("price_source_ref"))
-        or not _non_empty_string(typed.get("price_source_version"))
         or "input_token_price_usd" not in typed
         or (usage_kind == "model" and "output_token_price_usd" not in typed)
     ):
         return False
+    if usage_kind == "embedding" or schema_version == "budget-tree-v1":
+        # v1 与 embedding 没有显式 cost-enabled 位，既有来源 identity 仍为必填。
+        if not _non_empty_string(typed.get("price_source_ref")) or not _non_empty_string(
+            typed.get("price_source_version")
+        ):
+            return False
     if (
         usage_kind == "model"
         and (cast(str, provider), cast(str, model)) not in allowed_model_routes
@@ -100,6 +104,121 @@ def _snapshot_route_valid(
         soft_limit = typed.get("soft_max_tokens_per_call")
         if isinstance(soft_limit, bool) or not isinstance(soft_limit, int) or soft_limit < 0:
             return False
+        if schema_version == "budget-tree-v2":
+            required_text = (
+                "deployment_id",
+                "canonical_base_url",
+                "endpoint_origin",
+                "endpoint_policy_ref",
+                "endpoint_policy_version",
+                "endpoint_policy_digest",
+                "credential_ref",
+                "model_catalog_ref",
+                "model_catalog_version",
+                "model_catalog_digest",
+                "request_shape_ref",
+                "request_shape_version",
+                "input_bound_strategy_ref",
+                "input_bound_strategy_version",
+            )
+            if not all(_non_empty_string(typed.get(field)) for field in required_text):
+                return False
+            classifier_ref = typed.get("completion_classifier_ref")
+            classifier_version = typed.get("completion_classifier_version")
+            if (classifier_ref is None) != (classifier_version is None) or (
+                classifier_ref is not None
+                and (
+                    not _non_empty_string(classifier_ref)
+                    or not _non_empty_string(classifier_version)
+                )
+            ):
+                return False
+            capabilities = typed.get("capabilities")
+            retry_policy = typed.get("retry_policy")
+            bulkhead_policy = typed.get("bulkhead_policy")
+            positive_int_fields = (
+                "max_prompt_utf8_bytes",
+                "max_output_tokens",
+                "max_per_attempt_token_bound",
+                "max_attempts",
+                "connect_timeout_ms",
+                "read_timeout_ms",
+                "total_timeout_ms",
+            )
+            if (
+                not isinstance(capabilities, list)
+                or "text_completion" not in capabilities
+                or any(not _non_empty_string(item) for item in cast(list[object], capabilities))
+                or not isinstance(retry_policy, dict)
+                or not isinstance(bulkhead_policy, dict)
+                or any(
+                    isinstance(typed.get(field), bool)
+                    or not isinstance(typed.get(field), int)
+                    or cast(int, typed.get(field)) <= 0
+                    for field in positive_int_fields
+                )
+                or isinstance(typed.get("input_envelope_token_bound"), bool)
+                or not isinstance(typed.get("input_envelope_token_bound"), int)
+                or cast(int, typed.get("input_envelope_token_bound")) < 0
+            ):
+                return False
+            retry = cast(dict[str, object], retry_policy)
+            bulkhead = cast(dict[str, object], bulkhead_policy)
+            max_prompt = cast(int, typed.get("max_prompt_utf8_bytes"))
+            envelope = cast(int, typed.get("input_envelope_token_bound"))
+            max_output = cast(int, typed.get("max_output_tokens"))
+            if typed.get("max_per_attempt_token_bound") != max_prompt + envelope + max_output:
+                return False
+            retry_statuses = retry.get("retryable_http_statuses")
+            if (
+                not isinstance(retry_statuses, list)
+                or any(
+                    isinstance(item, bool) or not isinstance(item, int) or item < 100 or item > 599
+                    for item in cast(list[object], retry_statuses)
+                )
+                or retry.get("max_attempts") != typed.get("max_attempts")
+                or bulkhead.get("scope") != "process_deployment"
+            ):
+                return False
+            if retry_statuses and (
+                classifier_ref != "trusted_response_header_not_started"
+                or classifier_version != "v1"
+            ):
+                return False
+            cost_enabled = typed.get("cost_enabled")
+            if not isinstance(cost_enabled, bool):
+                return False
+            price_values = (
+                typed.get("input_token_price_usd"),
+                typed.get("output_token_price_usd"),
+                typed.get("price_source_ref"),
+                typed.get("price_source_version"),
+                typed.get("max_per_attempt_cost_bound"),
+            )
+            if cost_enabled:
+                if (
+                    not _non_empty_string(typed.get("price_source_ref"))
+                    or not _non_empty_string(typed.get("price_source_version"))
+                    or any(item is None for item in price_values[:2])
+                    or typed.get("max_per_attempt_cost_bound") is None
+                ):
+                    return False
+                try:
+                    input_price = _snapshot_decimal(typed.get("input_token_price_usd"))
+                    output_price = _snapshot_decimal(typed.get("output_token_price_usd"))
+                    maximum_cost = _snapshot_decimal(typed.get("max_per_attempt_cost_bound"))
+                except (ArithmeticError, ValueError):
+                    return False
+                if (
+                    input_price is None
+                    or output_price is None
+                    or maximum_cost
+                    != Decimal(max_prompt + envelope) * input_price
+                    + Decimal(max_output) * output_price
+                ):
+                    return False
+            elif any(item is not None for item in price_values):
+                return False
     return True
 
 
@@ -109,6 +228,7 @@ def _agent_sub_snapshot_valid(
     agent_id: str,
     owner_token_limit: int,
     owner_cost_limit: Decimal | None,
+    schema_version: str,
 ) -> bool:
     """验证单个 agent 的子快照不突破 owner 预算且覆盖其允许模型路由。"""
 
@@ -145,6 +265,23 @@ def _agent_sub_snapshot_valid(
     if len(set(policy_models)) != len(policy_models):
         return False
     allowed_model_routes = {(cast(str, provider), model) for model in policy_models}
+    if schema_version == "budget-tree-v2":
+        deployment_id = policy.get("deployment_id")
+        raw_allowed = policy.get("allowed_models")
+        if (
+            not _non_empty_string(deployment_id)
+            or not isinstance(raw_allowed, list)
+            or not all(_non_empty_string(item) for item in cast(list[object], raw_allowed))
+            or len(cast(list[object], raw_allowed)) != len(set(cast(list[str], raw_allowed)))
+            or not set(policy_models) <= set(cast(list[str], raw_allowed))
+        ):
+            return False
+        allowed_model_routes = {
+            (cast(str, provider), model) for model in cast(list[str], raw_allowed)
+        }
+    elif provider != "fake":
+        # v1 从未冻结真实 deployment/catalog/endpoint identity，禁止用当前配置补齐。
+        return False
     budget = cast(dict[str, object], target_budget)
     token_limit = budget.get("max_tokens_per_run")
     if (
@@ -167,6 +304,7 @@ def _agent_sub_snapshot_valid(
         _snapshot_route_valid(
             route,
             allowed_model_routes=allowed_model_routes,
+            schema_version=schema_version,
         )
         for route in route_values
     ):
@@ -194,6 +332,15 @@ def _ledger_create_snapshot_valid(data: LedgerCreate, root: AgentRunModel) -> bo
         return False
     owner = cast(dict[str, object], raw_owner)
     agents = cast(dict[str, object], raw_agents)
+    if data.snapshot_id.startswith("budget-tree-v2:"):
+        schema_version = "budget-tree-v2"
+    elif data.snapshot_id.startswith(("budget-tree-v1:", "snapshot:")):
+        # ``snapshot:`` 是已持久化的完整 v1 fixture/历史记录 identity；它仍只允许 fake。
+        schema_version = "budget-tree-v1"
+    else:
+        return False
+    if data.snapshot.get("schema_version", schema_version) != schema_version:
+        return False
     raw_targets = owner.get("delegation_targets")
     if not isinstance(raw_targets, list):
         return False
@@ -224,6 +371,7 @@ def _ledger_create_snapshot_valid(data: LedgerCreate, root: AgentRunModel) -> bo
                 agent_id=agent_id,
                 owner_token_limit=data.token_limit,
                 owner_cost_limit=data.cost_limit,
+                schema_version=schema_version,
             )
             for agent_id in {root.agent_id, *targets}
         )

@@ -55,11 +55,11 @@ class _CountingModelProvider(FakeModelProvider):
 
         self.calls = 0
 
-    def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+    async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
         """累加一次实际调用后复用基础 fake 的确定性响应。"""
 
         self.calls += 1
-        return super().complete(request, model=model)
+        return await super().complete(request, plan=plan)
 
 
 class _FailFinalOnceSink:

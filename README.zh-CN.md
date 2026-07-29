@@ -208,6 +208,28 @@ make dev
 
 ## 使用指南
 
+### 受控非流式真实模型运行时
+
+仓库提交的 local/service profile 都显式选择 `fake_default`；即使进程里存在
+`OPENAI_*` 或代理环境变量，普通 quality、test、eval 和 local smoke 仍保持离线。真实文本
+deployment 只能通过品牌化 `AGENT_HARNESS_MODEL__...` 类型化配置显式启用，并引用
+credential、exact endpoint policy 和版本化 model catalog。Agent YAML 只能收窄
+deployment/model allowlist，请求只能再次收窄；两者都不能选择 URL、credential、SDK
+client 或冻结交集之外的模型。
+
+运行时会在 policy、预算、client 和网络副作用前冻结 route。每个 root run 持久化版本化
+路由快照，恢复时继续使用原 endpoint path、catalog、attempt 上界和价格 identity。异步
+provider 路径受单一 total deadline、有界 retry、进程内按 deployment 隔离的 Bulkhead、
+耐久 side-effect mark 和保守 `unknown` 语义约束；真实调用失败不会切换到 fake。
+
+字段名与 secret-file 接法见 [service-app 环境示例](templates/service-app/.env.example)。
+`make smoke-live-model` 在当前会话没有另行授权时保持惰性：输出
+`model-live-smoke/v1 status=hosted-unverified`、`provider_called=false`，并以 0 退出。
+已授权运行还必须显式 opt-in、提供隔离的品牌化 credential 与受信 endpoint，并完整经过
+orchestrator、policy audit、shared budget reservation、usage evidence 和 provider lifecycle。
+同一 deployment 可声明有序的多个 fallback models；router 只在 provider 副作用前按冻结
+预算选择，真实失败后不自动重放。非默认 secret 目录必须通过 `--secret-root` 显式限定。
+
 ### 根目录常用命令
 
 | 命令 | 证明什么 | 额外前置 |
@@ -216,6 +238,7 @@ make dev
 | `make test` | 单元、合同和离线集成行为 | 本地依赖集 |
 | `make eval` | approved fake-model eval cases | 无需真实 provider key |
 | `make smoke-local` | 隔离的 SQLite/in-memory/local-JSONL runtime | 无需外部服务 |
+| `make smoke-live-model` | 如实报告 opt-in 状态，或执行一次受治理 completion | 需另行授权、品牌化隔离 credential 与受信 endpoint |
 | `make smoke-service` | 复制模板后经 PostgreSQL/Redis 验证 API/worker 恢复 | Docker Compose |
 | `make build` | 本地 wheel、sdist 和 checksum | 不发布 |
 | `make license-check` | 依赖/license 清单、NOTICE、vendoring 和镜像身份策略 | 不是法律意见或完整 SBOM |

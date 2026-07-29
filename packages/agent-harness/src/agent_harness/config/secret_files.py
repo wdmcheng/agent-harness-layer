@@ -23,9 +23,37 @@ def load_secret_file_env(
 ) -> dict[str, str]:
     """把进程 `_FILE` 输入安全解析为对应 direct env 值。"""
 
+    canonical_inputs: dict[str, tuple[str, str]] = {}
+    alias_error: SettingsLoadError | None = None
+    for raw_key, raw_value in process_env.items():
+        canonical_key = _canonical_env_key(raw_key)
+        previous = canonical_inputs.get(canonical_key)
+        if previous is not None and previous[0] != raw_key:
+            alias_error = SettingsLoadError(
+                [
+                    ErrorDetail(
+                        code="config.invalid",
+                        message="多个环境变量别名映射到同一配置路径",
+                        field_path=_env_field_path(canonical_key.removesuffix("_FILE")),
+                        hint="每个 canonical 配置路径只保留一个环境变量拼写",
+                    )
+                ]
+            )
+            break
+        canonical_inputs[canonical_key] = (raw_key, raw_value)
+    # 后续任一冲突都会保留本 frame；先释放循环标量，秘密只短暂存在于随后会
+    # 原地清空的 canonical mapping，避免 helper 独立调用时从 traceback 取回。
+    raw_key = ""
+    raw_value = ""
+    previous = None
+    if alias_error is not None:
+        canonical_inputs.clear()
+        del process_env
+        raise alias_error
+
     file_inputs = {
-        key: value
-        for key, value in process_env.items()
+        key: raw_value
+        for key, (_, raw_value) in canonical_inputs.items()
         if key.endswith("_FILE")
         and key.startswith(ENV_PREFIX)
         and not key.startswith(TEST_ENV_PREFIX)
@@ -34,7 +62,7 @@ def load_secret_file_env(
     conflict_error: SettingsLoadError | None = None
     for file_key in file_inputs:
         direct_key = file_key.removesuffix("_FILE")
-        if direct_key in process_env:
+        if direct_key in canonical_inputs:
             conflict_error = SettingsLoadError(
                 [
                     ErrorDetail(
@@ -50,11 +78,13 @@ def load_secret_file_env(
         # helper 也可能被独立调用；抛错前释放持有 direct secret 的 mapping，
         # 避免 traceback locals capture 绕过上层结构化错误脱敏。
         file_inputs.clear()
+        canonical_inputs.clear()
         del process_env
         raise conflict_error
 
     # 后续读取失败时，traceback 会保留本 frame；先释放包含 direct secret 的
     # 原始环境 mapping，再确保已成功读取的前序值在抛错前原地清空。
+    canonical_inputs.clear()
     del process_env
     resolved: dict[str, str] = {}
     read_error: SettingsLoadError | None = None
@@ -82,6 +112,14 @@ def _env_field_path(env_key: str) -> str:
 
     key = env_key.removeprefix(ENV_PREFIX)
     return ".".join(part.lower() for part in key.split("__") if part)
+
+
+def _canonical_env_key(env_key: str) -> str:
+    """大小写不敏感地规范化品牌路径，同时保留 `_FILE` 语义。"""
+
+    suffix = "_FILE" if env_key.upper().endswith("_FILE") else ""
+    base = env_key[: -len(suffix)] if suffix else env_key
+    return base.upper() + suffix
 
 
 def _read_secret_file(

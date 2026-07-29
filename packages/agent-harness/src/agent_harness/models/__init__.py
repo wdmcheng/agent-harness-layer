@@ -4,14 +4,17 @@ from agent_harness.adapters.models.fake import FakeModelProvider as FakeModelPro
 from agent_harness.models.invocation import (
     BoundModelInvocationService as BoundModelInvocationService,
 )
+from agent_harness.models.invocation import ModelApprovalRequired as ModelApprovalRequired
 from agent_harness.models.invocation import ModelInvocationService as ModelInvocationService
 from agent_harness.models.invocation import (
     ModelProviderInvocationError as ModelProviderInvocationError,
 )
+from agent_harness.models.providers import ModelAttemptEvidence as ModelAttemptEvidence
 from agent_harness.models.providers import ModelDecision as ModelDecision
 from agent_harness.models.providers import ModelProvider as ModelProvider
 from agent_harness.models.providers import ModelRequest as ModelRequest
 from agent_harness.models.providers import ModelResponse as ModelResponse
+from agent_harness.models.router import ModelRouteError as ModelRouteError
 from agent_harness.models.router import ModelRoutePlan as ModelRoutePlan
 from agent_harness.models.router import ModelRouter as ModelRouter
 from agent_harness.models.router import ModelRouterConfig as ModelRouterConfig
@@ -27,7 +30,9 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "FakeModelProvider",
     "BoundModelInvocationService",
     "ModelDecision",
+    "ModelAttemptEvidence",
     "ModelInvocationService",
+    "ModelApprovalRequired",
     "ModelProviderInvocationError",
     "ModelProvider",
     "ModelRequest",
@@ -35,6 +40,7 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "ModelRouter",
     "ModelRouterConfig",
     "ModelRoutePlan",
+    "ModelRouteError",
     "ModelUsageEvidence",
     "UsageEvidenceContext",
     "UsageInvocationReplayError",

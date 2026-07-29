@@ -7,7 +7,9 @@ input_schema: agents.examples.rag_assistant.schemas.RagInput
 output_schema: agents.examples.rag_assistant.schemas.RagOutput
 executor: agent:executor
 model:
+  deployment_id: fake_default
   provider: fake
+  allowed_models: [fake-rag]
   default_model: fake-rag
   fallback_models: []
 budget:

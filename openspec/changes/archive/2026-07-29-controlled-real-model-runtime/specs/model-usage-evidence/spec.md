@@ -54,6 +54,10 @@ Adapter SHALL 逐状态配置可重试的 429/5xx，但只有冻结 endpoint pol
 - **WHEN** status 可重试但受限 `Retry-After` 或下一 attempt 已无法落入剩余 total deadline
 - **THEN** adapter 不再发请求，以 `model.provider_retry_exhausted` 收敛；任一 started attempt 缺 actual 时保留原调用 reservation并进入 `needs_review`
 
+#### Scenario: 可重试失败耗尽 attempt 上限
+- **WHEN** 受信 429/5xx 或可证明 not-started 的 transport 失败持续到冻结 `max_attempts`
+- **THEN** adapter 不再发请求，以携带全部安全 attempts 的 `model.provider_retry_exhausted` 收敛，不得透出最后一次内部 `model.provider_failed`
+
 #### Scenario: 完成状态不明确时禁止重试
 - **WHEN**发生 read timeout、外部取消、无法证明请求未发送的连接错误，或 response 已包含业务结果、response id 或 usage
 - **THEN** adapter 不发起下一 attempt；未知完成状态使用 `model.provider_side_effect_unknown`，已完成但失败的状态使用稳定的 `model.provider_failed`
@@ -106,6 +110,10 @@ Runtime SHALL 通过 provider-neutral `PreparedModelCall`/`ModelExecutionPermit`
 - **WHEN**一个显式 retryable attempt 已记录而下一 attempt 尚未完成时进程崩溃
 - **THEN** 恢复按 started/unknown 封闭整个调用，不从 attempt 序号继续自动请求 provider
 
+#### Scenario: 已结算稳定失败的调用重放
+- **WHEN** 相同 `usage_call_id` 重放已经持久化的 `model.bulkhead_saturated`、`model.invocation_cancelled`、`model.provider_failed`、`model.provider_retry_exhausted` 或 `model.provider_side_effect_unknown` 结果
+- **THEN** runtime 的公开调用重放与后台恢复先共用完整 settlement validator 校验 evidence、outcome、稳定 error identity 与 failure/response，再允许发布 final event/telemetry 或把 outbox 标记为 `published`；合法稳定失败不再次调用 provider，只从 exact `error_code/provider_called/attempt_count/latency_ms` failure evidence 恢复同一 code 与原调用事实；稳定错误与 response 共存、failure 缺失/多余字段、`provider_called` 与 attempt 数不一致、非法 latency、evidence/outcome 缺失或畸形、畸形 response 均统一 fail closed 为 replay error，且零 final publication、零状态推进，不猜测为零调用、不返回伪造成功，也不泄漏普通/Pydantic 校验异常
+
 ### Requirement: Deadline 与取消保持副作用未知语义
 Provider execution SHALL 使用异步可取消 I/O，并让 Bulkhead 排队、connect/read timeout、retry wait 与全部 attempts 共同受冻结 total deadline 约束。调用在 durable `side_effect_started` mark 前收到外部取消时 MUST 取消未完成的本地工作，释放或归还已取得的 client lease 与 Bulkhead permit，回滚本调用 reservation，保持零 durable mark 与零 provider 网络副作用，并以 `model.invocation_cancelled` 收敛；此前的 `policy.decision` audit 不得冒充 provider 已开始。调用进入 durable side-effect 区间后的 read/total timeout、外部取消或含糊连接异常 MUST 以 `model.provider_side_effect_unknown` 收敛，禁止自动 retry/fallback、禁止释放或按零结算保守预算，并保持 pending/needs-review terminal fencing。
 
@@ -135,3 +143,7 @@ Provider execution SHALL 使用异步可取消 I/O，并让 Bulkhead 排队、co
 #### Scenario: 已授权 live smoke 只暴露脱敏证据
 - **WHEN** 调用方另行授权并提供隔离 credential、opt-in 开关和受信 endpoint
 - **THEN** smoke 最多执行契约允许的单次非流式 completion 流程，只保存 route/attempt/usage/latency/status 摘要，不保存 prompt 全文、输出全文、raw response 或 secret
+
+#### Scenario: provider 失败仍按事实报告调用摘要
+- **WHEN** 已授权 live smoke 遭遇 429/5xx、retry exhausted、read-timeout 或 side-effect unknown，因而没有成功 response
+- **THEN** smoke 从封闭的 invocation error/evidence 保留真实 `provider_called`、`attempt_count` 与安全 latency，不读取 raw SDK 异常，也不得把已发请求改写为零调用

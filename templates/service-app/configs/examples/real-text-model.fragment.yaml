@@ -1,0 +1,88 @@
+# 受控真实非流式文本 deployment 示例片段。
+#
+# 这是供维护者合并进受控 profile 的非敏感片段，不会被默认 local/service profile 加载。
+# 替换 model、origin 或 catalog 值后，必须按 model-catalog/v1 公式重算 digest；不要把
+# credential value 提交到本文件。示例关闭 response retry，因为普通兼容 endpoint 没有
+# 受信“completion 未开始”信号；需要重试时必须另行绑定已批准的 classifier policy。
+model:
+  default_deployment_id: real_primary
+  credentials:
+    real_primary_key:
+      # 必须通过 AGENT_HARNESS_MODEL__CREDENTIALS__REAL_PRIMARY_KEY__VALUE 或
+      # 对应 _FILE 注入；空值会让 startup fail closed。
+      value: ""
+      allowed_origins:
+        - https://models.example.invalid
+  endpoint_policies:
+    real_primary_endpoint:
+      version: v1
+      provider_kind: openai-compatible
+      allowed_origins:
+        - https://models.example.invalid
+      completion_classifiers: []
+  model_catalogs:
+    real_text_v1:
+      version: v1
+      provider_kind: openai-compatible
+      model: replace-with-provider-model-id
+      request_shape_ref: single-user-text-no-tools
+      request_shape_version: v1
+      input_bound_strategy_ref: utf8-bytes-plus-envelope
+      input_bound_strategy_version: v1
+      input_envelope_token_bound: 32
+      cost_enabled: false
+      input_token_price_usd: null
+      output_token_price_usd: null
+      price_source_ref: null
+      price_source_version: null
+      digest: f66eea2016f3017b9dad1a1f233c3d1cd3aa82406841844d642db5212221bc8a
+    real_text_fallback_v1:
+      version: v1
+      provider_kind: openai-compatible
+      model: replace-with-fallback-model-id
+      request_shape_ref: single-user-text-no-tools
+      request_shape_version: v1
+      input_bound_strategy_ref: utf8-bytes-plus-envelope
+      input_bound_strategy_version: v1
+      input_envelope_token_bound: 32
+      cost_enabled: false
+      input_token_price_usd: null
+      output_token_price_usd: null
+      price_source_ref: null
+      price_source_version: null
+      digest: 93f6427151d13558faaf91187dcfe51eed84caf5706df42861f33454a842e100
+  deployments:
+    real_primary:
+      provider_kind: openai-compatible
+      allowed_models:
+        - replace-with-provider-model-id
+        - replace-with-fallback-model-id
+      model_catalog_refs:
+        replace-with-provider-model-id: real_text_v1
+        replace-with-fallback-model-id: real_text_fallback_v1
+      model_catalog_versions:
+        replace-with-provider-model-id: v1
+        replace-with-fallback-model-id: v1
+      default_model: replace-with-provider-model-id
+      fallback_models:
+        - replace-with-fallback-model-id
+      base_url: https://models.example.invalid/v1
+      endpoint_policy_ref: real_primary_endpoint
+      endpoint_policy_version: v1
+      credential_ref: real_primary_key
+      connect_timeout_ms: 5000
+      read_timeout_ms: 60000
+      total_timeout_ms: 60000
+      max_attempts: 1
+      retryable_http_statuses: []
+      backoff_initial_ms: 0
+      backoff_max_ms: 0
+      max_retry_wait_ms: 0
+      max_in_flight: 4
+      queue_timeout_ms: 1000
+      max_prompt_utf8_bytes: 2048
+      max_output_tokens: 256
+      max_per_attempt_token_bound: 2336
+      max_per_attempt_cost_bound: null
+      capabilities:
+        - text_completion

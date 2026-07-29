@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pydantic import Field, model_validator
+
 from agent_harness.contracts.dto import HarnessDTO
 
 
@@ -14,9 +16,24 @@ class AgentToolPolicy(HarnessDTO):
 class AgentModelPolicy(HarnessDTO):
     """public descriptor 中可暴露的模型路由摘要。"""
 
+    deployment_id: str = "fake_default"
     provider: str
+    allowed_models: list[str] = Field(default_factory=list)
     default_model: str
     fallback_models: list[str]
+
+    @model_validator(mode="after")
+    def validate_model_subset(self) -> AgentModelPolicy:
+        """Agent 只能声明 deployment 允许集合的一个静态子集。"""
+
+        if not self.allowed_models:
+            self.allowed_models = list(dict.fromkeys([self.default_model, *self.fallback_models]))
+        if len(self.allowed_models) != len(set(self.allowed_models)):
+            raise ValueError("allowed_models must be unique")
+        allowed = set(self.allowed_models)
+        if self.default_model not in allowed or not set(self.fallback_models) <= allowed:
+            raise ValueError("default and fallback models must be within allowed_models")
+        return self
 
 
 class AgentBudget(HarnessDTO):

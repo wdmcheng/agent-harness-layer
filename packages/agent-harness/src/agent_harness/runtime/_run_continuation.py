@@ -36,6 +36,44 @@ from agent_harness.security.redaction import redact_secrets
 class RunContinuation(OrchestratorState):
     """封装 token 校验、approval 恢复与 executor 结果归并。"""
 
+    async def _validate_persisted_approval_grant(self, grant: ApprovalGrant) -> None:
+        """把公开 grant 绑定到仍可执行的 durable resolution lease。"""
+
+        async with self._storage.uow() as uow:
+            lease = await uow.approvals.get_resolution(grant.approval_id)
+        if (
+            lease is None
+            or lease.lease_id != grant.lease_id
+            or lease.state not in {"claimed", "execution_owned", "recovery_pending"}
+            or lease.approval.status != "waiting"
+        ):
+            raise InvalidRunTransition("approval grant does not match an active resolution lease")
+        approval = lease.approval
+        persisted = {
+            "tenant_id": approval.tenant_id,
+            "identity_id": str(approval.metadata.get("identity_id") or approval.requested_by),
+            "agent_id": approval.agent_id,
+            "run_id": approval.run_id,
+            "action": approval.action,
+            "resource": approval.resource,
+            "arguments_hash": str(approval.metadata.get("arguments_hash") or ""),
+        }
+        actual = {
+            "tenant_id": grant.tenant_id,
+            "identity_id": grant.identity_id,
+            "agent_id": grant.agent_id,
+            "run_id": grant.run_id,
+            "action": grant.action,
+            "resource": grant.resource,
+            "arguments_hash": grant.arguments_hash,
+        }
+        mismatch = next(
+            (field for field, value in persisted.items() if actual[field] != value),
+            None,
+        )
+        if mismatch is not None:
+            raise InvalidRunTransition(f"approval grant persistence mismatch: {mismatch}")
+
     async def resume_run(
         self,
         resume_token: ResumeToken | str,
@@ -144,6 +182,10 @@ class RunContinuation(OrchestratorState):
         # run 前验证 grant；原始 token 永远不能代替 ApprovalGrant。
         if approval_grant is None:
             raise InvalidRunTransition("executor approval resume requires ApprovalGrant")
+        # checkpoint 字段只能证明请求语义一致；真正的授权能力来自 repository
+        # 中仍有效且未完成的 resolution lease，二者必须在任何 resumed event 或
+        # executor/provider 副作用前同时成立。
+        await self._validate_persisted_approval_grant(approval_grant)
         if checkpoint_kind == "policy_approval":
             validate_approval_grant(checkpoint.state, approval_grant, active_identity.tenant_id)
             execution_identity = checkpoint_identity(checkpoint.state)

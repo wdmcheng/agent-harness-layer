@@ -83,7 +83,7 @@ Loader SHALL 在解析 typed endpoint policy/default catalog、endpoint 规范�
 - **THEN** startup 保存不含 credential 的 canonical base URL 与 endpoint origin，并允许 composition 在后续显式构造 client
 
 #### Scenario: 恶意或越界 URL 被拒绝
-- **WHEN** `base_url` 含 userinfo、query、fragment、非批准 scheme/origin、dot-segment 越界，或 credential 绑定 origin 与 endpoint 不同
+- **WHEN** `base_url` 含 userinfo、query、fragment、非批准 scheme/origin、原始或 percent-encoded dot-segment 越界（含可形成二次编码的结构字符），或 credential 绑定 origin 与 endpoint 不同
 - **THEN** startup 返回 `config.invalid`，诊断只包含安全 field path 和 canonical origin 摘要，且在 SDK client、DNS、proxy 或 HTTP 副作用前终止
 
 #### Scenario: Local loopback HTTP 必须双重显式

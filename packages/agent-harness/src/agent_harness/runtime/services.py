@@ -6,6 +6,10 @@ from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
 
+from agent_harness.adapters.models.pydantic_ai import (
+    ControlledOpenAIClientFactory,
+    PydanticAIModelProvider,
+)
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
 from agent_harness.config import HarnessSettings
@@ -19,6 +23,7 @@ from agent_harness.events import EventBus, EventSink
 from agent_harness.models import (
     FakeModelProvider,
     ModelInvocationService,
+    ModelProvider,
     ModelRouter,
     ModelRouterConfig,
 )
@@ -87,6 +92,14 @@ class ToolRegistryFactory:
         )
 
 
+async def close_agent_execution_services(services: Mapping[str, object]) -> None:
+    """先于 storage dispose 幂等关闭可能已构造的真实 provider client leases。"""
+
+    invocation = services.get("model_invocation")
+    if isinstance(invocation, ModelInvocationService):
+        await invocation.aclose()
+
+
 def build_agent_execution_services(
     *,
     settings: HarnessSettings,
@@ -108,11 +121,6 @@ def build_agent_execution_services(
     使用；调用方不得把其中的 provider、存储或闭包序列化到公开边界。
     """
 
-    if settings.model.provider != "fake":
-        raise ValueError(
-            "example execution requires the fake model provider; "
-            "configure a provider adapter before selecting another provider"
-        )
     retrieval = (
         LocalSQLiteBM25RetrievalProvider(dsn=storage_dsn)
         if settings.storage.kind == "sqlite"
@@ -123,11 +131,17 @@ def build_agent_execution_services(
         local_sink=event_sink,
         artifact_store=artifact_store,
     )
+    default_deployment = settings.model.deployments[settings.model.default_deployment_id]
     model_router_config = ModelRouterConfig(
-        default_provider="fake",
-        default_model=settings.model.default_model or "fake-basic",
+        default_provider=default_deployment.provider_kind,
+        default_model=default_deployment.default_model,
         timeout_seconds=settings.model.timeout_seconds,
         max_tokens_per_call=settings.budget.max_tokens_per_run,
+        max_cost_per_call=(
+            None
+            if settings.budget.max_cost_usd_per_run is None
+            else Decimal(str(settings.budget.max_cost_usd_per_run))
+        ),
         input_token_price_usd=Decimal("0"),
         output_token_price_usd=Decimal("0"),
         price_source_ref="catalog:fake",
@@ -141,15 +155,29 @@ def build_agent_execution_services(
         embedding_price_source_ref="catalog:local:mock-small",
         embedding_price_source_version="catalog-v1",
     )
+    providers: dict[str, ModelProvider] = {"fake": FakeModelProvider()}
+    client_factory: ControlledOpenAIClientFactory | None = None
+    if any(
+        deployment.provider_kind == "openai-compatible"
+        for deployment in settings.model.deployments.values()
+    ):
+        client_factory = ControlledOpenAIClientFactory(model_settings=settings.model)
+        providers["openai-compatible"] = PydanticAIModelProvider(
+            provider_id="openai-compatible",
+            client_factory=client_factory,
+        )
     model_invocation = ModelInvocationService(
         router=ModelRouter(
             config=model_router_config,
-            providers={"fake": FakeModelProvider()},
+            providers=providers,
+            model_settings=settings.model,
         ),
         storage=storage,
         event_bus=event_bus,
         telemetry=telemetry,
         shared_budget=shared_budget,
+        agent_policy_resolver=lambda agent_id: registry.get(agent_id).model_policy,
+        policy_engine=policy,
     )
     embedding_invocation = EmbeddingInvocationService(
         provider=LocalEmbeddingProvider(cache=StorageEmbeddingCache(storage)),

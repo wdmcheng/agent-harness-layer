@@ -7,12 +7,12 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-27 的 v1.20；新增架构治理、受控真实文本模型与紧随其后的 provider-neutral 增量文本流需求，均尚未进入实现。
+- Product Spec: `Product-Spec.md` 已存在，当前变更记录版本为 2026-07-29 的 v1.22；Phase 18 已实现、review、同步、归档并提交，真实 provider 成功仍未建立，AC-081/083 不因失败或离线 double 勾选。Phase 18.1 仍是唯一下一项 P0 行为 change；新增 P1 Phase 18.2 规划跨 deployment/provider fallback，不代表已实现或已创建 OpenSpec change。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
-- API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；本轮只澄清 RUN-006 是 committed CanonicalEvent transport、不是 provider stream producer，并为 Phase 18.1 保留先更新 delta/capacity/settlement 契约的门禁，没有新增 endpoint 或改变当前 payload。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-16、`relax-release-uv-patch-range` 与 Phase 17.1 `acceptance-criteria-identity-uniqueness` 均已同步主规格并归档。Phase 17.1 归档路径为 `openspec/changes/archive/2026-07-28-acceptance-criteria-identity-uniqueness/`；Phase 18 active change `controlled-real-model-runtime` 的中文 artifacts 已形成冻结候选并通过 strict validation，契约 review 尚未通过。
-- Git / 代码状态: Phase 17.1 已由 `2e91771` 提交；Phase 18 以 `develop@2502fe7b7d10` clean tree、无 active change 为启动基线。用户已授权 Phase 18 契约严格 `1+2` 全员 PASS 后创建一次 scoped 本地契约提交；未授权红灯测试、生产实现、其他 commit、push、tag、release、真实 provider 调用、依赖升级、部署、OpenSpec sync 或 archive。
+- API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；RUN-006 仍是 committed CanonicalEvent transport、不是 provider stream producer。新增 `MOD-003` 只冻结 Phase 18.2 的 planned route-chain/config/evidence 边界，不新增 endpoint、不声称字段已实现；Phase 18.1/18.2 均必须在实现前以 OpenSpec/API delta 冻结精确字段。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-18 均已同步主规格并归档。当前无 active change；Phase 18 归档路径为 `openspec/changes/archive/2026-07-29-controlled-real-model-runtime/`。
+- Git / 代码状态: Phase 18 已由本地提交 `develop@ff0c49b22f706ebe9f5cfc1c05c76d3861f9405a` 交付，提交后 worktree clean；未 push、tag、release 或部署。当前 worktree 只包含用户授权的 Phase 18.2 产品/API/开发/living-plan 规划补丁，尚未提交，且没有 active OpenSpec change。
 - 长期计划: `docs/plans/architecture-evolution-plan.md` 记录跨 session 的冻结基线、进度、发现、决策和 handoff；`docs/plans/architecture-evolution-change-matrix.md` 记录阶段依赖、共享接口、验收与文件所有权。上下文压缩或更换 Agent 后必须先以磁盘文件和当前 Git/OpenSpec 状态重新校准。
 - 计划模式: 迭代模式。Phase 1-16 保持历史冻结；新增 Phase 17-21 采用窄 change 演进，不进行全仓一次性重构。
 
@@ -20,13 +20,13 @@
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | 架构演进规划基线已审查；Phase 18.1 规划纳入同一 v1.20 变更 | Phase 1-16 既有交付及后续 change 均已归档；v1.20 建立 REQ-024/025/026、工程原则、贡献规范、living plan 和 change matrix，并把非流式基线与流式后继拆成两个有序 P0 change；不改生产代码。 |
-| 当前 Phase | Phase 18 契约收口，第 18 个 async adapter 测试所有权修订待重审 | 重启后的 Reviewer 3 以 1 HIGH 指出 `test_model_usage_provider_adapter_contracts.py` 仍依赖将删除的 `run_sync/_run_sync_with_timeout` seam，却未纳入精确 async 迁移；当前已补为第 18 个 owner并冻结原脱敏/usage 断言。全员 review 通过后本会话只创建一次本地契约提交，TDD 与实现移交新会话。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14, Phase 15, Phase 16 | 既有 changes 已同步主规格并归档；历史验证只证明各自冻结范围，不证明新 Phase 17-21。 |
-| 当前 OpenSpec change | `controlled-real-model-runtime` | proposal/spec/design/tasks 已成稿；第 18 个 async 测试所有权缺口已修订，属于 post-review 实质 diff，旧 Reviewer 1/2 verdict 失效；仍须完成 ownership/strict/diff/hash 并从全员通过的 `1+2` 第一位开始。 |
+| 总体状态 | Phase 18 已归档 | 主规格同步、32/32 tasks 与 fresh Reviewer 1/2/3 Stage 1/2 全票均已闭合；AC-081/083 的真实托管 completion 仍为 hosted-unverified。 |
+| 当前 Phase | Phase 18.1 待授权；Phase 18.2 已规划 | Phase 18.1 `controlled-model-streaming` 仍是唯一下一项实现 change。Phase 18.2 `controlled-multi-provider-failover` 已补产品与开发边界，强依赖 Phase 18.1 归档且当前只到计划状态。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, Phase 18 | 既有 changes 已同步主规格并归档；Phase 18 另已本地提交 `ff0c49b`。历史验证只证明各自冻结范围，不证明 Phase 18.1+。 |
+| 当前 OpenSpec change | 无 | `controlled-real-model-runtime` 已同步并归档；`openspec list --json` 应为空。 |
 | Phase 16 本地验证 | PASS | 2026-07-24 后续修正中，固定 uv `0.11.29` 与本机 uv `0.11.31` 都通过 lock check、frozen release sync、无隔离 build、release dry-run 与 17 项范围/identity 合同，两版 wheel/sdist 和 preview artifact checksum 完全一致；本机 `0.11.31` 下 quality PASS、审查修复后全量 pytest `1306 passed, 223 skipped`。207 项 lock identity SHA-256 保持 `bb9046c25267f611007c6b74ee74c3ff8e55f885b3f92d091aed0642c5adef58`。 |
-| 当前阻塞项 | Phase 18 契约 `1+2` review 未通过 | Phase 17.1 的历史实现冻结 identity `8789075d…42d15`、`1352 passed, 223 skipped`、direct validator `98/98` 与 18 个 CI producer PASS 只证明已归档的 Phase 17.1，不是 Phase 18 验收证据。Phase 18 当前只有 artifacts 与 strict PASS。 |
-| 当前建议下一步 | 重冻结后启动 Phase 18 fresh Reviewer 1 | Reviewer 1 Stage 1/2 PASS 后才并行派 Reviewer 2/3，三者全部 Stage 1/2 PASS 后创建一次 scoped 本地契约提交；不在本会话进入 TDD，不 push、sync 或 archive。 |
+| 当前阻塞项 | 真实 provider 成功未建立 | 一次授权入口明确零调用；另一次 terminal fencing 失败且旧 evidence 的 `provider_called=false` 不可信，按 unknown 处理并停止重试。Docker service smoke 已 PASS。 |
+| 当前建议下一步 | 等待用户授权 Phase 18.1 | 不自动创建 `controlled-model-streaming`，也不 commit、push、发布或部署。真实 provider smoke 仅在用户再次单独授权时执行。 |
 
 ## 剩余工作
 
@@ -37,7 +37,7 @@
 - 建立 `CONTRIBUTING*`：把人与 Agent 共用的代码、测试、文档、Git、安全和最小充分验证规则集中到稳定入口。
 - 建立 `docs/plans/architecture-evolution-plan.md` 与 change matrix：冻结基线、阶段 DAG、共享接口、文件所有权、并行等级、Codex 时间估计和下一动作；每个 session 结束必须刷新 handoff。
 - Phase 17 文档基线完成后，不直接改 `runtime/services.py`。先以独立窄 change 处置重复 `AC-070`，不夹带模型行为；随后创建 `controlled-real-model-runtime`，冻结 public config/route/error/evidence 契约和 red tests，进入 Phase 18 实现；其完成并归档后才创建 `controlled-model-streaming`。
-- 本轮没有新增 HTTP endpoint 或改变现有公开 payload；`API-Contract.md` 只补 transport-only 现状和 Phase 18.1 的先契约门禁。Phase 18 若改变公开 module/config/error surface、Phase 18.1 若实现 delta payload/identity/capacity/settlement，均必须在实现前先更新对应契约并做局部漂移检查。
+- 本轮没有新增 HTTP endpoint 或改变现有公开 payload；`API-Contract.md` 只补 Phase 18.2 planned route-chain/config/evidence 边界。Phase 18.1 若实现 delta payload/identity/capacity/settlement，Phase 18.2 若实现 fallback route refs、chain evidence 或 exhausted error，均必须在实现前先更新对应契约并做局部漂移检查。
 
 ### 历史基线与后续 Phase
 
@@ -55,9 +55,10 @@
 - Phase 15: CI/CD、Release Automation 与合规收口。
 - Phase 16: 依赖兼容范围、精确 lock 与 promotion 保真；已实现、验证、同步主规格并归档，归档后冻结候选进入最终审查门禁。
 - Phase 17: 架构治理基线与长期 handoff；当前只落盘原则、贡献规范、living plan、change matrix 和导航，后续把可机械规则按受影响 change 增量接入 checker/contract/CI。
-- Phase 18: 受控真实文本模型运行时；先完成 deployment config、credential/endpoint policy、immutable route plan 和真实 Pydantic AI composition，再做 opt-in live smoke。
+- Phase 18: 受控真实文本模型运行时；上述最小纵向闭环已完成离线冻结验证、fresh 严格 `1+2`、主规格同步与归档；两次已授权 MiMo 入口未建立真实成功，默认 smoke 继续保持零调用。
 - Phase 18.1: 受控真实模型增量文本流；复用 Phase 18 route/provider lifecycle 与 Phase 13.9 CanonicalEvent/SSE transport，补齐有界 delta、跨 chunk 安全、event capacity、取消/部分 usage 和只重放 committed events。
-- Phase 19: provider-neutral structured output；依赖 Phase 18.1 已稳定的 provider/invocation/result seam，单独设计 schema validation、unknown/repair/retry 和 replay evidence；不包含 structured streaming。
+- Phase 18.2: 受控跨 deployment/provider fallback；以有序 `(deployment_id, model_id)` route chain 扩展 Phase 18/18.1，只有前一候选可证明 not-started 时切换，逐候选独立凭据/endpoint/catalog/Bulkhead/预算/evidence，unknown 或已观察 delta 时停止。
+- Phase 19: provider-neutral structured output；依赖 Phase 18.2 已稳定的 provider/invocation/result seam，单独设计 schema validation、unknown/repair/retry 和 replay evidence；不包含 structured streaming。
 - Phase 20: 模型驱动工具循环；依赖 Phase 19，只允许 `模型决策 → ToolRegistry → Policy/HITL → 工具结果 → 模型续跑`，不得把 provider-native tools 直接暴露给业务 Agent。
 - Phase 21: 热点架构 seam 的增量收口；按独立 change 处理 typed execution services、storage ports、run transition table、SCC 拆分和剩余 architecture checker，不设全仓重写截止线。
 
@@ -65,8 +66,9 @@
 
 - AC-073、AC-075：2026-07-27 已由双语工程原则/贡献指南的 fresh 独立审查，以及仅凭 Product Spec、DEV-PLAN、living plan、change matrix、Git/OpenSpec 现状完成的 fresh handoff 复原测试证明并勾选；这不证明 AC-074/076 的机械门禁或任何真实模型能力。
 - AC-074、AC-076：架构规则的 checker/contract 覆盖和每项窄 change 证据尚未实现；后续 change 只增加与本次行为直接相关的机械门禁，避免一次性改造全仓。
-- AC-077 至 AC-084：受控真实文本模型非流式基线全部保持未完成。当前只确认 `.env` 高于 YAML、只解析 `AGENT_HARNESS_*`，现有 `ModelSettings` 字段不完整，service composition 仍 fake-only，Pydantic AI adapter 也不能用线程池 timeout 证明网络调用已取消。
+- AC-077 至 AC-084：受控真实文本模型非流式实现候选已覆盖 typed deployment、credential/endpoint/model catalog、只缩权冻结路由、async Pydantic AI adapter、共享预算/策略/审批/审计/evidence、composition 与默认离线门禁。当前完整离线验证已通过，仍待 fresh 实现审查；真实 completion 成功未建立，不得据离线 double、skip 或 side-effect unknown 勾成外部 PASS。
 - AC-085 至 AC-088：provider-neutral 增量文本流全部保持未完成。当前 RUN-006 / CLI 只读取 committed CanonicalEvent；`ModelProvider`/router/invocation/adapter 仍是完整 completion，现有固定 usage event capacity 也不能承载未设上限的 delta。
+- AC-090 至 AC-095：跨 deployment/provider fallback 全部保持未完成。当前只存在 Phase 18 的同 deployment/provider 多模型 fallback；没有冻结 route chain、跨候选 reservation transfer、provider failover recovery 或双真实 deployment live smoke，不能用现有 model fallback 测试冒充覆盖。
 - AC-017：RUN-001 至 RUN-006 已全部进入运行时 OpenAPI，并由 path/header/query/media type/status 双向精确合同覆盖；Phase 13.9 的最终 3-review 与归档均已收口。
 - AC-008、AC-063：Phase 13.6 已实现并提交 application startup fail-closed、受控 Docker secret file 加载和公开 evidence 脱敏；异常链与 frame locals 泄漏已修复，对应 change 已归档。
 - FLOW-003 / ApprovalRecord trace：Phase 13.6A 已切换为 canonical run trace 非空生成、传播与历史 backfill；跨 tenant/不同 idempotency key 的同 trace 竞争由全局 trace 锁覆盖锁内复检、guardrail/audit 与 root claim，相同 event-id 仅允许除 seq/timestamp 外完整稳定语义一致的重试，terminal/approval 恢复先复用既有确定性 evidence。对应 changes 已归档。
@@ -162,12 +164,13 @@ Phase 1 Monorepo / quality spine
                                       -> Phase 17 Architecture governance / handoff baseline
                                         -> Phase 18 Controlled real text model runtime
                                           -> Phase 18.1 Provider-neutral text streaming
-                                            -> Phase 19 Provider-neutral structured output
-                                              -> Phase 20 Tool-using model loop / HITL bridge
-                                                -> Phase 21 Incremental architecture seams
+                                            -> Phase 18.2 Controlled multi-provider failover
+                                              -> Phase 19 Provider-neutral structured output
+                                                -> Phase 20 Tool-using model loop / HITL bridge
+                                                  -> Phase 21 Incremental architecture seams
 ```
 
-并行规则：文档盘点、只读 blast-radius 和独立测试设计可以由 sub-agent 并行；生产实现只有在 change matrix 证明无顺序依赖、无共享接口、无共享验收且无文件所有权冲突时，才使用独立 worktree 并行。Phase 18、18.1、19、20 共享 model/route/result/runtime/event seam，必须按顺序串行；Phase 21 的候选 change 逐项重新证明独立性。
+并行规则：文档盘点、只读 blast-radius 和独立测试设计可以由 sub-agent 并行；生产实现只有在 change matrix 证明无顺序依赖、无共享接口、无共享验收且无文件所有权冲突时，才使用独立 worktree 并行。Phase 18、18.1、18.2、19、20 共享 model/route/result/runtime/event seam，必须按顺序串行；Phase 21 的候选 change 逐项重新证明独立性。
 
 ---
 
@@ -1036,7 +1039,7 @@ Phase 1 Monorepo / quality spine
 
 **Codex 执行时间估计**：20-32 小时，包括 OpenSpec、red contracts、实现、离线验证和 review/fix；已有可用隔离凭据时 live smoke 另需约 1-3 小时，网络/provider 不稳定会增加等待但不改变未验证状态。
 
-**当前状态**：已获授权并创建 active change `controlled-real-model-runtime`；中文 artifacts 已成稿。新 session 已重新校准 `develop@2502fe7b7d10`、唯一 active change、完整契约原文、工程原则、ADR 与 CodeGraph 当前源码，确认 production composition 仍为 fake-only，红灯测试和生产实现均未开始。前四轮契约 findings 已修订；第五轮 fresh Reviewer 1 按用户裁决忽略不影响实现的旧提交状态措辞，只以 1 HIGH 指出 cost-disabled route 的 API 价格来源可空语义未与 OpenSpec 对齐。当前已统一为 cost-enabled 的价格/来源成组存在、cost-disabled 的价格/来源/cost bounds 成组为 null；重新 strict/diff/hash 后必须由新的 Reviewer 1 先 PASS，再并行派两个 fresh reviewer，三者全部 Stage 1/2 PASS 后才创建这一次本地契约提交。不能从现有 adapter 推断真实运行时可用；TDD 红灯和生产实现移交新会话。完成并归档后的唯一模型能力后继为 Phase 18.1，不直接跳到 structured output。
+**当前状态**：以 `develop@5d7c018` 为实现冻结基线，品牌化 typed deployment/credential/endpoint/model catalog、deployment∩Agent∩request 只缩权、有序同 provider fallback、完整 `budget-tree-v2` route 恢复、async Pydantic AI/OpenAI-compatible adapter、可信 completion classifier、有界 retry/deadline/Bulkhead、既有 Policy/HITL、共享预算/usage evidence、lazy composition/lifecycle、显式 fake 与默认离线门禁均已落盘。最终全量的唯一旧授权夹具失败仍如实记录为 `1 failed, 1436 passed, 224 skipped`，其真实 lease 修复由 15 项受影响回归补证；后续发布前 settlement、受控 Router、approval lease、锁定 SDK 异常传播、encoded dot-segment 与职责拆分均按公共 seam 补证。fresh Reviewer 1、Reviewer 2、Reviewer 3 已在同一冻结身份上分别完成 Stage 1/2 PASS，均为 0 findings。三份 delta specs 已同步主规格，change 已归档到 `openspec/changes/archive/2026-07-29-controlled-real-model-runtime/` 并由本地提交 `ff0c49b` 交付；AC-081/083 的真实托管 completion 仍为 hosted-unverified。当前唯一下一动作是等待用户授权 Phase 18.1；不 push、发布、部署或再次调用真实 provider。
 
 ---
 
@@ -1070,7 +1073,7 @@ Phase 1 Monorepo / quality spine
 - 实现前重新核对当时 lock 中 Pydantic AI 的 `run_stream` / `run_stream_events`、取消、history 与 usage 实际语义；当前官方文档只证明可研究的上游能力，不能替代锁定版本源码、provider 行为和 Harness contract。
 - 代码审查确认未夹带 structured streaming、reasoning、tool-call streaming、tool loop、WS、retention、provider failover 或多订阅控制面。
 
-**依赖与并行**：强依赖 Phase 17.1 与 Phase 18 均已验证、fresh review、同步并归档，同时复用已归档 Phase 13.7 usage evidence、Phase 13.8A shared budget 和 Phase 13.9 SSE transport。provider/router/invocation/adapter/event-capacity/outbox/tests/docs 是同一安全不变量，单一 worktree、单一 owner 串行；sub-agent 只并行做只读 blast-radius、威胁建模和独立审查。Phase 19 必须从 Phase 18.1 归档 HEAD 开始。
+**依赖与并行**：强依赖 Phase 17.1 与 Phase 18 均已验证、fresh review、同步并归档，同时复用已归档 Phase 13.7 usage evidence、Phase 13.8A shared budget 和 Phase 13.9 SSE transport。provider/router/invocation/adapter/event-capacity/outbox/tests/docs 是同一安全不变量，单一 worktree、单一 owner 串行；sub-agent 只并行做只读 blast-radius、威胁建模和独立审查。Phase 18.2 必须从 Phase 18.1 归档 HEAD 开始。
 
 **Codex 执行时间估计**：20-30 小时，包括 OpenSpec、API/event contract、red tests、实现、SQLite/PostgreSQL crash-recovery、离线验证和 review/fix；若确认需要新 migration，冻结 design 后重新估算，当前保守上浮至 24-36 小时。Live streaming smoke 另需约 1-3 小时墙钟，不含外部等待。
 
@@ -1078,9 +1081,51 @@ Phase 1 Monorepo / quality spine
 
 ---
 
+## Phase 18.2: 受控跨 deployment/provider fallback（`controlled-multi-provider-failover`）
+
+**目标**：在 Phase 18 的 typed deployment/immutable route/budget/evidence 与 Phase 18.1 的 stream/cancel/partial-result 边界上，把同 provider model fallback 扩展为多个真实 deployment/provider 的有序 route chain；只在当前候选可证明 not-started 时切换，unknown、已观察 usage/response/text 或已提交 delta 时停止。
+
+**交付内容**：
+- 创建聚焦 OpenSpec change `controlled-multi-provider-failover`；先更新 API/config/evidence contract，冻结 route-ref schema、chain identity、候选顺序、failover classifier、预算 transfer、恢复和稳定 exhausted error，经 strict 与 fresh 契约 Stage 1/2 PASS 后才实现。
+- 将 Agent model policy 从单一 deployment 内的 model fallback 扩展为有序 `(deployment_id, model_id)` route refs；deployment、Agent 与 request 三层继续只缩权，request 只能选择/删减，不得新增或重排 provider、endpoint、credential 或 model。
+- Router 在任何 client/network 副作用前冻结完整 chain，以及每个候选自己的 provider kind、endpoint/credential identity、catalog/capability、deadline/retry/Bulkhead 和 token/cost 上界；reload 只影响新 root run。
+- Composition root 通过窄 provider factory/adapter registry 为各 deployment 提供 lazy client lease；同一 provider kind 的不同 vendor endpoint/credential 作为不同 deployment，候选之间禁止共享 secret、client、permit、catalog 或 SDK 类型。
+- 静态 hard eligibility 允许零调用跳过候选；运行时只有 client/send 前失败或受信 classifier 明确证明 not-started 时才推进。Started/unknown、response identity、usage、文本或 delta 立即停止，fake 不作为隐式尾部。
+- 每个候选使用自己的冻结 catalog/envelope/price/attempt policy 建立 reservation；上一候选先耐久收敛为 not-started并安全释放/转移，下一 reservation 再原子建立。Unknown 保留原 reservation与 needs-review，恢复只续接同一 chain/ordinal/settlement。
+- 扩展 provider-neutral evidence：route-chain identity、candidate ordinal、去敏 failover reason、实际 deployment/provider/model、逐 attempt usage/cost/latency 与 reservation transition；不保存完整 URL、header、secret、raw response 或 SDK exception。
+- 建立非流式与流式公共 seam 红灯、SQLite/PostgreSQL crash/replay/预算竞争合同、两 provider doubles、default fake/local 离线回归，以及仅在用户另行授权时执行的双真实 deployment opt-in smoke。
+
+**非目标**：
+- 动态 provider discovery、健康权重、流量分配、自动成本套利、热重载控制面、多区域运维和跨 provider 账单对账；
+- structured output/tool-call 的跨 provider 语义修复；Phase 19/20 只能在各自契约中另行扩展；
+- 观察或提交首个 streaming delta 后切换 provider，或由 SSE/CLI reader/reconnect 触发 provider 调用；
+- 把 fake 作为真实 provider 故障后的静默成功路径。
+
+**关键文件候选**：
+- `packages/agent-harness/src/agent_harness/config/{schemas.py,settings.py,model_catalog.py,model_endpoints.py}`、Agent registry descriptor/loader 与 profile/template config - typed route refs、候选交集和安全配置；
+- `packages/agent-harness/src/agent_harness/models/{providers.py,router.py,_router_contracts.py,_router_current.py,_router_snapshot.py,invocation.py,_invocation_execution.py,_invocation_evidence.py,_invocation_settlement.py}` - frozen chain、failover protocol、attempt/evidence 与恢复；
+- `packages/agent-harness/src/agent_harness/adapters/models/{pydantic_ai.py,_pydantic_ai_client.py,fake.py}`、`runtime/{services.py,shared_budget.py,_shared_budget_snapshot.py,_shared_budget_recovery.py}` - provider factory/lifecycle、预算 transfer 与 replay fencing；
+- SQLite/PostgreSQL settlement/snapshot repositories、`scripts/smoke_live_model.py`、CI producer、`API-Contract.md`、验收矩阵、双语维护文档及 Phase 18.2 聚焦 contracts/integration tests；migration 只在 design 证明现有 durable shape 无法兼容 chain identity 时纳入。
+
+**验收标准**：
+- AC-090 至 AC-095 全部先从公共 route/invocation/composition/recovery seam 建立可复现红灯，再实现；不得用私有 helper 或同 provider model fallback 代替跨 deployment/provider 行为。
+- 至少两个不同真实 deployment doubles 证明凭据/endpoint/client/Bulkhead 完全隔离、request 只缩权、候选顺序冻结、safe not-started 切换一次，以及 started/unknown/partial/delta 零后续 provider 调用。
+- 逐候选不同价格、token envelope 和 attempt policy 在 local/SQLite 与真实 PostgreSQL 中逐值验证 reservation transfer、actual settlement、crash replay 和 terminal fencing；同 operation 不重复调用已开始 provider。
+- Phase 18.1 streaming 回归证明首 delta 前只允许 safe not-started failover，首 delta 后 cancellation/deadline/reader reconnect/recovery 均不切 provider。
+- 默认 quality/test/eval/smoke-local 不读取真实 credential 且零网络；双真实 deployment smoke 只有用户另行授权、opt-in、两个隔离 credential refs 和两个受信 endpoints 齐全时运行，否则准确记录 hosted-unverified/external-blocked。
+- `make quality`、聚焦 contract/integration、`make test`、`make eval`、`make smoke-local`、触及 service composition 时的 `make smoke-service`、build/license/strict/diff checks 与 fresh 实现 `1+2` review 全部按 change 冻结范围收口。
+
+**依赖与并行**：强依赖 Phase 18.1 验证、fresh review、同步并归档。Config、route chain、provider factory、budget settlement、recovery、tests/docs 共同决定“只在可证明未开始时跨 provider”的安全不变量，单一 worktree、单一 owner 串行；只读厂商能力调查与威胁建模可并行。Phase 19 必须从 Phase 18.2 归档 HEAD 开始。
+
+**Codex 执行时间估计**：24-40 小时，包括 OpenSpec/API/config/evidence 契约、red tests、实现、SQLite/PostgreSQL recovery、离线验证和 review/fix；若需要新增 provider-specific dependency 或 migration，在 design 冻结后重新估算。双真实 deployment smoke 另需 2-4 小时墙钟，不含外部等待。
+
+**当前状态**：仅规划；尚未创建 OpenSpec change、修改实现或运行真实 provider。Phase 18.1 仍是唯一下一项实现 change。
+
+---
+
 ## Phase 19: Provider-neutral Structured Output
 
-**目标**：在 Phase 18.1 已稳定的受控 route/provider/invocation/result seam 上增加结构化结果，不让 Pydantic AI 或某一厂商 schema 类型进入核心 DTO、Agent descriptor 或持久化证据。
+**目标**：在 Phase 18.2 已稳定的受控 route-chain/provider/invocation/result seam 上增加结构化结果，不让 Pydantic AI 或某一厂商 schema 类型进入核心 DTO、Agent descriptor 或持久化证据。
 
 **交付内容**：
 - 单独 OpenSpec change 定义 input/output schema reference、provider-neutral structured result、校验失败、有限 repair/retry、unknown/needs-review、usage/budget 和 replay identity。
@@ -1091,7 +1136,7 @@ Phase 1 Monorepo / quality spine
 
 **验收标准**：schema success/failure/repair/replay 均有 provider-neutral evidence；未知 schema、额外字段、provider 不支持和重试耗尽 fail closed；文本调用与 fake eval 不退化。
 
-**依赖与并行**：强依赖 Phase 18.1，不能与 Phase 18/18.1 并行修改 provider/response seam。文档/eval case 盘点可提前，production change 串行。
+**依赖与并行**：强依赖 Phase 18.2，不能与 Phase 18/18.1/18.2 并行修改 provider/response seam。文档/eval case 盘点可提前，production change 串行。
 
 **Codex 执行时间估计**：16-28 小时。
 
@@ -1186,7 +1231,7 @@ Phase 1 Monorepo / quality spine
 | REQ-001 Monorepo / uv workspace | Phase 1 |
 | REQ-002 核心包与上游隔离 | Phase 2, Phase 6, Phase 10, Phase 12 |
 | REQ-003 后端服务型模板 | Phase 1, Phase 12 |
-| REQ-004 配置系统 | Phase 2, Phase 12, Phase 13.6, Phase 13.8A（fingerprint typed secret）, Phase 18（model deployment/credential/endpoint）, Phase 18.1（stream capability 与有界策略） |
+| REQ-004 配置系统 | Phase 2, Phase 12, Phase 13.6, Phase 13.8A（fingerprint typed secret）, Phase 18（model deployment/credential/endpoint）, Phase 18.1（stream capability 与有界策略）, Phase 18.2（有序 route refs 与逐 deployment 隔离） |
 | REQ-005 存储、迁移与事务边界 | Phase 3, Phase 12, Phase 13.6A, Phase 13.8, Phase 13.8A |
 | REQ-006 Durable runtime、checkpoint、resume | Phase 5, Phase 12, Phase 13, Phase 13.6A, Phase 13.8, Phase 13.8A |
 | REQ-007 多 agent registry 与 delegation | Phase 6（registry/summary seam）, Phase 13.8（真实执行/聚合）, Phase 13.8A（共享 owner/allocation） |
@@ -1194,7 +1239,7 @@ Phase 1 Monorepo / quality spine
 | REQ-009 租户、身份与认证 | Phase 2, Phase 7, Phase 13.6A, Phase 13.8, Phase 13.9 |
 | REQ-010 PolicyEngine、权限拦截、InputGuardrail 与 HITL | Phase 2, Phase 4, Phase 7, Phase 12, Phase 13.6A, Phase 13.8, Phase 13.9 |
 | REQ-011 工具系统、Shell、File、MCP | Phase 8, Phase 12 |
-| REQ-012 模型、预算、上下文组装与 embedding | Phase 2, Phase 4, Phase 6, Phase 13.6A, Phase 13.7, Phase 13.8A, Phase 18, Phase 18.1, Phase 19, Phase 20 |
+| REQ-012 模型、预算、上下文组装与 embedding | Phase 2, Phase 4, Phase 6, Phase 13.6A, Phase 13.7, Phase 13.8A, Phase 18, Phase 18.1, Phase 18.2, Phase 19, Phase 20 |
 | REQ-013 Retrieval 与 RAG | Phase 6, Phase 9, Phase 12 |
 | REQ-014 CanonicalEvent 与流式输出 | Phase 4, Phase 5, Phase 13.6A, Phase 13.7, Phase 13.8, Phase 13.8A, Phase 13.9；Phase 18.1 复用既有 transport/event seam 并新增 model delta producer，不重开第二通道 |
 | REQ-015 Observability 转换层 | Phase 4, Phase 10, Phase 13.6A, Phase 13.7, Phase 13.8 |
@@ -1207,8 +1252,9 @@ Phase 1 Monorepo / quality spine
 | REQ-022 部署边界与未来微服务拆分基础 | Phase 2, Phase 4, Phase 5, Phase 13, Phase 13.8, Phase 13.9, Phase 14 |
 | REQ-023 依赖兼容范围与可复现解析 | Phase 16 |
 | REQ-024 架构治理与持续演进纪律 | Phase 17, Phase 21；各后续 change 持续补充可机械门禁 |
-| REQ-025 受控真实文本模型运行时 | Phase 18；Phase 18.1/19/20 只能在其稳定 route/provider seam 上扩展 |
-| REQ-026 受控真实模型增量文本流 | Phase 18.1；Phase 19 从其归档 HEAD 扩展 structured output，但 structured streaming 仍非目标 |
+| REQ-025 受控真实文本模型运行时 | Phase 18；Phase 18.1/18.2/19/20 只能在其稳定 route/provider seam 上扩展 |
+| REQ-026 受控真实模型增量文本流 | Phase 18.1；Phase 18.2 只在首 delta 前且可证明 not-started 时扩展 route chain，首 delta 后继续禁止 failover |
+| REQ-027 受控跨 deployment/provider fallback | Phase 18.2；Phase 19 从其归档 HEAD 扩展 structured output，structured/tool-call failover 仍分别留给后续契约 |
 
 ## 开发规则
 
@@ -1240,10 +1286,11 @@ Phase 1 Monorepo / quality spine
 | 风险 | 影响范围 | 处理 Phase | 当前状态 | 处理方式 / 验收信号 |
 |------|----------|------------|----------|----------------------|
 | Pydantic AI 2.5.0 刚发布，上游 API 和包边界可能变化。 | 核心 runtime、registry、model adapter 和业务 agent import 边界。 | Phase 2、Phase 6、Phase 10 | 已缓解 | Phase 2 已定义 `agent_harness` 公共契约和 vendor import 边界；Phase 6 已锁定 `pydantic-ai==2.5.0`，并把 `Agent.run_sync()` 调用隔离在 `agent_harness.adapters.models.pydantic_ai`。 |
-| 真实模型 adapter 已存在但 composition fake-only，容易让使用者误以为只改 provider/model 或写入 `OPENAI_API_KEY` 就能受控启用。 | config、router、composition、budget、audit、service template。 | Phase 18 | 未处理 | REQ-025 与 FLOW-006 已固定 deployment/credential/endpoint/route 边界；`controlled-real-model-runtime` 必须先有 red contracts，再注册真实 provider。 |
-| `.env` 比 YAML 优先但只解析 `AGENT_HARNESS_*`；把 provider 原生 key 写入 `.env` 既可能无效，也会制造第二条不可见配置路径。 | local onboarding、service deployment、secret redaction。 | Phase 18 | 未处理 | 使用 typed credential reference；正式 secret 走 direct env 或 `_FILE`，direct/file 冲突 fail closed，composition root 显式传给 provider client。 |
-| 自定义 `base_url` 会决定凭据发送目标，若只当普通字符串配置可能产生 secret exfiltration、SSRF 或明文传输。 | provider factory、网络 egress、错误与 health。 | Phase 18 | 未处理 | 校验无 userinfo/query/fragment 的 exact origin，service 默认 HTTPS allowlist，local loopback HTTP 仅显式允许，credential 与 origin 绑定。 |
-| 当前 Pydantic AI adapter 的线程池 timeout 只停止等待，不能证明已经开始的网络调用被取消；盲目重试可能重复费用。 | timeout、retry、budget settlement、recovery。 | Phase 18、Phase 18.1 | 未处理 | Phase 18 改用异步 client/transport deadline并固定 unknown；Phase 18.1 在已观察 delta 后一律禁止自动 retry/fallback，保留 committed prefix 与 reservation。 |
+| 真实模型若绕过 typed deployment、冻结 route、预算、策略、审计或证据链，会把“能请求 SDK”误当成“已受控运行”。 | config、router、composition、budget、audit、service template。 | Phase 18 | 实现、严格 `1+2` review、同步、归档与本地提交已完成；外部成功未验证 | `controlled-real-model-runtime` 已按 red-first 建立 lazy 真实 provider composition 与完整治理路径；fresh Reviewer 1/2/3 在同一冻结实现身份上均 Stage 1/2 PASS，change 已由 `ff0c49b` 交付。两次授权 MiMo 入口仍未建立真实成功，第二次按 side-effect unknown 处理且不再重试。 |
+| `.env` 比 YAML 优先但只解析 `AGENT_HARNESS_*`；把 provider 原生 key 写入 `.env` 既可能无效，也会制造第二条不可见配置路径。 | local onboarding、service deployment、secret redaction。 | Phase 18 | 已闭合 | 使用 typed credential reference；正式 secret 走 direct env 或 `_FILE`，direct/file 冲突在读取 secret 前 fail closed，composition root 显式传给 provider client。 |
+| 自定义 `base_url` 会决定凭据发送目标，若只当普通字符串配置可能产生 secret exfiltration、SSRF 或明文传输。 | provider factory、网络 egress、错误与 health。 | Phase 18 | 已闭合 | 已校验无 userinfo/query/fragment 的 exact origin，service 默认 HTTPS allowlist，local loopback HTTP 仅显式允许，credential 与 origin 绑定。 |
+| 当前 Pydantic AI adapter 的线程池 timeout 只停止等待，不能证明已经开始的网络调用被取消；盲目重试可能重复费用。 | timeout、retry、budget settlement、recovery。 | Phase 18、Phase 18.1 | 非流式已闭合；流式待后续 | Phase 18 已改用异步 client/transport deadline并固定 unknown；Phase 18.1 在已观察 delta 后仍须禁止自动 retry/fallback，保留 committed prefix 与 reservation。 |
+| 跨 deployment/provider failover 若依赖异常字符串、共享 client/credential 或在 unknown 后继续，会造成凭据错发、重复生成和跨 provider 重复计费。 | route chain、composition、endpoint/credential、budget settlement、recovery。 | Phase 18.2 | 已规划，未实现 | 完整 chain 在副作用前冻结；候选逐项隔离 endpoint/credential/client/Bulkhead/catalog，只有受信 not-started 才推进；unknown/response/usage/text/delta 立即停止并保留 reservation/needs-review。 |
 | Provider token/delta 数量不定，而当前 usage operation 只为固定 prerequisite events 预约容量；直接逐 token 入 EventBus 会耗尽 seq、制造无界缓存或在副作用后才失败。 | provider stream、event capacity、outbox、SQLite/PostgreSQL recovery。 | Phase 18.1 | 未处理 | 在 provider 副作用前冻结最大 chunk 数、合并策略、单片 envelope 与 stream operation reservation；逐片 durable commit 后再拉取下一片，超限按受审契约有界失败或合并。 |
 | 逐 chunk 独立脱敏会漏掉跨 chunk secret，SSE 断线若与 provider cancel/retry 混用还会公开不可撤回内容并重复计费。 | output guardrail、redaction、RUN-006/CLI、partial usage、budget。 | Phase 18.1 | 未处理 | 使用跨 chunk 有状态安全门禁；完整结果才能判断时禁止公开 speculative delta。reader 断线不取消 run，显式取消后的未知结果不重试、不记零、不提前 terminal。 |
 | 架构规则若只写文档会继续漂移，若一次性扩大 checker 又会造成高噪音和大范围修复。 | 全仓依赖、review、CI。 | Phase 17、Phase 21 | 部分处理 | Phase 17 建立共享原则与 change matrix；每个后续 change 只把已稳定且与本次行为相关的机械规则加入 checker/contract/CI。 |

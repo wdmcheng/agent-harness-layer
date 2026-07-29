@@ -28,13 +28,17 @@ def test_boundary_contract_lists_banned_vendors_and_adapter_allowlist() -> None:
     """验证 vendor 禁止集和按目录授权的 adapter 例外来自同一公开边界定义。"""
 
     # allowlist 按目录职责判断，不按单个文件白名单判断，方便后续 adapter 扩展。
-    assert {"pydantic_ai", "dbos", "logfire", "phoenix", "langfuse"} <= BANNED_VENDOR_IMPORTS
+    assert {"pydantic_ai", "openai", "dbos", "logfire", "phoenix", "langfuse"} <= (
+        BANNED_VENDOR_IMPORTS
+    )
     assert is_vendor_import_allowed(
-        ROOT / "packages" / "agent-harness" / "src" / "agent_harness" / "adapters" / "model.py"
+        Path("packages/agent-harness/src/agent_harness/adapters/model.py")
     )
+    assert not is_vendor_import_allowed(Path("templates/service-app/app/api/run.py"))
     assert not is_vendor_import_allowed(
-        ROOT / "templates" / "service-app" / "app" / "api" / "run.py"
+        Path("templates/service-app/agents/evil/adapters/openai.py")
     )
+    assert not is_vendor_import_allowed(Path("templates/service-app/app/integrations/openai.py"))
 
 
 def test_example_agents_have_no_direct_vendor_sdk_imports() -> None:

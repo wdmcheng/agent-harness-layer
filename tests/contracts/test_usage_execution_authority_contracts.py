@@ -37,11 +37,11 @@ class _CountingModelProvider(FakeModelProvider):
 
         self.calls = 0
 
-    def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+    async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
         """在委托基础 fake 前计数，使测试可区分“被拒绝”与“已调用后失败”。"""
 
         self.calls += 1
-        return super().complete(request, model=model)
+        return await super().complete(request, plan=plan)
 
 
 class _CountingEmbeddingProvider:

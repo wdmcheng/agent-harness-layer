@@ -14,6 +14,7 @@ from agent_harness.models import (
     ModelInvocationService,
     ModelRequest,
     ModelResponse,
+    ModelRoutePlan,
     ModelRouter,
     ModelRouterConfig,
     UsageEvidenceContext,
@@ -39,7 +40,7 @@ class RecordingUsageTelemetryProvider:
         return TelemetryStatus(provider=self.provider_name, status="sent")
 
 
-async def _usage_run(storage: SQLAlchemyStorage) -> str:
+async def usage_run(storage: SQLAlchemyStorage) -> str:
     """创建固定租户、会话与 trace 的最小 run，供模型 usage 场景复用。"""
 
     async with storage.uow() as uow:
@@ -81,7 +82,7 @@ async def test_model_invocation_reserves_and_settles_durable_usage(tmp_path: Pat
         return "trace-a"
 
     try:
-        run_id = await _usage_run(storage)
+        run_id = await usage_run(storage)
         service = ModelInvocationService(
             router=ModelRouter(
                 config=ModelRouterConfig(default_model="fake-basic"),
@@ -146,11 +147,11 @@ async def test_model_invocation_policy_rejection_has_zero_provider_side_effect(
 
         calls = 0
 
-        def complete(self, request: ModelRequest, *, model: str):
+        async def complete(self, request: ModelRequest, *, plan: object):
             """记录一次实际调用后委托基类，若误触发即可由断言暴露。"""
 
             self.calls += 1
-            return super().complete(request, model=model)
+            return await super().complete(request, plan=plan)
 
     database = tmp_path / "policy.db"
     dsn = f"sqlite+aiosqlite:///{database}"
@@ -165,7 +166,7 @@ async def test_model_invocation_policy_rejection_has_zero_provider_side_effect(
 
     provider = SpyProvider()
     try:
-        run_id = await _usage_run(storage)
+        run_id = await usage_run(storage)
         service = ModelInvocationService(
             router=ModelRouter(
                 config=ModelRouterConfig(
@@ -192,11 +193,27 @@ async def test_model_invocation_policy_rejection_has_zero_provider_side_effect(
             ),
             usage_call_id="usage-policy",
         )
+        replayed = await service.complete(
+            ModelRequest(
+                provider="fake",
+                prompt="blocked",
+                estimated_input_tokens=2,
+                max_output_tokens=1,
+            ),
+            context=UsageEvidenceContext(
+                tenant_id="tenant-a",
+                run_id=run_id,
+                agent_id="agent-a",
+                trace_id="trace-a",
+            ),
+            usage_call_id="usage-policy",
+        )
 
         events = await sink.read(run_id=run_id)
         assert events[-1].payload is not None
         assert provider.calls == 0
         assert response.decision.action == "policy_required"
+        assert replayed.decision.action == "policy_required"
         assert events[-1].payload["outcome"] == "rejected"
         assert events[-1].payload["error_code"] == "model.policy_required"
         assert events[-1].payload["usage"]["decision"]["provider_called"] is False
@@ -221,11 +238,11 @@ async def test_model_fallback_calls_only_selected_model_and_records_actual_route
 
             self.called_models: list[str] = []
 
-        def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
             """记录实际模型后返回基类响应，保持服务完整结算路径可运行。"""
 
-            self.called_models.append(model)
-            return super().complete(request, model=model)
+            self.called_models.append(cast(ModelRoutePlan, plan).model)
+            return await super().complete(request, plan=plan)
 
     database = tmp_path / "fallback.db"
     dsn = f"sqlite+aiosqlite:///{database}"
@@ -240,7 +257,7 @@ async def test_model_fallback_calls_only_selected_model_and_records_actual_route
         return "trace-a"
 
     try:
-        run_id = await _usage_run(storage)
+        run_id = await usage_run(storage)
         service = ModelInvocationService(
             router=ModelRouter(
                 config=ModelRouterConfig(
@@ -309,9 +326,10 @@ async def test_model_invocation_preserves_verified_reported_or_estimated_cost(
     class CostProvider(FakeModelProvider):
         """返回参数化成本状态和价格来源的 fake provider。"""
 
-        def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
             """构造带真实 token、成本和价格证据的 provider-neutral 响应。"""
 
+            model = cast(ModelRoutePlan, plan).model
             return ModelResponse(
                 provider="cost",
                 model=model,
@@ -340,7 +358,7 @@ async def test_model_invocation_preserves_verified_reported_or_estimated_cost(
         return "trace-a"
 
     try:
-        run_id = await _usage_run(storage)
+        run_id = await usage_run(storage)
         service = ModelInvocationService(
             router=ModelRouter(
                 config=ModelRouterConfig(default_model="cost-model"),
@@ -381,9 +399,10 @@ async def test_provider_decision_is_redacted_before_durable_outbox(tmp_path: Pat
     class LeakingDecisionProvider(FakeModelProvider):
         """在决策理由中故意携带敏感形态的 fake provider，用于验证脱敏边界。"""
 
-        def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
             """返回带泄露式决策理由的响应，供服务层在落库前进行脱敏。"""
 
+            model = cast(ModelRoutePlan, plan).model
             return ModelResponse(
                 provider="leaking",
                 model=model,
@@ -408,7 +427,7 @@ async def test_provider_decision_is_redacted_before_durable_outbox(tmp_path: Pat
         return "trace-a"
 
     try:
-        run_id = await _usage_run(storage)
+        run_id = await usage_run(storage)
         service = ModelInvocationService(
             router=ModelRouter(
                 config=ModelRouterConfig(default_model="safe-model"),

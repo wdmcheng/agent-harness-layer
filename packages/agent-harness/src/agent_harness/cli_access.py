@@ -22,7 +22,10 @@ from agent_harness.events import EventBus, LocalJsonlEventSink
 from agent_harness.policy import PolicyCheck
 from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator, RunStatus
-from agent_harness.runtime.services import build_agent_execution_services
+from agent_harness.runtime.services import (
+    build_agent_execution_services,
+    close_agent_execution_services,
+)
 from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.storage import SQLAlchemyStorage, storage_dsn_from_settings
 
@@ -318,6 +321,7 @@ def resolve_approval(
             if result.run is not None:
                 typer.echo(f"run: {result.run.status.value}")
         finally:
+            await close_agent_execution_services(executor_services)
             await storage.dispose()
 
     asyncio.run(_resolve())

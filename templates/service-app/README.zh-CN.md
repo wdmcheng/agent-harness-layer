@@ -268,6 +268,29 @@ rename，不向并发文件系统观察者承诺严格原子，因此不要在�
 Agent Harness Layer 模板，还必须同步根 `NOTICE`、`compliance/third-party.toml`
 与 ADR-0004/0005，并运行 `make license-check` 和真实 copy-out smoke。
 
+## 受控真实文本 deployment
+
+模板默认显式使用 `fake_default`，保持完全离线。增加真实非流式文本 deployment 时，只能
+按 [`.env.example`](.env.example) 使用品牌化 `AGENT_HARNESS_MODEL__...` 字段，完整声明
+deployment、exact endpoint policy、版本化 model catalog 和 credential reference。secret
+值只能放在品牌化 direct env 或受控 `_FILE` 中，不能写进 Agent YAML，也不能依赖 provider
+原生 ambient 变量。
+
+Agent `config.yaml` 只声明 `deployment_id`、`provider`、`allowed_models`、`default_model`
+与 fallback models，这是一层缩权策略，不能提供 endpoint 或 credential；单次请求只能在
+deployment 与 Agent 交集内再次收窄。恢复使用 root run 的冻结快照，配置 reload 只影响新
+root。并发上限是进程内按 deployment 隔离的 Bulkhead，不是集群全局配额。timeout、retry、
+`Retry-After`、attempt usage/cost 和 unknown side effect 始终绑定同一预算预约与 evidence。
+fallback 是同一 deployment/provider 内的有序模型列表，只在 provider 副作用前按冻结
+token/cost 阈值选择；请求显式点名模型或 provider 已开始/失败后都不会自动换模重放。
+
+Agent Harness Layer 源仓库根目录的 `make smoke-live-model` 默认不会调用 provider；当前会话未另行授权时写出
+`hosted-unverified` 和 `provider_called=false`。已授权调用还要求显式 opt-in、隔离的品牌化
+credential 与受信 endpoint，并完整经过 policy audit、shared budget 和耐久 usage evidence。
+本地 `_FILE` 不在默认 `/run/secrets` 时，使用 `--secret-root` 显式限定隔离目录；脚本把
+deployment 的冻结 fallback 交给 router，不会在请求中钉死 primary。
+不要把该命令当成生产健康检查，也不要据此使用生产凭据。
+
 ## 日常使用
 
 ### Make 命令

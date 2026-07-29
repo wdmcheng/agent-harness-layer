@@ -202,6 +202,15 @@ def validate_generated_package(agents_root: Path, target: Path, agent_id: str) -
         raise ValueError("scaffold eval dataset ref does not match the selected agents_dir")
     if descriptor.model_policy.provider != "fake":
         raise ValueError("scaffold model provider must remain fake")
+    if descriptor.model_policy.deployment_id != "fake_default":
+        raise ValueError("scaffold model deployment must remain fake_default")
+    if descriptor.model_policy.allowed_models != ["fake-scaffold"]:
+        raise ValueError("scaffold allowed model set must remain fake-scaffold only")
+    if (
+        descriptor.model_policy.default_model != "fake-scaffold"
+        or descriptor.model_policy.fallback_models
+    ):
+        raise ValueError("scaffold default/fallback models must remain offline and narrowed")
     if descriptor.tool_policy.allowed_tools or descriptor.delegation_targets:
         raise ValueError("scaffold must not grant tools or delegation")
     module = load_schema_module(target / "schemas.py")

@@ -49,9 +49,10 @@ async def test_model_response_identity_must_match_routing_plan(tmp_path: Path) -
 
         provider_id = "declared"
 
-        def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
             """构造身份失配但含私有输出的响应，覆盖服务端最后一道校验。"""
 
+            del plan
             return ModelResponse(
                 provider="wrong-provider",
                 model="wrong-model",

@@ -365,9 +365,10 @@ async def test_provider_failure_closes_raw_prompt_secret_and_response(tmp_path: 
     class LeakingProvider(FakeModelProvider):
         """在模型调用异常中故意嵌入 prompt、认证和响应内容的 fake provider。"""
 
-        def complete(self, request: ModelRequest, *, model: str):
+        async def complete(self, request: ModelRequest, *, plan: object):
             """抛出泄露形态的异常，供模型调用服务验证稳定错误和事件脱敏。"""
 
+            del plan
             raise RuntimeError(
                 f"raw prompt={request.prompt}; Authorization=Bearer secret-token; "
                 "response={'private': true}"

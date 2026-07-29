@@ -21,6 +21,7 @@ from agent_harness.models import (
     ModelProviderInvocationError,
     ModelRequest,
     ModelResponse,
+    ModelRoutePlan,
     ModelRouter,
     ModelRouterConfig,
     UsageEvidenceContext,
@@ -140,10 +141,11 @@ async def test_invalid_model_usage_return_closes_failed_settlement(tmp_path: Pat
         provider_id = "invalid-model"
         calls = 0
 
-        def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        async def complete(self, request: ModelRequest, *, plan: ModelRoutePlan) -> ModelResponse:
             """返回负 token 的损坏响应，且保留私有 payload 以验证错误路径脱敏。"""
 
             self.calls += 1
+            model = plan.model
             # model_construct 模拟恶意或损坏 adapter 绕过边界 DTO 校验。
             return ModelResponse.model_construct(
                 provider=self.provider_id,

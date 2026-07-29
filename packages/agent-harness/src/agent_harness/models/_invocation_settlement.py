@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from decimal import Decimal
-from typing import Any, Protocol
+import asyncio
 
 from agent_harness.events import EventBus
-from agent_harness.models.providers import ModelRequest, ModelResponse
-from agent_harness.models.router import ModelRoutePlan, ModelRouterConfig
+from agent_harness.models._settlement_contracts import (
+    DurableMarkStateUnknown,
+    IdentityRuntime,
+    ModelProviderInvocationError,
+    SettlementStart,
+)
+from agent_harness.models._settlement_validation import SettlementValidationMixin
+from agent_harness.models.providers import ModelRequest
+from agent_harness.models.router import ModelRoutePlan
 from agent_harness.models.usage import (
     ModelUsageEvidence,
     UsageEvidenceContext,
@@ -19,53 +24,16 @@ from agent_harness.observability.facade import TelemetryFacade
 from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
 from agent_harness.storage.evidence_repositories import (
     EvidenceOperationKind,
-    UsageSettlementClaim,
 )
 from agent_harness.storage.shared_budget import (
     AllocationBudgetClaim,
     BudgetOperationOwnership,
     BudgetReservationRejected,
     DirectBudgetClaim,
-    OperationIdentity,
 )
 
 
-@dataclass(frozen=True)
-class _SettlementStart:
-    """usage claim 启动后的耐久状态快照，决定调用方能否安全触发 provider 副作用。"""
-
-    usage: UsageSettlementClaim
-    ownership: BudgetOperationOwnership | None
-    safe_to_start: bool = False
-
-
-class ModelProviderInvocationError(RuntimeError):
-    """provider 原异常已封闭，调用方只能看到稳定错误码。"""
-
-    code = "model.provider_failed"
-
-
-class _IdentityRuntime(Protocol):
-    """模型结算所需的共享预算身份构造能力，隔离具体运行时实现。"""
-
-    def operation_identity(self, **values: Any) -> OperationIdentity:
-        """用冻结的账本和路由事实构造可重放的不可变预算身份。"""
-
-        ...
-
-    def model_router_config(
-        self,
-        *,
-        snapshot: dict[str, Any],
-        agent_id: str,
-        base: ModelRouterConfig,
-    ) -> ModelRouterConfig:
-        """从指定快照恢复 agent 的模型路由配置，避免新调用读取漂移中的当前配置。"""
-
-        ...
-
-
-class _ModelSettlementMixin:
+class _ModelSettlementMixin(SettlementValidationMixin):
     """承载 provider 调用前后必须保持原子一致的 usage 生命周期。
 
     该 mixin 协调 shared budget、usage outbox、外部模型调用和 canonical event；任何
@@ -74,34 +42,18 @@ class _ModelSettlementMixin:
 
     _storage: SQLAlchemyStorage
     _event_bus: EventBus
-    _shared_budget: _IdentityRuntime | None
+    _shared_budget: IdentityRuntime | None
     _telemetry: TelemetryFacade | None
-
-    @staticmethod
-    def _final_event_id(tenant_id: str, usage_call_id: str) -> str:
-        """由具体调用器提供 usage 最终事件的稳定标识公式。"""
-
-        ...
-
-    @staticmethod
-    def _safe_decision(*parts: dict[str, object]) -> dict[str, Any]:
-        """由具体调用器合并并脱敏可进入 evidence 的决策片段。"""
-
-        ...
-
-    @staticmethod
-    def _durable_response(response: ModelResponse) -> dict[str, Any]:
-        """将 provider 响应收敛为可重放的耐久 DTO，不保留 adapter 私有对象。"""
-
-        ...
 
     @staticmethod
     def _semantic_request(request: ModelRequest) -> dict[str, object]:
         """提取决定本次模型调用语义的字段，供 identity HMAC 比较而非直接持久化。"""
 
         return {
+            "deployment_id": request.deployment_id,
             "provider": request.provider,
             "model": request.model,
+            "capability": request.capability,
             "prompt": request.prompt,
             "max_output_tokens": request.max_output_tokens,
             "timeout_seconds": request.timeout_seconds,
@@ -113,7 +65,7 @@ class _ModelSettlementMixin:
         request: ModelRequest,
         context: UsageEvidenceContext,
         usage_call_id: str,
-    ) -> _SettlementStart | None:
+    ) -> SettlementStart | None:
         """先验证耐久 identity/result；当前快照只约束新执行。
 
         此路径在读取新路由或价格配置之前运行，使中断后重试继续绑定原操作身份；仅当
@@ -176,7 +128,7 @@ class _ModelSettlementMixin:
         if seed.state == "reserved" and seed.side_effect_state == "not_started":
             # 首次事务尚未开始外部副作用时，仍走正常 frozen snapshot 路径恢复。
             return None
-        return _SettlementStart(usage=usage, ownership=seed.ownership)
+        return SettlementStart(usage=usage, ownership=seed.ownership)
 
     async def _start_settlement(
         self,
@@ -185,7 +137,7 @@ class _ModelSettlementMixin:
         usage_call_id: str,
         request: ModelRequest,
         plan: ModelRoutePlan,
-    ) -> _SettlementStart:
+    ) -> SettlementStart:
         """在同一工作单元中冻结预算身份、预留额度和 usage outbox，再允许副作用。
 
         所有可能改变 parent budget 的校验在创建 provider 调用前完成；如果已有同一
@@ -308,7 +260,7 @@ class _ModelSettlementMixin:
                 started_evidence=evidence.to_payload(),
             )
             await uow.commit()
-            return _SettlementStart(
+            return SettlementStart(
                 usage=claim,
                 ownership=ownership,
                 safe_to_start=safe_to_start,
@@ -380,175 +332,30 @@ class _ModelSettlementMixin:
 
         if ownership is None:
             return
-        async with self._storage.uow() as uow:
-            if ownership.kind == "direct":
-                await uow.shared_budget.mark_direct_started(
-                    tenant_id=context.tenant_id,
-                    budget_owner_run_id=ownership.budget_owner_run_id,
-                    usage_call_id=usage_call_id,
-                )
-            else:
-                assert ownership.delegation_id is not None
-                await uow.shared_budget.mark_allocation_started(
-                    tenant_id=context.tenant_id,
-                    budget_owner_run_id=ownership.budget_owner_run_id,
-                    delegation_id=ownership.delegation_id,
-                    usage_call_id=usage_call_id,
-                )
-            await uow.commit()
-
-    async def _resume_existing_settlement(
-        self,
-        *,
-        claim: UsageSettlementClaim,
-        usage_call_id: str,
-    ) -> ModelResponse:
-        """已有可信结果补投 event 后返回原响应；绝不重放 provider。
-
-        只有已经耐久化的响应 DTO 可以恢复为 ``ModelResponse``。若历史记录只有 usage
-        evidence 而无业务响应，必须失败而非猜测输出或重新触发外部模型调用。
-        """
-
-        if claim.state == "result_persisted" and claim.result_json is not None:
-            result = claim.result_json
-            await self._publish_final(
-                evidence=ModelUsageEvidence.model_validate(result["evidence"]),
-                usage_call_id=usage_call_id,
-                outcome=str(result["outcome"]),
-                error_code=claim.error_code,
-            )
-            return self._replayed_response(result, claim=claim)
-        if claim.state == "published" and claim.result_json is not None:
-            return self._replayed_response(claim.result_json, claim=claim)
-        raise UsageInvocationReplayError(claim.state)
-
-    @staticmethod
-    def _replayed_response(
-        result: dict[str, Any],
-        *,
-        claim: UsageSettlementClaim,
-    ) -> ModelResponse:
-        """从耐久结果恢复 provider-neutral 响应；无法证明响应时严格拒绝重放。"""
-
-        raw = result.get("response")
-        if isinstance(raw, dict):
-            return ModelResponse.model_validate(raw)
-        if claim.error_code == ModelProviderInvocationError.code:
-            raise ModelProviderInvocationError("model provider invocation failed")
-        # pre-0016 result 没有可恢复业务 response 时必须 fail closed，不能把
-        # usage evidence 猜成 provider 输出或再次调用 provider。
-        raise UsageInvocationReplayError(claim.state)
-
-    async def _finalize(
-        self,
-        *,
-        evidence: ModelUsageEvidence,
-        usage_call_id: str,
-        outcome: str,
-        error_code: str | None,
-        ownership: BudgetOperationOwnership | None,
-        response: ModelResponse | None,
-    ) -> None:
-        """原子持久化最终 usage 结果并结算共享预算，提交后才发布最终事件。
-
-        先完成 outbox 与账本结算，保证 event 重试永远可从耐久事实恢复；最终事件属于
-        可补投副作用，不能先于结果与预算事实对外可见。
-        """
-
-        result = {
-            "evidence": evidence.to_payload(),
-            "outcome": outcome,
-            **({"response": self._durable_response(response)} if response is not None else {}),
-        }
-        async with self._storage.uow() as uow:
-            await uow.evidence_outbox.persist_result(
-                tenant_id=evidence.tenant_id,
-                usage_call_id=usage_call_id,
-                result=result,
-                error_code=error_code,
-            )
-            if ownership is not None:
-                provider_called = evidence.decision.get("provider_called") is True
-                input_tokens = evidence.input_tokens
-                output_tokens = evidence.output_tokens
-                actual_tokens = (
-                    (input_tokens or 0) + (output_tokens or 0)
-                    if not provider_called
-                    or (input_tokens is not None and output_tokens is not None)
-                    else None
-                )
-                # 未实际调用 provider 的拒绝/短路可确定为零用量；调用后缺少任一维度则
-                # 保持未知，不能伪造总 token 以换取账本结算通过。
-                actual_cost = None if evidence.cost_usd is None else Decimal(str(evidence.cost_usd))
+        try:
+            async with self._storage.uow() as uow:
                 if ownership.kind == "direct":
-                    await uow.shared_budget.settle_direct(
-                        tenant_id=evidence.tenant_id,
+                    await uow.shared_budget.mark_direct_started(
+                        tenant_id=context.tenant_id,
                         budget_owner_run_id=ownership.budget_owner_run_id,
                         usage_call_id=usage_call_id,
-                        actual_tokens=actual_tokens,
-                        actual_cost=actual_cost,
-                        cost_status=evidence.cost_status,
-                        result=result,
                     )
                 else:
                     assert ownership.delegation_id is not None
-                    await uow.shared_budget.settle_allocation(
-                        tenant_id=evidence.tenant_id,
+                    await uow.shared_budget.mark_allocation_started(
+                        tenant_id=context.tenant_id,
                         budget_owner_run_id=ownership.budget_owner_run_id,
                         delegation_id=ownership.delegation_id,
                         usage_call_id=usage_call_id,
-                        actual_tokens=actual_tokens,
-                        actual_cost=actual_cost,
-                        cost_status=evidence.cost_status,
-                        result=result,
                     )
-            await uow.commit()
-        await self._publish_final(
-            evidence=evidence,
-            usage_call_id=usage_call_id,
-            outcome=outcome,
-            error_code=error_code,
-        )
-
-    async def _publish_final(
-        self,
-        *,
-        evidence: ModelUsageEvidence,
-        usage_call_id: str,
-        outcome: str,
-        error_code: str | None,
-    ) -> None:
-        """幂等发布 usage 最终事件，并在本地容量模式下同步已发布的耐久进度。"""
-
-        lifecycle = UsageEvidenceLifecycle(
-            event_bus=self._event_bus,
-            evidence=evidence,
-            usage_call_id=usage_call_id,
-        )
-        final = await lifecycle.publish_final(outcome=outcome, error_code=error_code)
-        if self._telemetry is not None:
-            await self._telemetry.publish_event(final)
-        async with self._storage.uow() as uow:
-            item = await uow.evidence_outbox.get_usage(
-                tenant_id=evidence.tenant_id,
-                usage_call_id=usage_call_id,
-            )
-            if not self._event_bus.capacity_managed:
-                # 远程容量适配器自行提交进度；本地模式必须在 outbox 状态转换前补记它。
-                await uow.event_capacity.record_local_published(
-                    run_id=evidence.run_id,
-                    reserved_event_count=item.reserved_event_count,
-                    highest_persisted_seq=final.seq,
-                )
-            await uow.evidence_outbox.mark_published(
-                tenant_id=evidence.tenant_id,
-                usage_call_id=usage_call_id,
-            )
-            await uow.commit()
+                await uow.commit()
+        except asyncio.CancelledError as exc:
+            # DB driver 在取消窗口可能已经提交；上层必须按 unknown 保留预约并围栏。
+            raise DurableMarkStateUnknown from exc
 
 
 __all__ = [
     "_ModelSettlementMixin",
-    "_SettlementStart",
+    "SettlementStart",
     "ModelProviderInvocationError",
 ]

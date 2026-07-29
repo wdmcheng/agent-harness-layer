@@ -33,7 +33,10 @@ from agent_harness.policy import (
 )
 from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator, RunQueue
-from agent_harness.runtime.services import build_agent_execution_services
+from agent_harness.runtime.services import (
+    build_agent_execution_services,
+    close_agent_execution_services,
+)
 from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.storage import (
     SQLAlchemyStorage,
@@ -62,7 +65,8 @@ class RuntimeComponents:
     queue: RunQueue | None = None
 
     async def close(self) -> None:
-        """按队列后存储的顺序释放资源，避免连接已关闭时 queue 仍需完成清理。"""
+        """先关闭 provider lease 与队列，再释放存储；重复调用保持幂等。"""
+        await close_agent_execution_services(self.executor_services)
         if self.queue is not None:
             await self.queue.close()
         await self.storage.dispose()

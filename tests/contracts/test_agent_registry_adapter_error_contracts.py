@@ -51,11 +51,12 @@ from tests.contracts.test_agent_registry_model_context_contracts import (
 )
 
 
-def test_pydantic_ai_adapter_invokes_agent_run_sync_without_leaking_sdk_types() -> None:
-    """验证 adapter 只输出内部模型 DTO，不让 Pydantic AI 类型穿透公共边界。"""
+@pytest.mark.asyncio
+async def test_pydantic_ai_adapter_invokes_agent_run_without_leaking_sdk_types() -> None:
+    """验证 async adapter 只输出内部 DTO，不让 Pydantic AI 类型穿透公共边界。"""
 
     from agent_harness.adapters.models.pydantic_ai import PydanticAIModelProvider
-    from agent_harness.models import ModelRequest
+    from agent_harness.models import ModelDecision, ModelRequest, ModelRoutePlan
 
     pyproject = tomllib.loads((ROOT / "packages" / "agent-harness" / "pyproject.toml").read_text())
     assert "pydantic-ai>=2.5.0,<3" in pyproject["project"]["dependencies"]
@@ -86,34 +87,51 @@ def test_pydantic_ai_adapter_invokes_agent_run_sync_without_leaking_sdk_types() 
             self.model = model
             self.prompts: list[str] = []
 
-        def run_sync(self, prompt: str) -> Any:
-            """记录 prompt 并返回受控成功结果，模拟 SDK 的同步执行入口。"""
+        async def run(self, prompt: str, *, model_settings: object) -> Any:
+            """记录 prompt/cap 并返回受控成功结果，模拟 SDK 的异步执行入口。"""
 
+            assert isinstance(model_settings, dict)
+            assert model_settings["max_tokens"] == 5
             self.prompts.append(prompt)
             return Result()
 
     agents: list[SpyAgent] = []
 
-    def agent_factory(model: str) -> SpyAgent:
+    def agent_factory(plan: ModelRoutePlan) -> SpyAgent:
         """捕获 adapter 请求的模型名并返回可观察的 SDK 替身。"""
 
-        agent = SpyAgent(model)
+        agent = SpyAgent(plan.model)
         agents.append(agent)
         return agent
 
-    response = PydanticAIModelProvider(agent_factory=agent_factory).complete(
+    plan = ModelRoutePlan(
+        deployment_id="fixture",
+        provider_kind="openai-compatible",
+        provider="openai-compatible",
+        model="openai:gpt-5.2",
+        decision=ModelDecision(action="call", estimated_tokens=8),
+        output_token_cap=5,
+        per_attempt_token_bound=8,
+        trusted_token_bound=8,
+        trusted_cost_bound=None,
+        total_timeout_ms=1000,
+    )
+    response = await PydanticAIModelProvider(
+        provider_id="openai-compatible",
+        agent_factory=agent_factory,
+    ).complete(
         ModelRequest(
-            provider="pydantic-ai",
+            provider="openai-compatible",
             prompt="hello",
             estimated_input_tokens=3,
             max_output_tokens=5,
         ),
-        model="openai:gpt-5.2",
+        plan=plan,
     )
 
     assert agents[0].model == "openai:gpt-5.2"
     assert agents[0].prompts == ["hello"]
-    assert response.provider == "pydantic-ai"
+    assert response.provider == "openai-compatible"
     assert response.output_text == "adapter output"
     assert response.decision.action == "call"
     assert response.token_usage == {"input_tokens": 7, "output_tokens": 4}

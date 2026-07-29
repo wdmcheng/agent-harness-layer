@@ -1,445 +1,392 @@
-"""Model usage durable recovery、容量结算与 terminal 阻断合同测试。"""
+"""Model usage 耐久失败 payload 校验与恢复合同测试。"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
+from sqlalchemy import update
+from tests.contracts.model_usage_recovery_test_support import usage_run as _usage_run
 
 from agent_harness.events import CanonicalEvent, CanonicalEventType, EventBus, LocalJsonlEventSink
 from agent_harness.models import (
     FakeModelProvider,
     ModelInvocationService,
+    ModelProviderInvocationError,
     ModelRequest,
     ModelResponse,
     ModelRouter,
     ModelRouterConfig,
     UsageEvidenceContext,
-    UsageEvidenceLifecycle,
-    model_usage_evidence,
+    UsageInvocationReplayError,
 )
-from agent_harness.storage import RunCreate, SessionCreate, SQLAlchemyStorage, run_migrations
-from agent_harness.storage.evidence_repositories import EvidenceOperationKind
+from agent_harness.storage import SQLAlchemyStorage, run_migrations
+from agent_harness.storage.models import RunEvidenceOutboxModel
 
 
-async def _usage_run(storage: SQLAlchemyStorage) -> str:
-    """创建带固定租户、会话和 trace 的最小 run，供 usage outbox 与容量断言复用。"""
+class _CountingFailProvider(FakeModelProvider):
+    """制造一次可计数的 provider 失败，供耐久失败恢复断言外部副作用次数。"""
 
-    async with storage.uow() as uow:
-        await uow.tenants.ensure("tenant-a")
-        await uow.sessions.ensure(
-            SessionCreate(
-                session_id="session-a",
-                tenant_id="tenant-a",
-                user_id="user-a",
-                agent_id="agent-a",
-            )
-        )
-        run = await uow.runs.create(
-            RunCreate(
-                tenant_id="tenant-a",
-                session_id="session-a",
-                agent_id="agent-a",
-                trace_id="trace-a",
-            )
-        )
-        await uow.commit()
-        return run.id
+    def __init__(self) -> None:
+        """按实例保存调用次数，避免参数化用例之间共享可变状态。"""
+
+        self.calls = 0
+
+    async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
+        """记录调用后抛出封闭前的原始异常，让生产路径生成标准稳定失败。"""
+
+        del request, plan
+        self.calls += 1
+        raise RuntimeError("injected provider failure")
 
 
-@pytest.mark.asyncio
-async def test_model_recovery_ignores_ordered_approval_outbox_items(tmp_path: Path) -> None:
-    """验证模型恢复只补投模型 usage，不会消费同一 run 中审批的有序 outbox 组。"""
+class _FailFinalWriteSink:
+    """允许 started 落盘，但在 final 写入前失败以冻结 result_persisted 窗口。"""
 
-    database = tmp_path / "mixed-recovery.db"
+    manages_event_capacity = False
+
+    def __init__(self, delegate: LocalJsonlEventSink) -> None:
+        """保存耐久 delegate；恢复阶段会绕过本故障包装器。"""
+
+        self.delegate = delegate
+
+    async def write(self, event: CanonicalEvent) -> CanonicalEvent:
+        """只阻断模型 usage 最终事件，其他事件保持真实持久化行为。"""
+
+        if event.event_type is CanonicalEventType.MODEL_USAGE_UPDATED:
+            raise OSError("injected final write failure")
+        return await self.delegate.write(event)
+
+    async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
+        """透传读取以满足 EventBus sink 协议。"""
+
+        return await self.delegate.read(run_id=run_id, after_seq=after_seq)
+
+    async def latest_seq(self, run_id: str) -> int:
+        """透传最后序号查询以满足 EventBus sink 协议。"""
+
+        return await self.delegate.latest_seq(run_id)
+
+    async def has_terminal(self, run_id: str) -> bool:
+        """透传终结查询以满足 EventBus sink 协议。"""
+
+        return await self.delegate.has_terminal(run_id)
+
+
+async def _seed_result_persisted_failure(
+    tmp_path: Path,
+    *,
+    case: str,
+) -> tuple[
+    SQLAlchemyStorage,
+    LocalJsonlEventSink,
+    ModelRouter,
+    ModelRequest,
+    UsageEvidenceContext,
+    str,
+    _CountingFailProvider,
+]:
+    """经公开调用制造真实稳定失败，并把状态停在 final 尚未发布的耐久窗口。"""
+
+    database = tmp_path / f"settlement-validation-{case}.db"
     dsn = f"sqlite+aiosqlite:///{database}"
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
-    sink = LocalJsonlEventSink(tmp_path / "mixed-recovery.jsonl")
 
     async def resolve_trace(**_: object) -> str:
-        """为本地 sink 返回稳定 trace，避免恢复测试依赖运行时 trace 查询。"""
+        """为恢复用例提供固定 trace，使断言只聚焦结算 payload。"""
 
         return "trace-a"
 
-    try:
-        run_id = await _usage_run(storage)
-        evidence = model_usage_evidence(
-            provider="fake",
-            model="fake-basic",
-            token_usage={"input_tokens": 1, "output_tokens": 1},
-            latency_ms=1,
-            decision={"provider_called": True},
-            context=UsageEvidenceContext(
-                tenant_id="tenant-a",
-                run_id=run_id,
-                agent_id="agent-a",
-                trace_id="trace-a",
-            ),
-        )
-        bus = EventBus(
-            sink=sink,
+    sink = LocalJsonlEventSink(
+        tmp_path / f"settlement-validation-{case}.jsonl",
+        run_trace_resolver=resolve_trace,
+    )
+    run_id = await _usage_run(storage)
+    provider = _CountingFailProvider()
+    router = ModelRouter(
+        config=ModelRouterConfig(default_model="fake-basic"),
+        providers={"fake": provider},
+    )
+    request = ModelRequest(provider="fake", prompt="hello", max_output_tokens=1)
+    context = UsageEvidenceContext(
+        tenant_id="tenant-a",
+        run_id=run_id,
+        agent_id="agent-a",
+        trace_id="trace-a",
+    )
+    service = ModelInvocationService(
+        router=router,
+        storage=storage,
+        event_bus=EventBus(
+            sink=_FailFinalWriteSink(sink),
             run_trace_resolver=resolve_trace,
-            capacity_storage=storage,
+        ),
+    )
+    with pytest.raises(OSError, match="injected final write failure"):
+        await service.complete(
+            request,
+            context=context,
+            usage_call_id=f"usage-{case}",
         )
-        async with storage.uow() as uow:
-            await uow.evidence_outbox.claim_usage(
-                tenant_id="tenant-a",
-                run_id=run_id,
-                usage_call_id="mixed-model",
-                event_id="usage:tenant-a:mixed-model:final",
-                operation_kind=EvidenceOperationKind.MODEL_USAGE,
-                started_evidence=evidence.to_payload(),
-            )
-            await uow.commit()
-        await UsageEvidenceLifecycle(
-            event_bus=bus,
-            evidence=evidence,
-            usage_call_id="mixed-model",
-        ).publish_started()
-        async with storage.uow() as uow:
-            await uow.evidence_outbox.persist_result(
-                tenant_id="tenant-a",
-                usage_call_id="mixed-model",
-                result={"evidence": evidence.to_payload(), "outcome": "completed"},
-            )
-            await uow.evidence_outbox.stage_ordered_group(
-                tenant_id="tenant-a",
-                run_id=run_id,
-                group_id="approval:mixed:resolution",
-                items=[
-                    {
-                        "event_id": "approval-resolution:mixed",
-                        "operation_kind": "approval_resolution",
-                        "sequence_in_group": 1,
-                        "reserved_event_count": 0,
-                        "result": {"status": "approved"},
-                    }
-                ],
-            )
-            await uow.commit()
+    assert provider.calls == 1
+    async with storage.uow() as uow:
+        usage = await uow.evidence_outbox.get_usage(
+            tenant_id="tenant-a",
+            usage_call_id=f"usage-{case}",
+        )
+        assert usage.state == "result_persisted"
+    return storage, sink, router, request, context, f"usage-{case}", provider
 
-        service = ModelInvocationService(
-            router=ModelRouter(
-                config=ModelRouterConfig(default_model="fake-basic"),
-                providers={"fake": FakeModelProvider()},
-            ),
-            storage=storage,
-            event_bus=bus,
+
+async def _corrupt_result_persisted_failure(
+    storage: SQLAlchemyStorage,
+    *,
+    usage_call_id: str,
+    corruption: str,
+) -> None:
+    """模拟历史脏数据或存储损坏；服务入口仍必须把它视为不可信恢复输入。"""
+
+    async with storage.uow() as uow:
+        usage = await uow.evidence_outbox.get_usage(
+            tenant_id="tenant-a",
+            usage_call_id=usage_call_id,
         )
-        assert await service.recover_pending(run_id=run_id) == 1
-        events = await sink.read(run_id=run_id)
+        assert usage.result_json is not None
+        result = dict(usage.result_json)
+        if corruption == "failure_response_conflict":
+            result["response"] = {
+                "provider": "fake",
+                "model": "fake-basic",
+                "output_text": "forged-success",
+                "decision": {"action": "call", "estimated_tokens": 1},
+                "token_usage": {"input_tokens": 1, "output_tokens": 1},
+            }
+        elif corruption == "missing_evidence":
+            result.pop("evidence")
+        elif corruption == "malformed_evidence":
+            result["evidence"] = {"usage_kind": "model"}
+        elif corruption == "failure_evidence_call_mismatch":
+            evidence = dict(result["evidence"])
+            evidence["decision"] = {
+                **evidence["decision"],
+                "provider_called": False,
+                "attempts": [],
+            }
+            result["evidence"] = evidence
+        elif corruption == "failure_evidence_attempt_mismatch":
+            evidence = dict(result["evidence"])
+            evidence["decision"] = {
+                **evidence["decision"],
+                "attempts": [{"attempt": 1}, {"attempt": 2}],
+            }
+            result["evidence"] = evidence
+        elif corruption == "failure_evidence_latency_mismatch":
+            evidence = dict(result["evidence"])
+            evidence["latency_ms"] = evidence["latency_ms"] + 1
+            result["evidence"] = evidence
+        elif corruption.startswith("failure_evidence_nested_"):
+            evidence = dict(result["evidence"])
+            decision = dict(evidence["decision"])
+            attempt = {
+                "attempt": 1,
+                "outcome": "unknown",
+                "side_effect_state": "unknown",
+                "completion_observed": None,
+                "http_status": None,
+                "retry_after_ms": None,
+                "input_tokens": None,
+                "output_tokens": None,
+                "cost_usd": None,
+                "cost_status": "unavailable",
+                "budget_charge_tokens": None,
+                "budget_charge_cost_usd": None,
+                "latency_ms": 0,
+                "error_code": "model.provider_failed",
+            }
+            budget_charge = {
+                "charged_tokens": None,
+                "charged_cost_usd": None,
+                "charge_status": "unknown",
+                "unresolved_attempts": [1],
+            }
+            if corruption == "failure_evidence_nested_attempt_schema":
+                attempt = {"attempt": 1}
+            elif corruption == "failure_evidence_nested_attempt_ordinal":
+                attempt["attempt"] = 2
+            elif corruption == "failure_evidence_nested_attempt_charge":
+                attempt["budget_charge_tokens"] = 0
+            elif corruption == "failure_evidence_nested_attempt_boolean":
+                attempt["completion_observed"] = 1
+            elif corruption == "failure_evidence_nested_budget_schema":
+                budget_charge.pop("unresolved_attempts")
+            else:
+                budget_charge.update(charge_status="unknown", unresolved_attempts=[])
+            decision.update(attempts=[attempt], budget_charge=budget_charge)
+            evidence["decision"] = decision
+            result["evidence"] = evidence
+        elif corruption == "missing_outcome":
+            result.pop("outcome")
+        else:
+            result["outcome"] = {"forged": "completed"}
+        await uow.session.execute(
+            update(RunEvidenceOutboxModel)
+            .where(RunEvidenceOutboxModel.id == usage.id)
+            .values(result_json=result)
+        )
+        await uow.commit()
+
+
+async def _assert_result_persisted(
+    storage: SQLAlchemyStorage,
+    *,
+    usage_call_id: str,
+) -> None:
+    """证明校验失败没有越过 final 发布与 outbox 状态转换边界。"""
+
+    async with storage.uow() as uow:
+        usage = await uow.evidence_outbox.get_usage(
+            tenant_id="tenant-a",
+            usage_call_id=usage_call_id,
+        )
+        assert usage.state == "result_persisted"
+
+
+_CORRUPTED_SETTLEMENT_CASES = [
+    "failure_response_conflict",
+    "missing_evidence",
+    "malformed_evidence",
+    "failure_evidence_call_mismatch",
+    "failure_evidence_attempt_mismatch",
+    "failure_evidence_latency_mismatch",
+    "failure_evidence_nested_attempt_schema",
+    "failure_evidence_nested_attempt_ordinal",
+    "failure_evidence_nested_attempt_charge",
+    "failure_evidence_nested_attempt_boolean",
+    "failure_evidence_nested_budget_schema",
+    "failure_evidence_nested_budget_charge",
+    "missing_outcome",
+    "malformed_outcome",
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("corruption", _CORRUPTED_SETTLEMENT_CASES)
+async def test_complete_validates_durable_failure_before_final_publication(
+    tmp_path: Path,
+    corruption: str,
+) -> None:
+    """公开 complete 重放遇到脏结果时必须零 provider 重放、零 final、零状态推进。"""
+
+    seeded = await _seed_result_persisted_failure(
+        tmp_path,
+        case=f"complete-{corruption}",
+    )
+    storage, sink, router, request, context, usage_call_id, provider = seeded
+
+    try:
+        await _corrupt_result_persisted_failure(
+            storage,
+            usage_call_id=usage_call_id,
+            corruption=corruption,
+        )
+        service = ModelInvocationService(
+            router=router,
+            storage=storage,
+            event_bus=EventBus(sink=sink),
+        )
+        with pytest.raises(UsageInvocationReplayError):
+            await service.complete(
+                request,
+                context=context,
+                usage_call_id=usage_call_id,
+            )
+
+        assert provider.calls == 1
+        events = await sink.read(run_id=context.run_id)
+        assert [event.event_type for event in events] == [CanonicalEventType.MODEL_REQUEST_STARTED]
+        await _assert_result_persisted(storage, usage_call_id=usage_call_id)
+    finally:
+        await storage.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("corruption", _CORRUPTED_SETTLEMENT_CASES)
+async def test_recover_pending_validates_durable_failure_before_final_publication(
+    tmp_path: Path,
+    corruption: str,
+) -> None:
+    """后台恢复与 complete 共用 fail-closed 边界，不能发布或吞掉损坏的稳定失败。"""
+
+    seeded = await _seed_result_persisted_failure(
+        tmp_path,
+        case=f"recover-{corruption}",
+    )
+    storage, sink, router, _request, context, usage_call_id, provider = seeded
+
+    try:
+        await _corrupt_result_persisted_failure(
+            storage,
+            usage_call_id=usage_call_id,
+            corruption=corruption,
+        )
+        service = ModelInvocationService(
+            router=router,
+            storage=storage,
+            event_bus=EventBus(sink=sink),
+        )
+        with pytest.raises(UsageInvocationReplayError):
+            await service.recover_pending(run_id=context.run_id)
+
+        assert provider.calls == 1
+        events = await sink.read(run_id=context.run_id)
+        assert [event.event_type for event in events] == [CanonicalEventType.MODEL_REQUEST_STARTED]
+        await _assert_result_persisted(storage, usage_call_id=usage_call_id)
+    finally:
+        await storage.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("entrypoint", ["complete", "recover_pending"])
+async def test_legal_result_persisted_failure_publishes_once_without_provider_replay(
+    tmp_path: Path,
+    entrypoint: str,
+) -> None:
+    """合法稳定失败仍可补投 final；共享校验不能把正常故障恢复误判为脏数据。"""
+
+    seeded = await _seed_result_persisted_failure(tmp_path, case=f"legal-{entrypoint}")
+    storage, sink, router, request, context, usage_call_id, provider = seeded
+
+    try:
+        service = ModelInvocationService(
+            router=router,
+            storage=storage,
+            event_bus=EventBus(sink=sink),
+        )
+        if entrypoint == "complete":
+            with pytest.raises(ModelProviderInvocationError) as exc_info:
+                await service.complete(
+                    request,
+                    context=context,
+                    usage_call_id=usage_call_id,
+                )
+            assert exc_info.value.code == "model.provider_failed"
+            assert exc_info.value.provider_called is True
+            assert exc_info.value.attempt_count == 1
+        else:
+            assert await service.recover_pending(run_id=context.run_id) == 1
+
+        assert provider.calls == 1
+        events = await sink.read(run_id=context.run_id)
         assert [event.event_type for event in events] == [
             CanonicalEventType.MODEL_REQUEST_STARTED,
             CanonicalEventType.MODEL_USAGE_UPDATED,
         ]
         async with storage.uow() as uow:
-            pending = await uow.evidence_outbox.pending(run_id=run_id)
-            pending_kinds = [item.operation_kind for item in pending]
-        assert pending_kinds == ["approval_resolution"]
-    finally:
-        await storage.dispose()
-
-
-@pytest.mark.asyncio
-async def test_model_final_publish_recovery_does_not_replay_provider(tmp_path: Path) -> None:
-    """验证最终 usage 事件写入失败后，恢复只补事件且绝不第二次调用 provider。"""
-
-    class SpyProvider(FakeModelProvider):
-        """统计 provider 调用次数的假实现，用于证明恢复没有重复外部副作用。"""
-
-        calls = 0
-
-        def complete(self, request: ModelRequest, *, model: str):
-            """记录一次真实调用后委托 fake provider，保持原始响应形状。"""
-
-            self.calls += 1
-            return super().complete(request, model=model)
-
-    class FailFinalOnceSink:
-        """仅在第一条 usage 最终事件写入前失败的 sink 包装器。"""
-
-        manages_event_capacity = False
-
-        def __init__(self, delegate: LocalJsonlEventSink) -> None:
-            """保存耐久 JSONL delegate 并初始化一次性故障开关。"""
-
-            self.delegate = delegate
-            self.failed = False
-
-        async def write(self, event: CanonicalEvent) -> CanonicalEvent:
-            """对首次 usage 更新事件抛出写前失败，其余事件委托耐久 sink。"""
-
-            if event.event_type is CanonicalEventType.MODEL_USAGE_UPDATED and not self.failed:
-                self.failed = True
-                raise OSError("injected final write failure")
-            return await self.delegate.write(event)
-
-        async def read(self, *, run_id: str, after_seq: int = 0):
-            """透传事件读取，供恢复后验证稳定事件顺序。"""
-
-            return await self.delegate.read(run_id=run_id, after_seq=after_seq)
-
-        async def latest_seq(self, run_id: str) -> int:
-            """透传最后序号读取，保持 EventBus 所需查询能力。"""
-
-            return await self.delegate.latest_seq(run_id)
-
-        async def has_terminal(self, run_id: str) -> bool:
-            """透传终结查询，保持 sink 协议完整。"""
-
-            return await self.delegate.has_terminal(run_id)
-
-    database = tmp_path / "recovery.db"
-    dsn = f"sqlite+aiosqlite:///{database}"
-    run_migrations(dsn)
-    storage = SQLAlchemyStorage.from_dsn(dsn)
-
-    async def resolve_trace(**_: object) -> str:
-        """为使用 durable sink 的测试返回固定 trace。"""
-
-        return "trace-a"
-
-    durable_sink = LocalJsonlEventSink(
-        tmp_path / "recovery-events.jsonl",
-        run_trace_resolver=resolve_trace,
-    )
-
-    provider = SpyProvider()
-    router = ModelRouter(
-        config=ModelRouterConfig(default_model="fake-basic"),
-        providers={"fake": provider},
-    )
-    try:
-        run_id = await _usage_run(storage)
-        failing = ModelInvocationService(
-            router=router,
-            storage=storage,
-            event_bus=EventBus(
-                sink=FailFinalOnceSink(durable_sink),
-                run_trace_resolver=resolve_trace,
-            ),
-        )
-        with pytest.raises(OSError, match="injected final write failure"):
-            await failing.complete(
-                ModelRequest(provider="fake", prompt="hello", max_output_tokens=1),
-                context=UsageEvidenceContext(
-                    tenant_id="tenant-a",
-                    run_id=run_id,
-                    agent_id="agent-a",
-                    trace_id="trace-a",
-                ),
-                usage_call_id="usage-recover",
-            )
-
-        recovering = ModelInvocationService(
-            router=router,
-            storage=storage,
-            event_bus=EventBus(sink=durable_sink, run_trace_resolver=resolve_trace),
-        )
-        assert await recovering.recover_pending(run_id=run_id) == 1
-        assert provider.calls == 1
-        events = await durable_sink.read(run_id=run_id)
-        assert [item.event_type for item in events] == [
-            CanonicalEventType.MODEL_REQUEST_STARTED,
-            CanonicalEventType.MODEL_USAGE_UPDATED,
-        ]
-        assert events[-1].event_id == "usage:tenant-a:usage-recover:final"
-    finally:
-        await storage.dispose()
-
-
-@pytest.mark.asyncio
-async def test_model_final_ack_loss_replays_event_only_and_settles_capacity(tmp_path: Path) -> None:
-    """验证最终事件已落库但确认丢失时，恢复幂等补投并清空本地容量预留。"""
-
-    class SpyProvider(FakeModelProvider):
-        """以实例级计数记录 provider 调用，避免不同测试实例共享状态。"""
-
-        def __init__(self) -> None:
-            """初始化调用计数，供恢复前后精确比较。"""
-
-            self.calls = 0
-
-        def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
-            """记录调用并委托 fake provider，保持生产服务预期的响应类型。"""
-
-            self.calls += 1
-            return super().complete(request, model=model)
-
-    class LoseFinalAckOnceSink:
-        """在最终事件已持久化后仅丢失一次确认的 sink 包装器。"""
-
-        manages_event_capacity = False
-
-        def __init__(self, delegate: LocalJsonlEventSink) -> None:
-            """保存 durable delegate 并初始化一次性确认丢失开关。"""
-
-            self.delegate = delegate
-            self.lost = False
-
-        async def write(self, event: CanonicalEvent) -> CanonicalEvent:
-            """先委托真实写入，再对首条 usage 更新模拟调用方未收到确认。"""
-
-            persisted = await self.delegate.write(event)
-            if event.event_type is CanonicalEventType.MODEL_USAGE_UPDATED and not self.lost:
-                self.lost = True
-                raise OSError("injected final acknowledgement loss")
-            return persisted
-
-        async def read(self, *, run_id: str, after_seq: int = 0) -> list[CanonicalEvent]:
-            """透传读取，供断言事件不会因重放重复出现。"""
-
-            return await self.delegate.read(run_id=run_id, after_seq=after_seq)
-
-        async def latest_seq(self, run_id: str) -> int:
-            """透传最后序号查询，满足 EventBus reader 协议。"""
-
-            return await self.delegate.latest_seq(run_id)
-
-        async def has_terminal(self, run_id: str) -> bool:
-            """透传终结查询，满足 EventBus reader 协议。"""
-
-            return await self.delegate.has_terminal(run_id)
-
-    database = tmp_path / "ack-loss.db"
-    dsn = f"sqlite+aiosqlite:///{database}"
-    run_migrations(dsn)
-    storage = SQLAlchemyStorage.from_dsn(dsn)
-
-    async def resolve_trace(**_: object) -> str:
-        """为确认丢失场景提供稳定 trace，不引入额外存储读取。"""
-
-        return "trace-a"
-
-    durable_sink = LocalJsonlEventSink(
-        tmp_path / "ack-loss-events.jsonl",
-        run_trace_resolver=resolve_trace,
-    )
-    provider = SpyProvider()
-    router = ModelRouter(
-        config=ModelRouterConfig(default_model="fake-basic"),
-        providers={"fake": provider},
-    )
-    try:
-        run_id = await _usage_run(storage)
-        failing = ModelInvocationService(
-            router=router,
-            storage=storage,
-            event_bus=EventBus(
-                sink=LoseFinalAckOnceSink(durable_sink),
-                run_trace_resolver=resolve_trace,
-            ),
-        )
-        with pytest.raises(OSError, match="acknowledgement loss"):
-            await failing.complete(
-                ModelRequest(provider="fake", prompt="hello", max_output_tokens=1),
-                context=UsageEvidenceContext(
-                    tenant_id="tenant-a",
-                    run_id=run_id,
-                    agent_id="agent-a",
-                    trace_id="trace-a",
-                ),
-                usage_call_id="usage-ack-loss",
-            )
-
-        recovering = ModelInvocationService(
-            router=router,
-            storage=storage,
-            event_bus=EventBus(sink=durable_sink, run_trace_resolver=resolve_trace),
-        )
-        assert await recovering.recover_pending(run_id=run_id) == 1
-        assert provider.calls == 1
-        events = await durable_sink.read(run_id=run_id)
-        assert [item.event_type for item in events] == [
-            CanonicalEventType.MODEL_REQUEST_STARTED,
-            CanonicalEventType.MODEL_USAGE_UPDATED,
-        ]
-        assert events[-1].event_id == "usage:tenant-a:usage-ack-loss:final"
-        async with storage.uow() as uow:
-            assert await uow.evidence_outbox.pending(run_id=run_id) == []
-            capacity = await uow.event_capacity.snapshot(run_id)
-            assert capacity.highest_persisted_seq == 2
-            assert capacity.outstanding_reserved_event_count == 0
-            assert capacity.terminal_reservation == 1
-    finally:
-        await storage.dispose()
-
-
-@pytest.mark.parametrize(
-    "terminal_type",
-    [
-        CanonicalEventType.RUN_COMPLETED,
-        CanonicalEventType.RUN_FAILED,
-        CanonicalEventType.RUN_CANCELLED,
-    ],
-)
-@pytest.mark.asyncio
-async def test_unknown_usage_result_blocks_every_public_terminal(
-    tmp_path: Path,
-    terminal_type: CanonicalEventType,
-) -> None:
-    """验证 usage 结果未知时，完成、失败和取消三种公开终结事件都会被容量栅栏阻断。"""
-
-    database = tmp_path / f"pending-{terminal_type.value}.db"
-    dsn = f"sqlite+aiosqlite:///{database}"
-    run_migrations(dsn)
-    storage = SQLAlchemyStorage.from_dsn(dsn)
-    sink = LocalJsonlEventSink(tmp_path / f"pending-{terminal_type.value}.jsonl")
-
-    async def resolve_trace(**_: object) -> str:
-        """为每个终结类型参数化场景提供固定 trace。"""
-
-        return "trace-a"
-
-    try:
-        run_id = await _usage_run(storage)
-        async with storage.uow() as uow:
-            reserved = await uow.event_capacity.reserve(
-                run_id=run_id,
-                operation_kind=EvidenceOperationKind.MODEL_USAGE,
-            )
-            await uow.evidence_outbox.start_usage(
+            usage = await uow.evidence_outbox.get_usage(
                 tenant_id="tenant-a",
-                run_id=run_id,
-                usage_call_id="usage-unknown",
-                event_id="usage:tenant-a:usage-unknown:final",
-                reserved_event_count=reserved,
-                started_evidence=model_usage_evidence(
-                    provider="fake",
-                    model="fake-basic",
-                    token_usage={},
-                    latency_ms=0,
-                    decision={"provider_called": False},
-                    context=UsageEvidenceContext(
-                        tenant_id="tenant-a",
-                        run_id=run_id,
-                        agent_id="agent-a",
-                        trace_id="trace-a",
-                    ),
-                ).to_payload(),
+                usage_call_id=usage_call_id,
             )
-            await uow.commit()
-
-        bus = EventBus(
-            sink=sink,
-            run_trace_resolver=resolve_trace,
-            capacity_storage=storage,
-        )
-        with pytest.raises(RuntimeError, match="pending evidence blocks terminal"):
-            await bus.publish(
-                tenant_id="tenant-a",
-                run_id=run_id,
-                agent_id="agent-a",
-                event_type=terminal_type,
-                trace_id="trace-a",
-                terminal=True,
-                visibility="public",
-            )
-        assert await sink.read(run_id=run_id) == []
-        async with storage.uow() as uow:
-            capacity = await uow.event_capacity.snapshot(run_id)
-            assert capacity.outstanding_reserved_event_count == 2
-            assert capacity.terminal_reservation == 1
+            assert usage.state == "published"
     finally:
         await storage.dispose()

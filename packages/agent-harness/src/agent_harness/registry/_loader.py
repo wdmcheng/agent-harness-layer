@@ -34,7 +34,9 @@ class RegistryLoadError(HarnessError):
 class _AgentModelConfig(HarnessDTO):
     """配置文件中模型选择的最小结构；仅在加载时存在，不作为公开 registry 描述符。"""
 
+    deployment_id: str = "fake_default"
     provider: str
+    allowed_models: list[str] = Field(default_factory=list)
     default_model: str
     fallback_models: list[str] = Field(default_factory=list)
 
@@ -87,7 +89,9 @@ def load_descriptor(config_path: Path, *, root: Path) -> tuple[AgentDescriptor, 
         config_ref=config_path.relative_to(root).as_posix(),
         tool_policy=AgentToolPolicy(allowed_tools=config.tool_allowlist),
         model_policy=AgentModelPolicy(
+            deployment_id=config.model.deployment_id,
             provider=config.model.provider,
+            allowed_models=config.model.allowed_models,
             default_model=config.model.default_model,
             fallback_models=config.model.fallback_models,
         ),

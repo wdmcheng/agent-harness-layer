@@ -53,7 +53,7 @@ from agent_harness.storage.event_capacity_repositories import (
 )
 from agent_harness.storage.evidence_repositories import EvidenceOutboxRepository
 from agent_harness.storage.models import AgentRunModel, RunEvidenceOutboxModel
-from agent_harness.storage.shared_budget import OperationIdentity
+from agent_harness.storage.shared_budget import BudgetReservationRejected, OperationIdentity
 from agent_harness.storage.shared_budget_models import (
     BudgetOperationClaimModel,
     ParentBudgetLedgerModel,
@@ -196,15 +196,21 @@ class DelegationClaimRepositoryMixin:
         self._session.add_all((delegation, reservation))
         try:
             await self._session.flush()
-            await shared_budget.reserve_delegation(
-                tenant_id=data.tenant_id,
-                budget_owner_run_id=data.parent_run_id,
-                delegation_id=delegation.id,
-                request_hash=data.request_hash,
-                identity=data.budget_identity,
-                token_reservation=effective_tokens,
-                cost_reservation=effective_cost_decimal,
-            )
+            try:
+                await shared_budget.reserve_delegation(
+                    tenant_id=data.tenant_id,
+                    budget_owner_run_id=data.parent_run_id,
+                    delegation_id=delegation.id,
+                    request_hash=data.request_hash,
+                    identity=data.budget_identity,
+                    token_reservation=effective_tokens,
+                    cost_reservation=effective_cost_decimal,
+                )
+            except BudgetReservationRejected as exc:
+                # PostgreSQL 中 direct claim 可能在前置 eligibility 与最终共享账本
+                # reservation 之间先提交；delegation 公共 seam 必须保持自己的稳定
+                # 错误类型，外层 UoW 会回滚尚未提交的 relation/reservation 行。
+                raise DelegationBudgetExceeded("delegation.budget_exceeded") from exc
             delegation.reserved_event_count = await EventCapacityRepository(self._session).reserve(
                 run_id=data.parent_run_id,
                 operation_kind=EvidenceOperationKind.DELEGATION,

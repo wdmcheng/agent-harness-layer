@@ -10,7 +10,9 @@ output_schema: agents.examples.basic.schemas.Output
 executor: agent:executor
 model:
   # 示例 agent 使用 fake model，保证模板安装后不需要真实 provider key。
+  deployment_id: fake_default
   provider: fake
+  allowed_models: [fake-basic]
   default_model: fake-basic
   fallback_models: []
 budget:

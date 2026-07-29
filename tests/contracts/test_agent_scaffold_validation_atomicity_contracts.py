@@ -134,6 +134,47 @@ def test_scaffold_cli_help_success_structure_and_existing_target(tmp_path: Path)
     assert AgentRegistry.load_from_directory(agents_dir).get("support.triage") == descriptor
 
 
+@pytest.mark.asyncio
+async def test_scaffold_generated_fake_policy_satisfies_strict_registry_and_runs_offline(
+    tmp_path: Path,
+) -> None:
+    """脚手架输出 fake_default/fake-scaffold，并可由 local/service profile 离线执行。"""
+
+    from agent_harness.config import load_settings
+    from agent_harness.models import FakeModelProvider, ModelRequest, ModelRouter, ModelRouterConfig
+
+    agents_dir = _agents_root(tmp_path)
+    scaffold_agent_package("support.triage", agents_dir=agents_dir)
+    descriptor = AgentRegistry.load_from_directory(agents_dir).get("support.triage")
+    assert descriptor.model_policy.deployment_id == "fake_default"
+    assert descriptor.model_policy.allowed_models == ["fake-scaffold"]
+    assert descriptor.model_policy.default_model == "fake-scaffold"
+
+    for profile in ("local", "service"):
+        settings = load_settings(
+            profile=profile,
+            profiles_dir=ROOT / "templates" / "service-app" / "configs" / "profiles",
+        )
+        deployment = settings.model.deployments["fake_default"]
+        assert "fake-scaffold" in deployment.allowed_models
+        router = ModelRouter(
+            config=ModelRouterConfig(default_provider="fake", default_model="fake-scaffold"),
+            providers={"fake": FakeModelProvider()},
+            model_settings=settings.model,
+        )
+        response = await router.route(
+            ModelRequest(
+                deployment_id="fake_default",
+                provider="fake",
+                model="fake-scaffold",
+                prompt="offline scaffold",
+                max_output_tokens=2,
+            ),
+            agent_policy=descriptor.model_policy,
+        )
+        assert response.output_text.startswith("fake:")
+
+
 @pytest.mark.parametrize(
     "agent_id",
     ["", "/tmp/agent", "../escape", "support..triage", "Support", "bad-name", "a/b", ".a"],

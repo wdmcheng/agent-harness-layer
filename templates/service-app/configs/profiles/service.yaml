@@ -78,6 +78,18 @@ model:
   requires_api_key: false
   default_model: fake-service
   timeout_seconds: 60
+  default_deployment_id: fake_default
+  # service 默认仍是同一离线 deployment；真实配置必须通过品牌 typed boundary 显式注入。
+  deployments:
+    fake_default:
+      provider_kind: fake
+      allowed_models: [fake-local, fake-service, fake-basic, fake-dev-assistant, fake-rag, fake-repo-analyst, fake-ticket-triage, fake-scaffold]
+      default_model: fake-service
+      fallback_models: []
+      max_prompt_utf8_bytes: 16384
+      max_output_tokens: 16384
+      max_per_attempt_token_bound: 32768
+      capabilities: [text_completion]
 budget:
   max_tokens_per_run: 16384
 identity:

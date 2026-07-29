@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from agent_harness.adapters.models.pydantic_ai import PydanticAIModelProvider
-from agent_harness.models import ModelRequest
+from agent_harness.models import ModelDecision, ModelRequest, ModelResponse, ModelRoutePlan
 
 
 class _Result:
@@ -29,57 +29,81 @@ class _Result:
 
 
 class _Agent:
-    """返回预设 SDK 结果的同步 agent 替身，避免测试加载真实 provider。"""
+    """返回预设 SDK 结果的异步 agent 替身，避免测试加载真实 provider。"""
 
     def __init__(self, result: _Result) -> None:
         """固定每次同步调用返回的结果对象，令用例仅覆盖 token 规范化。"""
 
         self._result = result
 
-    def run_sync(self, prompt: str) -> _Result:
-        """忽略 prompt 并返回预设结果，满足 Pydantic AI adapter 的最小调用协议。"""
+    async def run(self, prompt: str, *, model_settings: object) -> _Result:
+        """忽略 prompt/cap 并返回预设结果，满足 async adapter 最小协议。"""
 
+        del prompt, model_settings
         return self._result
 
 
-def _normalized_usage(*, input_tokens: object, output_tokens: object) -> dict[str, int]:
-    """通过真实 adapter 归一化模拟 SDK usage，集中复用 provider 装配细节。"""
+async def _normalized_response(*, input_tokens: object, output_tokens: object) -> ModelResponse:
+    """通过真实 adapter 归一化模拟 SDK response，集中复用 provider 装配细节。"""
 
     result = _Result(input_tokens=input_tokens, output_tokens=output_tokens)
-    provider = PydanticAIModelProvider(agent_factory=lambda _: _Agent(result))
-    return provider.complete(
-        ModelRequest(provider="pydantic-ai", prompt="private"),
+    provider = PydanticAIModelProvider(
+        provider_id="openai-compatible",
+        agent_factory=lambda _: _Agent(result),
+    )
+    plan = ModelRoutePlan(
+        deployment_id="fixture",
+        provider_kind="openai-compatible",
+        provider="openai-compatible",
         model="planned-model",
-    ).token_usage
+        decision=ModelDecision(action="call", estimated_tokens=1),
+        output_token_cap=1,
+        per_attempt_token_bound=1,
+        trusted_token_bound=1,
+        trusted_cost_bound=None,
+        total_timeout_ms=1000,
+    )
+    return await provider.complete(
+        ModelRequest(provider="openai-compatible", prompt="private", max_output_tokens=1),
+        plan=plan,
+    )
 
 
 @pytest.mark.parametrize(
     ("input_tokens", "output_tokens"),
     [(-1, 2), (1, -2), (True, 2), (1.5, 2)],
 )
-def test_pydantic_ai_rejects_invalid_reported_token_values(
+@pytest.mark.asyncio
+async def test_pydantic_ai_rejects_invalid_reported_token_values(
     input_tokens: object,
     output_tokens: object,
 ) -> None:
     """验证负数、布尔与浮点 token 值不能穿透 adapter 的 provider-neutral 边界。"""
 
     with pytest.raises(ValueError, match="token usage"):
-        _normalized_usage(input_tokens=input_tokens, output_tokens=output_tokens)
+        await _normalized_response(input_tokens=input_tokens, output_tokens=output_tokens)
 
 
 @pytest.mark.parametrize(
-    ("input_tokens", "output_tokens", "expected"),
+    ("input_tokens", "output_tokens"),
     [
-        (7, None, {"input_tokens": 7}),
-        (None, 4, {"output_tokens": 4}),
-        (None, None, {}),
+        (7, None),
+        (None, 4),
+        (None, None),
     ],
 )
-def test_pydantic_ai_preserves_each_known_token_value_independently(
+@pytest.mark.asyncio
+async def test_pydantic_ai_keeps_partial_usage_only_in_attempt_evidence(
     input_tokens: object,
     output_tokens: object,
-    expected: dict[str, int],
 ) -> None:
-    """验证 input/output token 可各自缺失，已知的一侧仍被精确保留。"""
+    """单边 actual 可留在 attempt，但不得伪装成完整响应级 token 聚合。"""
 
-    assert _normalized_usage(input_tokens=input_tokens, output_tokens=output_tokens) == expected
+    response = await _normalized_response(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
+    assert response.token_usage == {}
+    assert len(response.attempts) == 1
+    assert response.attempts[0].input_tokens == input_tokens
+    assert response.attempts[0].output_tokens == output_tokens

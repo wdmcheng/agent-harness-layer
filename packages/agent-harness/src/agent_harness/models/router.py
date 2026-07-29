@@ -1,157 +1,107 @@
-"""模型路由、预算估算和 reload seam。"""
+"""provider-neutral 模型路由、预算上界和只缩权 seam。"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from decimal import Decimal
+from collections.abc import Awaitable, Callable, Mapping
+from typing import cast
 
-from pydantic import Field
-
-from agent_harness.contracts.dto import HarnessDTO
-from agent_harness.models.providers import ModelDecision, ModelProvider, ModelRequest, ModelResponse
-
-
-class ModelRouterConfig(HarnessDTO):
-    """模型路由的运行时配置，支持显式 reload。"""
-
-    default_provider: str = "fake"
-    default_model: str
-    fallback_models: list[str] = Field(default_factory=list)
-    timeout_seconds: int = 60
-    max_tokens_per_call: int | None = None
-    input_token_price_usd: Decimal | None = None
-    output_token_price_usd: Decimal | None = None
-    price_source_ref: str | None = None
-    price_source_version: str | None = None
-    route_price_source_refs: dict[str, str] = Field(default_factory=dict)
-    route_price_source_versions: dict[str, str] = Field(default_factory=dict)
-    route_input_token_prices_usd: dict[str, Decimal] = Field(default_factory=dict)
-    route_output_token_prices_usd: dict[str, Decimal] = Field(default_factory=dict)
-    route_max_tokens_per_call: dict[str, int] = Field(default_factory=dict)
+from agent_harness.config.schemas import ModelSettings
+from agent_harness.models._router_contracts import (
+    AgentModelPolicyLike,
+    ModelRouteError,
+    ModelRoutePlan,
+    ModelRouterConfig,
+)
+from agent_harness.models._router_snapshot import RouterSnapshotPlanningMixin
+from agent_harness.models.providers import (
+    ModelProvider,
+    ModelProviderLifecycle,
+    ModelRequest,
+    ModelResponse,
+    PreparedModelCall,
+)
 
 
-class ModelRoutePlan(HarnessDTO):
-    """provider 副作用前冻结的实际路由与预算判断。"""
-
-    provider: str
-    model: str
-    decision: ModelDecision
-    trusted_token_bound: int
-    trusted_cost_bound: Decimal | None
-
-
-class ModelRouter:
-    """根据 provider/model/budget 配置选择模型。
-
-    Router 只产出 provider-neutral decision，不直接触发 PolicyEngine。后续
-    runtime、tool 或 eval seam 可以根据 `policy_required` 决策进入审批或降级。
-    """
+class ModelRouter(RouterSnapshotPlanningMixin):
+    """先冻结 route plan，再由 async provider 执行；request 不能扩大配置权限。"""
 
     def __init__(
         self,
         *,
         config: ModelRouterConfig,
         providers: Mapping[str, ModelProvider],
+        model_settings: ModelSettings | None = None,
     ) -> None:
-        """冻结当前路由配置并复制 provider 映射，隔离调用方后续字典修改。"""
-
         self.config = config
         self._providers = dict(providers)
+        self._model_settings = model_settings
+        self._closed = False
 
     def reload(self, config: ModelRouterConfig) -> None:
-        """显式 reload seam；当前实现不做 worker 运行中的自动热重载。"""
+        """只替换旧 fake 配置；已有 plan 不读取 reload 后的可变值。"""
 
         self.config = config
 
-    def route(self, request: ModelRequest) -> ModelResponse:
-        """兼容既有同步调用；usage evidence 由受控 async seam 负责。"""
+    async def aclose(self) -> None:
+        """幂等关闭唯一 provider 实例，隐藏具体 client/factory 生命周期。"""
 
-        plan = self.plan(request)
-        return self.execute(request, plan=plan)
+        if self._closed:
+            return
+        self._closed = True
+        closed: set[int] = set()
+        for provider in self._providers.values():
+            identity = id(provider)
+            if identity in closed:
+                continue
+            closed.add(identity)
+            if isinstance(provider, ModelProviderLifecycle):
+                await provider.aclose()
+
+    @property
+    def has_controlled_settings(self) -> bool:
+        """告知 invocation 是否必须绑定 Agent policy 形成三层交集。"""
+
+        return self._model_settings is not None and any(
+            deployment.provider_kind != "fake"
+            for deployment in self._model_settings.deployments.values()
+        )
+
+    async def route(
+        self,
+        request: ModelRequest,
+        *,
+        agent_policy: AgentModelPolicyLike | None = None,
+    ) -> ModelResponse:
+        """兼容入口同样为 async，禁止线程或嵌套 event loop 桥接。"""
+
+        plan = self.plan(request, agent_policy=agent_policy)
+        return await self.execute(request, plan=plan)
 
     def plan(
         self,
         request: ModelRequest,
         *,
         config: ModelRouterConfig | None = None,
-        approved: bool = False,
+        agent_policy: AgentModelPolicyLike | None = None,
     ) -> ModelRoutePlan:
-        """在 provider 调用前确定实际 provider/model 与零副作用拒绝。"""
+        """在预算、client、DNS/HTTP 前完成 route 交集与可信公式计算。"""
 
-        active = config or self.config
-        provider_id = request.provider or active.default_provider
-        if provider_id not in self._providers:
-            raise KeyError(f"model provider is not configured: {provider_id}")
-        # UTF-8 字节数是保守上界：受支持 tokenizer 的计费 token 数不会超过字节数。
-        # 调用方估算仅作为 evidence，绝不能缩小 provider 强制执行的这个边界。
-        trusted_input_bound = len(request.prompt.encode("utf-8"))
-        estimated_tokens = trusted_input_bound + request.max_output_tokens
-        selected_model = request.model or active.default_model
-        action = "call"
-        fallback_model = None
-        reason = None
-        if (
-            not approved
-            and active.max_tokens_per_call is not None
-            and estimated_tokens > active.max_tokens_per_call
-        ):
-            # 每个 fallback 都必须重新形成 route intent 并重新过 soft threshold。
-            # 未声明更高的 route-specific threshold 时沿用当前阈值，因此不能
-            # 仅通过更换 model 名称绕过同一个 soft gate。
-            fallback_model = next(
-                (
-                    model
-                    for model in active.fallback_models
-                    if estimated_tokens
-                    <= active.route_max_tokens_per_call.get(
-                        model,
-                        active.max_tokens_per_call,
-                    )
-                ),
-                None,
+        if self._model_settings is not None and agent_policy is not None:
+            return self._plan_controlled(
+                request,
+                agent_policy=agent_policy,
             )
-            if fallback_model is not None:
-                action = "fallback"
-                selected_model = fallback_model
-                reason = "estimated tokens exceed budget"
-            else:
-                action = "policy_required"
-                reason = "estimated tokens exceed budget and no fallback is configured"
-        decision = ModelDecision(
-            action=action,
-            estimated_tokens=estimated_tokens,
-            max_tokens=active.max_tokens_per_call,
-            fallback_model=fallback_model,
-            reason=reason,
-            price_source_ref=active.route_price_source_refs.get(
-                selected_model, active.price_source_ref
-            ),
-            price_source_version=active.route_price_source_versions.get(
-                selected_model, active.price_source_version
-            ),
-        )
-        input_token_price = active.route_input_token_prices_usd.get(
-            selected_model, active.input_token_price_usd
-        )
-        output_token_price = active.route_output_token_prices_usd.get(
-            selected_model, active.output_token_price_usd
-        )
-        trusted_cost_bound = None
-        if input_token_price is not None and output_token_price is not None:
-            trusted_cost_bound = (
-                Decimal(trusted_input_bound) * input_token_price
-                + Decimal(request.max_output_tokens) * output_token_price
+        if self.has_controlled_settings:
+            # 只要进程装载了真实 deployment，Agent policy 就是三层缩权不可缺失的
+            # 授权输入；回退 legacy 会让公共 Router 绕过 deployment∩Agent 交集。
+            raise ModelRouteError(
+                "model.route_not_allowed",
+                "controlled routing requires an agent model policy",
             )
-        return ModelRoutePlan(
-            provider=provider_id,
-            model=selected_model,
-            decision=decision,
-            trusted_token_bound=estimated_tokens,
-            trusted_cost_bound=trusted_cost_bound,
-        )
+        return self._plan_legacy_fake(request, config=config)
 
-    def execute(self, request: ModelRequest, *, plan: ModelRoutePlan) -> ModelResponse:
-        """执行已冻结 plan；调用方必须先完成 evidence 预约。"""
+    async def execute(self, request: ModelRequest, *, plan: ModelRoutePlan) -> ModelResponse:
+        """执行已冻结 plan；后续实现层负责 reservation/permit/mark 顺序。"""
 
         if plan.decision.action == "policy_required":
             return ModelResponse(
@@ -161,20 +111,87 @@ class ModelRouter:
                 decision=plan.decision,
                 token_usage={},
             )
-        provider = self._providers[plan.provider]
         routed_request = request.model_copy(
-            update={"timeout_seconds": request.timeout_seconds or self.config.timeout_seconds}
+            update={
+                "deployment_id": plan.deployment_id,
+                "provider": plan.provider,
+                "model": plan.model,
+                "max_output_tokens": plan.output_token_cap,
+                "timeout_seconds": max(1, plan.total_timeout_ms // 1000),
+            }
         )
-        response = provider.complete(routed_request, model=plan.model)
-        if response.decision.action != "call":
-            return response
-        normalized_decision = response.decision.model_copy(
+        prepared = await self.prepare(routed_request, plan=plan)
+        try:
+            response = await prepared.send()
+        finally:
+            await prepared.aclose()
+        return self.normalize_response(response, plan=plan)
+
+    def normalize_response(
+        self,
+        response: ModelResponse,
+        *,
+        plan: ModelRoutePlan,
+    ) -> ModelResponse:
+        """按冻结 plan 复核 provider identity，并覆盖不可由 adapter 决定的路由事实。"""
+
+        if response.provider != plan.provider or response.model != plan.model:
+            raise ModelRouteError("model.provider_failed", "provider response identity mismatch")
+        normalized = response.decision.model_copy(
             update={
                 "action": plan.decision.action,
                 "estimated_tokens": plan.decision.estimated_tokens,
                 "max_tokens": plan.decision.max_tokens,
+                "estimated_cost_usd": plan.decision.estimated_cost_usd,
+                "max_cost_usd": plan.decision.max_cost_usd,
                 "fallback_model": plan.decision.fallback_model,
                 "reason": plan.decision.reason or response.decision.reason,
+                "price_source_ref": plan.price_source_ref or response.decision.price_source_ref,
+                "price_source_version": (
+                    plan.price_source_version or response.decision.price_source_version
+                ),
             }
         )
-        return response.model_copy(update={"decision": normalized_decision})
+        return response.model_copy(update={"decision": normalized})
+
+    async def prepare(
+        self,
+        request: ModelRequest,
+        *,
+        plan: ModelRoutePlan,
+    ) -> PreparedModelCall:
+        """取得 permit/client 但不发送；旧 provider 由窄包装保持 async 兼容。"""
+
+        if self._closed:
+            raise RuntimeError("model router is closed")
+        provider = self._providers[plan.provider]
+        prepare = getattr(provider, "prepare", None)
+        if callable(prepare):
+            typed_prepare = cast(
+                Callable[..., Awaitable[PreparedModelCall]],
+                prepare,
+            )
+            return await typed_prepare(request, plan=plan)
+        return _DirectPreparedCall(provider=provider, request=request, plan=plan)
+
+
+class _DirectPreparedCall:
+    """无独立 prepare seam 的 fake/测试 provider 兼容包装。"""
+
+    def __init__(
+        self, *, provider: ModelProvider, request: ModelRequest, plan: ModelRoutePlan
+    ) -> None:
+        self._provider = provider
+        self._request = request
+        self._plan = plan
+
+    async def send(self) -> ModelResponse:
+        """委托现有 async provider；该包装不构造 client。"""
+
+        return await self._provider.complete(self._request, plan=self._plan)
+
+    async def aclose(self) -> None:
+        """兼容包装没有独占资源。"""
+
+
+__all__ = ["ModelRouteError", "ModelRoutePlan", "ModelRouter", "ModelRouterConfig"]

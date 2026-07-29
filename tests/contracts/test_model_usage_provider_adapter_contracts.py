@@ -47,32 +47,25 @@ async def _usage_run(storage: SQLAlchemyStorage) -> str:
 @pytest.mark.asyncio
 async def test_pydantic_ai_timeout_is_closed_as_provider_failure_evidence(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """供应商超时必须归一为公开失败码，同时不把密钥或提示词写入事件。"""
 
-    from agent_harness.adapters.models import pydantic_ai
     from agent_harness.adapters.models.pydantic_ai import PydanticAIModelProvider
 
     class UnusedAgent:
         """若超时 seam 未优先执行就失败，防止测试走到真实供应商调用。"""
 
-        def run_sync(self, prompt: str) -> Any:
-            """拒绝任何意外调用，并携带提示词以便定位接线错误。"""
+        async def run(self, prompt: str, *, model_settings: object) -> Any:
+            """制造含敏感片段的 async timeout，验证异常不会进入 evidence。"""
 
-            raise AssertionError(f"patched timeout seam should run first: {prompt}")
+            del prompt, model_settings
+            raise TimeoutError("Authorization=Bearer timeout-secret; raw prompt")
 
-    def timeout_with_secret(*_: object, **__: object) -> Any:
-        """制造含敏感片段的超时异常，验证适配器的脱敏边界。"""
-
-        raise TimeoutError("Authorization=Bearer timeout-secret; raw prompt")
-
-    def agent_factory(_: str) -> UnusedAgent:
+    def agent_factory(_: object) -> UnusedAgent:
         """返回永不应被使用的代理替身。"""
 
         return UnusedAgent()
 
-    monkeypatch.setattr(pydantic_ai, "_run_sync_with_timeout", timeout_with_secret)
     database = tmp_path / "timeout.db"
     dsn = f"sqlite+aiosqlite:///{database}"
     run_migrations(dsn)
@@ -90,7 +83,10 @@ async def test_pydantic_ai_timeout_is_closed_as_provider_failure_evidence(
             router=ModelRouter(
                 config=ModelRouterConfig(default_model="openai:test"),
                 providers={
-                    "pydantic-ai": PydanticAIModelProvider(agent_factory=cast(Any, agent_factory))
+                    "openai-compatible": PydanticAIModelProvider(
+                        provider_id="openai-compatible",
+                        agent_factory=cast(Any, agent_factory),
+                    )
                 },
             ),
             storage=storage,
@@ -100,7 +96,7 @@ async def test_pydantic_ai_timeout_is_closed_as_provider_failure_evidence(
         with pytest.raises(ModelProviderInvocationError) as exc_info:
             await service.complete(
                 ModelRequest(
-                    provider="pydantic-ai",
+                    provider="openai-compatible",
                     prompt="private timeout prompt",
                     max_output_tokens=1,
                     timeout_seconds=1,
@@ -116,10 +112,10 @@ async def test_pydantic_ai_timeout_is_closed_as_provider_failure_evidence(
 
         # 除公开错误码外，持久化事件中不能留下供应商异常或用户输入的原文。
         events = await sink.read(run_id=run_id)
-        assert exc_info.value.code == "model.provider_failed"
+        assert exc_info.value.code == "model.provider_side_effect_unknown"
         assert events[-1].payload is not None
         assert events[-1].payload["outcome"] == "failed"
-        assert events[-1].payload["error_code"] == "model.provider_failed"
+        assert events[-1].payload["error_code"] == "model.provider_side_effect_unknown"
         assert events[-1].terminal is False
         serialized = (tmp_path / "timeout-events.jsonl").read_text(encoding="utf-8")
         assert "timeout-secret" not in serialized
@@ -152,15 +148,17 @@ async def test_pydantic_ai_success_is_normalized_before_usage_persistence(tmp_pa
             return self.Usage()
 
     class Agent:
-        """只接受预期私密提示词的同步供应商代理替身。"""
+        """只接受预期私密提示词的异步供应商代理替身。"""
 
-        def run_sync(self, prompt: str) -> Result:
+        async def run(self, prompt: str, *, model_settings: object) -> Result:
             """验证提示词抵达适配器后返回预设响应。"""
 
             assert prompt == "private provider prompt"
+            assert isinstance(model_settings, dict)
+            assert model_settings["max_tokens"] == 5
             return Result()
 
-    def agent_factory(_: str) -> Agent:
+    def agent_factory(_: object) -> Agent:
         """构造无网络依赖的供应商代理。"""
 
         return Agent()
@@ -182,7 +180,10 @@ async def test_pydantic_ai_success_is_normalized_before_usage_persistence(tmp_pa
             router=ModelRouter(
                 config=ModelRouterConfig(default_model="openai:test"),
                 providers={
-                    "pydantic-ai": PydanticAIModelProvider(agent_factory=cast(Any, agent_factory))
+                    "openai-compatible": PydanticAIModelProvider(
+                        provider_id="openai-compatible",
+                        agent_factory=cast(Any, agent_factory),
+                    )
                 },
             ),
             storage=storage,
@@ -190,7 +191,7 @@ async def test_pydantic_ai_success_is_normalized_before_usage_persistence(tmp_pa
         )
         response = await service.complete(
             ModelRequest(
-                provider="pydantic-ai",
+                provider="openai-compatible",
                 prompt="private provider prompt",
                 max_output_tokens=5,
             ),
@@ -208,7 +209,7 @@ async def test_pydantic_ai_success_is_normalized_before_usage_persistence(tmp_pa
         assert response.output_text == "provider raw output private"
         assert events[-1].payload is not None
         usage = cast(dict[str, Any], events[-1].payload["usage"])
-        assert usage["provider"] == "pydantic-ai"
+        assert usage["provider"] == "openai-compatible"
         assert usage["model"] == "openai:test"
         assert usage["input_tokens"] == 7
         assert usage["output_tokens"] == 4
@@ -233,13 +234,15 @@ async def test_pydantic_ai_missing_usage_preserves_unknown_tokens_as_null(tmp_pa
     class Agent:
         """返回无用量字段的响应，覆盖适配器的缺失信息分支。"""
 
-        def run_sync(self, prompt: str) -> Result:
+        async def run(self, prompt: str, *, model_settings: object) -> Result:
             """验证请求照常送达供应商，同时不伪造计量对象。"""
 
             assert prompt == "private provider prompt"
+            assert isinstance(model_settings, dict)
+            assert model_settings["max_tokens"] == 5
             return Result()
 
-    def agent_factory(_: str) -> Agent:
+    def agent_factory(_: object) -> Agent:
         """构造本地代理替身，避免该合同测试产生外部调用。"""
 
         return Agent()
@@ -261,7 +264,10 @@ async def test_pydantic_ai_missing_usage_preserves_unknown_tokens_as_null(tmp_pa
             router=ModelRouter(
                 config=ModelRouterConfig(default_model="openai:test"),
                 providers={
-                    "pydantic-ai": PydanticAIModelProvider(agent_factory=cast(Any, agent_factory))
+                    "openai-compatible": PydanticAIModelProvider(
+                        provider_id="openai-compatible",
+                        agent_factory=cast(Any, agent_factory),
+                    )
                 },
             ),
             storage=storage,
@@ -269,7 +275,7 @@ async def test_pydantic_ai_missing_usage_preserves_unknown_tokens_as_null(tmp_pa
         )
         response = await service.complete(
             ModelRequest(
-                provider="pydantic-ai",
+                provider="openai-compatible",
                 prompt="private provider prompt",
                 estimated_input_tokens=7,
                 max_output_tokens=5,

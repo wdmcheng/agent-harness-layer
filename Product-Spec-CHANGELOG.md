@@ -1,5 +1,26 @@
 # 变更记录
 
+## [v1.22] - 2026-07-29
+### 受控跨 deployment/provider fallback 规划
+
+- 新增 P1 `SCOPE-033`、`TASK-015`、`FLOW-008`、`REQ-027` 与 AC-090 至 AC-095，把此前只有“后置独立 change”决策的多 provider fallback 固定为 Phase 18.2 `controlled-multi-provider-failover`。
+- Fallback 候选不再只表达 model ID，而以有序 `(deployment_id, model_id)` route chain 表达；provider kind、endpoint、credential、catalog、能力、重试、Bulkhead 和价格均从候选 deployment 的 typed config 派生，request 只能删减，不能新增或重排。
+- 跨 provider 切换只允许发生在前一候选可证明 `not_started` 后；任何 started/unknown、response identity、usage、文本或 delta 都立即停止 failover。Streaming 观察或提交首个 delta 后永久禁止切换 provider。
+- 每个候选独立预约和结算，只有前一 reservation 已耐久安全释放或转移时才能原子建立下一 reservation；unknown 保留原 reservation并进入 needs-review，恢复不得重放 provider。
+- Phase 18.2 依赖 Phase 18.1 归档，排在 Phase 19 structured output 之前；当前只补 Product Spec、API Contract、DEV-PLAN、living plan 与 change matrix，不创建 OpenSpec change、不实现代码、不运行真实 provider。
+
+## [v1.21] - 2026-07-29
+### 受控真实非流式文本模型运行时
+
+- 交付 `REQ-025` 的受控真实非流式文本模型纵向闭环：真实 deployment 只能由 typed config 显式启用，credential reference、安全 endpoint policy、model catalog、冻结 route、策略/审批/审计、共享预算和 provider-neutral evidence 共同约束 provider 副作用。
+- 配置覆盖 deployment/provider/model allowlist、default/fallback、`base_url`、credential ref、deadline、有限 retry/backoff、Bulkhead、价格目录和 capability；direct env 与 `_FILE` 冲突、secret 泄漏、未受信 origin、credential forwarding 越界及 encoded path 绕过均在 client、DNS、HTTP 前 fail closed。
+- 路由固定为 deployment、Agent policy 与 request 的只缩权交集；请求不得选择 endpoint、credential 或 SDK 对象。未显式选模时，只能按冻结的同 deployment/provider 候选顺序执行 model fallback，并用各候选 catalog、价格、能力和 hard limit 重新判断；非法或空 route 不得静默回退 fake。
+- Pydantic AI/OpenAI 类型仅存在于 vendor adapter 边界；真实调用使用可取消 async I/O、total deadline、有界 retry、`Retry-After`、可信 completion classifier 和 Bulkhead。started/unknown 失败禁止盲目重放，每个 attempt 的 route、usage、cost、latency 与副作用状态进入去敏 evidence。
+- 预算预约、Policy/HITL、授权审计、provider 调用和 settlement 按冻结顺序执行；稳定失败、response、attempt 与 budget charge 在发布 final event/telemetry 前统一校验，SQLite/PostgreSQL 恢复保持相同错误、usage/cost 和调用事实，不重复 provider 副作用。
+- local/service profile、scaffold 与模板 Agent 继续显式使用 `fake_default`；默认 unit/contract/eval/smoke-local 不读取 provider ambient env、不需要真实凭据且保持零网络，真实失败不会静默变成 fake 成功。
+- AC-077、AC-078、AC-079、AC-080、AC-082、AC-084 已由离线 contract/integration/service 证据闭合；AC-081、AC-083 因两次授权 MiMo 入口均未建立真实 completion PASS 而保持未完成，其中第二次按 side-effect unknown 保留。Streaming、structured output、tool loop 与跨 deployment/provider fallback 继续由后续独立 Phase 交付。
+- `controlled-real-model-runtime` 已同步主规格并归档，由本地提交 `ff0c49b` 交付；该生命周期状态不代表真实 provider 成功、发布、部署或生产流量切换。
+
 ## [v1.20] - 2026-07-27
 ### 架构演进治理、受控真实模型配置与增量文本流计划
 

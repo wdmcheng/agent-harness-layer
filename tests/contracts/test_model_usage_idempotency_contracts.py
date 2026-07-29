@@ -79,11 +79,11 @@ class CountingModelProvider(FakeModelProvider):
 
         self.calls = 0
 
-    def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+    async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
         """记录一次实际模型执行后返回确定性 fake 响应。"""
 
         self.calls += 1
-        return super().complete(request, model=model)
+        return await super().complete(request, plan=plan)
 
 
 class CountingEmbeddingProvider:

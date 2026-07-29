@@ -276,6 +276,34 @@ manifest, and all license files. When changing the upstream Agent Harness Layer 
 `compliance/third-party.toml`, ADR-0004/0005, run `make license-check`, and run the real copy-out
 smoke.
 
+## Controlled real text deployment
+
+The template defaults to the explicit `fake_default` deployment and remains offline. To add a real
+non-streaming text deployment, configure only branded `AGENT_HARNESS_MODEL__...` fields as shown in
+[`.env.example`](.env.example): define the deployment, exact endpoint policy, versioned model
+catalog, and credential reference. Put the secret value in a direct branded variable or controlled
+`_FILE`, never in Agent YAML and never in an ambient provider variable.
+
+Agent `config.yaml` declares `deployment_id`, `provider`, `allowed_models`, `default_model`, and
+fallback models. This is a narrowing policy: it cannot supply an endpoint or credential. A request
+can only choose a model inside the deployment and Agent intersection. Route recovery uses the root
+run's frozen snapshot; a configuration reload affects new roots only. The concurrency limit is a
+process-local deployment bulkhead, not a cluster-wide quota. Timeout, retry, `Retry-After`, attempt
+usage/cost, and unknown side effects remain under the same reservation and evidence record.
+Fallback is an ordered model list within one deployment/provider and is selected only before
+provider side effects from frozen token/cost thresholds. An explicitly selected model, or a
+provider attempt that has started or failed, is never replayed through another model automatically.
+
+The upstream Agent Harness Layer repository's `make smoke-live-model` target does not call a
+provider by default. Without separate current-session
+authorization it writes `hosted-unverified` with `provider_called=false`. An authorized invocation
+also requires explicit opt-in, an isolated branded credential, and a trusted endpoint, and it runs
+through policy audit, shared budget, and durable usage evidence. Never use this target as a
+production health check or as permission to use production credentials.
+When a local `_FILE` is outside the default `/run/secrets`, pass `--secret-root` to bind the isolated
+directory explicitly. The smoke passes the deployment's frozen fallback list to the router and does
+not pin the primary model in the request.
+
 ## Everyday usage
 
 ### Make commands

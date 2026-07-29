@@ -31,6 +31,7 @@ GATE_TARGETS = {
     "eval": "eval",
     "smoke-local": "smoke-local",
     "smoke-service": "smoke-service",
+    "smoke-live-model": "smoke-live-model",
     "build": "build",
     "license": "license-check",
     "release-dry-run": "release-dry-run",
@@ -248,6 +249,19 @@ def run_gate(repo: Path, gate: str, artifact_specs: list[str]) -> int:
         status = "fail"
         if exit_code == 0:
             exit_code = 2
+    if gate == "smoke-live-model" and not artifact_error:
+        live_path = repo / ".artifacts" / "smoke" / "live-model" / "result.json"
+        try:
+            live = json.loads(live_path.read_text(encoding="utf-8"))
+            live_status = live.get("status")
+        except (OSError, json.JSONDecodeError):
+            live_status = None
+        if live_status == "hosted-unverified" and exit_code == 0:
+            status = "skipped"
+        elif live_status != "pass":
+            status = "fail"
+            if exit_code == 0:
+                exit_code = 2
     result: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "gate": gate,

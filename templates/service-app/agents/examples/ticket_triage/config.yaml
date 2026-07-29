@@ -6,7 +6,9 @@ input_schema: agents.examples.ticket_triage.schemas.TicketTriageInput
 output_schema: agents.examples.ticket_triage.schemas.TicketTriageOutput
 executor: agent:executor
 model:
+  deployment_id: fake_default
   provider: fake
+  allowed_models: [fake-ticket-triage]
   default_model: fake-ticket-triage
   fallback_models: []
 budget:

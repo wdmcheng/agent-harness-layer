@@ -6,7 +6,9 @@ input_schema: agents.examples.repo_analyst.schemas.RepoAnalystInput
 output_schema: agents.examples.repo_analyst.schemas.RepoAnalystOutput
 executor: agent:executor
 model:
+  deployment_id: fake_default
   provider: fake
+  allowed_models: [fake-repo-analyst]
   default_model: fake-repo-analyst
   fallback_models: []
 budget:

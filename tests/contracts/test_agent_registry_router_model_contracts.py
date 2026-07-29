@@ -166,7 +166,9 @@ async def test_agent_list_route_uses_injected_registry_seam(tmp_path: Path) -> N
             "config_ref": "agents/examples/basic/config.yaml",
             "tool_policy": {"allowed_tools": []},
             "model_policy": {
+                "deployment_id": "fake_default",
                 "provider": "fake",
+                "allowed_models": ["fake-basic"],
                 "default_model": "fake-basic",
                 "fallback_models": [],
             },
@@ -256,7 +258,8 @@ def test_agent_registry_controls_delegation_and_builds_summary(tmp_path: Path) -
     }
 
 
-def test_model_router_uses_fake_provider_and_reports_budget_fallback() -> None:
+@pytest.mark.asyncio
+async def test_model_router_uses_fake_provider_and_reports_budget_fallback() -> None:
     """验证模型路由在预算超限时选择声明的 fallback 并保留决策证据。"""
 
     from agent_harness.models import (
@@ -276,7 +279,7 @@ def test_model_router_uses_fake_provider_and_reports_budget_fallback() -> None:
         providers={"fake": FakeModelProvider()},
     )
 
-    response = router.route(
+    response = await router.route(
         ModelRequest(
             provider="fake",
             prompt="short prompt",
@@ -284,7 +287,7 @@ def test_model_router_uses_fake_provider_and_reports_budget_fallback() -> None:
             max_output_tokens=2,
         )
     )
-    over_budget = router.route(
+    over_budget = await router.route(
         ModelRequest(
             provider="fake",
             prompt="this prompt is intentionally over budget",

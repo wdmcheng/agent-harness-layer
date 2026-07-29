@@ -211,6 +211,31 @@ Keep the fingerprint key stable for the lifetime of the same state database. It 
 
 ## Usage guide
 
+### Controlled non-streaming model runtime
+
+The committed local and service profiles explicitly select `fake_default`; ordinary quality,
+test, eval, and local smoke commands remain offline even if ambient `OPENAI_*` or proxy variables
+exist. A real text deployment is opt-in and must use branded `AGENT_HARNESS_MODEL__...` typed
+configuration. It references a credential, exact endpoint policy, and versioned model catalog.
+Agent YAML may only narrow the deployment/model allowlist, and a request may narrow it again;
+neither surface can choose a URL, credential, SDK client, or model outside the frozen intersection.
+
+The runtime freezes the route before policy, budget, client, or network side effects. Each root run
+persists a versioned route snapshot and reuses its endpoint path, catalog, attempt bounds, and price
+identity during recovery. The async provider path applies one total deadline, bounded retry, a
+process-local per-deployment bulkhead, durable side-effect marking, and conservative `unknown`
+handling. A real failure never falls back to `fake`.
+
+Use [the service-app environment example](templates/service-app/.env.example) for field names and
+secret-file wiring. `make smoke-live-model` is intentionally inert without separate current-session
+authorization: it reports `model-live-smoke/v1 status=hosted-unverified`,
+`provider_called=false`, and exits 0. An authorized run also requires explicit opt-in, an isolated
+branded credential, and a trusted endpoint. It executes through the normal orchestrator, policy
+audit, shared budget reservation, usage evidence, and provider lifecycle.
+One deployment may contain an ordered list of fallback models. The router selects them only before
+provider side effects from frozen budgets and never replays a real failure automatically. Use
+`--secret-root` when the isolated `_FILE` directory is not the default `/run/secrets`.
+
 ### Repository commands
 
 | Command | What it proves | Additional requirements |
@@ -219,6 +244,7 @@ Keep the fingerprint key stable for the lifetime of the same state database. It 
 | `make test` | unit, contract, and offline integration behavior | local dependency set |
 | `make eval` | approved fake-model eval cases | no real provider key |
 | `make smoke-local` | isolated SQLite/in-memory/local-JSONL runtime | no external services |
+| `make smoke-live-model` | truthful opt-in status or one governed completion | separate authorization, isolated branded credential, trusted endpoint |
 | `make smoke-service` | copied-template API/worker recovery through PostgreSQL and Redis | Docker Compose |
 | `make build` | local wheel, sdist, and checksums | does not publish |
 | `make license-check` | dependency/license inventory, NOTICE, vendoring, and image identity policy | not legal advice or a full SBOM |

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from agent_harness.models.providers import ModelDecision, ModelRequest, ModelResponse
+from agent_harness.models.router import ModelRoutePlan
 
 
 class FakeModelProvider:
@@ -10,9 +13,10 @@ class FakeModelProvider:
 
     provider_id = "fake"
 
-    def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+    async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
         """返回确定性文本，供 local smoke 和 contract tests 不依赖外部 provider。"""
 
+        model = cast(ModelRoutePlan, plan).model
         output = f"fake:{request.prompt}"
         return ModelResponse(
             provider=self.provider_id,
@@ -28,3 +32,6 @@ class FakeModelProvider:
             },
             latency_ms=0,
         )
+
+    async def aclose(self) -> None:
+        """Fake 不持有外部资源；保留统一的 provider 生命周期协议。"""

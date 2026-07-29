@@ -4,6 +4,8 @@
 # ruff: noqa: F403, F405
 from tests.contracts.test_shared_parent_budget_invocation_contracts import *
 
+from agent_harness.storage import ApprovalCreate
+
 
 @pytest.mark.asyncio
 async def test_approved_continuation_rechecks_current_parent_balance(tmp_path: Path) -> None:
@@ -43,6 +45,41 @@ async def test_approved_continuation_rechecks_current_parent_balance(tmp_path: P
             usage_call_id="usage-awaiting-approval",
         )
         assert first.decision.action == "policy_required"
+        arguments_hash = hashlib.sha256(
+            json.dumps(
+                request.to_payload(),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        async with storage.uow() as uow:
+            approval = await uow.approvals.create(
+                ApprovalCreate(
+                    tenant_id="tenant-a",
+                    run_id=run_id,
+                    agent_id="agent-a",
+                    action="model.invoke",
+                    resource="agent:agent-a:model",
+                    reason="shared budget soft policy contract",
+                    requested_by="user-a",
+                    trace_id="trace-a",
+                    request_id="request-a",
+                    metadata={
+                        "identity_id": "user-a",
+                        "arguments_hash": arguments_hash,
+                    },
+                )
+            )
+            lease = await uow.approvals.claim_resolution(
+                approval_id=approval.approval_id,
+                run_id=run_id,
+                tenant_id="tenant-a",
+                request_id="approve-after-budget-change",
+            )
+            await uow.commit()
+
+        # durable lease 已建立后才消费竞争额度，精确模拟人工审批等待窗口。
         async with storage.uow() as uow:
             ledger = await uow.shared_budget.get_ledger("tenant-a", run_id)
             assert ledger is not None and ledger.token_impact == 0
@@ -91,17 +128,9 @@ async def test_approved_continuation_rechecks_current_parent_balance(tmp_path: P
             request_id="request-a",
             trace_id="trace-a",
         )
-        arguments_hash = hashlib.sha256(
-            json.dumps(
-                request.to_payload(),
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).hexdigest()
         grant = ApprovalGrant(
-            approval_id="approval-model-a",
-            lease_id="lease-model-a",
+            approval_id=approval.approval_id,
+            lease_id=lease.lease_id,
             tenant_id="tenant-a",
             identity_id="user-a",
             agent_id="agent-a",

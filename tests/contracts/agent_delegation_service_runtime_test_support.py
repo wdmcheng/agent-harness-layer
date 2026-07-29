@@ -28,6 +28,7 @@ from agent_harness.models import (
     ModelInvocationService,
     ModelRequest,
     ModelResponse,
+    ModelRoutePlan,
     ModelRouter,
     ModelRouterConfig,
     UsageEvidenceContext,
@@ -438,9 +439,10 @@ class _UsageProvider:
         self.cost_usd = cost_usd
         self.cost_status: Literal["reported", "estimated", "unavailable"] = cost_status
 
-    def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+    async def complete(self, request: ModelRequest, *, plan: ModelRoutePlan) -> ModelResponse:
         """返回固定文本与可配置 usage，不触网也不依赖模型路由实现。"""
 
+        model = plan.model
         return ModelResponse(
             provider=self.provider_id,
             model=model,

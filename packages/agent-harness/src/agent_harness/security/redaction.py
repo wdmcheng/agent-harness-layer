@@ -16,12 +16,23 @@ SECRET_KEY_MARKERS = (
     "token",
 )
 NON_SECRET_TOKEN_KEYS = {
+    "budget_charge_tokens",
+    "charged_tokens",
     "estimated_tokens",
+    "input_envelope_token_bound",
+    "input_token_price_usd",
     "input_tokens",
+    "max_output_tokens",
+    "max_per_attempt_token_bound",
+    "max_prompt_utf8_bytes",
     "max_tokens",
     "max_tokens_per_run",
     "original_tokens",
+    "output_token_cap",
+    "output_token_price_usd",
     "output_tokens",
+    "per_attempt_token_bound",
+    "reserved_token_bound",
     "retained_tokens",
     "token_budget",
     "token_count",
@@ -29,6 +40,8 @@ NON_SECRET_TOKEN_KEYS = {
     "token_usage",
     "tokens",
     "total_tokens",
+    "trusted_input_token_bound",
+    "trusted_token_bound",
     "used_tokens",
 }
 SECRET_VALUE_PATTERNS = (

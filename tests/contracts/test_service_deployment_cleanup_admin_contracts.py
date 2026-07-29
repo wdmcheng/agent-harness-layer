@@ -43,6 +43,24 @@ from tests.contracts.service_deployment_test_support import (
 )
 
 
+def test_service_budget_race_uses_repository_accepted_frozen_snapshot_identity() -> None:
+    """真实 service 探针不得用自定义 snapshot 标签绕过正式版本 validator。"""
+
+    source = (TEMPLATE / "scripts" / "service_admin_budget_race.py").read_text(encoding="utf-8")
+
+    assert 'snapshot_id = f"budget-tree-v1:' in source
+    assert 'snapshot_id = f"budget-race-snapshot-' not in source
+
+
+def test_service_budget_topology_uses_repository_accepted_frozen_snapshot_identity() -> None:
+    """共享预算 topology 探针也必须使用仓储认可的冻结快照身份。"""
+
+    source = (TEMPLATE / "scripts" / "service_admin_budget_topology.py").read_text(encoding="utf-8")
+
+    assert 'snapshot_id = f"budget-tree-v1:' in source
+    assert 'snapshot_id = f"budget-topology-{label}-' not in source
+
+
 def test_failure_diagnostic_omits_raw_secret_path_and_provider_error() -> None:
     """运维失败诊断必须保留边界定位信息，同时剔除 DSN 密码、令牌、路径及供应商原始错误。"""
 

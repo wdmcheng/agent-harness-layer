@@ -51,7 +51,9 @@ async def assert_budget_race() -> dict[str, object]:
     suffix = uuid4().hex
     tenant_id = f"budget-race-{suffix}"
     session_id = str(uuid4())
-    snapshot_id = f"budget-race-snapshot-{suffix}"
+    # 探针创建的是完整 fake-only v1 快照，identity 必须与正式 repository
+    # validator 使用同一版本前缀；自定义标签会在竞争开始前被判为 snapshot_invalid。
+    snapshot_id = f"budget-tree-v1:service-smoke-race-{suffix}"
     try:
         async with storage.uow() as uow:
             await uow.tenants.ensure(tenant_id)

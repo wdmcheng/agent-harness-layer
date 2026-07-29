@@ -256,11 +256,11 @@ async def test_postgresql_model_stable_call_id_does_not_replay_provider_or_leak_
 
             self.calls = 0
 
-        def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+        async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
             """在调用基础 fake provider 前递增计数，精确暴露是否出现不应有的重放。"""
 
             self.calls += 1
-            return super().complete(request, model=model)
+            return await super().complete(request, plan=plan)
 
     async with isolated_database("usage_model_retry") as dsn:
         run_migrations(dsn)

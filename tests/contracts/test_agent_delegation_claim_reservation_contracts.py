@@ -47,7 +47,9 @@ from tests.contracts.test_agent_delegation_storage_contracts import (
 )
 
 from agent_harness.storage.models import RunEventCapacityModel
+from agent_harness.storage.shared_budget import BudgetReservationRejected
 from agent_harness.storage.shared_budget_models import ParentBudgetLedgerModel
+from agent_harness.storage.shared_budget_repositories import SharedBudgetRepository
 
 
 def test_0015_migration_creates_delegation_evidence_tables(tmp_path: Path) -> None:
@@ -135,6 +137,45 @@ async def test_delegation_sequence_state_invalid_precedes_budget(tmp_path: Path)
         async with storage.uow() as uow:
             with pytest.raises(DelegationBudgetExceeded):
                 await uow.delegations.claim_and_reserve(_claim(parent_run_id))
+    finally:
+        await storage.dispose()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_direct_winner_maps_late_shared_budget_rejection_to_delegation_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """锁后余额被 direct 占用时，delegation seam 仍返回自己的稳定预算错误。"""
+
+    dsn = sqlite_dsn(tmp_path / "delegation-late-budget-race.db")
+    run_migrations(dsn)
+    storage = SQLAlchemyStorage.from_dsn(dsn)
+    parent_run_id = await _create_parent(storage, target_token_limit=100)
+
+    async def reject_after_delegation_rows_are_staged(
+        self: SharedBudgetRepository, **_: object
+    ) -> object:
+        del self
+        raise BudgetReservationRejected(reason="balance_insufficient")
+
+    monkeypatch.setattr(
+        SharedBudgetRepository,
+        "reserve_delegation",
+        reject_after_delegation_rows_are_staged,
+    )
+    try:
+        async with storage.uow() as uow:
+            with pytest.raises(DelegationBudgetExceeded) as rejected:
+                await uow.delegations.claim_and_reserve(_claim(parent_run_id))
+        async with storage.uow() as uow:
+            claims = await uow.delegations.list_for_parent(
+                tenant_id="tenant-a", parent_run_id=parent_run_id
+            )
+            ledger = await uow.shared_budget.get_ledger("tenant-a", parent_run_id)
+        assert rejected.value.code == "delegation.budget_exceeded"
+        assert claims == []
+        assert ledger is not None and ledger.token_impact == 0
     finally:
         await storage.dispose()
 

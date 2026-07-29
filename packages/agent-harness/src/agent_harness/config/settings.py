@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
@@ -12,12 +13,19 @@ from pydantic import ValidationError
 from yaml import YAMLError
 
 from agent_harness.config.errors import SettingsLoadError
+from agent_harness.config.model_endpoints import ModelConfigurationError, validate_model_settings
 from agent_harness.config.schemas import HarnessSettings
 from agent_harness.config.secret_files import DEFAULT_SECRET_ROOT, load_secret_file_env
 from agent_harness.contracts.errors import ErrorDetail
 
 ENV_PREFIX = "AGENT_HARNESS_"
 TEST_ENV_PREFIX = "AGENT_HARNESS_TEST_"
+NON_SETTINGS_CONTROL_KEYS = frozenset(
+    {
+        "AGENT_HARNESS_LIVE_MODEL_AUTHORIZED",
+        "AGENT_HARNESS_LIVE_MODEL_OPT_IN",
+    }
+)
 
 
 def load_settings(
@@ -51,6 +59,12 @@ def load_settings(
     # `.env` 是模板使用者的本机覆盖层，优先级高于 profile 默认值。
     resolved_env_file = _resolve_env_file(resolved_profile_path, env_file)
     env_values = _load_env_values(resolved_env_file)
+    env_input_error = _env_input_error(tuple(env_values))
+    if env_input_error is not None:
+        for sensitive_values in (data, agent_data, env_values):
+            sensitive_values.clear()
+        del overrides
+        raise SettingsLoadError([env_input_error])
     data = _deep_merge(data, _env_values_to_nested(env_values))
 
     # `_FILE` 只来自进程环境。direct/file 冲突必须在读取任何 secret 和应用
@@ -58,8 +72,15 @@ def load_settings(
     process_env = {
         key: value
         for key, value in os.environ.items()
-        if key.startswith(ENV_PREFIX) and key not in {"AGENT_HARNESS_CONFIG"}
+        if key.startswith(ENV_PREFIX)
+        and key not in {"AGENT_HARNESS_CONFIG", *NON_SETTINGS_CONTROL_KEYS}
     }
+    env_input_error = _env_input_error(tuple(env_values), tuple(process_env))
+    if env_input_error is not None:
+        for sensitive_values in (data, agent_data, env_values, process_env):
+            sensitive_values.clear()
+        del overrides
+        raise SettingsLoadError([env_input_error])
     secret_env: dict[str, str] = {}
     secret_load_errors: list[ErrorDetail] | None = None
     try:
@@ -87,11 +108,25 @@ def load_settings(
     if overrides:
         data = _deep_merge(data, dict(overrides))
 
+    model_config_error: ModelConfigurationError | None = None
     try:
-        return HarnessSettings.model_validate(data)
+        settings = HarnessSettings.model_validate(data)
+        validate_model_settings(settings.model, profile=settings.profile)
     except ValidationError as exc:
         # 原始 ValidationError 会保留输入值；先复制安全字段，再离开异常处理块。
         validation_errors = _validation_errors(exc)
+    except ModelConfigurationError as exc:
+        model_config_error = ModelConfigurationError(exc.field_path, str(exc))
+        validation_errors = [
+            ErrorDetail(
+                code="config.invalid",
+                message="模型配置校验失败",
+                field_path=exc.field_path,
+                hint="检查 deployment、endpoint policy、credential 与 model catalog 的逐值关系",
+            )
+        ]
+    else:
+        return settings
     # 支持 locals capture 的错误监控也不能取得原始配置值；只清理本地副本，
     # 不修改调用方持有的 overrides mapping。
     for sensitive_values in (
@@ -104,6 +139,7 @@ def load_settings(
     ):
         sensitive_values.clear()
     del overrides
+    del model_config_error
     # 在 except 外抛出，避免 __cause__/__context__ 和 traceback 绕过脱敏。
     raise SettingsLoadError(validation_errors)
 
@@ -243,7 +279,11 @@ def _env_values_to_nested(values: Mapping[str, str]) -> dict[str, Any]:
     for raw_key, raw_value in values.items():
         # 合同测试的外部服务 DSN 与产品配置共享品牌前缀，但不是 HarnessSettings。
         # 在统一转换 seam 排除它，避免 `.env` 与进程环境两条路径行为分叉。
-        if not raw_key.startswith(ENV_PREFIX) or raw_key.startswith(TEST_ENV_PREFIX):
+        if (
+            not raw_key.startswith(ENV_PREFIX)
+            or raw_key.startswith(TEST_ENV_PREFIX)
+            or raw_key in NON_SETTINGS_CONTROL_KEYS
+        ):
             continue
         # `_FILE` 只允许来自进程环境并由受控 secret loader 消费；`.env`
         # 中的同名项既不能触发文件读取，也不能作为未知 schema 字段进入 Pydantic。
@@ -260,6 +300,58 @@ def _env_values_to_nested(values: Mapping[str, str]) -> dict[str, Any]:
             continue
         _assign_nested(nested, parts, _parse_env_value(raw_value))
     return nested
+
+
+def _env_input_error(*key_sets: tuple[str, ...]) -> ErrorDetail | None:
+    """在 merge/secret read 前拒绝非法路径、大小写别名和 direct/FILE 冲突。
+
+    调用方只传键名快照，因此本 helper 与异常 traceback 都不会持有环境值；真正抛错前
+    由 ``load_settings`` 清空包含 secret 的 mapping。
+    """
+
+    seen: dict[tuple[str, ...], dict[str, str]] = {}
+    for raw_key in (key for keys in key_sets for key in keys):
+        if (
+            not raw_key.startswith(ENV_PREFIX)
+            or raw_key.startswith(TEST_ENV_PREFIX)
+            or raw_key in {"AGENT_HARNESS_CONFIG", *NON_SETTINGS_CONTROL_KEYS}
+        ):
+            continue
+        file_input = raw_key.upper().endswith("_FILE")
+        logical_key = raw_key[:-5] if file_input else raw_key
+        suffix = logical_key.removeprefix(ENV_PREFIX)
+        parts = suffix.split("__")
+        if not parts or any(
+            not part or re.fullmatch(r"[A-Za-z0-9_]+", part) is None for part in parts
+        ):
+            return ErrorDetail(
+                code="config.invalid",
+                message="环境变量配置路径包含空分段或非法字符",
+                field_path=".env",
+                hint="使用非空的字母、数字或下划线分段，并用双下划线分隔层级",
+            )
+        canonical = tuple(part.lower() for part in parts)
+        kind = "file" if file_input else "direct"
+        raw_identity = logical_key
+        previous = seen.setdefault(canonical, {}).get(kind)
+        if previous is not None and previous != raw_identity:
+            return ErrorDetail(
+                code="config.invalid",
+                message="多个环境变量别名映射到同一配置路径",
+                field_path=f".env.{'.'.join(canonical)}",
+                hint="每个 canonical 配置路径只保留一种大小写拼写",
+            )
+        seen[canonical][kind] = raw_identity
+        if {"direct", "file"}.issubset(seen[canonical]):
+            return ErrorDetail(
+                code="config.secret_file_conflict",
+                message="direct env 与对应的 _FILE 不能同时设置",
+                # direct/_FILE 冲突沿用 CFG-001 已公开的 canonical settings path；
+                # `.env` 只是输入来源，不得成为字段身份的一部分。
+                field_path=".".join(canonical),
+                hint="只设置 direct env 或对应的 _FILE，移除另一个输入",
+            )
+    return None
 
 
 def _assign_nested(target: dict[str, Any], parts: list[str], value: Any) -> None:

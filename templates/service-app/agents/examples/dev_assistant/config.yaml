@@ -6,7 +6,9 @@ input_schema: agents.examples.dev_assistant.schemas.DevAssistantInput
 output_schema: agents.examples.dev_assistant.schemas.DevAssistantOutput
 executor: agent:executor
 model:
+  deployment_id: fake_default
   provider: fake
+  allowed_models: [fake-dev-assistant]
   default_model: fake-dev-assistant
   fallback_models: []
 budget:

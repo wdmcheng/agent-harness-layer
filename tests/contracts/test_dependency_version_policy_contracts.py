@@ -51,6 +51,7 @@ def test_all_python_dependency_declarations_use_reviewed_compatible_ranges() -> 
         "greenlet>=3.3.0,<4",
         "httpx>=0.28.1,<0.29",
         "mcp>=1.28.1,<2",
+        "openai>=2.44.0,<3",
         "pydantic>=2.13.4,<3",
         "pydantic-ai>=2.5.0,<3",
         "PyYAML>=6.0.3,<7",

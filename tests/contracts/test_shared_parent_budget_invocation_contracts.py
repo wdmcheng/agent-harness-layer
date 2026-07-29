@@ -124,11 +124,11 @@ class CountingFakeModelProvider:
         self.calls = 0
         self._delegate = FakeModelProvider()
 
-    def complete(self, request: ModelRequest, *, model: str) -> ModelResponse:
+    async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
         """记录外部模型副作用次数后委托 fake provider，支撑恢复窗口断言。"""
 
         self.calls += 1
-        return self._delegate.complete(request, model=model)
+        return await self._delegate.complete(request, plan=plan)
 
 
 def model_service(

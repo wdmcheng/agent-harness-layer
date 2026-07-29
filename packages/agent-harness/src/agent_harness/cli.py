@@ -23,7 +23,10 @@ from agent_harness.events import CanonicalEventType, EventBus, LocalJsonlEventSi
 from agent_harness.policy import InputGuardrail, PolicyCheck, PolicyDeniedError
 from agent_harness.registry import AgentRegistry, RegistryLoadError
 from agent_harness.runtime import RunOrchestrator, RunTraceError
-from agent_harness.runtime.services import build_agent_execution_services
+from agent_harness.runtime.services import (
+    build_agent_execution_services,
+    close_agent_execution_services,
+)
 from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.scaffold import ScaffoldError, scaffold_agent_package
 from agent_harness.storage import SQLAlchemyStorage, storage_dsn_from_settings
@@ -214,10 +217,8 @@ def run(
     if prompt is not None:
         input_payload["prompt"] = prompt
 
-    import asyncio
-
-    async def _run():
-        """在单一事件循环中执行运行、输入护栏和可能的审批挂起流程。"""
+    async def _execute():
+        """执行运行、输入护栏和可能的审批挂起流程。"""
 
         preflight_trace = await orchestrator.prepare_trace(
             agent_id=agent_id,
@@ -282,6 +283,15 @@ def run(
                 )
             return run_result
 
+    async def _run():
+        """在创建异步 client 的同一事件循环内完成执行与全部资源清理。"""
+
+        try:
+            return await _execute()
+        finally:
+            await close_agent_execution_services(executor_services)
+            await storage.dispose()
+
     try:
         result = asyncio.run(_run())
     except PolicyDeniedError as exc:
@@ -290,8 +300,6 @@ def run(
     except RunTraceError as exc:
         typer.echo(f"{exc.code}: {exc}", err=True)
         raise typer.Exit(1) from exc
-    finally:
-        asyncio.run(storage.dispose())
 
     typer.echo(f"run_id: {result.run_id}")
     typer.echo(f"status: {result.status.value}")

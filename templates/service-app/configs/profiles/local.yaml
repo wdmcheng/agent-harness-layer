@@ -60,6 +60,18 @@ model:
   requires_api_key: false
   default_model: fake-local
   timeout_seconds: 30
+  default_deployment_id: fake_default
+  # 共享 fake deployment 覆盖全部已提交模板 Agent；它没有 endpoint、credential 或网络身份。
+  deployments:
+    fake_default:
+      provider_kind: fake
+      allowed_models: [fake-local, fake-service, fake-basic, fake-dev-assistant, fake-rag, fake-repo-analyst, fake-ticket-triage, fake-scaffold]
+      default_model: fake-local
+      fallback_models: []
+      max_prompt_utf8_bytes: 8192
+      max_output_tokens: 8192
+      max_per_attempt_token_bound: 16384
+      capabilities: [text_completion]
 budget:
   max_tokens_per_run: 8192
 identity:

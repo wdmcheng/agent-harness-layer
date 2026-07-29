@@ -106,6 +106,13 @@ artifact = ".artifacts/ci/smoke-service"
 native_artifacts = [".artifacts/smoke/service/trace.jsonl"]
 
 [[jobs]]
+id = "smoke-live-model"
+target = "ci-smoke-live-model"
+needs = ["install"]
+artifact = ".artifacts/ci/smoke-live-model"
+native_artifacts = [".artifacts/smoke/live-model/result.json"]
+
+[[jobs]]
 id = "license"
 target = "ci-license"
 needs = ["install", "smoke-service"]
@@ -174,6 +181,7 @@ needs = [
   "eval",
   "smoke-local",
   "smoke-service",
+  "smoke-live-model",
   "license",
   "build",
   "release-dry-run",

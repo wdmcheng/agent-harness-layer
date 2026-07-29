@@ -118,6 +118,7 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 | SCOPE-030 | 架构治理与持续演进基线 | P0 | 统一人与 Agent 使用的分层、依赖、模式选择、代码规范、长期计划和可执行架构门禁；按窄 change 演进，不做大爆炸重构 |
 | SCOPE-031 | 受控真实文本模型运行入口 | P0 | 在部署允许列表、Agent 冻结策略和单次请求意图的交集内调用真实模型；密钥、endpoint、预算、重试、并发和证据均由类型化配置与运行时边界控制 |
 | SCOPE-032 | 受控真实模型增量文本流 | P0 | 在 SCOPE-031 的冻结 route、预算和 provider 生命周期上生产 provider-neutral 文本增量，经既有 CanonicalEvent / SSE / CLI 传输；断线、取消、部分计量、背压和恢复不得触发重复 provider 副作用 |
+| SCOPE-033 | 受控跨 deployment/provider fallback | P1 | 以有序 `(deployment_id, model_id)` route chain 表达多个真实 provider 候选；只在前一候选可证明未开始时切换，unknown 或已观察输出时停止，且每个候选独立受凭据、endpoint、能力、预算和证据边界约束 |
 
 ### 2.2 不在本版本范围
 
@@ -156,6 +157,7 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 | TASK-012 | 维护者按共享架构原则、变更矩阵和可执行门禁逐步演进项目 | 脚手架维护者 | P0 |
 | TASK-013 | 开发者配置受控真实模型部署且不把凭据写入版本库或运行证据 | Agent 应用开发者 | P0 |
 | TASK-014 | 开发者通过既有事件入口消费真实模型增量文本，并在断线后只续读已持久化片段 | Agent 应用开发者 | P0 |
+| TASK-015 | 开发者配置多个受控真实模型 deployment 的有序 fallback，并能解释每次候选切换、预算占用和最终调用事实 | Agent 应用开发者 | P1 |
 
 ## 4. 用户流程
 
@@ -335,7 +337,7 @@ main 分支合并 Conventional Commits，或维护者手动触发 release workfl
 - 首个实现范围只覆盖非流式真实文本模型；增量文本流由紧随其后的 P0 Phase 18.1 `controlled-model-streaming` 独立交付，不能混入首个入口，也不能无限期留在未排序的“以后”。Provider-neutral structured output、模型驱动工具循环和多 provider 运行治理继续分别使用后续窄 change。
 
 **完成状态：**
-受控真实文本模型入口尚未实现；`PydanticAIModelProvider` 适配器已存在，但当前 service composition 仍拒绝非 `fake` provider，配置 schema 也尚未覆盖完整 deployment、endpoint 与凭据引用。现有 RUN-006 只读取已持久化的 `CanonicalEvent`，当前 provider/invocation 也尚未生产真实模型文本增量。
+受控真实非流式文本模型入口已完成离线实现、严格 `1+2` review、主规格同步、归档和本地提交 `ff0c49b`：typed deployment、credential/endpoint/model catalog、只缩权冻结路由、async Pydantic AI adapter、共享预算、策略/审批/审计、usage/cost/attempt evidence 与 lazy composition 已接通，显式 fake/local 仍保持离线。用户曾授权两次隔离 MiMo 入口，一次明确零调用，另一次无法证明是否已发出请求而按 side-effect unknown 处理，均未建立真实 completion PASS。RUN-006 仍只读取已持久化的 `CanonicalEvent`，provider/invocation 尚未生产真实模型文本增量；该能力继续属于 REQ-026。跨 deployment/provider fallback 尚未实现，归入 REQ-027 / Phase 18.2。
 
 ### FLOW-007: 通过既有事件入口消费受控真实模型增量文本
 
@@ -362,6 +364,35 @@ Phase 18 的受控真实文本模型 deployment 已验收并显式声明文本�
 
 **完成状态：**
 尚未实现。当前 CanonicalEvent 类型目录虽已预留 `model.output.delta` / `model.output.completed`，但这只定义合法事件词汇，不证明 provider token/text streaming、持久化顺序、容量预约或部分计量已经存在。
+
+### FLOW-008: 在多个受控真实 provider 之间安全 fallback
+
+**关联任务：** TASK-003, TASK-008, TASK-013, TASK-015
+**优先级：** P1
+**目标：** 开发者可以为同一文本能力声明多个真实 deployment/model 候选；runtime 只在前一候选可证明没有产生 provider 业务副作用时按冻结顺序切换，并能从预算、attempt 与审计证据解释最终选择。
+
+**入口：**
+Phase 18 与 Phase 18.1 已归档；维护者在 typed profile 中声明各 deployment 的 endpoint、credential、catalog、能力和执行边界，在 Agent model policy 中声明由 `(deployment_id, model_id)` 组成的有序 `fallback_routes`。请求只能从该冻结列表中选择或删减候选，不能添加 deployment、provider、endpoint、credential 或模型。
+
+**主路径：**
+1. runtime 对 deployment 上限、Agent route allowlist 与 request 缩权意图求交集，在任何 client、DNS、HTTP 或预算副作用前冻结完整 route chain 及版本摘要。
+2. 每个候选分别解析自己的 provider kind、endpoint/credential policy、model catalog、capability、timeout/retry/Bulkhead 和 token/cost 上界；静态不合格候选只形成去敏 decision，不取得 client 或发送请求。
+3. 当前候选取得独立 permit/reservation 并按 Phase 18 顺序调用；只有 client 构造/发送前失败，或受信 classifier 明确证明 `not_started`，才能耐久关闭该候选并原子转移到下一候选。
+4. 任一候选返回结果、usage、response identity、文本 delta，或调用状态为 `started|unknown` 时，route chain 立即停止；不得为提高成功率切换 provider。
+5. 最终 response/error、所有候选 decision、实际 attempts、usage/cost、reservation transfer 与 audit 关联同一 operation/route-chain identity；SDK 对象、完整 endpoint 和 credential 不进入公共证据。
+
+**分支路径：**
+- 候选因能力、价格、prompt/output 上界或当前共享预算不合格时，可以在零 provider 副作用下继续检查下一候选；全部候选不合格时返回稳定 route/budget/policy error。
+- streaming 调用只有在首个 delta 尚未观察且当前候选可证明 `not_started` 时才允许切换；观察或提交任一 delta 后禁止跨 provider fallback，保留 committed prefix 与未决预算。
+- 全部真实候选失败时保持真实失败或 needs-review；fake 只能由 profile/Agent 显式选择，不能出现在真实 route chain 的静默尾部。
+
+**边界情况：**
+- 同一个 provider kind 下的不同 vendor endpoint/credential 仍是不同 deployment；不同 provider kind 通过 composition root 的窄 factory/adapter 注册，不让业务 Agent 接触 SDK。
+- Phase 18.2 不做动态 provider discovery、健康权重、流量分配、热重载控制面、跨 provider 账单对账、自动降价路由或大规模多区域运维。
+- reload 只影响新 root run；恢复中的 run 必须使用原冻结 route chain，不能采用新加入、重排或替换凭据的候选。
+
+**完成状态：**
+尚未实现。当前 Phase 18 只支持同一 deployment/provider 内的有序 model fallback；Phase 18.2 只完成产品和开发规划，尚未创建 OpenSpec change。
 
 ## 5. 功能需求
 
@@ -1395,28 +1426,30 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - `ModelSettings` 从单一 `provider/default_model/timeout` 扩展为 deployment-aware 配置。每个 deployment 至少声明稳定 id、provider kind、允许模型、默认/回退模型、`base_url` 或 provider 默认 endpoint、credential reference、连接/读取/总 deadline、有限 retry/backoff、最大并发/排队时限、价格目录引用与版本、能力标志。
 - credential reference 指向同一 typed settings 树中的 secret 字段；秘密值可以在本地由被忽略的 `.env` 注入，也可以由进程环境或受控 `_FILE` 注入。profile 与 Agent YAML 只保存引用和非敏感策略。
 - composition root 根据 deployment 构造 provider-specific client/model，再注册为 provider-neutral `ModelProvider`；业务 Agent、router 和预算服务不得取得 Pydantic AI/OpenAI 等 SDK 对象。
-- runtime 先形成 immutable route plan，再执行 policy/budget/provider；route plan 和 usage evidence 保存 deployment/provider/model/endpoint origin/capability/price/version/attempt 身份，但不保存 credential、Authorization header 或含密 URL。
-- 首个 `controlled-real-model-runtime` change 只交付非流式文本 completion；完成并归档后，下一项 P0 行为 change 固定为 Phase 18.1 `controlled-model-streaming`。Provider-neutral structured output、模型驱动工具循环和多 provider 运维继续分别后置，不能借首个真实调用入口或流式入口绕过 `ToolRegistry`、Policy/HITL、预算或 `CanonicalEvent`。
+- runtime 先形成 immutable route plan，再执行 policy/budget/provider；route plan 的 decision/retry/bulkhead 嵌套值同样是 frozen typed DTO，不能由外层 frozen 包裹可变 mapping。route plan 和 usage evidence 保存 deployment/provider/model/endpoint origin/capability/price/version/attempt 身份，但不保存 credential、Authorization header 或含密 URL。
+- 首个 `controlled-real-model-runtime` change 只交付非流式文本 completion；完成并归档后，下一项 P0 行为 change 固定为 Phase 18.1 `controlled-model-streaming`。随后以 P1 Phase 18.2 `controlled-multi-provider-failover` 独立交付跨 deployment/provider route chain，再进入 Phase 19 structured output；模型驱动工具循环继续后置。任何后续 change 都不能绕过 `ToolRegistry`、Policy/HITL、预算或 `CanonicalEvent`。
 
 **规则：**
 - MUST committed YAML、descriptor、请求、event、trace、audit、eval、error、health 与配置 snapshot 中都不出现秘密原值；`.env` 高于 YAML 的加载优先级不构成安全保证，正式部署不得把提交 `.env` 当 secret store。
 - MUST Harness 的真实模型配置使用 `AGENT_HARNESS_*` typed fields 和 credential reference；不得静默读取 `OPENAI_API_KEY` 等 provider 原生 ambient env 形成第二条未审计路径。兼容入口如确需读取，必须在 composition root 显式映射、记录来源类别并通过相同脱敏/冲突门禁。
 - MUST `base_url` 缺省时解析到 provider 官方默认 origin；显式值必须拒绝 userinfo、query、fragment 和未批准 scheme/origin。正式 profile 默认只允许 HTTPS exact origin；仅 local profile 可通过显式策略允许 loopback HTTP，且对应 credential 不得被转发到其他 origin。
-- MUST deployment allowlist 是部署上限，Agent descriptor 只能收窄，单次 request 只能再次收窄；未知、空交集、能力不匹配或 request 试图覆盖 endpoint/credential 时，在预算预约、授权成功审计和网络副作用前失败。失败路径可以提交去敏的本地拒绝事件与审计，但不得产生 provider-authorized route evidence。
+- MUST deployment allowlist 是部署上限，Agent descriptor 只能收窄，单次 request 只能再次收窄；进程已装载真实受控 deployment 时，公共 Router 缺少 Agent model policy 必须稳定拒绝，不得回退 legacy/fake 路由。未知、空交集、能力不匹配或 request 试图覆盖 endpoint/credential 时，在预算预约、授权成功审计和网络副作用前失败。失败路径可以提交去敏的本地拒绝事件与审计，但不得产生 provider-authorized route evidence。
+- MUST request 未显式选模时，fallback 只从冻结的 deployment fallback 与 Agent fallback/allowlist 交集按 Agent 顺序选择，并用候选自己的 model catalog、价格、attempt bound 与 target hard limit重新判断；request 显式选模后不得自动换模。所有候选都超阈值时返回可追踪 `policy_required`，批准只能绕过 soft threshold，不能越过 shared hard limit。
 - MUST timeout、retry 与 concurrency 共同受 total deadline 和 Bulkhead 约束。只对配置列明的瞬时网络错误/状态码有限重试，不得在已观察到响应或 side-effect 状态未知后盲目重试；每次 attempt 都要进入 provider-neutral evidence。
 - MUST cost hard limit 启用时，route 的 input/output price 与目录版本必须完整、非负且有限；未知价格不能按零成本继续。最大重试可能造成的预算风险必须在 reservation 或 unknown/needs-review 状态中显式表达。
 - MUST provider timeout 尽可能使用异步客户端/transport 的可取消 deadline；仅在线程池外等待超时而不能终止已开始网络调用，不得宣称 provider 已取消。无法证明取消时必须标记 side-effect unknown 并禁止自动重复调用。
 - MUST 默认 CI、unit、contract、eval 和 `make smoke-local` 继续使用 fake/provider doubles，不访问外网、不需要真实 key；真实 provider smoke 必须显式 opt-in、使用非生产凭据、受 endpoint allowlist 约束，并只报告脱敏结果。
+- MUST 真实 provider 失败即使没有成功 response，也要从封闭的 invocation error/evidence 如实保留是否已调用、attempt 数和安全 latency；相同 usage call 重放耐久稳定失败（包括零调用的 Bulkhead saturation）时必须先按稳定 error identity 解释封闭四字段 failure，恢复同一 code/摘要且不再次调用 provider。`complete()` 重放与后台恢复必须先用同一校验 seam 完整验证 evidence、outcome、failure/response，再允许发布 final event/telemetry 或把 outbox 标成 `published`。稳定错误记录不得同时接受 response；缺失、多余字段、矛盾 call/attempt、非法 latency、畸形 evidence/outcome 或 error/response 冲突统一 fail closed 为 replay error。不得读取或输出 raw SDK 异常，也不得把 429/5xx、retry exhausted、timeout/unknown 误报为零调用。
 
 **验收标准：**
-- [ ] AC-077: Given profile、Agent YAML、`.env`、secret file、direct env 与受控 overrides 同时提供配置, when 加载 settings, then 按公开优先级确定非冲突值，direct/`_FILE` 冲突先失败，`.env` 中非 `AGENT_HARNESS_*` provider 原生变量不被误当已加载凭据。
-- [ ] AC-078: Given 一个真实模型 deployment, when 通过 YAML 与 `AGENT_HARNESS_*` 加载, then deployment/provider/model allowlist、default/fallback、base URL、credential ref、timeouts、retry、concurrency、pricing 和 capability 全部进入 typed settings，任何诊断与序列化都不回显 secret。
-- [ ] AC-079: Given `base_url` 含 userinfo/query/fragment、非批准 origin、非显式 local loopback HTTP 或与 credential 绑定 origin 不一致, when application startup, then 在创建 SDK client 或发起 DNS/HTTP 请求前 fail closed，错误只包含安全字段路径和 origin 摘要。
-- [ ] AC-080: Given deployment、Agent descriptor 与 request 提供不同模型范围, when 路由一次调用, then immutable route plan 只选择三者交集；未知或越权选择在 budget reservation、授权成功 event/audit 和 provider call 前失败，允许提交不含秘密且不声称已授权的本地拒绝 evidence。
+- [x] AC-077: Given profile、Agent YAML、`.env`、secret file、direct env 与受控 overrides 同时提供配置, when 加载 settings, then 按公开优先级确定非冲突值，direct/`_FILE` 冲突先失败，`.env` 中非 `AGENT_HARNESS_*` provider 原生变量不被误当已加载凭据。
+- [x] AC-078: Given 一个真实模型 deployment, when 通过 YAML 与 `AGENT_HARNESS_*` 加载, then deployment/provider/model allowlist、default/fallback、base URL、credential ref、timeouts、retry、concurrency、pricing 和 capability 全部进入 typed settings，任何诊断与序列化都不回显 secret。
+- [x] AC-079: Given `base_url` 含 userinfo/query/fragment、非批准 origin、非显式 local loopback HTTP 或与 credential 绑定 origin 不一致, when application startup, then 在创建 SDK client 或发起 DNS/HTTP 请求前 fail closed，错误只包含安全字段路径和 origin 摘要。
+- [x] AC-080: Given deployment、Agent descriptor 与 request 提供不同模型范围, when 路由一次调用, then immutable route plan 只选择三者交集且 decision/retry/bulkhead 嵌套执行策略不可变；存在真实受控 deployment 但缺 Agent policy、未知或越权选择均在 budget reservation、授权成功 event/audit 和 provider call 前失败，且不得回退 legacy/fake 路由；允许提交不含秘密且不声称已授权的本地拒绝 evidence。
 - [ ] AC-081: Given 有效受控 deployment 和显式 opt-in 测试凭据, when 执行一次非流式真实文本 completion, then composition root 注册真实 provider，返回 provider-neutral text/usage/latency/route evidence，业务 Agent 无 vendor import，fake 路径仍可离线运行。
-- [ ] AC-082: Given provider 超时、429/可重试 5xx、并发饱和或取消, when 执行调用, then retry/Retry-After/backoff、total deadline、Bulkhead 与 unknown side-effect 语义符合冻结配置，attempt 可审计且不会静默重复预算或调用。
+- [x] AC-082: Given provider 超时、429/可重试 5xx、并发饱和、耐久失败重放或取消, when 执行调用, then retry/Retry-After/backoff、total deadline、Bulkhead 与 unknown side-effect 语义符合冻结配置，attempt 可审计；稳定失败身份先于 response 解释，只从封闭 failure 恢复同一安全摘要，`complete()` 与后台恢复在任何 final event/telemetry/`published` 副作用前共用完整 payload 校验，缺失、多余、矛盾、非法或 error/response 冲突统一 fail closed，且不会静默重复预算、发布损坏结果或调用 provider。
 - [ ] AC-083: Given 默认 CI 与 local profile, when 运行 quality/test/eval/smoke-local, then 不读取真实 provider key、不触网且继续使用 fake；给定单独授权和隔离凭据时，opt-in live smoke 才执行真实 endpoint，并把未执行状态准确报告为 skipped/hosted-unverified 而非 PASS。
-- [ ] AC-084: Given cost hard limit 启用但 route 价格缺失、credential reference 未解析或 provider capability 未声明, when 请求真实模型, then 在任何 provider 副作用前结构化失败，已有 local event/audit 证据不含 secret，预算状态不被伪装成零成本完成。
+- [x] AC-084: Given cost hard limit 启用但 route 价格缺失、credential reference 未解析或 provider capability 未声明, when 请求真实模型, then 在任何 provider 副作用前结构化失败，已有 local event/audit 证据不含 secret，预算状态不被伪装成零成本完成。
 
 ### REQ-026: 受控真实模型增量文本流
 
@@ -1447,6 +1480,38 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - [ ] AC-086: Given 已发送请求后发生显式取消、deadline 或结果未知, when provider 不能证明远端已停止, then 已提交文本前缀和 reservation 保留，attempt 进入 interrupted/unknown，未发布虚假的 output completed 或 run terminal，未知 usage/cost 不记零，且不会自动 retry/fallback 或再次调用 provider。
 - [ ] AC-087: Given SSE/CLI reader 在流中断线后携带最后可见 cursor 重连, when 继续读取同一 run, then 只按 seq 返回未读的已提交 delta/completion/usage/terminal，断线本身不取消 run，reader 不持有 provider cursor，也不恢复、重启或重放 provider 调用。
 - [ ] AC-088: Given provider 产生跨 chunk 敏感模式、超过分片/容量上限或 storage/消费者变慢, when 执行流式调用, then 跨 chunk 安全门禁、受信合并/背压、event capacity 和 envelope 上限按冻结契约 fail closed 或有界推进，无 secret、静默丢片、乱序和无界缓存；默认 fake stream 全面验证，opt-in live smoke 分别报告 provider 首 delta 与首个已提交 delta 时延。
+
+### REQ-027: 受控跨 deployment/provider fallback
+
+**优先级：** P1
+**关联任务：** TASK-003, TASK-008, TASK-013, TASK-015
+**关联流程：** FLOW-008
+
+**用途：**
+在不把“高可用”变成重复计费、凭据错发或不可恢复副作用的前提下，把 Phase 18 的同 provider 多模型 fallback 扩展为多个真实 deployment/provider 候选；候选选择仍由部署和 Agent policy 控制，业务请求不能成为 provider 控制面。
+
+**行为：**
+- Agent model policy 使用有序 route refs 表达 fallback，每个候选的稳定身份至少为 `(deployment_id, model_id)`；provider kind、endpoint、credential、catalog 和执行策略只能从该 deployment 的 typed config 派生。
+- Router 在首次 provider 副作用前冻结完整 route chain、候选 ordinal、各自 catalog/endpoint/credential identity、capability、timeout/retry/Bulkhead、价格和 token/cost 上界；reload 只影响新 root run。
+- 静态 hard eligibility 可以在零调用时跳过不合格候选；运行时跨 provider 切换只允许发生在当前候选可证明 `not_started` 后。任何 `started|unknown`、response identity、usage、partial text 或 delta 都终止 failover。
+- 每个候选使用自己的可信预算上界。进入下一候选前，上一候选必须已耐久收敛为 not-started，原 reservation 安全释放或转移，下一 reservation 原子建立；unknown 保留原 reservation 并进入 needs-review，不得把成本记为零。
+- Evidence 必须记录 route-chain identity、候选 ordinal、去敏切换原因、实际 deployment/provider/model、attempt/usage/cost/latency 和 reservation 变化；恢复只补投或继续原冻结 identity，不重新调用已开始候选。
+
+**规则：**
+- MUST deployment config、Agent policy 和 request 逐层只缩权；request 不得声明 endpoint、credential 或新的 provider/deployment，不能重排 Agent 冻结的 route chain。
+- MUST 各候选独立通过 endpoint/credential forwarding、model catalog、capability、budget、policy、approval、deadline、retry 和 Bulkhead 校验；一个候选的凭据、client lease、permit 或 catalog 不得复用于另一个 deployment。
+- MUST failover condition 是封闭、版本化、可由 transport/adapter 证明的稳定事实；普通异常文本、HTTP body、缺失/重复 classifier、read timeout、取消或推断性的“应该没开始”一律按 unknown 停止。
+- MUST streaming 观察或提交任一 delta 后禁止跨 provider fallback；reader 断线、Last-Event-ID、CLI reconnect 或恢复流程都不得重新选择 provider。
+- MUST fake 只允许显式 route；全部真实候选失败时不得静默返回 fake 文本。默认 local/test/eval/smoke-local 仍只使用显式 fake 且零网络。
+- MUST Phase 18.2 不引入动态 discovery、健康评分/权重、负载均衡、热重载控制面、自动成本套利、provider-specific raw DTO 或跨 provider 运维后台。
+
+**验收标准：**
+- [ ] AC-090: Given typed settings 配置至少两个真实 deployment 且 Agent 声明有序 fallback routes, when request 选择或缩小候选集, then frozen route chain 只包含 deployment∩Agent∩request 的 `(deployment_id, model_id)` 交集，顺序不可变；request 不能添加/reorder provider、endpoint 或 credential，非法配置在 client/network 前失败。
+- [ ] AC-091: Given 首选候选在 client/send 前失败或受信 classifier 明确证明 `not_started`, when 执行 fallback, then runtime 耐久收敛前一候选后只调用下一候选一次；若出现 started/unknown、response identity、usage、文本或 delta，则停止并保持 needs-review/原错误，不调用后续 provider。
+- [ ] AC-092: Given 各候选价格、token 上界和 attempt policy 不同, when route chain 跨候选推进或恢复, then 每个候选按自己的冻结 catalog 预约和结算，reservation release/transfer 与下一 reservation 原子且可重放；unknown 不退款、不记零，相同 operation 不重复 provider 副作用。
+- [ ] AC-093: Given streaming route chain, when 首个 delta 尚未观察且当前候选可证明 not-started, then 可以按同一冻结链切换；一旦观察或提交任一 delta，取消、deadline、reader 断线、恢复和重连均不会触发跨 provider fallback，committed prefix 与未决 usage/cost 保留。
+- [ ] AC-094: Given 多 deployment 使用不同 endpoint、credential、provider kind、catalog 或 Bulkhead, when composition、调用、关闭和 reload, then 每个候选只取得自己的 lazy client/permit/secret，SDK 对象不越界；旧 run 只恢复原 route chain，全部真实候选失败也不静默切 fake，默认 fake/local 回归零网络。
+- [ ] AC-095: Given 用户另行授权、两个隔离真实凭据和两个受信 deployment 均可用, when opt-in live smoke 让首选产生可证明 not-started 的受控失败, then 次选完成一次文本调用并输出去敏 route-chain/attempt/usage/cost evidence；缺任一前置时保持零调用 `hosted-unverified`，外部故障记 `external-blocked`，均不伪造 PASS。
 
 ### AI 能力规格
 
@@ -1588,6 +1653,8 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 | 合规 | Apache-2.0、NOTICE、license check、引用声明 | P0 |
 
 ## 9. P0 完成定义
+
+`REQ-027` / Phase 18.2 是已排期的 P1 演进项，不属于下列 P0 完成门禁；它必须在 Phase 18.1 归档后独立交付，但不会反向阻塞 P0 验收。
 
 P0 完成条件：
 

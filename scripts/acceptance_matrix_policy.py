@@ -54,9 +54,82 @@ REQUIRED_PRODUCER_GATES = {
     "AC-070": frozenset({"lock", "install", "license", "release-dry-run", "test-aggregate"}),
     "AC-071": frozenset({"test-aggregate"}),
     "AC-072": frozenset({"test-aggregate", "release-dry-run"}),
+    "AC-077": frozenset({"test-aggregate"}),
+    "AC-078": frozenset({"test-aggregate"}),
+    "AC-079": frozenset({"test-aggregate"}),
+    "AC-080": frozenset({"test-aggregate"}),
+    "AC-081": frozenset({"test-aggregate", "smoke-live-model"}),
+    "AC-082": frozenset({"test-aggregate"}),
+    "AC-083": frozenset(
+        {"quality-aggregate", "test-aggregate", "eval", "smoke-local", "smoke-live-model"}
+    ),
+    "AC-084": frozenset({"test-aggregate"}),
     "AC-089": frozenset({"test-aggregate"}),
 }
 REQUIRED_TEST_MAPPINGS = {
+    "AC-077": frozenset(
+        {
+            "tests/contracts/test_controlled_real_model_config_contracts.py::test_settings_merge_controlled_deployment_and_ignore_provider_ambient_env",
+            "tests/contracts/test_controlled_real_model_runtime_composition_contracts.py::test_openai_sdk_ambient_env_cannot_change_controlled_client_or_outbound_request",
+        }
+    ),
+    "AC-078": frozenset(
+        {
+            "tests/contracts/test_controlled_real_model_config_contracts.py::test_real_deployment_loads_complete_typed_policy_without_secret_serialization",
+            "tests/contracts/test_controlled_real_model_config_contracts.py::test_model_catalog_rejects_unknown_mismatched_or_self_reported_bounds_before_reservation",
+        }
+    ),
+    "AC-079": frozenset(
+        {
+            "tests/contracts/test_controlled_real_model_config_contracts.py::test_endpoint_and_credential_origin_fail_closed_before_client_or_network",
+            "tests/contracts/test_controlled_real_model_config_contracts.py::test_endpoint_policy_catalog_rejects_unknown_or_mismatched_identity_before_runtime_side_effects",
+        }
+    ),
+    "AC-080": frozenset(
+        {
+            "tests/contracts/test_controlled_real_model_routing_contracts.py::test_route_plan_intersects_deployment_agent_and_request_before_side_effects",
+            "tests/contracts/test_controlled_real_model_routing_contracts.py::test_provider_identity_assertion_matches_deployment_kind_and_bound_adapter",
+        }
+    ),
+    "AC-081": frozenset(
+        {
+            "tests/contracts/test_controlled_real_model_runtime_composition_contracts.py::test_composition_registers_async_real_provider_double_and_keeps_fake_offline",
+            "tests/contracts/test_controlled_real_model_runtime_composition_contracts.py::test_openai_sdk_ambient_env_cannot_change_controlled_client_or_outbound_request",
+            "tests/integration/test_controlled_real_model_live_smoke.py::test_opt_in_real_text_completion",
+        }
+    ),
+    "AC-082": frozenset(
+        {
+            "tests/contracts/test_controlled_real_model_deadline_order_contracts.py::test_invalid_dynamic_route_rejects_before_reservation_client_and_network",
+            "tests/contracts/test_controlled_real_model_policy_approval_contracts.py::test_model_policy_coordinates_and_audit_precede_reservation",
+            "tests/contracts/test_controlled_real_model_policy_approval_contracts.py::test_require_approval_creates_durable_checkpoint_with_zero_model_side_effects",
+            "tests/contracts/test_controlled_real_model_policy_approval_contracts.py::test_bound_approval_grant_rechecks_hard_budget_and_invokes_provider_once",
+            "tests/contracts/test_controlled_real_model_policy_approval_contracts.py::test_mismatched_stale_or_replayed_grant_fails_closed",
+            "tests/contracts/test_controlled_real_model_deadline_order_contracts.py::test_route_reservation_bound_and_adapter_output_cap_are_enforced_before_send",
+            "tests/contracts/test_controlled_real_model_retry_budget_contracts.py::test_retry_requires_trusted_versioned_completion_signal",
+            "tests/contracts/test_controlled_real_model_deadline_order_contracts.py::test_execution_order_and_each_pre_send_failure_boundary_are_fenced",
+            "tests/contracts/test_controlled_real_model_deadline_order_contracts.py::test_pre_mark_cancel_rolls_back_reservation_permit_and_client_without_network",
+            "tests/contracts/test_controlled_real_model_retry_settlement_contracts.py::test_retry_attempts_reserve_and_settle_only_trusted_actual_usage",
+            "tests/contracts/test_controlled_real_model_replay_fencing_contracts.py::test_started_completed_or_failed_without_usage_keeps_reservation_and_fences_terminal",
+            "tests/contracts/test_controlled_real_model_deadline_order_contracts.py::test_bulkhead_deadline_cancel_and_unknown_are_fenced",
+            "tests/contracts/test_controlled_real_model_budget_snapshot_contracts.py::test_budget_tree_v2_repository_validator_freezes_deployment_and_allowed_models",
+        }
+    ),
+    "AC-083": frozenset(
+        {
+            "tests/contracts/test_controlled_real_model_offline_contracts.py::test_default_gates_ignore_provider_credentials_and_network",
+            "tests/contracts/test_controlled_real_model_runtime_composition_contracts.py::test_openai_sdk_ambient_env_cannot_change_controlled_client_or_outbound_request",
+            "tests/contracts/test_controlled_real_model_offline_contracts.py::test_live_smoke_reports_hosted_unverified_without_opt_in",
+            "tests/contracts/test_controlled_real_model_offline_contracts.py::test_live_smoke_gate_is_allowlisted_and_maps_statuses_truthfully",
+        }
+    ),
+    "AC-084": frozenset(
+        {
+            "tests/contracts/test_controlled_real_model_routing_contracts.py::test_missing_price_credential_or_capability_rejects_before_provider",
+            "tests/contracts/test_controlled_real_model_config_contracts.py::test_endpoint_policy_catalog_rejects_unknown_or_mismatched_identity_before_runtime_side_effects",
+            "tests/contracts/test_controlled_real_model_deadline_order_contracts.py::test_invalid_dynamic_route_rejects_before_reservation_client_and_network",
+        }
+    ),
     "AC-003": frozenset(
         {
             "tests/integration/test_template_local_dev_example_smoke.py::"
