@@ -337,7 +337,7 @@ main 分支合并 Conventional Commits，或维护者手动触发 release workfl
 - 首个实现范围只覆盖非流式真实文本模型；增量文本流由紧随其后的 P0 Phase 18.1 `controlled-model-streaming` 独立交付，不能混入首个入口，也不能无限期留在未排序的“以后”。Provider-neutral structured output、模型驱动工具循环和多 provider 运行治理继续分别使用后续窄 change。
 
 **完成状态：**
-受控真实非流式文本模型入口已完成离线实现、严格 `1+2` review、主规格同步、归档和本地提交 `ff0c49b`：typed deployment、credential/endpoint/model catalog、只缩权冻结路由、async Pydantic AI adapter、共享预算、策略/审批/审计、usage/cost/attempt evidence 与 lazy composition 已接通，显式 fake/local 仍保持离线。用户曾授权两次隔离 MiMo 入口，一次明确零调用，另一次无法证明是否已发出请求而按 side-effect unknown 处理，均未建立真实 completion PASS。RUN-006 仍只读取已持久化的 `CanonicalEvent`；Phase 18.1 已形成 provider/invocation 真实文本增量 producer 实现候选，当前仍处于最终审查修复，真实 provider streaming 保持 `hosted-unverified`。跨 deployment/provider fallback 尚未实现，归入 REQ-027 / Phase 18.2。
+受控真实非流式文本模型入口和 provider-neutral 增量文本流均已完成离线实现。跨 deployment/provider fallback 已在 active `controlled-multi-provider-failover` change 中接入 typed route refs、冻结链、逐 attempt lifecycle/proof、shared-budget state、审批续跑、completion/streaming 围栏、迁移和 live artifact validator；默认 live failover preflight 实测为零调用 `hosted-unverified/authorization_missing`。真实双 deployment 成功仍未建立，不得把离线 double 或 hosted-unverified 写成外部 PASS。
 
 ### FLOW-007: 通过既有事件入口消费受控真实模型增量文本
 
@@ -363,7 +363,7 @@ Phase 18 的受控真实文本模型 deployment 已验收并显式声明文本�
 - 既有“已建立 SSE 连接且已有可见事件时首 frame 小于 1 秒”只衡量传输层；provider 首 delta、首个已提交 model delta 和客户端收到该 delta 必须分开记录，不能把外部 provider 时延伪装成 RUN-006 回归。
 
 **完成状态：**
-实现候选已完成，当前停在归档前冻结审查。`controlled-model-streaming` 已提供 provider-neutral producer、持久化顺序、65 槽容量预约、跨块安全、取消/unknown fencing、恢复与 committed reader 合同；真实 provider streaming 已获测试授权，但按分层门禁尚未运行，真实成功仍未建立并继续保持 `hosted-unverified`，不构成外部成功证据。
+`controlled-model-streaming` 已实现 provider-neutral producer、持久化顺序、65 槽容量预约、跨块安全、取消/unknown fencing、恢复与 committed reader 合同。真实 provider streaming 因隔离 credential 前置不完整保持零调用 `hosted-unverified`；真实成功仍未建立，不构成外部成功证据。
 
 ### FLOW-008: 在多个受控真实 provider 之间安全 fallback
 
@@ -372,18 +372,20 @@ Phase 18 的受控真实文本模型 deployment 已验收并显式声明文本�
 **目标：** 开发者可以为同一文本能力声明多个真实 deployment/model 候选；runtime 只在前一候选可证明没有产生 provider 业务副作用时按冻结顺序切换，并能从预算、attempt 与审计证据解释最终选择。
 
 **入口：**
-Phase 18 与 Phase 18.1 已归档；维护者在 typed profile 中声明各 deployment 的 endpoint、credential、catalog、能力和执行边界，在 Agent model policy 中声明由 `(deployment_id, model_id)` 组成的有序 `fallback_routes`。请求只能从该冻结列表中选择或删减候选，不能添加 deployment、provider、endpoint、credential 或模型。
+Phase 18 与 Phase 18.1 已归档；维护者在 typed profile 中声明各 deployment 的 endpoint、credential、catalog、能力和执行边界，在 Agent model policy 中声明由 `(deployment_id, model_id)` 组成的有序 `fallback_routes`。既有单 deployment字段在 chain mode只保留原始 Agent 首 route兼容投影，完整授权与顺序以原始 route refs为准；请求只能从该冻结列表中选择或删减候选，不能改写兼容投影，也不能借兼容字段添加 deployment、provider、endpoint、credential或模型。即使请求删除原始首 route，兼容投影仍绑定原 Agent descriptor，缩权结果只由冻结 candidates表达。
 
 **主路径：**
 1. runtime 对 deployment 上限、Agent route allowlist 与 request 缩权意图求交集，在任何 client、DNS、HTTP 或预算副作用前冻结完整 route chain 及版本摘要。
 2. 每个候选分别解析自己的 provider kind、endpoint/credential policy、model catalog、capability、timeout/retry/Bulkhead 和 token/cost 上界；静态不合格候选只形成去敏 decision，不取得 client 或发送请求。
-3. 当前候选取得独立 permit/reservation 并按 Phase 18 顺序调用；只有 client 构造/发送前失败，或受信 classifier 明确证明 `not_started`，才能耐久关闭该候选并原子转移到下一候选。
-4. 任一候选返回结果、usage、response identity、文本 delta，或调用状态为 `started|unknown` 时，route chain 立即停止；不得为提高成功率切换 provider。
-5. 最终 response/error、所有候选 decision、实际 attempts、usage/cost、reservation transfer 与 audit 关联同一 operation/route-chain identity；SDK 对象、完整 endpoint 和 credential 不进入公共证据。
+3. 当前route-chain候选唯一按`policy/audit → reservation → durable attempt started identity → Bulkhead permit → candidate-isolated client lease → send/iterate`执行；legacy单route仍保留既有`reservation → permit → client → durable side-effect mark → send`顺序。Route-chain permit/client/send前失败可由`client_not_started`收敛；请求已发送并收到response时，只有当前endpoint policy/version绑定classifier、deployment显式状态白名单及无response identity/usage/text/delta共同证明业务执行和计费均未开始，才能以`trusted_business_not_started`收敛。403默认不启用，同route retry先于跨provider。
+4. 调用级claim started是整条chain的单调高水位，candidate聚合事实与逐attempt lifecycle分层。每次下一retry前，上一proof与对应lifecycle的`started→not_started_proven`必须原子提交；下一started identity不存在时才可创建。Permit/client失败后的关闭提交、started提交确认未知或进程崩溃均保留原reservation/needs-review，不重取资源、不重发、不建下一attempt或切provider。只有当前候选全部lifecycle均已证明not-started且与proof一一匹配时才可跨provider；其他timeout/response/unknown/response identity/usage/text/delta都停止，Harness policy deny不得借classifier绕过。
+5. runtime 在首次可信入口、任何 policy/approval record前从原始语义 operation key冻结唯一 usage call identity；审批 waiting、ApprovalService record/grant、shared-budget activation、settlement/outbox与 stream group始终复用它。Route-chain续跑从私有 checkpoint重算，不能改用 approval id rekey或新建第二 claim；legacy 单 route审批行为保持不变。
+6. 最终 response/error、所有候选 decision、有序 proof records、实际 attempts、usage/cost、reservation transfer与 audit关联同一 operation/route-chain identity；zero-charge attempt的 proof canonical inputs与 attempt evidence逐值一致，SDK对象、完整 endpoint和 credential不进入公共证据。
 
 **分支路径：**
-- 候选因能力、价格、prompt/output 上界或当前共享预算不合格时，可以在零 provider 副作用下继续检查下一候选；全部候选不合格时返回稳定 route/budget/policy error。
-- streaming 调用只有在首个 delta 尚未观察且当前候选可证明 `not_started` 时才允许切换；观察或提交任一 delta 后禁止跨 provider fallback，保留 committed prefix 与未决预算。
+- 候选因能力、价格、prompt/output 上界、soft review threshold明确选择有限 fallback或当前共享预算不合格时，可以在零 provider attempt/client/reservation副作用下继续检查下一候选；soft/balance预算不可用必须成为耐久 `budget_ineligible`，中间候选不产生 reservation transition。若后面存在可预约候选，当前 reservation在一个 UoW直接转移到该候选；全部候选不合格时同一 UoW安全释放已知 not-started reservation并返回稳定 route-chain exhausted，恢复不得按后来余额重选。
+- streaming 调用只有在首个 delta 尚未观察、当前候选全部实际 attempts各自具有上述两类可信 `not_started` proof record且无悬空 attempt时才允许切换；观察或提交任一 delta后禁止跨 provider fallback，保留 committed prefix与未决预算。
+- 显式取消或冻结 deadline 结束不会授权 fallback。若 provider-neutral 关闭结果逐值证明远端已停止、usage `finality=complete` 且所有启用 token/cost 维度完整，并且不存在已耐久 delta intent、`result_persisted` 前缀或发布确认不明，则当前 attempt 以可信 actual 结算为 route-chain `cancelled/invocation_cancelled`：selected/active/waiting均为空，不发布 `model.output.completed`，不调用后继；usage 不完整、停止状态 unknown、关闭失败或 durable delta 状态不确定时仍保留 reservation/capacity 并进入 needs-review。
 - 全部真实候选失败时保持真实失败或 needs-review；fake 只能由 profile/Agent 显式选择，不能出现在真实 route chain 的静默尾部。
 
 **边界情况：**
@@ -392,7 +394,7 @@ Phase 18 与 Phase 18.1 已归档；维护者在 typed profile 中声明各 depl
 - reload 只影响新 root run；恢复中的 run 必须使用原冻结 route chain，不能采用新加入、重排或替换凭据的候选。
 
 **完成状态：**
-尚未实现。当前 Phase 18 只支持同一 deployment/provider 内的有序 model fallback；Phase 18.2 只完成产品和开发规划，尚未创建 OpenSpec change。
+已完成 active change 范围内的 provider-neutral runtime、SQLite 持久化、审批、completion/streaming、composition、live validator 与 CI 接线；聚焦公共 seam 合同已通过。当前仍处于实现收口阶段，尚未完成最终全量门禁、PostgreSQL 证据和 fresh `1+2` 实现审查，也没有发起双真实 provider 请求；因此还不是 `ready-to-archive`。
 
 ## 5. 功能需求
 
@@ -1492,27 +1494,29 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 在不把“高可用”变成重复计费、凭据错发或不可恢复副作用的前提下，把 Phase 18 的同 provider 多模型 fallback 扩展为多个真实 deployment/provider 候选；候选选择仍由部署和 Agent policy 控制，业务请求不能成为 provider 控制面。
 
 **行为：**
-- Agent model policy 使用有序 route refs 表达 fallback，每个候选的稳定身份至少为 `(deployment_id, model_id)`；provider kind、endpoint、credential、catalog 和执行策略只能从该 deployment 的 typed config 派生。
+- Agent model policy 使用有序 route refs 表达 fallback，每个候选的稳定身份至少为 `(deployment_id, model_id)`；chain mode的既有 provider/deployment/default/allowed/fallback字段只作为原始 Agent `fallback_routes[0]`的确定性兼容投影，不授权后继，也不随 request删减改写；provider kind、endpoint、credential、catalog和执行策略只能从每个候选自己的 typed deployment派生。
 - Router 在首次 provider 副作用前冻结完整 route chain、候选 ordinal、各自 catalog/endpoint/credential identity、capability、timeout/retry/Bulkhead、价格和 token/cost 上界；reload 只影响新 root run。
-- 静态 hard eligibility 可以在零调用时跳过不合格候选；运行时跨 provider 切换只允许发生在当前候选可证明 `not_started` 后。任何 `started|unknown`、response identity、usage、partial text 或 delta 都终止 failover。
-- 每个候选使用自己的可信预算上界。进入下一候选前，上一候选必须已耐久收敛为 not-started，原 reservation 安全释放或转移，下一 reservation 原子建立；unknown 保留原 reservation 并进入 needs-review，不得把成本记为零。
+- 静态 hard eligibility 可以在零调用时跳过不合格候选；route-chain运行顺序唯一为`policy/audit → reservation → attempt started identity → permit → client → send/iterate`。跨provider只允许当前候选每个actual attempt各自以`client_not_started`，或端点绑定classifier、显式`cross_provider_failover_http_statuses`与零生成/计量事实共同证明的`trusted_business_not_started`耐久收敛；proof与lifecycle关闭原子提交。任何已存在started identity，即使permit/client/send前崩溃或`request_sent=false`，恢复也不得自动重发。403默认不启用，429/5xx也不能仅凭状态码切换。
+- 每个候选使用自己的可信预算上界。进入下一候选前，上一候选必须已耐久收敛为 not-started；soft-threshold fallback或 current balance不足的候选以零 attempt/proof/reservation的 `budget_ineligible`耐久跳过，原 reservation在同一 owner lock/CAS中直接转移到首个后继 eligible候选，或在全链耗尽时原子 actual-zero结算并释放。调用级 claim只保留整链 started高水位，当前候选资格由其独立 side-effect/request/response/proof判定。Route-chain在首次可信入口、approval record出现前冻结 usage call id与 operation identity；审批等待保持零预算影响，既有 ApprovalService lease UoW与 shared-budget activation UoW以同一 frozen identity、request/grant digest和 fencing做可重放交接，续跑不得改用 approval id rekey或创建第二 claim，不虚构跨 repository原子事务。获批候选若 current balance不足也只能耐久跳过，后继重新执行独立 Policy/HITL，grant不得复用。unknown保留原 reservation并进入 needs-review，不得把成本记为零。
 - Evidence 必须记录 route-chain identity、候选 ordinal、去敏切换原因、实际 deployment/provider/model、attempt/usage/cost/latency 和 reservation 变化；恢复只补投或继续原冻结 identity，不重新调用已开始候选。
 
 **规则：**
 - MUST deployment config、Agent policy 和 request 逐层只缩权；request 不得声明 endpoint、credential 或新的 provider/deployment，不能重排 Agent 冻结的 route chain。
 - MUST 各候选独立通过 endpoint/credential forwarding、model catalog、capability、budget、policy、approval、deadline、retry 和 Bulkhead 校验；一个候选的凭据、client lease、permit 或 catalog 不得复用于另一个 deployment。
-- MUST failover condition 是封闭、版本化、可由 transport/adapter 证明的稳定事实；普通异常文本、HTTP body、缺失/重复 classifier、read timeout、取消或推断性的“应该没开始”一律按 unknown 停止。
+- MUST failover condition 是封闭、版本化、可由 transport/adapter 证明的稳定事实；普通异常文本、HTTP body、缺失/重复 classifier、read timeout、取消或推断性的“应该没开始”一律停止 chain。取消只有在 provider-neutral 关闭结果证明 `stopped`、usage 完整且无 durable delta 不确定性时，才按可信 actual 以 `cancelled/invocation_cancelled` 终止当前调用；该终态不授权 retry/fallback，也不伪造成 completed/selected。
 - MUST streaming 观察或提交任一 delta 后禁止跨 provider fallback；reader 断线、Last-Event-ID、CLI reconnect 或恢复流程都不得重新选择 provider。
 - MUST fake 只允许显式 route；全部真实候选失败时不得静默返回 fake 文本。默认 local/test/eval/smoke-local 仍只使用显式 fake 且零网络。
 - MUST Phase 18.2 不引入动态 discovery、健康评分/权重、负载均衡、热重载控制面、自动成本套利、provider-specific raw DTO 或跨 provider 运维后台。
 
 **验收标准：**
-- [ ] AC-090: Given typed settings 配置至少两个真实 deployment 且 Agent 声明有序 fallback routes, when request 选择或缩小候选集, then frozen route chain 只包含 deployment∩Agent∩request 的 `(deployment_id, model_id)` 交集，顺序不可变；request 不能添加/reorder provider、endpoint 或 credential，非法配置在 client/network 前失败。
-- [ ] AC-091: Given 首选候选在 client/send 前失败或受信 classifier 明确证明 `not_started`, when 执行 fallback, then runtime 耐久收敛前一候选后只调用下一候选一次；若出现 started/unknown、response identity、usage、文本或 delta，则停止并保持 needs-review/原错误，不调用后续 provider。
-- [ ] AC-092: Given 各候选价格、token 上界和 attempt policy 不同, when route chain 跨候选推进或恢复, then 每个候选按自己的冻结 catalog 预约和结算，reservation release/transfer 与下一 reservation 原子且可重放；unknown 不退款、不记零，相同 operation 不重复 provider 副作用。
-- [ ] AC-093: Given streaming route chain, when 首个 delta 尚未观察且当前候选可证明 not-started, then 可以按同一冻结链切换；一旦观察或提交任一 delta，取消、deadline、reader 断线、恢复和重连均不会触发跨 provider fallback，committed prefix 与未决 usage/cost 保留。
-- [ ] AC-094: Given 多 deployment 使用不同 endpoint、credential、provider kind、catalog 或 Bulkhead, when composition、调用、关闭和 reload, then 每个候选只取得自己的 lazy client/permit/secret，SDK 对象不越界；旧 run 只恢复原 route chain，全部真实候选失败也不静默切 fake，默认 fake/local 回归零网络。
-- [ ] AC-095: Given 用户另行授权、两个隔离真实凭据和两个受信 deployment 均可用, when opt-in live smoke 让首选产生可证明 not-started 的受控失败, then 次选完成一次文本调用并输出去敏 route-chain/attempt/usage/cost evidence；缺任一前置时保持零调用 `hosted-unverified`，外部故障记 `external-blocked`，均不伪造 PASS。
+- [x] AC-090: Given typed settings 配置至少两个真实 deployment且 Agent声明有序 fallback routes, when registry校验原始首 route兼容投影且 request选择或缩小候选集, then frozen route chain只包含逐候选 deployment∩Agent∩request的 `(deployment_id, model_id)`交集，顺序不可变；chain identity中的 Agent投影和完整授权始终来自请求缩权前 descriptor，即 Agent `[A,B]`、request `[B]`仍保留 A投影与 `[A,B]`、只有 candidates为 B。既有单值字段不授权后继，request不能添加/reorder provider、endpoint或 credential，非法配置在 client/network前失败。
+- [x] AC-091: Given 当前候选在 permit/client/prepare/send 前以 `client_not_started` 失败，或请求已发送但端点绑定 classifier、显式状态白名单和零生成/计量事实共同证明 `trusted_business_not_started`, when 当前候选同 route retry 已耗尽或不适用并执行 fallback, then 显式chain严格按`candidate reservation → durable attempt started identity → Bulkhead permit → candidate-isolated client/prepare → send/iterate`执行，为每次首次调用/retry先耐久创建绑定chain/candidate/global attempt/route/retry identity的started record；legacy单route继续保持既有顺序。Permit/client/prepare失败与proof、同一lifecycle的`not_started_proven`关闭在一个UoW提交；每次下一retry前也以同一UoW不可覆盖地保存proof并关闭前一lifecycle。只有当前候选全部lifecycle records连续、均已证明not-started且无started/unknown/settled冲突项时才actual zero并只调用下一候选一次。三候选及同候选retry中两类proof任一顺序不得回退高水位；started mark后send前或send后proof前崩溃均保留reservation/needs-review，不重发该attempt或调用后继。403只有显式启用才允许，无受信证明的write/read timeout、response、unknown、response identity、usage、文本或delta都停止。
+- [x] AC-092: Given 各候选价格、token上界和 attempt policy不同, when route chain跨候选推进、审批等待或恢复, then 每个候选按自己的冻结 catalog预约和结算，调用级 claim高水位、逐候选聚合 state与逐 attempt proof records分层；legacy identity逐字保持`budget-operation-v1`，chain使用`budget-operation-v2`并以ordinal 1兼容投影及完整chain digest/count稳定绑定所有候选，不因余额选择漂移。`static_ineligible`与 `budget_ineligible/soft_budget|balance`均为零 attempt/proof/reservation的耐久 skip，普通中间 skip不单独产生 transition，当前 reservation在同一 owner lock/CAS中跨过它们直达首个 eligible后继，或在无后继时原子 actual-zero结算、释放并 exhausted。审批等待为零 impact并保存 approval前生成的 frozen usage/operation identity，ApprovalService lease与 shared-budget activation通过同一 identity、request/grant digest和 fencing两阶段交接；成功activation只允许同ordinal`approved/approval_granted` transition、released=`0/null`、reserved=目标冻结bound，并在同一UoW直接waiting→active且不追加`activated`，commit-ack逐值重放同一sequence/数组；获批目标 balance不足保留双binding与既有waiting coordination、不得建立本ordinal reservation或approved/activated transition，并以该ordinal作为跨普通skip不变的零impact source anchor；后继重新授权的allow/require-approval/deny/全耗尽分别唯一编码为balance transfer、零bound waiting、零bound policy-denied terminal或route-exhausted terminal。初始前导skip不成为source，后续allow/waiting仍从null开始，deny不追加transition，resume从私有 checkpoint重算且不 rekey/新建 claim。Direct/allocation、SQLite/PostgreSQL对同候选多 retry proof、两类 proof的三候选双顺序、预算 skip及 commit-ack recovery逐值一致，首次 durable budget决定不随后来余额改变；unknown/缺失或冲突 proof不退款、不记零，相同 operation不重复 provider副作用。
+  - AC-092 的“逐 attempt records”同时包含全局连续、不可覆盖的 started lifecycle identity及其单调关闭；direct/allocation在SQLite/PostgreSQL恢复时，started mark后send前、send后proof/settlement前和commit-ack未知三个窗口都必须保留原reservation并禁止重发、下一attempt及provider切换。
+  - 恢复在任何后继调用前必须从冻结chain canonical bytes重算全部历史attempt identity与proof digest；引用即使形状合法且彼此同步篡改，只要与重算值不一致也必须冲突并保持后继零调用。公开安全摘要的`attempt_count`统计耐久attempt identity，`provider_called`只表示已观察request、HTTP response、result、usage、text或delta，因此send前started identity可为`provider_called=false`且count为正。
+- [x] AC-093: Given streaming route chain, when 首个 delta尚未观察、当前候选全部attempt lifecycle均已原子关闭为`not_started_proven`并与完整有序proof逐值匹配, then 可以按同一冻结链原子切换；任何started identity尚未关闭时，即使send尚未发生或数据库尚无delta，恢复也只进入needs-review而不重发/切换。一旦观察或提交任一delta，或发送后只得到含糊timeout/response，取消、deadline、reader断线、恢复和重连均不会触发跨provider fallback，committed prefix与未决usage/cost保留。只有显式取消/deadline的关闭结果逐值证明`stopped + complete usage`且不存在任何durable delta intent/发布不确定性时，当前attempt才以actual usage收敛为`cancelled/invocation_cancelled`；该终态selected为空、不发布completed且后继provider调用为零，不完整或unknown关闭结果仍为needs-review。
+- [x] AC-094: Given 多 deployment 使用不同 endpoint、credential、provider kind、catalog 或 Bulkhead, when composition、调用、关闭和 reload, then 每个候选只取得自己的 lazy client/permit/secret，SDK 对象不越界；旧 run 只恢复原 route chain，全部真实候选失败也不静默切 fake，默认 fake/local 回归零网络。
+- [ ] AC-095: Given 用户另行授权、两个不同受信 `deployment_id`、两个隔离真实 `credential_ref` 和两个不同受信 endpoint 均可用（`provider_kind` 可以相同）, when opt-in live smoke 以两条 `max_attempts=1` route让首选产生可证明 not-started 的受控失败, then 次选恰好完成一次文本调用，artifact只能以连续唯一ordinal `[1,2]`、`selected_ordinal=2`、两个全局attempt、首项单proof、次项唯一completed和逐值一致的去敏 route-chain/usage/cost evidence记 PASS；candidate/top-level count、token/cost组合及durable evidence任一不一致都关闭失败。缺任一前置时保持零调用 `hosted-unverified`，前置完整后的外部故障记 `external-blocked`，均不伪造 PASS。
 
 ### AI 能力规格
 

@@ -1,13 +1,25 @@
 # 变更记录
 
-## [v1.22] - 2026-07-29
-### 受控跨 deployment/provider fallback 规划
+## [v1.23] - 2026-07-31
+### 受控多 deployment fallback 实现
 
-- 新增 P1 `SCOPE-033`、`TASK-015`、`FLOW-008`、`REQ-027` 与 AC-090 至 AC-095，把此前只有“后置独立 change”决策的多 provider fallback 固定为 Phase 18.2 `controlled-multi-provider-failover`。
-- Fallback 候选不再只表达 model ID，而以有序 `(deployment_id, model_id)` route chain 表达；provider kind、endpoint、credential、catalog、能力、重试、Bulkhead 和价格均从候选 deployment 的 typed config 派生，request 只能删减，不能新增或重排。
-- 跨 provider 切换只允许发生在前一候选可证明 `not_started` 后；任何 started/unknown、response identity、usage、文本或 delta 都立即停止 failover。Streaming 观察或提交首个 delta 后永久禁止切换 provider。
-- 每个候选独立预约和结算，只有前一 reservation 已耐久安全释放或转移时才能原子建立下一 reservation；unknown 保留原 reservation并进入 needs-review，恢复不得重放 provider。
-- Phase 18.2 依赖 Phase 18.1 归档，排在 Phase 19 structured output 之前；当前只补 Product Spec、API Contract、DEV-PLAN、living plan 与 change matrix，不创建 OpenSpec change、不实现代码、不运行真实 provider。
+- 接入有序 route refs、冻结 chain identity/state、逐 attempt started/proof lifecycle、shared-budget v2 claim、审批前稳定身份与原 claim激活、completion/streaming 首 delta 围栏和 `0017_model_route_chain_state` 迁移。
+- 恢复会从冻结chain逐项重算历史attempt/proof摘要并拒绝形状合法但内容被同步篡改的状态；send前已耐久started identity在安全错误摘要中计入attempt数量，但不会被误报为provider已调用。
+- 真实adapter在connect/client边界明确未发送时，completion与streaming统一生成`client_not_started` canonical proof并只调用次选一次；adapter内部“未观察到完成”的false判别不会作为响应事实写入proof。
+- Lazy client/transport或agent构造在send/iterate前确定失败时，completion与streaming统一关闭当前attempt并安全推进，不再把零client/零request误记为unknown/provider已调用或泄漏内部构造异常；显式取消与deadline仍保持不fallback。
+- 显式取消若发生在attempt started identity已耐久之后，绝不授权retry或fallback；`prepared`只证明本地资源所有权，不能据此推断request已发送或provider已调用。只有provider-neutral stream关闭结果证明`stopped + complete usage`且无durable delta不确定性时，当前attempt才以actual usage收敛为`cancelled/invocation_cancelled`，selected为空且不发布completed；其余completion/streaming取消都关闭为unknown、保留reservation/capacity并提升needs-review，稳定错误按明确request/response/result/usage/text/delta事实如实报告`provider_called`。
+- 新增四分支 `model-failover-live-smoke/v1` producer/validator 及 CI evidence；默认前置不足时零调用并报告 `hosted-unverified`，只有双 deployment、隔离 credential/endpoint 和受控 not-started fixture全部满足后才允许真实验证。
+- 该版本记录本地实现事实，不代表真实 provider PASS、最终审查、归档、发布或部署已经完成。
+
+## [v1.22] - 2026-07-29
+### 受控跨 deployment/provider fallback 契约
+
+- 新增 P1 `SCOPE-033`、`TASK-015`、`FLOW-008`、`REQ-027` 与 AC-090 至 AC-095，把此前只有后置意图的多 provider fallback 固定为独立 `controlled-multi-provider-failover` 增量契约。
+- Fallback候选不再只表达 model ID，而以有序 `(deployment_id, model_id)` route chain表达；chain mode既有单值 model字段只作为请求缩权前原始 Agent首 route兼容投影，不授权后继，也不随 request删除首 route而改写。Provider kind、endpoint、credential、catalog、能力、重试、Bulkhead和价格均从每个候选自己的 typed deployment派生，request只能删减，不能新增或重排。
+- 跨 provider 切换只允许发生在当前候选每个实际 attempt 各自以 `client_not_started`，或 endpoint-bound classifier、deployment显式状态白名单与零生成/计量事实共同证明的 `trusted_business_not_started`耐久收敛后；同候选内两类 proof可混合。Legacy单route保持既有`reservation → permit → client → durable side_effect_started → send`；显式chain冻结为`candidate reservation → durable attempt started identity → permit → isolated client/prepare → send/iterate`。每次首次调用或同 route retry都先创建独立耐久attempt identity，proof/unknown/settlement再原子关闭；任何started悬空或确认未知都不自动重发。403默认不启用，同 route retry先于跨 provider；无受信证明的 timeout/response、unknown、response identity、usage、文本或 delta都立即停止。Streaming观察或提交首个 delta后永久禁止切换 provider。
+- 每个候选独立预约和结算；静态不合格与 soft-threshold/current-balance预算不可用分别成为零调用的 `static_ineligible`和 `budget_ineligible`耐久状态。当前 reservation在一个 owner lock/CAS事务中跨过中间不可用候选直达首个 eligible后继，或在无后继时原子 actual-zero结算、释放并 exhausted；恢复不按后来余额重选。调用级 claim的 started是整链单调高水位，逐候选聚合 side-effect/request/response与逐 attempt proof records分层记录。即使前序 candidate或同候选早期 retry已使高水位 started，后续 attempt仍可凭自身 `client_not_started`安全收敛，但高水位不得回退、已耐久记录的 provider attempt不得重放。Route chain在 approval前冻结 usage call id与 operation identity；审批等待、ApprovalService record/grant和 shared-budget activation复用原 claim，通过 digest和 fencing两阶段交接，禁止 approval id rekey或第二 claim；获批候选余额不足时后继重新授权，unknown或 proof缺失/冲突保留原 reservation并进入 needs-review。
+- 既有单 route/embedding 的预算身份逐字保留 `budget-operation-v1`；显式 route chain 使用 `budget-operation-v2`，以 ordinal 1 兼容投影和完整 chain digest/count 固定 replay identity，不因 current balance 或 active candidate 改写。
+- 默认 fake/local 仍保持零网络，真实链耗尽不得隐式切 fake；双真实 deployment/provider 验证缺少任一授权、隔离凭据、受信 endpoint 或受控 not-started fixture 时保持零调用 `hosted-unverified`。只有两条单 attempt route、`[1,2]` ordinal、首项可信 proof、次项唯一 completed 与 route-chain/usage/cost durable evidence逐值一致时才能记 PASS。
 - 澄清 AC-087 的流式读取可见性：默认公开 reader 只返回 public delta、completion 与 run terminal；获得内部读取权限后才额外可见 started/usage。两种模式都只读取已提交事件，断线或重连不会触碰 provider。
 
 ## [v1.21] - 2026-07-29
