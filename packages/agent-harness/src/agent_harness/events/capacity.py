@@ -50,6 +50,30 @@ class UsageCapacityBinding:
     phase: str
 
 
+@dataclass(frozen=True)
+class StreamCapacitySettlement:
+    """stream outbox 行在 sink 事务中的最小可信快照。"""
+
+    tenant_id: str
+    run_id: str
+    event_id: str
+    operation_kind: str
+    state: str
+    reserved_event_count: int
+    group_id: str | None
+    sequence_in_group: int | None
+    result_json: dict[str, Any] | None
+
+
+@dataclass(frozen=True)
+class StreamCapacityBinding:
+    """从公开 delta/completed 提取的稳定 outbox 关联。"""
+
+    usage_call_id: str
+    group_id: str
+    sequence_in_group: int
+
+
 def usage_capacity_binding(event: CanonicalEvent) -> UsageCapacityBinding | None:
     """解析 usage 事件的稳定调用关联，拒绝不完整形状。
 
@@ -84,18 +108,143 @@ def usage_capacity_binding(event: CanonicalEvent) -> UsageCapacityBinding | None
         operation_kind = "embedding_usage"
     else:
         raise ValueError("usage event requires a supported usage_kind")
-    # event-id 是容量预约的唯一凭据；只接受由 tenant、调用标识和受控
-    # 生命周期标识组成的值，不能让调用方借用其他调用已预约的容量。
-    expected_event_id = f"usage:{event.tenant_id}:{usage_call_id}:{phase}"
+    decision = usage_payload.get("decision")
+    marker_present = isinstance(decision, Mapping) and "usage_event_identity" in decision
+    decision_payload = (
+        cast(Mapping[str, object], decision) if isinstance(decision, Mapping) else None
+    )
+    marker = decision_payload.get("usage_event_identity") if decision_payload is not None else None
+    if marker_present:
+        if usage_kind != "model" or marker != {"ref": "stream-usage", "version": "v1"}:
+            raise ValueError("stream usage identity marker is invalid")
+        # 局部 import 避免 events/storage 在模块初始化阶段形成依赖环。
+        from agent_harness.storage.stream_evidence_repositories import (
+            stream_usage_event_id,
+        )
+
+        started_event_id = stream_usage_event_id(usage_call_id, "started")
+        final_event_id = stream_usage_event_id(usage_call_id, "final")
+    else:
+        started_event_id = f"usage:{event.tenant_id}:{usage_call_id}:started"
+        final_event_id = f"usage:{event.tenant_id}:{usage_call_id}:final"
+    # event-id 是容量预约的唯一凭据；stream 仅由 durable marker 选择新版本，
+    # 缺 marker 的历史行继续使用 tenant-scoped legacy identity。
+    expected_event_id = started_event_id if phase == "started" else final_event_id
     if event.event_id != expected_event_id:
         raise ValueError("usage event id does not match its stable call identity")
     return UsageCapacityBinding(
         usage_call_id=usage_call_id,
         operation_kind=operation_kind,
-        started_event_id=f"usage:{event.tenant_id}:{usage_call_id}:started",
-        final_event_id=f"usage:{event.tenant_id}:{usage_call_id}:final",
+        started_event_id=started_event_id,
+        final_event_id=final_event_id,
         phase=phase,
     )
+
+
+def stream_capacity_binding(event: CanonicalEvent) -> StreamCapacityBinding | None:
+    """解析普通文本流事件；其他 CanonicalEvent 不进入 stream 预约分支。"""
+
+    if event.event_type not in {
+        CanonicalEventType.MODEL_OUTPUT_DELTA,
+        CanonicalEventType.MODEL_OUTPUT_COMPLETED,
+    }:
+        return None
+    payload = event.payload
+    payload_mapping = cast(Mapping[str, object], payload) if isinstance(payload, Mapping) else None
+    correlation = payload_mapping.get("correlation") if payload_mapping is not None else None
+    correlation_mapping = (
+        cast(Mapping[str, object], correlation) if isinstance(correlation, Mapping) else None
+    )
+    usage_call_id = (
+        correlation_mapping.get("usage_call_id") if correlation_mapping is not None else None
+    )
+    if not isinstance(usage_call_id, str):
+        raise ValueError("stream event requires a stable usage_call_id")
+    from agent_harness.storage.stream_evidence_repositories import (
+        stream_completed_event_id,
+        stream_delta_event_id,
+        stream_group_id,
+    )
+
+    if event.event_type == CanonicalEventType.MODEL_OUTPUT_DELTA:
+        ordinal = payload.get("chunk_ordinal") if isinstance(payload, Mapping) else None
+        if isinstance(ordinal, bool) or not isinstance(ordinal, int):
+            raise ValueError("stream delta requires an integer chunk_ordinal")
+        expected_event_id = stream_delta_event_id(usage_call_id, ordinal)
+        sequence = ordinal
+    else:
+        expected_event_id = stream_completed_event_id(usage_call_id)
+        sequence = 65
+    if event.event_id != expected_event_id:
+        raise ValueError("stream event id does not match its stable call identity")
+    return StreamCapacityBinding(
+        usage_call_id=usage_call_id,
+        group_id=stream_group_id(usage_call_id),
+        sequence_in_group=sequence,
+    )
+
+
+def validate_stream_capacity_outbox(
+    *,
+    event: CanonicalEvent,
+    binding: StreamCapacityBinding,
+    outbox: StreamCapacitySettlement | None,
+) -> int:
+    """逐值核对 stream identity、顺序和已固化 intent，再授权消费一个槽位。"""
+
+    if outbox is None:
+        raise LookupError("stream evidence placeholder not found")
+    if (
+        outbox.tenant_id != event.tenant_id
+        or outbox.run_id != event.run_id
+        or outbox.event_id != event.event_id
+        or outbox.operation_kind != "model_stream"
+        or outbox.reserved_event_count != 1
+        or outbox.group_id != binding.group_id
+        or outbox.sequence_in_group != binding.sequence_in_group
+    ):
+        raise ValueError("stream event does not match its durable placeholder")
+    if outbox.state not in {"result_persisted", "published"}:
+        raise RuntimeError("stream event result is not durable")
+    result = outbox.result_json
+    result_mapping = cast(Mapping[str, object], result) if isinstance(result, Mapping) else None
+    stream = result_mapping.get("stream") if result_mapping is not None else None
+    intent = result_mapping.get("event") if result_mapping is not None else None
+    stream_mapping = cast(Mapping[str, object], stream) if isinstance(stream, Mapping) else None
+    expected_kind = "delta" if binding.sequence_in_group <= 64 else "completed"
+    if stream_mapping is None or (
+        stream_mapping.get("usage_call_id") != binding.usage_call_id
+        or stream_mapping.get("kind") != expected_kind
+        or stream_mapping.get("ordinal") != binding.sequence_in_group
+    ):
+        raise ValueError("stream event does not match its durable binding")
+    if not isinstance(intent, Mapping):
+        raise RuntimeError("stream event is missing its durable intent")
+    intent_mapping = cast(Mapping[str, object], intent)
+    current = event.to_payload()
+    stable_fields = {
+        "event_id",
+        "tenant_id",
+        "run_id",
+        "user_id",
+        "agent_id",
+        "parent_run_id",
+        "event_type",
+        "event_version",
+        "payload",
+        "payload_ref",
+        "payload_checksum",
+        "raw_event_ref",
+        "terminal",
+        "visibility",
+        "request_id",
+        "trace_id",
+        "record_scope",
+        "span_id",
+    }
+    if any(intent_mapping.get(field) != current.get(field) for field in stable_fields):
+        raise ValueError("event does not match durable stream intent")
+    return 1
 
 
 def validate_usage_capacity_outbox(
@@ -181,6 +330,10 @@ __all__ = [
     "LocalCapacityCommitUncertain",
     "UsageCapacityBinding",
     "UsageCapacitySettlement",
+    "StreamCapacityBinding",
+    "StreamCapacitySettlement",
+    "stream_capacity_binding",
+    "validate_stream_capacity_outbox",
     "usage_capacity_binding",
     "validate_usage_capacity_outbox",
 ]

@@ -17,6 +17,7 @@ from agent_harness.identity import IdentityContext
 from agent_harness.models import (
     BoundModelInvocationService,
     FakeModelProvider,
+    FakeModelStreamScript,
     ModelApprovalRequired,
     ModelInvocationService,
     ModelRequest,
@@ -47,26 +48,55 @@ from agent_harness.storage.shared_budget import DirectBudgetClaim, OperationIden
 class AuditAwareFakeProvider(FakeModelProvider):
     """发送前检查 policy audit 已耐久化，并记录实际 provider 次数。"""
 
-    def __init__(self, database: Path) -> None:
+    def __init__(
+        self,
+        database: Path,
+        *,
+        stream_script: FakeModelStreamScript | None = None,
+    ) -> None:
+        super().__init__(stream_script=stream_script)
         self.database = database
         self.calls = 0
 
-    async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
-        """如果策略审计尚未提交就立即失败，锁定 audit → provider 顺序。"""
+    def _assert_policy_audit(self) -> None:
+        """provider 任一调用形态都必须发生在 policy audit 已提交之后。"""
 
         with sqlite3.connect(self.database) as connection:
             actions = [row[0] for row in connection.execute("select action from audit_logs")]
         assert "policy.decision" in actions
+
+    async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
+        """如果策略审计尚未提交就立即失败，锁定 audit → provider 顺序。"""
+
+        self._assert_policy_audit()
         self.calls += 1
         return await super().complete(request, plan=plan)
+
+    async def prepare_stream(self, request: ModelRequest, *, plan: object):  # type: ignore[no-untyped-def]
+        """流式 adapter 复用相同 audit 顺序，并以 prepare 次数表示外部调用次数。"""
+
+        self._assert_policy_audit()
+        self.calls += 1
+        return await super().prepare_stream(request, plan=plan)
 
 
 class ModelApprovalExecutor:
     """把 ModelApprovalRequired 交回既有 AgentExecutionResult.waiting 状态机。"""
 
-    def __init__(self) -> None:
+    def __init__(self, *, streaming: bool = False) -> None:
         self.resume_calls = 0
         self.bound_model: BoundModelInvocationService | None = None
+        self.streaming = streaming
+
+    def _request(self) -> ModelRequest:
+        """普通与增量审批复用同一受控 prompt，只切换公开 capability。"""
+
+        return ModelRequest(
+            provider="fake",
+            capability="text_stream" if self.streaming else "text_completion",
+            prompt="需要审批",
+            max_output_tokens=2,
+        )
 
     @staticmethod
     def _model(context: AgentExecutionContext) -> BoundModelInvocationService:
@@ -84,10 +114,14 @@ class ModelApprovalExecutor:
 
         self.bound_model = self._model(context)
         try:
-            response = await self.bound_model.complete(
-                ModelRequest(provider="fake", prompt="需要审批", max_output_tokens=2),
-                operation_key="primary-model-call",
-            )
+            if self.streaming:
+                response = await self.bound_model.stream(
+                    self._request(), operation_key="primary-model-call"
+                )
+            else:
+                response = await self.bound_model.complete(
+                    self._request(), operation_key="primary-model-call"
+                )
         except ModelApprovalRequired as exc:
             return AgentExecutionResult.waiting(exc.request)
         return AgentExecutionResult.completed({"text": response.output_text})
@@ -101,11 +135,14 @@ class ModelApprovalExecutor:
         """续跑只使用既有全绑定 grant 的 approved seam。"""
 
         self.resume_calls += 1
-        response = await self._model(context).complete_approved(
-            ModelRequest(provider="fake", prompt="需要审批", max_output_tokens=2),
-            operation_key="primary-model-call",
-            grant=grant,
-        )
+        if self.streaming:
+            response = await self._model(context).stream_approved(
+                self._request(), operation_key="primary-model-call", grant=grant
+            )
+        else:
+            response = await self._model(context).complete_approved(
+                self._request(), operation_key="primary-model-call", grant=grant
+            )
         return AgentExecutionResult.completed({"text": response.output_text})
 
 
@@ -114,6 +151,8 @@ async def policy_flow(
     *,
     require_approval: bool,
     database_stem: str = "model-policy",
+    streaming: bool = False,
+    stream_script: FakeModelStreamScript | None = None,
 ) -> tuple[
     SQLAlchemyStorage,
     ApprovalService,
@@ -129,7 +168,7 @@ async def policy_flow(
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
     sink = LocalJsonlEventSink(tmp_path / f"{database_stem}-events.jsonl")
-    event_bus = EventBus(sink=sink)
+    event_bus = EventBus(sink=sink, capacity_storage=storage)
     identity = IdentityContext.local_default(session_id="model-policy-contract")
     audit = AuditService(storage)
     policy = PolicyEngine(
@@ -138,7 +177,7 @@ async def policy_flow(
         ),
         audit=audit,
     )
-    provider = AuditAwareFakeProvider(database)
+    provider = AuditAwareFakeProvider(database, stream_script=stream_script)
     router_config = ModelRouterConfig(
         default_provider="fake",
         default_model="fake-basic",
@@ -187,7 +226,7 @@ async def policy_flow(
         policy_engine=policy,
         shared_budget=shared_budget,
     )
-    executor = ModelApprovalExecutor()
+    executor = ModelApprovalExecutor(streaming=streaming)
     orchestrator = RunOrchestrator(
         storage=storage,
         event_bus=event_bus,

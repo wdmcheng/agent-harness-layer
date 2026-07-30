@@ -23,6 +23,9 @@ from agent_harness.storage.models import (
     RunEventCapacityModel,
     RunEvidenceOutboxModel,
 )
+from agent_harness.storage.usage_attempt_review_repository import (
+    UsageAttemptReviewRepositoryMixin,
+)
 
 
 def _normalize_started_evidence(
@@ -91,7 +94,7 @@ class UsageSettlementClaim:
     error_code: str | None
 
 
-class UsageEvidenceRepositoryMixin:
+class UsageEvidenceRepositoryMixin(UsageAttemptReviewRepositoryMixin):
     """复用同一 UoW session 的 usage settlement 状态机。"""
 
     _session: AsyncSession

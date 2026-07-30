@@ -3,7 +3,12 @@
 from pathlib import Path
 
 import pytest
-from tests.contracts.model_usage_recovery_test_support import usage_run as _usage_run
+from tests.contracts.model_usage_recovery_test_support import (
+    completed_response_payload,
+)
+from tests.contracts.model_usage_recovery_test_support import (
+    usage_run as _usage_run,
+)
 
 from agent_harness.events import CanonicalEventType, EventBus, LocalJsonlEventSink
 from agent_harness.models import (
@@ -73,7 +78,11 @@ async def test_model_recovery_ignores_ordered_approval_outbox_items(tmp_path: Pa
             await uow.evidence_outbox.persist_result(
                 tenant_id="tenant-a",
                 usage_call_id="mixed-model",
-                result={"evidence": evidence.to_payload(), "outcome": "completed"},
+                result={
+                    "evidence": evidence.to_payload(),
+                    "outcome": "completed",
+                    "response": completed_response_payload(evidence),
+                },
             )
             await uow.evidence_outbox.stage_ordered_group(
                 tenant_id="tenant-a",

@@ -15,12 +15,12 @@ REGISTRY_OUTPUT ?= $(CURDIR)/.artifacts/registry-publish/receipt.json
 
 .PHONY: sync lock install quality ruff-format ruff-lint pyright pyright-environment import-boundary \
 	unit-contract integration quality-aggregate test-aggregate test smoke-local \
-	smoke-service smoke-live-model eval build license-check release-dry-run release-promote-plan \
+	smoke-service smoke-live-model smoke-live-model-stream eval build license-check release-dry-run release-promote-plan \
 	release-promote-execute registry-publish-plan registry-publish-execute format \
 	ci-run ci-contract ci-contract-check acceptance-validate-check ci-acceptance-validate ci-history \
 	ci-lock ci-install ci-ruff-format ci-ruff-lint ci-pyright ci-import-boundary \
 	ci-unit-contract ci-integration ci-quality-aggregate ci-test-aggregate ci-eval \
-	ci-smoke-local ci-smoke-service ci-smoke-live-model ci-build ci-license ci-release-dry-run \
+	ci-smoke-local ci-smoke-service ci-smoke-live-model ci-smoke-live-model-stream ci-build ci-license ci-release-dry-run \
 	ci-release-promote-plan ci-release-promote-execute ci-registry-publish-plan \
 	ci-registry-publish-execute
 
@@ -105,6 +105,10 @@ smoke-service:
 # 真实 smoke 与默认离线门禁隔离；无本会话授权时只写 hosted-unverified。
 smoke-live-model:
 	$(UV) run python scripts/smoke_live_model.py
+
+# 增量 smoke 使用独立双授权和证据身份；默认路径零网络并报告 hosted-unverified。
+smoke-live-model-stream:
+	$(UV) run python -m scripts.smoke_live_model_stream
 
 build:
 	$(UV) build --package agent-harness --clear
@@ -245,6 +249,9 @@ ci-smoke-service:
 
 ci-smoke-live-model:
 	$(MAKE) ci-run GATE=smoke-live-model CI_ARTIFACTS="--artifact live-result=.artifacts/smoke/live-model/result.json"
+
+ci-smoke-live-model-stream:
+	$(MAKE) ci-run GATE=smoke-live-model-stream CI_ARTIFACTS="--artifact live-stream-result=.artifacts/smoke/live-model-stream/result.json"
 
 ci-build:
 	$(MAKE) ci-run GATE=build CI_ARTIFACTS="--artifact wheel=dist/*.whl --artifact sdist=dist/*.tar.gz --artifact checksum=dist/SHA256SUMS"

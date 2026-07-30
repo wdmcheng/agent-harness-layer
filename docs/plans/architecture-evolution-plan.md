@@ -4,7 +4,7 @@
 >
 > 首次冻结：2026-07-27
 >
-> 当前状态：Phase 18 受控真实非流式文本运行时已同步、归档并由本地提交 `ff0c49b` 交付，当前无 active change。同一冻结实现身份上的 fresh Reviewer 1、Reviewer 2、Reviewer 3 均完成 Stage 1/2 PASS，0 findings；AC-081/083 的真实托管 completion 保持 `hosted-unverified`。Phase 18.1 仍是唯一下一项实现 change；Phase 18.2 多 provider fallback 已获用户授权补入计划，但尚未创建 OpenSpec change或实现
+> 当前状态：工作基线为 `develop@f552451`。Phase 18 与 Phase 18.1 均已同步主规格并归档，当前无 active change；AC-081/083 的真实托管 completion 保持 `hosted-unverified`。Phase 18.1 实现候选 `361678bf…` 与最终证据候选 `e59eb16c…` 均由 Reviewer 1/2/3 完成 Stage 1/2 PASS、0 findings；最终重型门禁得到真实 PostgreSQL 5/5、全量 `1712 passed, 230 skipped`、eval 11/11、local/service smoke、build 与 license 全部 PASS。已授权 stream/completion 目标分别因 `credential_missing` / `typed_preflight_missing` 保持 hosted-unverified、零 provider 调用。20 条 delta Requirement 已同步，归档路径为 `openspec/changes/archive/2026-07-30-controlled-model-streaming/`；当前只待本地提交。Phase 18.2 只有 P1 计划，没有 active change 或实施授权
 >
 > 配套矩阵：[`architecture-evolution-change-matrix.md`](architecture-evolution-change-matrix.md)
 
@@ -26,19 +26,20 @@
 
 | 项目 | 当前事实 |
 |---|---|
-| 快照日期 | 2026-07-29 |
+| 快照日期 | 2026-07-30 |
 | 分支 | `develop` |
-| 当前 HEAD | `ff0c49b22f706ebe9f5cfc1c05c76d3861f9405a`（`feat: 交付 Phase 18 受控真实模型运行时`） |
-| 基线工作树 | `ff0c49b` 提交后 `git status --short --branch` 仅输出 `## develop`，Phase 18 实现、测试、主规格与归档材料已进入同一提交；`.agents/.needs-review` 不存在，按 stop gate 为 clean |
-| 当前 Git 事务 | worktree 只包含本轮用户授权的 Product Spec、API Contract、DEV-PLAN、living plan、change matrix 与 changelog 的 Phase 18.2 规划补丁，尚未 commit；不 push、发布或部署。用户曾单独授权隔离 MiMo smoke，真实成功尚未建立 |
-| OpenSpec | 当前无 active change；`controlled-real-model-runtime` 的 32/32 tasks、三组 delta specs 与完整 artifacts 已归档到 `openspec/changes/archive/2026-07-29-controlled-real-model-runtime/`，对应主规格已同步 |
+| 当前 HEAD | `f552451552fd5c33e87947468b1f779302bdc904`（`feat: 交付 Phase 18 受控真实模型运行时`） |
+| 基线工作树 | session 起点 `git status --short --branch` 仅输出 `## develop`；当前 dirty 范围是 Phase 18.1 契约、生产、测试、CI、维护文档与 Reviewer 1 修复，另包含为旧恢复合同补齐合法 completed response 的测试夹具修正；旧冻结身份已被实质修订失效 |
+| 当前 Git 事务 | 用户通过 `/goal` 授权 Phase 18.1 自驱开发，随后明确授权测试期间执行真实 provider，并于 2026-07-30 授权主 specs 同步、归档与本地提交。实现与最终证据静态 `1+2`、最终重型门禁、同步归档均已闭合；不 push、发布或部署 |
+| OpenSpec | 当前无 active change；`controlled-model-streaming` 的 proposal、design、六组 delta specs 与 37/37 tasks 已完成，20 条 Requirement 已同步主 specs，并归档到 `openspec/changes/archive/2026-07-30-controlled-model-streaming/` |
+| 冻结审查身份 | `.artifacts/review/controlled-model-streaming-identity.txt` 保存当前 HEAD、tracked binary diff、44 个 untracked path/content manifest 与组合 SHA-256；该文件位于忽略目录、不进入候选。Reviewer 1/2/3 必须从磁盘独立复算并逐值匹配，逐文件清单差异必须可定位 |
 | 已完成历史 | Phase 1-18 已归档；归档事实以 Git、`openspec list --json` 和归档目录为准 |
-| 当前阶段 | Phase 18 已提交；本轮只把跨 deployment/provider fallback 固定为 P1 Phase 18.2 产品/API/开发计划，Phase 18.1 仍等待用户授权创建 change |
+| 当前阶段 | Phase 18.1 实现与最终证据的静态 `1+2`、最终重型门禁、主 specs 同步和归档均已完成；当前只待本地提交 |
 | 后两项预定生产行为 change | 先 `controlled-model-streaming`，其验证、review、同步并归档后，再另行授权 `controlled-multi-provider-failover`；Phase 19 必须从 Phase 18.2 归档 HEAD 开始 |
-| 当前阻塞 | 无 Phase 18 阻塞。真实 provider 成功仍未建立：一次明确零调用，另一次按 unknown 处理并停止重试；该 hosted-unverified 状态不改变 Phase 18 已归档/提交事实。Phase 18.1 仍需用户另行授权，Phase 18.2 还依赖 Phase 18.1 归档 |
-| 明确未做 | 未把 live smoke 写成 PASS；未 push、发布或部署；未创建 Phase 18.1/18.2 OpenSpec change，也未实现 streaming、跨 provider fallback、structured output、tool loop 或 Phase 21 重构 |
+| 当前阻塞 | 无实现或外部阻塞；仅剩最终证据文档的 `1+2` 与 `clean` 状态写入。最终全量在 10 logical CPU、开跑 load `9.47/9.33/8.69` 下为 `1712 passed, 230 skipped`，14:59，结束 load `7.82/8.63/8.47`；AC-065 同轮通过且阈值未改 |
+| 明确未做 | 已执行授权真实 smoke 命令，但本机隔离 credential/typed preflight 不完整，未发生真实 provider 调用或 token 消耗。尚未写 `clean`，未 commit、push、sync、archive、发布或部署；未创建 Phase 18.2 change，也未实现 fallback、structured output、tool loop 或 Phase 21 重构 |
 
-`DEV-PLAN.md` 顶部已在本轮按当前 Git/OpenSpec 事实同步到 Phase 17，并保留 Phase 1-16 的历史阶段内容。后续 Agent 仍须按恢复顺序重新核对当前磁盘、Git 与 OpenSpec，不能把任一文档状态块当作无需验证的运行时事实。
+`DEV-PLAN.md` 顶部已按 `develop@f552451`、唯一 active `controlled-model-streaming` 和第十六名 Reviewer 1 修复后的当前事实同步，并保留 Phase 1-18 的历史阶段内容。后续 Agent 仍须按恢复顺序重新核对当前磁盘、Git 与 OpenSpec。
 
 ### 2.2 新 session 的最小恢复顺序
 
@@ -94,13 +95,13 @@
 
 ### 4.2 本轮非目标
 
-本轮是在 Phase 18 已由 `ff0c49b` 提交后，按用户明确授权补齐 Phase 18.2 `controlled-multi-provider-failover` 的产品与开发计划。此前只有 D-027 的“后置独立 change”决策，没有需求 identity、API 边界、验收、所有权或排期。本轮只修改规划类文档，不做以下事项：
+本轮以 `develop@f552451` 为基线，按用户通过 `/goal` 的明确授权创建并推进 Phase 18.1 `controlled-model-streaming`。当前已进入最终实现审查前冻结；Phase 18.2 只保留既有计划，不做以下事项：
 
-- 不创建或实现 `controlled-model-streaming`、`controlled-multi-provider-failover` 或其他 active change，不把计划描述成 streaming/failover 已可用。
+- 不创建或实现 `controlled-multi-provider-failover` 或其他 active change；Phase 18.1 未经最终 `1+2` 且未归档前，不把实现候选描述成已归档能力，也不让 Phase 18.2 使用其未冻结 seam。
 - 不夹带 structured output、tool loop、动态 provider discovery、健康权重、负载均衡、热重载控制面、Vault/KMS、依赖升级或无契约依据的大重构。
 - 不改写任何 `openspec/changes/archive/` 历史事实，也不修改当前主规格；Phase 18.2 的 delta 只在未来获授权 change 中产生。
 - 不改写 `DEV-PLAN.md` 的 Phase 1-16 历史交付与证据；仅为避免历史快照冒充当前状态而补充明确的时间限定。
-- 不执行 commit、push、发布、部署或新的真实 provider 调用；Phase 18.1 创建、Phase 18.2 后续 change 与任何双 provider live smoke 都需要用户另行明确授权。
+- 不执行 commit、push、sync、archive、发布、部署或新的真实 provider 调用；Phase 18.2 后续 change 与任何真实 stream/multi-provider live smoke 都需要用户另行明确授权。
 
 ### 4.3 Phase 18 的硬性非目标
 
@@ -566,10 +567,96 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 
 ### Phase 18.1
 
-- [ ] Phase 18 归档后获得用户授权创建 `controlled-model-streaming`。
-- [ ] 先更新 API/event contract，冻结有界 delta/capacity、跨 chunk 安全、取消/unknown、部分 usage 与 committed-only replay。
-- [ ] 建立 local/PostgreSQL red contracts，再实现 provider-neutral stream producer 与 fake/live smoke。
-- [ ] 完成实现审查、主规格同步与归档裁决；未归档前不启动 Phase 18.2 production change。
+- [x] 2026-07-29：Phase 18 归档后用户通过 `/goal` 明确授权 Phase 18.1；已创建唯一 active change `controlled-model-streaming`，保持单一 worktree、单一写 owner。
+- [x] 已先更新 `API-Contract.md` 5.9.1 MOD-004，并完成中文 proposal、六组 delta specs、design 与 tasks；`openspec validate controlled-model-streaming --type change --strict` 通过，`openspec validate --all --strict` 为 33/33。
+- [x] 2026-07-29：前四轮 fresh review 的 usage identity、live evidence、zero-buffer 背压、provider-neutral close usage、路径、not-started durable 取消窗口、`ModelResponse.output_text` 与当时状态 finding 已逐项修订；旧 FAIL 只作历史证据，不构成通过。
+- [x] 第五轮 fresh review 以 2 HIGH / 1 MEDIUM 阻断 Stage 1；已补齐 `build_execution_context()` → `BoundModelInvocationService.stream/stream_approved` 的可信普通/审批入口，统一 DEV-PLAN/living plan/change matrix 当前事实，并逐路径冻结生产、测试、live script、Make/双 CI 与验收 producer。修订后的 change/all strict 为 33/33，diff check PASS。
+- [x] 第六轮 fresh review 以 1 HIGH 指出 `events/local_capacity.py` 与 `events/sinks/postgresql.py` 是原子 stream 绑定/容量消费的必改 owner；Stage 2 按门禁未执行，旧 strict 不能推翻 finding。
+- [x] 两个 sink 已同步补入 design、AC-085/086 producer、tasks、API、DEV 与 change matrix；修订后的 change/all strict 为 33/33，diff check PASS。
+- [x] 第七轮 fresh review 确认 sink owner finding 已闭合，但以 Handoff Snapshot 漏列 `DEV-PLAN.md`、strict 证据轮次陈旧的 1 MEDIUM 阻断 Stage 1；Stage 2 未执行。
+- [x] 已修正 dirty 范围与第六轮证据归属；第七轮 finding 修正后的 change/all strict 为 33/33，diff check PASS。
+- [x] 第八轮 fresh review 以 CI manifest/pipeline contract owner 遗漏的 1 MEDIUM 阻断 Stage 1；Stage 2 未执行。
+- [x] 已补齐两个 CI owner 与 `acceptance-validate` needs/artifact；第八轮 finding 修正后的 change/all strict 为 33/33，diff check PASS。
+- [x] 第九轮 fresh review 以 Handoff Snapshot 同时残留第七/第八轮当前证据的 1 MEDIUM 阻断 Stage 1；Stage 2 未执行。当前快照改用“最新 findings 修正后”的稳定状态，具体轮次只留在 Progress。
+- [x] 第十轮 fresh review 以 `_router_current.py`、`_router_snapshot.py`、`_settlement_evidence_validation.py` 未纳入 `text_stream` 精确 owner 和 producer 的 1 HIGH 阻断 Stage 1；Stage 2 未执行。
+- [x] 已用 CodeGraph 复核三个硬编码 `text_completion` 的真实 blast radius，并把当前路由、快照恢复、结算/重放/恢复 validator 与独立 routing contract 写回 proposal/design/tasks/DEV-PLAN/change matrix；修订后的 change/all strict 为 33/33、diff check PASS。
+- [x] 第十一轮 fresh 契约 reviewer 对最新冻结 artifacts 完成 Stage 1/2 PASS、0 findings；该单一 change 的实现前门禁解除。早先 FAIL 轮次不叠加冒充 `1+2`。
+- [x] 以 public provider/router/bound invocation/CanonicalEvent/repository seam 建立 red contracts，再串行实现 provider-neutral stream producer、65 槽 reservation、跨块安全、unknown/partial fencing、恢复、Pydantic AI/fake adapter 与独立 live smoke；补充缺失/重复 final、SDK context exit 失败和 SDK import boundary 回归。
+- [x] 完成聚焦、相邻、quality、eval、local/service smoke、build、license、strict、SQLite 与临时真实 PostgreSQL 16 验证；全量 pytest 修复两个残缺 completed-recovery 夹具后仅保留高负载 AC-065 fake smoke 超时，隔离入口 PASS。真实 provider 未授权且零调用。
+- [x] 首轮最终 Reviewer 1 对旧冻结身份完成静态 Stage 1，报告 4 HIGH / 2 MEDIUM 并判定 FAIL，未进入 Stage 2：partial/unknown 无 durable attempt audit、审批 composition/负路径不足、真实 PostgreSQL 矩阵过窄、live 已有事件指标未走真实 SSE、fake 无可控失败/慢速 seam、API 仍写 producer 未实现。
+- [x] 按 public seam 先红后绿补齐 attempt-review 与共享预算同事务 needs-review、审批九字段与 replay、deterministic fake script、真实 RUN-006 ASGI SSE 首 frame 和真实 PostgreSQL 4 项合同；审批相关 21 项与 PostgreSQL 4/4 已通过，契约/owner 已同步。
+- [x] 完成首轮 Reviewer 1 六项修复候选的格式、静态、聚焦、全量、真实 PostgreSQL 与所有 smoke/strict 回归：聚焦 103/103、PostgreSQL 4/4、quality 702 files、全量 `1636 passed, 229 skipped`，其余门禁均退出 0；acceptance validator 只因旧 CI artifact 身份不匹配退出 2。
+- [x] 第二名 fresh Reviewer 1 初检匹配冻结身份，但末检给出主 Agent 无法复现且未保留逐文件 manifest 的聚合哈希漂移，按门禁中止、无 verdict；其对旧内容留下的 2 HIGH / 1 MEDIUM 只作为诊断线索，不冒充当前审查结论。
+- [x] 对诊断线索先建立 public-seam 红灯：stopped partial 的 input/output token 同时已知会触发 attempt-review 校验失败；completed 首次公开失败只留下 completed `result_persisted`、usage 仍为 `started`。将 partial charge 固定为 unknown，并抽出 `_persist_final_in_uow`，使 completed intent、usage result、shared-budget settlement 与尾部释放同一事务提交后，两类节点转为 5/5 GREEN，恢复按 completed → usage 补投且 provider pull 保持 1。
+- [x] 同步 Product/API/DEV/OpenSpec/owner，消除两处 producer 未实现状态漂移并纳入 `_settlement_publication.py`；最新聚焦 111 项收集为 106 passed / 5 skipped、真实 PostgreSQL 18.4 为 4/4、quality 702 files、eval 11/11、local smoke 2.155 秒、service/live/build/license 均退出 0。两次全量均仅 AC-065 失败：`1 failed, 1638 passed, 229 skipped`，时延 5.438/5.486 秒；隔离同一公开节点 PASS，阈值未改。
+- [x] 更新 12.6 并对最终校准内容完成 change/all strict 33/33 与 diff check；acceptance validator 只因旧 CI artifact 身份不匹配退出 2，未冒充 PASS。
+- [x] 第三名 fresh Reviewer 1 对逐文件 manifest 可复算身份完成 Stage 1，以 1 HIGH / 1 MEDIUM FAIL：stopped complete 只看 finality，会让 token 或启用成本维度不完整的 usage 越过 review；API Contract 两处仍写 producer 未实现。Stage 2 未执行，Reviewer 2/3 未启动。
+- [x] 从 public composition seam 形成 `1 pass + 3 fail` 红灯，统一 stopped usage 可信度谓词并让不完整 complete 进入封闭 attempt-review；定点 4/4、受影响五文件 59/59、聚焦 `109 passed, 5 skipped` 与 quality 702 files 通过。用户确认重型门禁改在最终 `1+2` 后对同一身份只跑一次，已另写进化信号。
+- [x] 对最新修复和状态文档重新运行 change/all strict 33/33 与 diff check，并更新 12.6 的最终身份状态。
+- [x] 复算忽略目录冻结身份，固定当前 tracked diff、26 个 untracked path/content manifest 与组合身份；声明位于 ignored artifact，reviewer 必须独立复算。
+- [x] 第四名 fresh Reviewer 1 在冻结身份上以 1 HIGH 判定 Stage 1 FAIL：同一 active change 的主流式规格允许 stopped 且 usage 不完整时取消 stream 占位，而 usage 规格、API、design/tasks、实现与测试要求保留全部剩余容量；Stage 2 未执行，Reviewer 2/3 未启动。
+- [x] 将主流式规格的 null/partial 场景扩展到 complete 但启用 token/cost 维度不完整，并统一为同一 UoW 保留全部剩余 stream/usage 容量、reservation、outbox、预算和 lease 后进入 needs_review；该修订不改变生产代码。
+- [x] 契约修订后的 change strict、all strict 33/33 与 diff check 已退出 0；生产代码未改，不重跑聚焦、quality 或重型门禁。
+- [x] 重新冻结 tracked diff、26 个 untracked path/content manifest 与组合身份，并逐值复算 ignored identity artifact 一致。
+- [x] 第五名 fresh Reviewer 1 对同一身份完成两阶段审查，以状态证据漂移、核心编排/测试超长、blanket Pyright 抑制与 `Any` 类型越界共 3 MEDIUM 判定 Stage 1/2 FAIL。
+- [x] 校准顶部/Handoff/DEV 当前状态；把流式消费、事件持久化/发布、中断结算拆为三个内部模块，以显式 `StreamingRuntime` 视图连接既有能力，主编排 476 行且新核心无 blanket suppression/`Any`；runtime contracts 拆为成功、取消/unknown、恢复/replay、deadline/guardrail 四组。
+- [x] 重构 RED 为恢复路径缺少旧 `_publish_persisted_stream` seam 的 2 FAIL；补窄委托后 runtime/approval/recovery 28/28、四组 runtime 13/13，扩大聚焦 156 项为 147 passed / 9 skipped。
+- [x] owner/证据已补回 DEV、OpenSpec 和 change matrix；受影响八文件 30/30、`make quality` 709 files、change/all strict 33/33 与 diff check 退出 0；当前按 tracked diff 与 33 个 untracked path/content 重冻结。下一步从第六名 fresh Reviewer 1 重启；PASS 后并行 Reviewer 2/3，三者全 PASS 后执行一次重型门禁。
+- [x] 第六名 fresh Reviewer 1 逐项匹配冻结身份，以 1 HIGH 判定 Stage 1 FAIL、Stage 2 未执行：最终文本与 delta 冲突只抛普通异常，stopped+complete 关闭证明可使其取消占位并发布 failed final usage。
+- [x] 从 public bound seam 加入“已有一个 durable delta + 最终文本不一致 + stopped complete”节点，先稳定 RED 为 `model.provider_failed`；消费层改为稳定 unknown，协调层在该错误下丢弃 stopped/complete 证明后转绿，断言已发布 delta 保持 published、64 个占位与 final usage 容量未决、usage needs-review。受影响八文件 31/31、quality 709 files PASS。
+- [x] 第六轮修复后的 change strict、all strict 33/33 与 diff check 退出 0；状态/owner 对账完成并按当前 tracked diff 与 33 个 untracked path/content 重新冻结，下一步从第七名 fresh Reviewer 1 重启。
+- [x] 第七名 fresh Reviewer 1 逐项匹配冻结身份，以 1 HIGH 判定 Stage 1 FAIL、Stage 2 未执行：`scripts/smoke_live_model_stream.py` 在 provider response 已观察后若 orchestrator 的 terminal/capacity/shared-budget/publication 边界失败，会清空 result 并误写 `external-blocked/provider_rejected` 与 `provider_called=false`。
+- [x] 从公共 smoke 分类 seam 先稳定 RED 为入口缺失，再实现 hosted-unverified/failed/external-blocked 的封闭边界：本地失败输出 `failed/contract_failure` 与退出 1，已观察 response 或 delta 保留 `provider_called=true`，稳定 provider/network 错误才输出 external-blocked。live smoke 8/8，CI/双语/验收映射相关 5 文件通过且只有 1 个既有预期 skip；`make quality` 首轮仅暴露脚本格式未冻结，机械格式化后 709 files、Ruff、Pyright 0 与 import boundary 全绿，change/all strict 33/33 与 diff check PASS。
+- [x] 第八名 fresh Reviewer 1 逐项匹配冻结身份，以 1 HIGH / 1 MEDIUM 判定 Stage 1 FAIL、Stage 2 未执行：本地完整结果 guardrail 与外部 provider 共用 `model.provider_failed`，旧 classifier 仍会误报 external-blocked；12.6 当前证据表残留“从第七名重启”。
+- [x] 实际 bound guardrail 节点先 RED 为缺少 `failure_domain`，实际 `LiveStreamSmokeExecutor` 节点先 RED 为构造参数不存在；当前 `ModelProviderInvocationError` 用封闭 in-process `provider|runtime` 来源，消费/中断结算逐层保留，本地 policy/guardrail/capacity/cancel/stream 安全和未知编排错误统一 runtime。两个精确节点 3/3、受影响五文件 59/59；`make quality` 首轮只报告两个文件待格式化，机械格式化后 709 files、Ruff、Pyright 0 与 import boundary 全绿。
+- [x] 第九名 fresh Reviewer 1 逐项匹配冻结身份；Stage 1 以 live smoke 本地编排异常可逃逸、committed/client 时延竞态 2 MEDIUM FAIL，Stage 2 再以 595 行脚本职责过载、两个新增核心文件仍有 blanket Pyright 抑制/`Any` 2 MEDIUM FAIL。Reviewer 2/3 未启动，未运行重型全量门禁。
+- [x] 完整 `run()` migration 故障、并发 committed reader 与 CLI artifact I/O 三个合同先稳定 RED：前者直接泄漏异常，时序节点记录 `client=6ms < committed=7ms`，CLI 写盘异常也直接抛出。受控执行现封闭 setup/runtime/probe/cleanup 异常为 `failed/contract_failure`；commit 时钟移到 EventBus 可见提交后的首个同步边界，reader 只在该时钟存在后记录 client；CLI I/O 失败只在 stdout 输出安全失败 JSON。脚本拆为薄 CLI、结果契约、时延探针与 composition；`models/streaming.py`、`storage/stream_evidence_repositories.py` 移除文件级抑制与新增核心 `Any`，运行时输入以 `object` 局部窄化、占位行改为 TypedDict、DML result 使用准确泛型。
+- [x] 三个精确节点 3/3、live smoke 文件 12/12、Phase 18.1 定向集合 `106 passed, 5 skipped`；`make quality` 为 712 files、Ruff/Pyright/import boundary 全绿，change/all strict 33/33 与 diff check PASS。当前重冻结后从第十名 fresh Reviewer 1 重启；三名 reviewer 全 PASS 后才执行一次重型门禁。
+- [x] 第十名 fresh Reviewer 1 逐项匹配冻结身份；Stage 1 以 provider-domain 错误后本地 cleanup 仍误分外部阻断、缺失前驱被空查询视为已结算、顶部/Handoff 未跟随 36 个 untracked 3 MEDIUM FAIL，Stage 2 以 consumer/adapter 每片重建全文形成二次方复制 1 MEDIUM FAIL。Reviewer 2/3 未启动，未运行重型全量门禁。
+- [x] 完整 `run()` 的 provider 错误叠加 cleanup 失败、SQLite 缺失前驱、重复/非连续前缀 validator 与高碎片结构不变量先 RED；本地失败现强制 `failed/contract_failure` 并保留 provider 调用事实，SQLite/PostgreSQL 发布路径共同要求完整唯一 `1..n-1` 已结算前缀，数据库唯一约束继续拒绝重复 sequence。consumer 改为每片一次 UTF-8 byte 累计、末尾一次 join，Pydantic adapter 改为列表追加与 final 一次 join。
+- [x] 新增精确节点 6/6、Phase 18.1 定向集合收集 118 项并执行为 `112 passed, 6 skipped`；5 个 skip 为未注入真实 PostgreSQL DSN，1 个为未授权真实 provider stream。`make quality` 首轮如实暴露 5 个格式与 9 个类型问题，机械格式化、改用公开 `run()` seam 并补齐准确类型后为 712 files、Ruff/Pyright/import boundary 全绿；change/all strict 33/33 与 diff check PASS。当前按 36 个 untracked 重冻结，并从第十一名 fresh Reviewer 1 重启。
+- [x] 第十一名 fresh Reviewer 1 逐项匹配冻结身份；Stage 1 以非法 SDK usage 使 `result()`/`aclose()` 原始异常逃逸并跳过 durable needs-review 的 1 HIGH，以及 `start_run()` 本地异常可被 provider-domain 结果覆盖为 external-blocked 的 1 MEDIUM 判定 FAIL，Stage 2 未执行。Reviewer 2/3 未启动，未运行重型全量门禁。
+- [x] public bound invocation 的非法 SDK usage 与完整 live `run()` 的 start-run/provider-domain 组合先稳定 RED；Pydantic adapter 只读一次 usage 并缓存 provider-neutral 转换，读取/校验失败时 `result()` 稳定 unknown、`aclose()` 安全返回 unknown，invocation 耐久进入 needs-review；live composition 用独立事实位保留 start-run 本地失败，即使 cleanup 成功也最终归为 failed/contract_failure。
+- [x] 受影响三文件 49/49、Phase 18.1 定向集合收集 120 项并执行为 `114 passed, 6 skipped`；5 个 skip 为未注入真实 PostgreSQL DSN，1 个为未授权真实 provider stream。`make quality` 为 712 files、Ruff/Pyright/import boundary 全绿；change/all strict 33/33 与 diff check PASS。当前按 36 个 untracked 重冻结，并从第十二名 fresh Reviewer 1 重启。
+- [x] 第十二名 fresh Reviewer 1 逐项匹配冻结身份；Stage 1 以 Pydantic adapter 在调用方已请求迭代、但 SDK context 创建前 deadline 耗尽时把明确 not-started 误升为 unknown 的 1 HIGH 判定 FAIL，Stage 2 未执行。Reviewer 2/3 未启动，未运行重型全量门禁。
+- [x] 真实 Pydantic public bound invocation 的 context 创建前 deadline 节点先稳定 RED 为 `model.provider_side_effect_unknown`、usage needs-review 与 66 个容量槽保留；adapter 现把迭代请求与 SDK context 创建分开，context 尚未创建时 close 返回 not-started，节点转绿为零 provider 调用、65 个 stream 占位取消、usage published、容量/预算/lease 收口。
+- [x] 受影响 provider/runtime 两文件 36/36、Phase 18.1 定向集合收集 121 项并执行为 `115 passed, 6 skipped`；5 个 skip 为本轮聚焦未注入真实 PostgreSQL DSN，1 个为聚焦命令仍按旧前置跳过真实 provider。`make quality` 为 712 files、Ruff/Pyright/import boundary 全绿；change/all strict 33/33 与 diff check PASS。用户随后明确授权测试期间执行真实 provider；按分层门禁在静态 `1+2` PASS 后执行，不把本轮历史 skip 改写成 PASS。当前按 36 个 untracked 重冻结，并从第十三名 fresh Reviewer 1 重启。
+- [x] 第十三名 fresh Reviewer 1 逐项匹配冻结身份；Stage 1 以 prepare 完成后重新启动完整 `total_timeout_ms` 导致尾部 full-result/delta 持久化与发布可越过原 route deadline 的 1 HIGH，以及 Product Spec 仍写真实 provider 未授权的 1 MEDIUM 判定 FAIL，Stage 2 未执行。Reviewer 2/3 未启动，未运行重型全量门禁。
+- [x] public bound route 节点用 0.65 秒 prepare 与 0.6 秒尾部 delta sink 在 1 秒总预算下先稳定 RED 为约 1.25 秒后成功；invocation 现于 prepare 前建立单一 monotonic absolute deadline，让 prepare、SDK consume、完整结果 guardrail、尾部分片与 delta 持久化/发布共用剩余时间，节点转绿为按原 route deadline 失败。Product Spec 同步为真实 provider 已授权、尚未运行、成功未建立并继续 `hosted-unverified`。
+- [x] 受影响 guardrail/interruption 14/14、Phase 18.1 定向集合收集 122 项并执行为 `116 passed, 6 skipped`；5 个 skip 为本轮聚焦未注入真实 PostgreSQL DSN，1 个为聚焦命令本身未执行真实 provider。`make quality` 为 712 files、Ruff/Pyright/import boundary 全绿；change/all strict 33/33 与 diff check PASS。当前按 36 个 untracked 重冻结，并从第十四名 fresh Reviewer 1 重启。
+- [x] 第十四名 fresh Reviewer 1 逐项匹配冻结身份；Stage 1 以 delta intent 已耐久但公开失败时本地 chunk 计数仍偏小、导致 stopped+complete 路径错误取消 `result_persisted` 槽位并泄漏内部异常，以及单个任意大 provider fragment 先进入 adapter/runtime collector并形成整块 UTF-8 bytes 后才检查总上限的 2 HIGH 判定 FAIL，Stage 2 未执行。Reviewer 2/3 未启动，未运行重型全量门禁。
+- [x] delta 首次公开失败的 bound SQLite 节点先 RED 为 `model.provider_failed`/内部取消冲突，单 fragment 超过 `64*4096` 的 DTO 节点先 RED 为错误接纳；当前 intent 提交后先登记 durable chunk，未公开 durable 前缀强制 needs-review并保留 `result_persisted` 与 66 个槽位，返回稳定 runtime-domain unknown。DTO 以逐 code point 有界 UTF-8 计数在 collector 前拒绝超限，不构造同尺寸 bytes，并缓存合法字节数；adapter 在保存前核对累计上限，invocation 复用缓存值。
+- [x] 两个精确节点 2/2、受影响 provider/interruption/replay/recovery/guardrail 五文件 45/45、Phase 18.1 定向集合收集 124 项并执行为 `118 passed, 6 skipped`；5 个 skip 为未注入真实 PostgreSQL DSN，1 个为聚焦命令本身未执行真实 provider。`make quality` 为 712 files、Ruff/Pyright/import boundary 全绿；当前完成契约、strict 与状态对账后按 36 个 untracked 重冻结，并从第十五名 fresh Reviewer 1 重启。
+- [x] 第十五名 fresh Reviewer 1 逐项匹配冻结身份；Stage 1 以 incremental guard 给既有无左边界 `api_key|password|secret|token` 脱敏语义增加额外限制、导致内嵌配置键值进入 durable/public 链路的 1 HIGH 判定 FAIL，Stage 2 未执行。Reviewer 2/3 未启动，未运行重型全量门禁。
+- [x] direct guard 与真实 bound invocation 两层用例先稳定为 8 FAIL；修复键头边界后，4 类配置键在任意单切点和逐字符 fragment 下与既有 `redact_secrets()` 逐字同义，durable outbox 与公共 delta 均无原值，8/8 GREEN。受影响七文件 `68 passed`；Phase 18.1 定向集合收集 132 项并拆分执行为 `126 passed, 6 skipped`；5 个 skip 为未注入真实 PostgreSQL DSN，1 个为聚焦命令本身未执行真实 provider。quality 712 files、change/all strict 33/33 与 diff check PASS；当前按 36 个 untracked 重冻结并从第十六名 fresh Reviewer 1 重启。
+- [x] 第十六名 Reviewer 1 独立复算身份一致；Stage 1 以 commit-ack 丢失时本地零 chunk 使结算漏扫 durable delta 的 1 HIGH，以及 scheme-only authorization 与既有正则回退不同义的 1 MEDIUM 判定 FAIL，Stage 2 未执行。Reviewer 2/3 未启动，未运行重型全量门禁。
+- [x] commit-ack 丢失和 scheme-only 两节点先稳定为 3 FAIL；结算改为扫描完整 durable group，authorization 的 scheme-only 流结束回退与全部既有 secret 样例逐切点对齐 `redact_secrets()` 后 3/3 GREEN。受影响七文件 `71 passed`；Phase 18.1 定向集合收集 135 项并拆分执行 `129 passed, 6 skipped`；quality 712 files、change/all strict 33/33 与 diff check PASS；当前按 36 个 untracked 重冻结并从第十七名 Reviewer 1 重启。
+- [x] 第十七名 Reviewer 1 独立复算身份一致并完成 Stage 1/2；以 Product Spec AC-087 混写默认 public reader 与授权 internal reader 的事件集合判定 1 MEDIUM FAIL，除此之外 0 findings。保持 API/OpenSpec/实现的安全边界，仅校正产品验收文字，并把 local reader 的 public/internal 可见性 producer 与证据补入验收矩阵；旧 verdict 随文档修订失效，下一步校验、重冻结并从第十八名 Reviewer 1 重启。
+- [x] 第十八名 Reviewer 1 独立复算身份一致并确认 AC-087 文档冲突已闭合；因 PASS 矩阵缺少同一次真实流式调用产生的 started/usage 经授权 internal reader 断线续读的精确复合节点，以 1 MEDIUM 判定 Stage 1 FAIL，Stage 2 未执行。矩阵先登记新节点并以节点不存在退出 4，再扩充 committed-reader 合同逐值证明 public `delta/completed/terminal`、internal `started/delta/completed/usage/terminal` 且两种断线续读均不增加 provider 调用；节点 1/1、相关轻量集合 38/38、quality 712 files 与 diff check PASS，生产代码未改。
+- [x] 第十九名 Reviewer 1 独立复算身份一致，Stage 1 PASS；Stage 2 以 `pydantic_ai.py`、PostgreSQL sink、usage repository 及两个大测试文件超过 500 有效行默认门槛判定 1 MEDIUM FAIL。按五个高内聚职责拆分私有协作者/测试文件并同步 owner；首次聚焦执行如实暴露 5 个旧 monkeypatch/structure path 和 4 个 async marker 漂移，首次 quality 暴露 1 个 SDK final 泛型 unknown，均修正后 7 文件组 `69 passed, 5 skipped`、其余聚焦 60/60、集成/CI `15 passed, 1 skipped`、quality 717 files、Pyright 0、import boundary PASS。
+- [x] 第二十名 Reviewer 1 独立复算拆分后身份一致，Stage 2 对公共导出、transaction/session/connection/UoW 所有权、文件职责与有效行门槛判定 PASS；Stage 1 发现 `docs/acceptance-matrix.md` 的 AC-086 仍引用拆分前 `runtime_interruption` 中已移动的取消合同节点，以 1 MEDIUM FAIL 阻断。旧节点现场退出 4，矩阵改为 `runtime_cancellation` 的真实节点后精确节点 `2 passed`、验收文档合同 `23 passed`，change/all strict 33/33 与 diff check PASS；生产代码和测试语义未改，下一步重冻结并从第二十一名 Reviewer 1 重启。
+- [x] 第二十一名 Reviewer 1 独立复算冻结身份一致，Stage 1 发现 started 已耐久但 `_invocation_streaming.py` 在统一取消收口之外等待 telemetry；该点取消会原样泄漏 `CancelledError`，留下 65 个 started 占位、started usage 与 outstanding 66，而 provider 尚未 prepare/迭代，因而以 1 HIGH FAIL 阻断，Stage 2 未执行。新增真实 bound façade telemetry 阻塞节点先稳定 1 FAIL；只把 started 后 telemetry await 纳入既有 not-started 取消结算后转为 1 PASS，相邻 prepare/context 前取消与 stopped/unknown 节点合计 `5 passed`，生产 DTO/schema/provider/事件顺序不变。
+- [x] 第二十二名 Reviewer 1 独立复算冻结身份一致，确认上一轮显式取消节点闭合，但 Stage 1 发现 route deadline 在 telemetry 前计算而 timeout context 之后才生效；慢 telemetry 后的阻塞 prepare 在 SDK context/provider 迭代前自然到期会误记 `model.provider_failed/outcome=failed`，因而以 1 HIGH FAIL 阻断，Stage 2 未执行。新增公共 bound runtime natural-timeout 节点先稳定 1 FAIL；deadline 恢复到 telemetry 后、prepare 前建立，并把 `TimeoutError + not_started` 归为 cancelled 后转为 1 PASS，runtime `25 passed`、quality 718 files、Pyright 0、import boundary PASS。
+- [x] 第二十三名 Reviewer 1 对身份 `9accf651…` Stage 1/2 PASS、0 findings；fresh Reviewer 2/3 随后均以 owner 漏项与真实 Pydantic client acquisition 自然 deadline public-seam 缺口判定 Stage 1 FAIL。补齐 owner 与自然 deadline 节点后，runtime `26 passed`、验收语义合同 `34 passed, 1 skipped`、quality 718 files 与 strict/diff 全绿。
+- [x] 第二十四名 Reviewer 1 对身份 `06381892…` 确认行为修复，但以 DEV 自身精确 owner 清单仍漏 `_settlement_contracts.py` 与 `Product-Spec-CHANGELOG.md` 判定 1 MEDIUM FAIL；补清单后旧 verdict 失效。
+- [x] 第二十五名 Reviewer 1 对身份 `489ffe1d…` 以活动真实 Pydantic SDK context/pull/permit 未进入 composition close 链判定 1 HIGH FAIL。新的 public bound 节点先稳定 RED 为 `service.aclose()` 返回而调用任务仍挂起；provider 活动 stream 注册、取消等待、重入防死锁与 context→permit→client 关闭顺序实现后转为 GREEN，受影响 11 文件全绿，quality 719 files/Pyright 0/import boundary PASS。当前完成 strict/diff 与状态对账后重冻结，从第二十六名 Reviewer 1 重启。
+- [x] 第二十六名 Reviewer 1 对身份 `102514e8…` 初末检一致，确认活动 context 修复，但以 permit/client acquisition 阶段未进入 lifecycle、close 返回后 invocation 仍活跃并误记 bulkhead failure的 1 HIGH 判定 Stage 1 FAIL，Stage 2 未执行。两个 public bound prepare-close 节点先稳定 2 FAIL；私有 lifecycle 在取得 permit 前登记 task，并以同一锁无空窗转移为 active stream，关闭按 prepare task→active stream/context/permit→client factory 排序后 3/3 GREEN。受影响 11 文件、quality 719 files/Pyright 0/import boundary、change/all strict 33/33、diff check 与验收语义/identity 22 项均 PASS；当前重冻结，从第二十七名 Reviewer 1 重启。
+- [x] 第二十七名 Reviewer 1 对身份 `e220af91…` 初末检一致，确认 prepare 与 active stream 的 lifecycle 所有权闭合，但证明并发第二次 `ModelRouter.aclose()` 在首个 provider close 阻塞时直接返回，允许 `RuntimeComponents` 提前释放 storage，以 1 HIGH 判定 Stage 1 FAIL、Stage 2 未执行。public service 并发 close 节点先稳定 RED；router 共享完成事件后，并发成功、provider close 失败与首个关闭者取消三个节点均转绿，后续调用不会把失败或取消伪装成成功。composition 6/6、受影响 12 文件与 quality 719 files/Pyright 0/import boundary PASS；当前完成 strict/diff、重冻结并从第二十八名 Reviewer 1 重启。
+- [x] 第二十八名 Reviewer 1 对身份 `beba0c21…` 初末检一致，逐项核对 20 个 Requirement/60 个 Scenario；确认 AC-085～087 与 router 并发关闭闭合，但证明 `authorization=&secretvalue` 因 authorization 与通用 key 共用 `&` 终止符而原样进入 public durable intent，以 1 HIGH 判定 Stage 1 FAIL、Stage 2 未执行。逐切点 guard 与 public bound SQLite 两节点先稳定 2 FAIL；独立 authorization 终止集合修复后两文件 27/27、Phase 18.1 聚焦套件、quality 719 files/Pyright 0/import boundary、change/all strict 33/33、diff check 与验收语义/identity 22 项均 PASS，通用 key/value 的 `&` 分隔语义保持不变；当前重冻结并从第二十九名 Reviewer 1 重启。
+- [x] 第二十九名 Reviewer 1 对身份 `f3f48096…` 初末检一致，逐项核对 20 个 Requirement/60 个 Scenario；确认 AC-085～087 与 authorization 修复闭合，但证明 cookie 空值/分号起始过度脱敏和候选 buffer 先越过配置 hard bound，以 2 MEDIUM 判定 Stage 1/2 FAIL。首批逐切点/public/hard-bound 9 FAIL 与差分扩展 8 FAIL 已由 cookie 回溯同义状态、authorization scheme 回退和追加前 UTF-8 字节预算闭合；两文件 43/43、209 组全 split 差分 0 mismatch、Phase 18.1 聚焦套件、quality 719 files/Pyright 0/import boundary、change/all strict 33/33、diff check 与验收语义/identity 22 项均 PASS。当前重冻结并从第三十名 Reviewer 1 重启。
+- [x] 第三十名 fresh Reviewer 1 对身份 `995091d7…` 初末检一致，逐项审完 20 个 Requirement/60 个 Scenario；Stage 1 证明跨 fragment 发布安全前缀后会丢失 authorization/cookie 左侧 Unicode 词字符上下文，Stage 2 证明新 `release()` 以文件级 Pyright suppression 掩盖 `int` 注解与运行时类型检查冲突、Pydantic stream protocol 新增 `Any` 返回，因而以 2 MEDIUM 判定 Stage 1/2 FAIL。Reviewer 2/3 未启动，未运行重型门禁。
+- [x] 10 个 ASCII/Unicode 词字符、标点和空白边界样例及两个类型结构节点先稳定形成 9 FAIL；guard 现显式携带已发布前缀最后字符的 Unicode `\w` 状态，只对既有 authorization/cookie `\b` 规则恢复左边界并允许重叠 `set-cookie` 中的合法 `cookie` 子匹配。Event capacity release 在 `object` 仓储边界局部收窄，Pydantic stream context 使用窄 protocol。安全文件 39/39、受影响四文件全绿，1,409 条文本/31,716 次全 split 与逐字符差分 0 mismatch，Phase 18.1 聚焦收集 174 项并执行为 `168 passed, 6 skipped`；全仓 quality 719 files/Pyright 0/import boundary、change/all strict 33/33、acceptance 41 passed / 1 skipped 与 diff check 均 PASS。当前重冻结并从第三十一名 fresh Reviewer 1 重启。
+- [x] 第三十一名 fresh Reviewer 1 对身份 `c21fd24…` 初末检一致并逐项审完 20 个 Requirement/60 个 Scenario；Stage 1 PASS，Stage 2 证明新结构测试只拒绝 `Any`，将注解改成 `object` 或 `dict[str, object]` 仍通过，因而以 1 MEDIUM 判定 FAIL。Reviewer 2/3 未启动，未运行重型门禁。
+- [x] 宽返回类型 mutant 先稳定 RED；结构测试现精确断言 `StreamEventContext` 和公开导出，adapter 内 `TYPE_CHECKING` 赋值由 Pyright 证明锁定 SDK 返回值兼容窄 protocol，独立夹具证明本地正确 double 兼容且错误 shape 必须失败。修复同时把 protocol 的 `__aexit__` 对齐标准 async context manager 签名；聚焦收集 175 项并执行为 `169 passed, 6 skipped`，全仓 quality 720 files/Pyright 0/import boundary、change/all strict 33/33、acceptance 41 passed / 1 skipped 与 diff check 均 PASS。当前重冻结并从第三十二名 fresh Reviewer 1 重启。
+- [x] 第三十二名 fresh Reviewer 1 对身份 `0d69f9f4…` 初末检一致，20/60 行为全部匹配，Reviewer31 类型修复复核 PASS，Stage 2 也以 0 findings PASS；Stage 1 仅发现新增静态类型夹具未进入 OpenSpec design、tasks 8.5 与 DEV-PLAN 精确 owner 清单，和“清单外 owner 已补回”声明矛盾，因而以 1 MEDIUM 判定 FAIL。
+- [x] `tests/contracts/controlled_model_streaming_context_typecheck.py` 已逐路径补入 design 新增聚焦测试、tasks 8.5、DEV-PLAN 冻结合同与 change matrix owner；生产、测试行为和类型实现不变。strict、acceptance 与 diff 复验后重冻结，并从第三十三名 fresh Reviewer 1 重启。
+- [x] 第三十三名 fresh Reviewer 1 对身份 `23698bdb…` 初末检一致，20/60、Reviewer31 类型门禁、Reviewer32 owner 补齐、Stage 1/2 全部 PASS，0 findings。随后 Reviewer 2/3 对同一身份独立完成两阶段：两者均确认行为与 Stage 2 其余质量轴通过，但共同发现 Handoff/evidence 表仍以 43 untracked、174/168+6、719 files 描述当前候选；Reviewer 3 另按 code-review 规则判定 12 个测试模块说明和一个 helper docstring 写入开发阶段标签。静态 `1+2` 因此未通过。
+- [x] living plan 的当前证据已统一为 44 untracked、175 collected、169 passed / 6 skipped、quality 720 files；测试模块说明与 completion-only helper 改用稳定能力名称，`tests/**` 不再含开发阶段标签。行为不变；完成 quality、聚焦、strict/acceptance/diff 后重冻结并从第三十四名 fresh Reviewer 1 重启。
+- [x] 第三十四轮候选 `6407d310…` 的 Reviewer 1/2 均 Stage 1/2 PASS、0 findings；Reviewer 3 确认 20/60 行为完整，但以 active OpenSpec tasks 仍称最新聚焦为 168/6、`API-Contract.md` 新增长期正文使用 `Phase 18.1` 标签，判定 Stage 1/2 各 1 MEDIUM。tasks 当前证据已校准为 169/6，API 长期正文改用稳定 `controlled-model-streaming` / `MOD-004` 标识；行为不变，旧 verdict 全部失效。
+- [x] 修复后候选 `25cb9b53…` 由 Reviewer 1/2/3 同身份完成 Stage 1/2 PASS、0 findings。审查后重型门禁：临时 PostgreSQL 16 的 5 项合同 PASS；全量 `1712 passed, 230 skipped`，开跑 10 logical CPU/load 13.74，AC-065 同轮通过；eval 11/11、local smoke 2.251 秒、service smoke、build 与 license PASS。已授权 stream smoke 首次实际执行因 `python scripts/...` 与 `scripts.*` 包导入不兼容而失败；入口合同先 RED，Make 改为 `python -m scripts.smoke_live_model_stream` 后 GREEN。实际 stream/非流式四前置分别以 `credential_missing` / `typed_preflight_missing`、`provider_called=false` 诚实返回 hosted-unverified。实质修订使该轮 verdict 失效，当前重审。
+- [x] 候选 `c67f5506…` 的 Reviewer 1 初末身份一致；Stage 1 对 20 Requirements/60 Scenarios、AC-085～088、MOD-004、owner/producer/CI/范围全部 PASS，Stage 2 发现入口断言使 `test_controlled_model_streaming_live_smoke_contracts.py` 达到 501 有效行且混合多类职责，以 1 MEDIUM FAIL。Make/manifest/双 CI/artifact 接线合同已整体迁移到职责匹配且规模较小的既有 `test_ci_pipeline_contracts.py`；两个受影响文件 20/20 PASS，实质修订后从 Reviewer 1 重启。
+- [x] 修订后实现候选 `361678bf…` 由 Reviewer 1/2/3 同身份完成 Stage 1/2 PASS、0 findings；三者均独立复算 44 条 manifest，确认 live/pipeline 合同分别为 483/146 有效行、20/20 受影响测试与 20 Requirements/60 Scenarios 完整。
+- [x] 静态 `1+2` 后只运行一次最终重型门禁：临时 loopback/tmpfs PostgreSQL 16 的 stream 合同 5/5；全量 `1712 passed, 230 skipped in 899.54s`，10 logical CPU、开跑 load 9.47、结束 7.82，AC-065 同轮通过且未改 5 秒阈值；eval 11/11、local fake 1.889 秒、service smoke、build 与 license PASS。已授权 stream/completion 分别诚实返回 `credential_missing` / `typed_preflight_missing`、`provider_called=false`，无网络与 token 消耗。
 
 ### Phase 18.2
 
@@ -642,6 +729,25 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | 2026-07-28 | 稳定 failure 摘要自身合法不代表与同记录的 evidence 一致；若两者漂移，final event 与重放异常会公开两套冲突的 provider 副作用事实 | 发布前 validator 必须把 failure 当作 evidence 的封闭投影，逐值核对 provider_called、attempt 数与 latency；任一冲突保持 result_persisted，零 final、零 published、零 provider replay |
 | 2026-07-28 | failure 与 evidence 顶层摘要一致仍不足以证明嵌套证据可信；只校验 attempts 的容器与长度会接受同数量的缺字段、隐式 boolean、ordinal/charge 矛盾或畸形 budget charge | 发布前恢复必须复用 typed attempt 契约并对 charge、未决列表、reservation 与顶层 usage/cost 做封闭对账；任一嵌套损坏仍保持 result_persisted 和零发布/零重放 |
 
+| 2026-07-29 | 第五轮 Phase 18.1 契约审查证明只给底层 `ModelInvocationService` 增加 `stream` 会绕过现有 `build_execution_context()` 的可信 run 绑定；同时 DEV-PLAN 仍停在待授权，类别式 owner 无法证明 live/CI/验收 producer | Phase 18.1 必须把普通与审批流式入口冻结在 `BoundModelInvocationService`，并在实现前逐路径列出生产、测试、live script、Make/双 CI 与验收矩阵 owner；任何清单外 owner 先修订并重审 |
+| 2026-07-29 | 第六轮 Phase 18.1 契约审查发现通用 outbox 事件在 `events/local_capacity.py` 与 `events/sinks/postgresql.py` 实际完成写入和 outstanding 原子扣减，而原 owner 表只列 repository/capacity 类别 | 两个 sink 必须成为 AC-085/086 精确写 owner，并在扣减前校验 stream event/group/sequence/type/payload 全绑定；仅改 repository 无法证明原子拒绝 |
+| 2026-07-29 | stream completed 与 usage final 分属两个有序组；只检查各自组内前驱会允许 usage 越过尚未完成的 stream 组 | local/PostgreSQL sink 在 usage final 扣减前增加跨组 settlement fence：completed outcome 要求 completed 已发布且 stream 组全 settled；cancelled/failed 要求 completed 已取消且全组 settled |
+| 2026-07-29 | Pydantic AI stream 的 SDK context `__aexit__` 可能失败；原实现会泄漏 raw `RuntimeError`，自然完成后还可能把停止状态误判为已证明 | adapter 把 context exit 失败统一降级为 provider-neutral `unknown/partial`，permit 始终释放；缺失/重复 final 与非文本事件继续 fail closed，不让 SDK 类型越过 adapter |
+| 2026-07-29 | 全量 pytest 首轮的两个 deterministic recovery 失败来自旧测试夹具持久化了缺 response 的 `completed` settlement；放宽生产 validator 会破坏既有恢复安全边界 | 只修测试夹具，补入与 evidence 一致的封闭 `ModelResponse`；定点 2/2 转绿。第二轮全量只剩 AC-065 fake smoke 在高负载下 6.930 秒超门槛，隔离同入口 1.965 秒 PASS，按 D-028 同时保留且不放宽 5 秒 |
+| 2026-07-29 | 本机初始没有 `AGENT_HARNESS_TEST_POSTGRES_DSN`，Phase 18.1 PostgreSQL 精确合同只能 skip；同 session 的 service smoke 已证明 Docker 可用 | 启动 loopback/tmpfs 临时 PostgreSQL 16，精确 stream claim/lock/payload/capacity 合同实际 PASS 后删除容器；该证据取代 skip，但不代表真实 provider 或 hosted CI 已验证 |
+| 2026-07-29 | 冻结前逐路径对账发现 `_settlement_validation.py`、SDK event helper、三个旧 recovery fixture 与 `Product-Spec.md` 状态同步未在实现前 owner 表逐名列出 | 在 proposal/design/tasks/change matrix 补回精确 owner；最终 Reviewer 1 必须审完整当前 diff，不能复用实现前 owner verdict。未新增第二 change、migration 或外部 provider scope |
+| 2026-07-29 | 首轮最终 Reviewer 1 证明“抛出 unknown”不足以审计已开始的 partial attempt；审批底层 seam、单条 PostgreSQL claim 和 sink 直读时延也不能分别冒充生产 composition、真实数据库矩阵与 SSE 首 frame | partial/unknown 在同一 UoW 固化封闭 attempt review 并围栏 usage/共享预算/terminal；审批测试经真实 bound composition 覆盖九字段与 replay；PostgreSQL 扩为 4 项 migration-head 合同；live 指标驱动真实 RUN-006 ASGI SSE route。任何修复都使旧冻结 verdict 失效 |
+| 2026-07-29 | partial close result 即使同时报告 input/output token，也不等于 final usage；复用通用 attempt 汇总会把 stopped partial 错误推导为 actual charge | needs-review 路径直接保留 typed attempt 观察值并固定 unknown charge，不再调用会按 token 完整度推导 actual 的成功/失败汇总；单边和双边 token 都必须保持 unresolved attempt 1 |
+| 2026-07-29 | completed intent 先持久化并公开、usage result 后开事务会留下不可恢复窗口；completed sink 失败后旧实现只有 completed `result_persisted`，usage 仍是 `started` | 抽出 settlement publication 的私有 UoW seam，让 completed intent、usage result、shared-budget settlement 和尾部释放同事务提交；公开仍严格 completed → usage，失败恢复只补投两类耐久结果且不重放 provider |
+| 2026-07-29 | 第二名 Reviewer 1 初检可复算身份，末检只留下不同聚合 hash、未保留逐文件 manifest；主 Agent 随后按同一算法复算仍匹配初检，26 个文件 mtime 均早于冻结 | 无逐文件前后证据时不能把聚合异常当作真实候选漂移，也不能沿用 reviewer 的部分检查；保留中止事实和诊断线索，修复后重新形成逐文件可复核身份并派全新 Reviewer 1 |
+| 2026-07-29 | 第四名 Reviewer 1 发现主流式 delta spec 对 stopped 且 usage 不完整的 stream 占位处置与同 change 的 usage spec、API、design/tasks、实现相反，并遗漏 complete 但启用维度不完整 | 统一为不取消占位、保留全部剩余容量和未决资源后 needs-review；同一 change 内任一允许路径都不能破坏 AC-086 的恢复与 exact replay 围栏 |
+| 2026-07-29 | 第九名 Reviewer 1 发现 live smoke 在 setup/probe/cleanup 异常时可能不生成 artifact，且 reader 可在 commit 时钟记录前看到 durable delta；同一脚本又混合 schema、probe、runtime 与 CLI，两个新增核心文件的类型门禁证据也与实际抑制不符 | 外层受控执行统一把本地异常收口为安全 JSON；commit 与 client 建立确定 happens-before；按职责拆出三个模块并消除新增核心 blanket suppression/`Any`。静态事实必须与 living plan 声明一致，不能用全局 Pyright PASS 掩盖局部抑制 |
+
+| 2026-07-30 | 第三十名 Reviewer 1 证明安全前缀发布会让 buffer 起点误获新的 Unicode `\b`，并发现新增文件级 Pyright suppression 与 `Any` 使“静态全绿且无类型逃逸”的证据失真 | 增量 guard 必须保存已发布输出的左侧词字符状态，只给既有 authorization/cookie 规则使用；仓储运行时输入在 `object` 边界局部收窄，SDK stream 返回窄 context protocol。行为与类型都先用独立红灯锁定，不能用全局 quality PASS 替代局部源码事实 |
+| 2026-07-30 | 第三十一名 Reviewer 1 证明“返回类型不是 `Any`”仍允许 `object`/`dict` 假阳性；新增静态正例又发现 protocol 的 `__aexit__` 使用 `object` 参数，实际不兼容 SDK 标准 async context manager | 类型门禁必须精确绑定命名 protocol、公开导出与锁定 SDK shape；正例覆盖真实 SDK和本地 double，负例通过必要的 Pyright 错误锁住，不能用字符串排除列表替代赋值兼容性 |
+| 2026-07-30 | 第三十二名 Reviewer 1 发现新静态夹具虽已进入 change matrix，但 design/tasks/DEV 的“精确 owner”仍漏项 | 新增文件必须在冻结身份前同时回填所有声明为精确真相源的 owner 清单；行为通过、matrix 单点登记或 tasks 泛称“静态夹具”都不能代替精确路径一致性 |
+| 2026-07-30 | Reviewer 2/3 独立发现 living plan 的“当前”身份与验证表仍引用旧轮次数字；Reviewer 3 另按审查规则发现测试代码说明绑定开发阶段标签 | 状态表必须明确区分历史与当前并逐值对齐冻结 artifact；测试代码说明只写稳定能力/维护意图，阶段轮次只留在 living plan、review evidence 和 changelog |
+
 后续发现按时间追加。若发现推翻了阶段依赖、共享接口或安全假设，先更新 Decision Log 和 change matrix，再继续实现。
 
 ## 10. Decision Log
@@ -697,6 +803,42 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | D-047 | 2026-07-28 | 受控 base URL path 不接受 percent-encoded dot/slash/backslash 结构字符或 `%25` 二次编码入口，并拒绝原始 `.`/`..` segment | startup、SDK、proxy 与上游可能在不同阶段解码；为保持 exact path 与 credential forwarding 前缀同一事实，结构字符不做宽松 canonicalization，而在 client/DNS/HTTP 前 fail closed |
 | D-048 | 2026-07-29 | 用户明确授权 Phase 18 先同步主规格再归档；生命周期和说明文档收口复用已冻结的行为证据，不重跑十分钟级功能门禁，只执行 strict、delta/main 一致性、引用链与 diff 检查 | 同步/归档不改变生产行为；将验证强度对准受影响面，同时保留 reviewer PASS、真实 provider hosted-unverified 与未提交边界的真实性 |
 | D-049 | 2026-07-29 | 以 P1 Phase 18.2 `controlled-multi-provider-failover` 落实 D-027 的后置项，强依赖 Phase 18.1 归档并排在 Phase 19 前；fallback 单位固定为有序 `(deployment_id, model_id)` route chain，只有当前候选可证明 not-started 时才推进 | 多 provider 同时改变 endpoint、credential、catalog、价格、Bulkhead、预算与恢复，不能继续塞进 model ID 列表；先完成 streaming 的 partial-result 围栏，再统一规定首 delta 前/后的 failover 边界，可避免重复生成和跨 provider 重复计费 |
+| D-050 | 2026-07-29 | Phase 18.1 的生产入口固定为 `build_execution_context()` 注入的 `BoundModelInvocationService.stream/stream_approved`；普通 identity 来自可信 context + 语义 operation key，审批 identity 固定到 `approved:{approval_id}` 并复用既有 durable grant 与单次 lease | 底层 `ModelInvocationService.stream` 只是实现 seam，不能让业务 executor 绕过可信 tenant/run/identity；普通与审批路径共用同一 durable producer，SSE/CLI 继续只读 committed events，避免第二调用入口或批准扩权 |
+| D-051 | 2026-07-29 | Phase 18.1 的 local/PostgreSQL stream 容量消费分别由 `events/local_capacity.py` 与 `events/sinks/postgresql.py` 原子校验并写入；两者连同 stream repository 都是单一 owner | stream 完整绑定只有在 sink 写事件与递减 outstanding 的同一边界校验才成立；只在上游 repository 验证会留下绕过路径，清单外修改又违反冻结 owner 门禁 |
+| D-052 | 2026-07-29 | Phase 18.1 的 stream operation 固定预约 65 个事件槽，公开 delta 最多 64 条；usage 保持独立 2 槽 operation，并以 `stream-usage-v1` marker 选择定长 identity | 固定上界允许在 provider 副作用前完成容量裁决；legacy usage identity 不被改写，stream/usage 跨组 fence 防止 completed、usage 与 terminal 越序 |
+| D-053 | 2026-07-29 | stream close 只有明确 `not_started` 或本地停止且完整 usage 可推进确定性结算；SDK context 退出失败、deadline 后停止未证明与其他含糊关闭统一为 `unknown/partial` | raw SDK 异常、未证明停止与完整 usage 都不能越过 provider-neutral seam；unknown 保留 reservation/已提交前缀并禁止 retry/fallback 与虚假 terminal |
+| D-054 | 2026-07-29 | Phase 18.1 最终验证同时保留全量 pytest 的高负载 AC-065 `<5s` 失败与隔离 public smoke PASS，不通过抬高阈值、隐藏重试或删除测试制造单轮全绿 | 该性能门禁的归档 design 明确允许在环境负载下重跑但不得放宽；两个 deterministic 恢复失败已按生产 contract 修正夹具，剩余失败不属于 stream 行为回归 |
+| D-055 | 2026-07-29 | Phase 18.1 最终实现审查采用严格 `1+2`：冻结身份后先 fresh Reviewer 1，PASS 后才并行 fresh Reviewer 2/3；任一实质 diff 使全部 verdict 失效 | 实现前单一契约 reviewer 只解除该单 change 的开工门禁，不能冒充最终 `1+2`；三名 reviewer 必须对同一 tracked diff + untracked manifest 独立 Stage 1/2 PASS、0 findings |
+| D-056 | 2026-07-29 | stopped/unknown 的 null/partial usage 使用一个封闭 `attempt_review` 同事务提升 usage outbox、预算 operation 与 owner ledger 为 `needs_review`；保留 65 个 stream 占位与剩余 usage 容量，exact replay 只校验同一 review 并拒绝再次调用 provider | partial 数值不是 final usage，也不能授权退款；把 usage 与预算 result 绑定到同一审计事实，既保留已观察 attempt，又让 crash/replay/terminal 无法把未知副作用自动闭合 |
+| D-059 | 2026-07-29 | stopped 的 null/partial，以及 complete 但当前 route 启用 token/cost 任一维度不完整，都必须保留全部剩余 stream/usage 容量、reservation、outbox、预算和 provider lease 后进入 needs-review | provider 已停止只消除后续远端副作用，不等于 usage 已可信；不能在计量与预算仍未决时先释放 stream 容量 |
+| D-060 | 2026-07-29 | 保留 `ModelInvocationStreamingMixin` 为策略与纵向协调层，把消费/安全分片、事件持久化/发布、中断结算拆成独立内部模块；用无 `Any` 的 `StreamingRuntime` 协作者视图连接既有 UoW/预算能力，恢复仅保留窄委托 seam | 关闭第五名 Reviewer 1 的 SRP 与类型发现，同时保持公开 façade、DTO、事件顺序、事务原子性和 schema 不变；测试按四个故障域拆分而不改变节点行为 |
+| D-061 | 2026-07-29 | provider-neutral 最终文本与已观察 delta 不一致时，无论本地关闭 seam 是否回报 stopped+complete，都把调用强制归类为 unknown，丢弃完整计量停止证明并保留全部未决围栏 | stopped 只能证明远端不再继续，不能修复已观察文本与最终结果冲突；若允许完整 usage 降格结算，会取消占位、发布 final usage 并提前解除 terminal 围栏 |
+| D-062 | 2026-07-29 | live stream smoke 将本地 terminal/capacity/shared-budget/publication 失败统一分类为 `failed/contract_failure` 与退出 1；已观察 response 或 delta 时保留 `provider_called=true`，只有稳定 provider/network 错误允许 `external-blocked` 与退出 2 | smoke 机器证据必须区分产品契约失败与外部阻断；清空 orchestrator result 不能抹掉已发生的 provider 副作用，也不能把本地缺陷伪装成外部环境问题 |
+| D-063 | 2026-07-29 | 流式 in-process `ModelProviderInvocationError` 增加封闭 `failure_domain=provider|runtime`，由消费、关闭结算与 executor 逐层保留；live smoke 只允许 provider domain 映射 external-blocked，runtime domain 固定 failed/contract_failure，artifact 不暴露该内部字段 | `model.provider_failed` 等稳定错误码描述错误身份，不能同时可靠表达故障归属；用 response 是否存在或单个 code 黑名单推断会把本地 guardrail/policy/capacity 错误伪装为外部故障 |
+| D-064 | 2026-07-29 | live stream smoke 拆为结果契约、同进程时延探针、受控 composition 与薄 CLI；composition 对 setup/runtime/probe/cleanup 形成单一安全失败边界，client 时钟必须等待 committed 时钟已建立 | 保证任一本地失败都有去敏机器 artifact，并让 provider <= committed <= client 成为调度无关的不变量；拆分不改变 CLI、schema、真实调用授权或生产流式 façade |
+| D-065 | 2026-07-29 | `RunOrchestrator.start_run()` 异常作为独立本地编排失败事实保存；即使 executor 返回 provider-domain 错误且 probe/cleanup 成功，最终仍是 `failed/contract_failure`，同时保留安全 `provider_called` 事实 | 吞掉 start-run 异常并只看 executor 结果会把本地生命周期缺陷伪装成外部阻断；故障归属必须按发生过的本地事实合并，而不是让后写结果覆盖 |
+| D-066 | 2026-07-29 | Pydantic stream adapter 对 SDK usage 最多读取一次并缓存 provider-neutral 转换；accessor 异常或 bool/负数/非整数等非法值统一使 result 与 close 进入 unknown，close 不二次读取或逃逸原始异常 | invocation 的 durable needs-review 依赖关闭 seam 安全完成；重复读取不可信 SDK 属性会让异常在清理中再次逃逸，跳过 usage、预算和 owner ledger 的人工审查围栏 |
+| D-067 | 2026-07-29 | Pydantic stream adapter 将“调用方请求迭代”与“SDK context 已创建”作为两个事实；deadline 在 context 创建前耗尽仍返回 not-started，一旦 context 已创建则普通本地清理默认 unknown | iterator 协议状态不等于 provider 副作用状态；把两者混用会让实际零调用错误进入 needs-review、保留 66 个槽位/预算/lease，并长期阻塞 terminal |
+| D-068 | 2026-07-29 | 用户已授权 Phase 18.1 测试期间执行真实 provider，并接受对应 token 消耗；仍按聚焦→Reviewer 1→Reviewer 2/3→一次重型门禁顺序，在静态 `1+2` PASS 后运行真实 stream smoke，且不读取或输出凭据 | 授权解除的是外部调用限制，不改变分层门禁、四前置、去敏 artifact、失败分类或禁止重试/伪绿；先静态审查可避免在仍有实现缺陷时浪费真实调用 |
+| D-069 | 2026-07-29 | 每次 route invocation 在 `prepare_stream()` 前建立一个 monotonic absolute deadline；prepare、SDK 流式消费、完整结果 guardrail、尾部分片及 delta 持久化/发布都使用同一剩余时间，不得在任一阶段后重启完整 `total_timeout_ms` | timeout 是整条冻结路由的总墙钟预算，不是每个阶段可重复领取的额度；阶段重启会让已到期请求继续占用容量、发布事件并突破调用方承诺 |
+| D-070 | 2026-07-29 | delta intent 提交后立即把 chunk 记为 durable；若 EventBus、telemetry 或 outbox published mark 未闭合，停止证明不得把它降格为未使用占位，调用强制进入 needs-review并保留该 `result_persisted` 与全部剩余围栏 | 本地已公开 chunk 数不是耐久事实；用偏小计数结算会尝试取消已有结果的槽位、泄漏 repository 异常，或在缺失 delta 前先发布中断 usage，破坏恢复顺序 |
+| D-071 | 2026-07-29 | provider-neutral `ModelStreamDelta` 在 collector 前用逐 code point 的有界 UTF-8 计数拒绝超过 `64*4096` bytes 的单 fragment，并缓存合法字节数；adapter 在追加观察列表前核对累计总量，invocation 不再次编码整段 fragment | SDK 已给出的 str 无法撤回，但系统不能再为任意大输入保存引用或分配同尺寸 bytes 后才失败；前置拒绝同时固定单片与累计 collector 的硬内存边界 |
+| D-072 | 2026-07-29 | incremental stream guard 必须逐值复用既有 `redact_secrets()` 的自由文本匹配边界：仅 authorization/cookie 保留既有单词边界，`api_key|password|secret|token` 不新增左边界；用 direct guard 任意切片和真实 bound durable/public 两层合同锁定 | 在增量路径自行“收紧”正则边界会让常见配置变量名中的凭证原值先进入耐久证据；后续 EventBus 再脱敏既不能证明 durable payload 安全，也会造成同一事件语义分叉 |
+| D-073 | 2026-07-29 | 中断结算无条件读取完整 stream group：任一 `result_persisted` 都强制 needs-review，不以进程内 `used_delta_count` 裁剪 durable 检查；authorization 的 scheme-only 流结束形状显式复用既有正则回退 | 数据库 commit 与调用返回之间存在确认丢失窗口，本地计数不能证明 durable 状态；同理增量 parser 不能因消费了可选 scheme 改写冻结的完整文本替换结果 |
+| D-074 | 2026-07-29 | Pydantic provider 登记每个已转移 permit 的活动 prepared stream；composition close 先取消并等待活动迭代任务完成 durable unknown 结算，再退出 SDK context、释放 permit、移除登记，最后关闭 client factory；调用任务内的重入 close 只返回当前 unknown 事实，不反向等待外部 close | 只关闭 client factory 会让活动 pull/context/permit 泄漏；外部 close 等待调用任务、调用任务又等待同一 close 会死锁。显式 owner 与重入边界保证关闭返回时资源已真正收口，同时不把未知远端误报 stopped |
+| D-075 | 2026-07-29 | Pydantic stream lifecycle 在任何 permit/client acquisition 前登记当前 invocation task，并以同一 lifecycle lock 原子转移为 active prepared stream；composition close 先取消并等待所有 prepare task 完成 durable cancelled/not-started 结算，再关闭活动 stream，最后关闭 client factory | 只登记已构造的 prepared stream 会在 permit wait、client acquisition 和登记之间留下关闭快照盲区；shutdown 返回后调用仍活跃会被自然 queue timeout 误记为 bulkhead failure，也可能让 factory 先于 acquisition 关闭 |
+| D-076 | 2026-07-29 | `ModelRouter.aclose()` 的所有并发与后续调用等待同一 provider 完成事件；首个关闭者的失败或取消保存为关闭失败事实，后续调用显式失败而不缓存成成功 | 仅用 `_closed` 布尔值会让第二个 close 在 provider/client 尚未释放时提前返回，使上层组合根可能先释放 storage；失败或取消若被当作已成功关闭，还会永久掩盖不完整清理 |
+| D-077 | 2026-07-29 | 增量 guard 分别维护 authorization 与通用 key/value 的终止字符集合：authorization 允许 `&` 进入凭据值，通用 key/value 继续以 `&` 分隔字段；两者逐值对齐既有 `SECRET_VALUE_PATTERNS` | 共用 `_KEY_VALUE_TERMINATOR` 会把 authorization 值起始处的 `&` 当成无值 false-positive，释放原文并先写入 public durable intent；EventBus 后续脱敏既不能撤销泄漏，还会造成 durable intent 与发布事件不一致 |
+| D-078 | 2026-07-29 | cookie guard 保留冒号后的 whitespace 参与既有正则回溯判断，只有形成合法值后才整体替换；authorization 分隔符继续复用 scheme fallback；feed 按剩余 UTF-8 字节预算分段追加，无法 drain 时在追加超额字符前 fail closed | 只按 header/terminator 近似正则会对空 cookie 过度脱敏并漏掉前导换行后的真实值；先拼接 fragment 再检查虽能抛错，却让 retained buffer 实际越过配置 hard bound，破坏安全配置与测试说明的真实性 |
+| D-079 | 2026-07-30 | incremental guard 保存已公开输出最后一个字符的 Unicode `\w` 状态；authorization/cookie 在 buffer 起点或重叠子 header 搜索时合并该状态恢复完整文本 `\b`，通用 key 与 `sk-` 不使用它。新增仓储输入验证以 `object` 入参局部收窄，SDK stream 入口返回窄 async context protocol | fragment 切点不能凭空创造单词边界，否则会过度脱敏并破坏公开文本/checksum；同样，文件级 suppression 和 `Any` 会掩盖真实边界而让 quality 证据失真。状态只携带单字符类别，不扩大敏感候选或公开 API |
+| D-080 | 2026-07-30 | Pydantic stream 返回类型门禁精确绑定并导出 `StreamEventContext`；adapter 内用 `TYPE_CHECKING` 赋值验证锁定 SDK，独立静态夹具验证 local double 正例与错误 shape 负例，protocol 的 `__aexit__` 使用标准 context manager 参数和返回类型 | 结构字符串只排除 `Any` 会把宽泛类型误判为安全；赋值兼容性同时守住 vendor SDK 漂移、测试替身和 adapter 窄边界，且不放宽 vendor import allowlist |
+| D-081 | 2026-07-30 | `controlled_model_streaming_context_typecheck.py` 作为精确测试 owner 同时登记到 OpenSpec design、tasks、DEV-PLAN 与 change matrix | owner 契约本身是实施和审查范围；任何新增夹具都不能只在单一状态文档登记后声称全部清单已回填 |
+| D-082 | 2026-07-30 | 当前冻结身份与轻量验证数字在 Handoff/evidence 表逐值统一；测试模块说明和 helper docstring 移除 `Phase N` 开发阶段标签，改用稳定能力名称 | 跨 session 真相源不能混用旧轮次“当前”数字；代码产物的维护说明必须在阶段归档或重排后仍准确，审查轮次只属于状态证据 |
+| D-083 | 2026-07-30 | active OpenSpec 的“当前/最新”验证数字必须与当前候选一致；长期 API 契约正文使用稳定 change、MOD、REQ、AC 或 RUN 标识，不使用开发阶段标签 | active change 是归档前行为与验收真相源，旧数字会污染交付审计；长期契约必须在阶段重排后仍准确，阶段名只属于计划和历史状态 |
+| D-084 | 2026-07-30 | 独立 live stream Make 入口使用 `python -m scripts.smoke_live_model_stream`，并由合同锁定可执行模块入口；授权后的四前置缺 credential 时保持 hosted-unverified 与零调用 | 直接执行文件会把 `scripts/` 置为首个导入根，导致内部 `scripts.*` 包导入在真正 Make 入口才失败；模块启动同时兼容测试导入和 CLI 运行，且不得把本地入口失败误记为外部 provider 阻断 |
+| D-085 | 2026-07-30 | Make/manifest/双 CI/artifact 接线合同归入 `test_ci_pipeline_contracts.py`，live smoke 合同文件只保留 gate、schema、时钟、runtime 与 CLI 行为 | 入口断言令原文件从 500 增至 501 有效行并越过拆分门槛；接线属于 pipeline 职责，迁移既降低文件规模又避免新建重复 helper，不改变测试节点语义或生产行为 |
+| D-057 | 2026-07-29 | 流式成功的 completed intent、最终 usage result、shared-budget settlement 与未使用 delta 槽释放必须在同一 UoW 提交；提交后才按 completed → usage 公开，任一发布失败由 recovery 补投，不进入 provider 中断清理 | 可观察顺序不能以牺牲耐久原子性为代价；同事务先固定两类结果既消除 completed 已公开但 usage 不存在的窗口，也保持 sink 的跨组前驱围栏与零 provider replay |
+| D-058 | 2026-07-29 | stopped stream 只有 `finality=complete`、input/output token 齐全，且当前 route 启用成本时 cost 齐全，才允许 final 结算；任一维度不完整即使 provider 标记 complete 也进入同一封闭 `attempt_review` | provider 的完成标签不能替代计量证据完整性；统一谓词避免 usage、共享预算、owner ledger、容量和 lease 在不同状态上分裂 |
 
 Decision Log 只追加或用新决策显式 supersede 旧决策，不静默改写历史理由。
 
@@ -795,7 +937,29 @@ test -f docs/plans/architecture-evolution-change-matrix.md
 | 主规格同步与归档 | 同步前/后 strict 退出 0；三规格 block compare 均为 missing 0、drift 0；change 完整移动到 `openspec/changes/archive/2026-07-29-controlled-real-model-runtime/` | 证明长期主规格已吸收本次 delta 且归档材料完整；不把生命周期操作写成真实 provider PASS，也不替代已有行为测试与 review |
 | CI evidence / `make ci-acceptance-validate` | 实现冻结树历史 PASS：`acceptance-matrix: ok 107/107`；最新拆分候选退出 2，首个诊断为 `REQ-001 evidence commit/diff identity does not match current input`。独立矩阵/双语/identity 合同 `24 passed, 1 skipped` | 最新失败是全体旧 CI artifact 未绑定当前 dirty diff，而非本轮 producer 路径缺失；按 D-028 与用户成本裁决不重跑整套历史 producer，不把旧 artifact 冒充当前 PASS，也不阻断受影响合同与 review 的真实结论 |
 
-### 12.6 Phase 18.2 规划证据
+### 12.6 Phase 18.1 首轮旧冻结证据与 Reviewer 1 修复状态
+
+下表明确区分旧冻结历史与当前修复候选。旧候选证据只保留历史真实性，当前 PASS 只使用修复后重新执行的命令；不把新旧运行拼成一次全绿。
+
+| 检查 | 结果 | 结论边界 |
+|---|---|---|
+| 实现前契约审查 | 第十一轮 fresh reviewer 对当时冻结 proposal/spec/design/tasks 完成 Stage 1/2 PASS、0 findings；change/all strict 与 diff check 同轮 PASS | 只解除单一 change 的实现门禁；不是最终实现 `1+2`，早先 FAIL 轮次不累计 |
+| public-seam 红→绿 | 既有 provider/bound façade/取消/adapter/recovery/sink/deadline/guardrail/prepare/live/跨组红灯均转绿；第二轮诊断的 partial/atomic recovery 新节点 5/5 GREEN。最新 Reviewer 1 finding 又稳定形成 `1 pass + 3 fail`：unknown partial 保持通过，stopped complete 缺 input/output 误报预算拒绝、缺启用 cost 直接完成；统一可信度谓词并允许不完整 complete 进入封闭 attempt-review 后 4/4 GREEN | 证明关键生产 seam 的 TDD 顺序；usage、共享预算 operation/owner 同事务 needs-review，66 个容量槽保留，exact replay provider 调用保持 1。后补负路径不伪造为早期历史红灯 |
+| Phase 18.1 当前聚焦合同 | 职责迁移后 streaming glob 收集 174 项并执行 `168 passed, 6 skipped`，退出 0；5 个 skip 为未注入 PostgreSQL DSN，1 个为聚焦命令自身未注入双授权。pipeline 合同文件 7/7、受影响两文件 20/20 PASS；stream Make 入口合同先稳定 1 FAIL，模块启动修复后 PASS | 入口接线合同现归 pipeline 职责；1,409 条文本/31,716 次安全差分保持 0 mismatch。最终 PostgreSQL/真实 smoke 仍须在重审后重验 |
+| 真实 PostgreSQL 旧候选 | loopback + tmpfs 临时 PostgreSQL 16 上单个 stream concurrent claim/row lock/payload binding/atomic capacity 合同 `1 passed`，退出 0 | Reviewer 1 判定覆盖过窄；此证据已被后续 4 项矩阵取代，不能继续作为当前完成证明 |
+| Reviewer 1 修复定点证据 | 首轮审批/共享预算 composition 与旧非流式回归 `21 passed`；第二轮 partial/atomic recovery 新节点 `5 passed`；stopped complete 不完整维度节点 4/4；第五轮职责/类型重构后受影响八文件 30/30；第六轮最终文本冲突节点 RED→GREEN；第八轮 failure-domain 两个精确节点 3/3；第九轮三个精确节点 3/3、live 文件 12/12；第十轮 cleanup/前驱/高碎片节点 6/6；第十一轮受影响三文件 49/49；第十二轮受影响 provider/runtime 两文件 36/36；第十三轮受影响 guardrail/interruption 14/14；第十四轮两个精确节点 2/2、受影响五文件 45/45；第十五轮两个节点 8/8、受影响七文件 `68 passed`；第十六轮 3/3、受影响七文件 `71 passed`；第二十一/二十二轮各 RED 1 FAIL → GREEN 1 PASS；Reviewer 2/3 修复的真实 Pydantic client/permit 节点 RED 1 FAIL → GREEN 1 PASS；第三十轮左边界/类型节点 9 FAIL → 全绿、安全文件 39/39、差分 31,716 次 0 mismatch；上一身份临时真实 PostgreSQL为 4/4 | 当前定点与聚焦证明最新修复；PostgreSQL、真实 provider 与其他重型门禁必须在最终 `1+2` 后对最终身份重验，不能把上一身份结果冒充当前 PASS |
+| `make quality` | 第三十一轮类型门禁修复后 PASS；720 files，Ruff 全绿、Pyright `0 errors, 0 warnings, 0 informations`、import boundary ok | 当前源码已删除新增文件级 suppression，Pydantic stream 返回窄 context protocol并由真实 SDK/local double 正负夹具验证；证明全仓静态边界，不替代行为或独立 review |
+| `make test` | 实现候选 `361678bf…` 静态 `1+2` 后为 `1712 passed, 230 skipped`，14:59；10 logical CPU，开跑 load `9.47/9.33/8.69`、结束 `7.82/8.63/8.47`，AC-065 同轮 PASS | 未改 5 秒阈值、未拼接隔离结果；结合旧高负载轻微超时和两次全量通过，旧波动更符合机器调度/I/O 抖动而非网络请求 |
+| `make eval` / `make smoke-local` | 最终 eval 11/11 PASS；local smoke PASS，fake run 1.889 秒，event transport/CLI/SSE evidence 均 ok | 默认 fake、无真实 credential 与网络；证明当前最终实现身份的本地闭环 |
+| `make smoke-service` | 最终 PASS；`workspace-outside=ok wheel-only=ok secret-cleanup=ok` | service/PostgreSQL/Redis/API/worker 组合链路与发布包安装通过；未调用真实 provider，隔离组合已清理 |
+| `make build` / `make license-check` | 最终 PASS；wheel、sdist 与两个 SHA256SUMS artifact 生成；license policy ok | 可打包且许可证门禁通过；不授权发布 |
+| stream live smoke / CI evidence | 最终已授权 stream 输出 `hosted-unverified/credential_missing/provider_called=false`，四项时延 null；completion 输出 `hosted-unverified/typed_preflight_missing/provider_called=false` | 本机缺隔离 credential/typed preflight，授权没有被伪造为外部成功；未发生网络或 token 消耗 |
+| OpenSpec / diff | composition close owner/producer 与任务 7.3 已同步；当前 change/all strict 33/33、`git diff --check` 与验收语义/identity 22 项 PASS | strict 与节点存在性只证明契约可解析、证据可执行；不能替代最终实现审查 |
+| 冻结身份 | 当前 HEAD、tracked binary diff、44 个 untracked path/content manifest 与组合 SHA-256 已写入 ignored artifact；声明文件不进入候选哈希 | 每名 reviewer 都必须从当前磁盘复算并保留逐文件 manifest，不能只信声明或单一聚合异常 |
+| acceptance validator | `make acceptance-validate-check` 退出 2：`REQ-001 evidence commit/diff identity does not match current input` | 当前 dirty diff 未绑定历史 CI artifacts；不是 AC-085～AC-088 producer/node 缺失，不把旧 evidence 冒充当前 PASS |
+| 最终实现审查 | 候选 `361678bf…` 的 Reviewer 1/2/3 均 Stage 1/2 PASS、0 findings，初末身份一致 | 实现审查与重型门禁已闭合；当前状态文档追加最终证据，须由 final evidence Reviewer 1→2/3 轻量复核后写 `clean`，不重跑行为门禁 |
+
+### 12.7 Phase 18.2 规划证据
 
 | 检查 | 结果 | 结论边界 |
 |---|---|---|
@@ -856,7 +1020,7 @@ test -f docs/plans/architecture-evolution-change-matrix.md
 
 - 具体 owner 以 change matrix 的当前版本为准；active change 的 `design.md` / `tasks.md` 必须复制其独占范围。
 - `config/{__init__,schemas,settings,secret_files,model_endpoints,model_catalog}.py`、`models/{__init__,providers,router,_router_contracts,_router_current,_router_snapshot,invocation,_invocation_execution,_invocation_evidence,_invocation_settlement,_settlement_contracts,_settlement_validation,_settlement_evidence_validation,_settlement_publication,usage,usage_events}.py`、`adapters/models/{fake,pydantic_ai,_pydantic_ai_client}.py`、`policy/engine.py`、`audit/service.py`、`approvals/{service,_continuation}.py`、`runtime/{services,shared_budget,executor,continuation,_run_continuation}.py`、`storage/_shared_budget_repository_records.py`、`contracts/boundaries.py`、registry 配置、`scaffold_templates.py`、`_scaffold_support.py`、scaffold validation contracts、CLI/template lifecycle、`packages/agent-harness/pyproject.toml`、`uv.lock`、`compliance/third-party.toml`、`scripts/{smoke_live_model.py,import_boundary_check.py}`、vendor/dependency/license/policy-approval contracts、CI/evidence gate、组合测试和相关文档在 Phase 18 视为同一共享面，默认由单一 change 串行拥有。
-- `models/providers.py`、router/invocation/settlement、Pydantic AI/fake adapter、event capacity/outbox/recovery、SQLite/PostgreSQL sink/tests、runtime composition、`API-Contract.md` 和相关文档在 Phase 18.1 视为同一流式安全面，默认单一 worktree、单一 owner；不能把 provider stream 与容量/结算拆成并行实现。
+- Phase 18.1 的逐路径 owner 以已归档 change `openspec/changes/archive/2026-07-30-controlled-model-streaming/design.md` 的 Affected Surfaces / producer 表和本计划配套 change matrix 的 18.1 行共同为准；它们已精确枚举可信 bound façade、provider/adapter、capacity/outbox/recovery、SQLite/PostgreSQL tests、SSE/CLI tests、live script、Make/双 CI 与验收矩阵。该完整集合属于同一流式安全面，默认单一 worktree、单一 owner；发现清单外 owner 时先修约并重审，不能把 provider stream 与容量/结算拆成并行实现。
 - Phase 18.2 的 typed route refs、registry、router chain、provider factory/client lifecycle、shared-budget settlement/recovery、SQLite/PostgreSQL repositories、live smoke/CI/tests、`API-Contract.md` 与相关文档共同决定 safe not-started failover，默认单一 worktree、单一 owner；不能拆成“配置多 provider”和“运行时切换”两个并行 change。
 - `Makefile`、CI workflow、共享 checker、公共 export 和 `DEV-PLAN.md` 属于集成文件，只能由主控或矩阵指定的唯一 owner 修改。
 - 文件不同但公共 DTO、验收或迁移相同，仍视为关联 change，不能用“没改同一文件”主张独立。
@@ -880,6 +1044,6 @@ test -f docs/plans/architecture-evolution-change-matrix.md
 
 ## 16. 下一动作
 
-Phase 18 已由本地提交 `ff0c49b` 交付；对应 change 为 32/32 tasks，已同步主规格并归档到 `openspec/changes/archive/2026-07-29-controlled-real-model-runtime/`，当前无 active change。真实 completion 继续标为未建立：一次 MiMo 零调用、一次 side-effect unknown；AC-081/083 保持 hosted-unverified。Phase 18.2 已形成 P1 产品/API/开发计划，但强依赖 Phase 18.1 归档，当前没有实施授权。
+当前工作基线为 `develop@f552451`；Phase 18 与 Phase 18.1 均已同步并归档，当前无 active change。历史真实 completion 与 stream 仍为 hosted-unverified。Phase 18.1 实现候选 `361678bf…` 和最终证据候选 `e59eb16c…` 均取得 Reviewer 1/2/3 Stage 1/2 PASS、0 findings；最终 PostgreSQL、全量、eval、local/service smoke、build 与 license 全部通过。Phase 18.2 只有 P1 计划且没有实施授权。
 
-当前唯一下一动作仍是等待用户明确授权创建 Phase 18.1 `controlled-model-streaming`；不自动创建 Phase 18.2、commit、push、发布、部署或再次调用真实 provider。本轮 Phase 18.2 文档补丁尚未提交，只证明未来 change 的边界和顺序已明确，不证明跨 provider fallback 已实现。
+当前唯一下一动作是：完成用户已授权的 Phase 18.1 本地提交后停下。不要自动创建 Phase 18.2 change，不 push、发布或部署；后续实施必须重新以提交后的 Git/OpenSpec 状态校准。

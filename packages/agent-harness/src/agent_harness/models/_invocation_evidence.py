@@ -6,7 +6,7 @@ from typing import Any, cast
 
 from agent_harness.models.providers import ModelAttemptEvidence, ModelResponse
 from agent_harness.models.router import ModelRoutePlan
-from agent_harness.models.usage import ModelUsageEvidence, UsageEvidenceContext
+from agent_harness.models.usage import CostStatus, ModelUsageEvidence, UsageEvidenceContext
 from agent_harness.security.redaction import redact_secrets
 
 
@@ -77,7 +77,7 @@ class ModelInvocationEvidenceMixin:
         input_tokens: int | None = None,
         output_tokens: int | None = None,
         cost_usd: float | None = None,
-        cost_status: str = "unavailable",
+        cost_status: CostStatus = "unavailable",
     ) -> ModelUsageEvidence:
         """构造 provider 尚未产生计量时的 started 或失败证据基础对象。"""
 
@@ -89,7 +89,7 @@ class ModelInvocationEvidenceMixin:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost_usd,
-            cost_status=cast(Any, cost_status),
+            cost_status=cost_status,
             latency_ms=latency_ms,
             decision=decision,
             run_id=context.run_id,
@@ -238,7 +238,7 @@ class ModelInvocationEvidenceMixin:
         return f"usage:{tenant_id}:{usage_call_id}:final"
 
     @staticmethod
-    def _safe_decision(*parts: dict[str, object]) -> dict[str, Any]:
+    def _safe_decision(*parts: dict[str, object]) -> dict[str, object]:
         """按后传入优先合并决策片段，并在进入持久化前整体脱敏。"""
 
         merged: dict[str, object] = {}
@@ -247,7 +247,7 @@ class ModelInvocationEvidenceMixin:
         safe = redact_secrets(merged)
         if not isinstance(safe, dict):  # pragma: no cover - mapping input 保证输出形状
             raise RuntimeError("model decision redaction changed payload shape")
-        return cast(dict[str, Any], safe)
+        return cast(dict[str, object], safe)
 
     @staticmethod
     def _durable_response(response: ModelResponse) -> dict[str, Any]:

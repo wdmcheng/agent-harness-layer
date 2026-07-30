@@ -108,6 +108,14 @@ class _ModelSettlementMixin(SettlementValidationMixin):
                 seed=seed,
                 expected_identity=expected,
             )
+            if request.capability == "text_stream":
+                from agent_harness.storage.stream_evidence_repositories import (
+                    stream_usage_event_id,
+                )
+
+                final_event_id = stream_usage_event_id(usage_call_id, "final")
+            else:
+                final_event_id = self._final_event_id(context.tenant_id, usage_call_id)
             usage = await uow.evidence_outbox.replay_usage(
                 tenant_id=context.tenant_id,
                 run_id=context.run_id,
@@ -115,7 +123,7 @@ class _ModelSettlementMixin(SettlementValidationMixin):
                 request_id=context.request_id,
                 trace_id=context.trace_id,
                 usage_call_id=usage_call_id,
-                event_id=self._final_event_id(context.tenant_id, usage_call_id),
+                event_id=final_event_id,
                 operation_kind=EvidenceOperationKind.MODEL_USAGE,
             )
             if usage is None:
@@ -137,6 +145,7 @@ class _ModelSettlementMixin(SettlementValidationMixin):
         usage_call_id: str,
         request: ModelRequest,
         plan: ModelRoutePlan,
+        stream: bool = False,
     ) -> SettlementStart:
         """在同一工作单元中冻结预算身份、预留额度和 usage outbox，再允许副作用。
 
@@ -251,14 +260,28 @@ class _ModelSettlementMixin(SettlementValidationMixin):
                             and budget_claim.state == "reserved"
                             and budget_claim.side_effect_state == "not_started"
                         )
+            if stream:
+                from agent_harness.storage.stream_evidence_repositories import (
+                    stream_usage_event_id,
+                )
+
+                final_event_id = stream_usage_event_id(usage_call_id, "final")
+            else:
+                final_event_id = self._final_event_id(evidence.tenant_id, usage_call_id)
             claim = await uow.evidence_outbox.claim_usage(
                 tenant_id=evidence.tenant_id,
                 run_id=evidence.run_id,
                 usage_call_id=usage_call_id,
-                event_id=self._final_event_id(evidence.tenant_id, usage_call_id),
+                event_id=final_event_id,
                 operation_kind=EvidenceOperationKind.MODEL_USAGE,
                 started_evidence=evidence.to_payload(),
             )
+            if stream:
+                await uow.evidence_outbox.claim_stream(
+                    tenant_id=evidence.tenant_id,
+                    run_id=evidence.run_id,
+                    usage_call_id=usage_call_id,
+                )
             await uow.commit()
             return SettlementStart(
                 usage=claim,

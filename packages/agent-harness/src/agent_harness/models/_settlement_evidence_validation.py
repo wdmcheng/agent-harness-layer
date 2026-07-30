@@ -113,7 +113,7 @@ class _RouteEvidence(HarnessDTO):
     provider_kind: Literal["openai-compatible"]
     provider: Literal["openai-compatible"]
     model: str
-    capability: Literal["text_completion"]
+    capability: Literal["text_completion", "text_stream"]
     endpoint_origin: str
     endpoint_policy_ref: str
     endpoint_policy_version: str

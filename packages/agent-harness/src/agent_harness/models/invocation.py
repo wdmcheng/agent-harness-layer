@@ -7,7 +7,7 @@ import json
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol
 
-from agent_harness.events import EventBus
+from agent_harness.events import CanonicalEvent, EventBus
 from agent_harness.identity import IdentityContext
 from agent_harness.models._invocation_execution import (
     ModelApprovalRequired,
@@ -16,6 +16,7 @@ from agent_harness.models._invocation_execution import (
 from agent_harness.models._invocation_settlement import (
     ModelProviderInvocationError,
 )
+from agent_harness.models._invocation_streaming import ModelInvocationStreamingMixin
 from agent_harness.models.providers import ModelRequest, ModelResponse
 from agent_harness.models.router import ModelRouter, ModelRouterConfig
 from agent_harness.models.usage import (
@@ -130,8 +131,47 @@ class BoundModelInvocationService:
             grant=grant,
         )
 
+    async def stream(
+        self,
+        request: ModelRequest,
+        *,
+        operation_key: str,
+    ) -> ModelResponse:
+        """绑定可信运行身份执行普通文本流，业务侧不能传 call identity。"""
 
-class ModelInvocationService(ModelInvocationExecutionMixin):
+        return await self._service.stream(
+            request,
+            context=self._context,
+            usage_call_id=stable_usage_call_id(
+                context=self._context,
+                operation_key=operation_key,
+            ),
+            actor=self._identity,
+        )
+
+    async def stream_approved(
+        self,
+        request: ModelRequest,
+        *,
+        operation_key: str,
+        grant: _ApprovedModelGrant,
+    ) -> ModelResponse:
+        """匹配 durable grant 的 continuation 才能绕过一次 stream soft gate。"""
+
+        del operation_key
+        return await self._service.stream_with_approval(
+            request,
+            context=self._context,
+            usage_call_id=stable_usage_call_id(
+                context=self._context,
+                operation_key=f"approved:{grant.approval_id}",
+            ),
+            actor=self._identity,
+            grant=grant,
+        )
+
+
+class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecutionMixin):
     """在 provider 副作用前建立 settlement，并只补投 evidence。"""
 
     def __init__(
@@ -144,6 +184,8 @@ class ModelInvocationService(ModelInvocationExecutionMixin):
         shared_budget: _SharedBudgetIdentityRuntime | None = None,
         agent_policy_resolver: Callable[[str], AgentModelPolicy] | None = None,
         policy_engine: PolicyEngine | None = None,
+        stream_output_guardrail: Callable[[str], bool] | None = None,
+        stream_timing_observer: Callable[[str], None] | None = None,
     ) -> None:
         """保存路由、持久化、事件和可选共享预算协作者。"""
 
@@ -154,6 +196,12 @@ class ModelInvocationService(ModelInvocationExecutionMixin):
         self._shared_budget = shared_budget
         self._agent_policy_resolver = agent_policy_resolver
         self._policy_engine = policy_engine
+        # 该可信 composition seam 一旦存在，就声明必须观察完整结果；业务请求
+        # 不能自行关闭它或要求 speculative delta。
+        self._stream_output_guardrail = stream_output_guardrail
+        # 只暴露阶段名，供受控 live smoke 采集 monotonic 时延；不得传递文本、
+        # provider DTO 或异常对象。
+        self._stream_timing_observer = stream_timing_observer
 
     async def aclose(self) -> None:
         """由组合根关闭 provider-neutral 路由链，不暴露 vendor client。"""
@@ -195,6 +243,24 @@ class ModelInvocationService(ModelInvocationExecutionMixin):
         """执行普通策略路径；公开调用面不接受布尔型审批旁路。"""
 
         return await self._complete(
+            request,
+            context=context,
+            usage_call_id=usage_call_id,
+            soft_approved=False,
+            actor=actor,
+        )
+
+    async def stream(
+        self,
+        request: ModelRequest,
+        *,
+        context: UsageEvidenceContext,
+        usage_call_id: str,
+        actor: IdentityContext | None = None,
+    ) -> ModelResponse:
+        """执行受控普通文本流；增量只写 CanonicalEvent，不返回第二个 iterator。"""
+
+        return await self._stream(
             request,
             context=context,
             usage_call_id=usage_call_id,
@@ -286,10 +352,48 @@ class ModelInvocationService(ModelInvocationExecutionMixin):
             actor=actor,
         )
 
+    async def stream_with_approval(
+        self,
+        request: ModelRequest,
+        *,
+        context: UsageEvidenceContext,
+        usage_call_id: str,
+        actor: IdentityContext,
+        grant: _ApprovedModelGrant,
+    ) -> ModelResponse:
+        """校验全绑定 grant 后只绕过 stream soft policy gate，硬上限仍重算。"""
+
+        await self._validate_approved_grant(
+            request=request,
+            context=context,
+            identity=actor,
+            grant=grant,
+        )
+        return await self._stream(
+            request,
+            context=context,
+            usage_call_id=usage_call_id,
+            soft_approved=True,
+            actor=actor,
+        )
+
     async def recover_pending(self, *, run_id: str) -> int:
         """只补投已有确定性结果；started/未知结果继续阻止 terminal。"""
 
         async with self._storage.uow() as uow:
+            pending_rows = await uow.evidence_outbox.pending(run_id=run_id)
+            stream_pending = sorted(
+                [
+                    (
+                        int(item.sequence_in_group or 0),
+                        item.result_json,
+                    )
+                    for item in pending_rows
+                    if item.state == "result_persisted"
+                    and item.operation_kind == EvidenceOperationKind.MODEL_STREAM.value
+                ],
+                key=lambda item: item[0],
+            )
             pending = [
                 (
                     item.state,
@@ -298,9 +402,16 @@ class ModelInvocationService(ModelInvocationExecutionMixin):
                     item.usage_call_id,
                     item.error_code,
                 )
-                for item in await uow.evidence_outbox.pending(run_id=run_id)
+                for item in pending_rows
             ]
         recovered = 0
+        for _sequence, result in stream_pending:
+            raw_intent = result.get("event") if isinstance(result, dict) else None
+            if not isinstance(raw_intent, dict):
+                raise RuntimeError("stream recovery is missing its durable event intent")
+            intent = CanonicalEvent.model_validate(raw_intent)
+            await self._publish_persisted_stream(intent)
+            recovered += 1
         for state, operation_kind, result, usage_call_id, error_code in pending:
             if (
                 state != "result_persisted"

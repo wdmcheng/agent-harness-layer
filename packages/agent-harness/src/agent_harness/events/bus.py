@@ -7,6 +7,7 @@ import hashlib
 import threading
 from collections.abc import Generator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -181,6 +182,7 @@ class EventBus:
         raw_event_ref: str | None = None,
         event_id: str | None = None,
         record_scope: EventRecordScope = "run",
+        timestamp: datetime | None = None,
     ) -> CanonicalEvent:
         """发布 CanonicalEvent；带 event_id 时重试返回已写 evidence。"""
 
@@ -284,6 +286,7 @@ class EventBus:
                 trace_id=trace_id,
                 record_scope=record_scope,
                 span_id=span_id,
+                timestamp=timestamp if timestamp is not None else datetime.now(UTC),
             )
             canonical_event_bytes(event)
             try:

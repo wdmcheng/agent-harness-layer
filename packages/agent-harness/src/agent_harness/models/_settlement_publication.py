@@ -12,7 +12,7 @@ from agent_harness.models.providers import ModelResponse
 from agent_harness.models.usage import ModelUsageEvidence
 from agent_harness.models.usage_events import UsageEvidenceLifecycle
 from agent_harness.observability.facade import TelemetryFacade
-from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
+from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage, SQLAlchemyUnitOfWork
 from agent_harness.storage.shared_budget import BudgetOperationOwnership
 
 
@@ -37,6 +37,41 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
 
         先完成 outbox 与账本结算，保证 event 重试永远可从耐久事实恢复；最终事件属于
         可补投副作用，不能先于结果与预算事实对外可见。
+        """
+
+        async with self._storage.uow() as uow:
+            await self._persist_final_in_uow(
+                uow=uow,
+                evidence=evidence,
+                usage_call_id=usage_call_id,
+                outcome=outcome,
+                error_code=error_code,
+                ownership=ownership,
+                response=response,
+            )
+            await uow.commit()
+        await self._publish_final(
+            evidence=evidence,
+            usage_call_id=usage_call_id,
+            outcome=outcome,
+            error_code=error_code,
+        )
+
+    async def _persist_final_in_uow(
+        self,
+        *,
+        uow: SQLAlchemyUnitOfWork,
+        evidence: ModelUsageEvidence,
+        usage_call_id: str,
+        outcome: str,
+        error_code: str | None,
+        ownership: BudgetOperationOwnership | None,
+        response: ModelResponse | None,
+    ) -> None:
+        """在调用方提供的事务中原子保存 usage 结果与共享预算，不提交或发布事件。
+
+        普通 completion 由 ``_finalize`` 独占事务；stream 则把 completed intent、尾部
+        槽位释放与本方法放进同一 UoW，避免 completed 已公开而 usage 尚不存在的窗口。
         """
 
         provider_called = evidence.decision.get("provider_called") is True
@@ -87,92 +122,81 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
             ),
             **({"response": self._durable_response(response)} if response is not None else {}),
         }
-        async with self._storage.uow() as uow:
-            await uow.evidence_outbox.persist_result(
-                tenant_id=evidence.tenant_id,
-                usage_call_id=usage_call_id,
-                result=result,
-                error_code=error_code,
-            )
-            if ownership is not None:
-                provider_called = evidence.decision.get("provider_called") is True
-                input_tokens = evidence.input_tokens
-                output_tokens = evidence.output_tokens
-                actual_tokens: int | None
-                actual_cost: Decimal | None
-                if provider_called and response is not None and response.attempts:
-                    started_attempts = [
-                        attempt
-                        for attempt in response.attempts
-                        if attempt.side_effect_state in {"started", "unknown"}
-                    ]
-                    attempts_have_usage = all(
-                        attempt.side_effect_state == "started"
-                        and attempt.input_tokens is not None
-                        and attempt.output_tokens is not None
-                        for attempt in started_attempts
-                    )
-                    actual_tokens = (
-                        sum(
-                            (attempt.input_tokens or 0) + (attempt.output_tokens or 0)
-                            for attempt in started_attempts
-                        )
-                        if attempts_have_usage
-                        else None
-                    )
-                    attempts_have_cost = all(
-                        attempt.side_effect_state == "started" and attempt.cost_usd is not None
-                        for attempt in started_attempts
-                    )
-                    actual_cost = (
-                        sum(
-                            (Decimal(str(attempt.cost_usd)) for attempt in started_attempts),
-                            Decimal("0"),
-                        )
-                        if attempts_have_cost
-                        else None
-                    )
-                else:
-                    actual_tokens = (
-                        (input_tokens or 0) + (output_tokens or 0)
-                        if not provider_called
-                        or (input_tokens is not None and output_tokens is not None)
-                        else None
-                    )
-                    actual_cost = (
-                        None if evidence.cost_usd is None else Decimal(str(evidence.cost_usd))
-                    )
-                # 未实际调用 provider 的拒绝/短路可确定为零用量；调用后缺少任一维度则
-                # 保持未知，不能伪造总 token 以换取账本结算通过。
-                if ownership.kind == "direct":
-                    await uow.shared_budget.settle_direct(
-                        tenant_id=evidence.tenant_id,
-                        budget_owner_run_id=ownership.budget_owner_run_id,
-                        usage_call_id=usage_call_id,
-                        actual_tokens=actual_tokens,
-                        actual_cost=actual_cost,
-                        cost_status=evidence.cost_status,
-                        result=result,
-                    )
-                else:
-                    assert ownership.delegation_id is not None
-                    await uow.shared_budget.settle_allocation(
-                        tenant_id=evidence.tenant_id,
-                        budget_owner_run_id=ownership.budget_owner_run_id,
-                        delegation_id=ownership.delegation_id,
-                        usage_call_id=usage_call_id,
-                        actual_tokens=actual_tokens,
-                        actual_cost=actual_cost,
-                        cost_status=evidence.cost_status,
-                        result=result,
-                    )
-            await uow.commit()
-        await self._publish_final(
-            evidence=evidence,
+        await uow.evidence_outbox.persist_result(
+            tenant_id=evidence.tenant_id,
             usage_call_id=usage_call_id,
-            outcome=outcome,
+            result=result,
             error_code=error_code,
         )
+        if ownership is None:
+            return
+        input_tokens = evidence.input_tokens
+        output_tokens = evidence.output_tokens
+        actual_tokens: int | None
+        actual_cost: Decimal | None
+        if provider_called and response is not None and response.attempts:
+            started_attempts = [
+                attempt
+                for attempt in response.attempts
+                if attempt.side_effect_state in {"started", "unknown"}
+            ]
+            attempts_have_usage = all(
+                attempt.side_effect_state == "started"
+                and attempt.input_tokens is not None
+                and attempt.output_tokens is not None
+                for attempt in started_attempts
+            )
+            actual_tokens = (
+                sum(
+                    (attempt.input_tokens or 0) + (attempt.output_tokens or 0)
+                    for attempt in started_attempts
+                )
+                if attempts_have_usage
+                else None
+            )
+            attempts_have_cost = all(
+                attempt.side_effect_state == "started" and attempt.cost_usd is not None
+                for attempt in started_attempts
+            )
+            actual_cost = (
+                sum(
+                    (Decimal(str(attempt.cost_usd)) for attempt in started_attempts),
+                    Decimal("0"),
+                )
+                if attempts_have_cost
+                else None
+            )
+        else:
+            actual_tokens = (
+                (input_tokens or 0) + (output_tokens or 0)
+                if not provider_called or (input_tokens is not None and output_tokens is not None)
+                else None
+            )
+            actual_cost = None if evidence.cost_usd is None else Decimal(str(evidence.cost_usd))
+        # 未实际调用 provider 的拒绝/短路可确定为零用量；调用后缺少任一维度则
+        # 保持未知，不能伪造总 token 以换取账本结算通过。
+        if ownership.kind == "direct":
+            await uow.shared_budget.settle_direct(
+                tenant_id=evidence.tenant_id,
+                budget_owner_run_id=ownership.budget_owner_run_id,
+                usage_call_id=usage_call_id,
+                actual_tokens=actual_tokens,
+                actual_cost=actual_cost,
+                cost_status=evidence.cost_status,
+                result=result,
+            )
+        else:
+            assert ownership.delegation_id is not None
+            await uow.shared_budget.settle_allocation(
+                tenant_id=evidence.tenant_id,
+                budget_owner_run_id=ownership.budget_owner_run_id,
+                delegation_id=ownership.delegation_id,
+                usage_call_id=usage_call_id,
+                actual_tokens=actual_tokens,
+                actual_cost=actual_cost,
+                cost_status=evidence.cost_status,
+                result=result,
+            )
 
     async def _publish_final(
         self,

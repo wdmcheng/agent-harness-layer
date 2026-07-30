@@ -337,7 +337,7 @@ main 分支合并 Conventional Commits，或维护者手动触发 release workfl
 - 首个实现范围只覆盖非流式真实文本模型；增量文本流由紧随其后的 P0 Phase 18.1 `controlled-model-streaming` 独立交付，不能混入首个入口，也不能无限期留在未排序的“以后”。Provider-neutral structured output、模型驱动工具循环和多 provider 运行治理继续分别使用后续窄 change。
 
 **完成状态：**
-受控真实非流式文本模型入口已完成离线实现、严格 `1+2` review、主规格同步、归档和本地提交 `ff0c49b`：typed deployment、credential/endpoint/model catalog、只缩权冻结路由、async Pydantic AI adapter、共享预算、策略/审批/审计、usage/cost/attempt evidence 与 lazy composition 已接通，显式 fake/local 仍保持离线。用户曾授权两次隔离 MiMo 入口，一次明确零调用，另一次无法证明是否已发出请求而按 side-effect unknown 处理，均未建立真实 completion PASS。RUN-006 仍只读取已持久化的 `CanonicalEvent`，provider/invocation 尚未生产真实模型文本增量；该能力继续属于 REQ-026。跨 deployment/provider fallback 尚未实现，归入 REQ-027 / Phase 18.2。
+受控真实非流式文本模型入口已完成离线实现、严格 `1+2` review、主规格同步、归档和本地提交 `ff0c49b`：typed deployment、credential/endpoint/model catalog、只缩权冻结路由、async Pydantic AI adapter、共享预算、策略/审批/审计、usage/cost/attempt evidence 与 lazy composition 已接通，显式 fake/local 仍保持离线。用户曾授权两次隔离 MiMo 入口，一次明确零调用，另一次无法证明是否已发出请求而按 side-effect unknown 处理，均未建立真实 completion PASS。RUN-006 仍只读取已持久化的 `CanonicalEvent`；Phase 18.1 已形成 provider/invocation 真实文本增量 producer 实现候选，当前仍处于最终审查修复，真实 provider streaming 保持 `hosted-unverified`。跨 deployment/provider fallback 尚未实现，归入 REQ-027 / Phase 18.2。
 
 ### FLOW-007: 通过既有事件入口消费受控真实模型增量文本
 
@@ -363,7 +363,7 @@ Phase 18 的受控真实文本模型 deployment 已验收并显式声明文本�
 - 既有“已建立 SSE 连接且已有可见事件时首 frame 小于 1 秒”只衡量传输层；provider 首 delta、首个已提交 model delta 和客户端收到该 delta 必须分开记录，不能把外部 provider 时延伪装成 RUN-006 回归。
 
 **完成状态：**
-尚未实现。当前 CanonicalEvent 类型目录虽已预留 `model.output.delta` / `model.output.completed`，但这只定义合法事件词汇，不证明 provider token/text streaming、持久化顺序、容量预约或部分计量已经存在。
+实现候选已完成，当前停在归档前冻结审查。`controlled-model-streaming` 已提供 provider-neutral producer、持久化顺序、65 槽容量预约、跨块安全、取消/unknown fencing、恢复与 committed reader 合同；真实 provider streaming 已获测试授权，但按分层门禁尚未运行，真实成功仍未建立并继续保持 `hosted-unverified`，不构成外部成功证据。
 
 ### FLOW-008: 在多个受控真实 provider 之间安全 fallback
 
@@ -1469,17 +1469,18 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 **规则：**
 - MUST SSE/CLI subscriber 断线只停止该 reader，不默认取消 durable run/provider。只有显式 run cancellation 或冻结 deadline 才请求 adapter 取消；请求已发送后若无法证明远端停止，attempt 必须标记 interrupted/unknown，保留已提交前缀与 reservation，禁止自动 retry/fallback、伪造 `model.output.completed`、按零 usage/cost 结算或提前发布 run terminal。
 - MUST 只在首个增量尚未观察且调用明确未发生时，才允许按 REQ-025 的安全前置失败分类重试；观察或提交任一增量后，任何 retry 都必须拒绝，避免拼接两个生成结果和重复计费。
-- MUST 增量内容在公开前通过能跨 chunk 保持状态的脱敏与输出安全边界。若某项输出 guardrail 只能对完整结果判断，则该结果不能先作为公开 speculative delta 提交；不得依赖逐 chunk 独立正则声称跨边界 secret 已被遮蔽。
+- MUST 增量内容在公开前通过能跨 chunk 保持状态的脱敏与输出安全边界，并与既有自由文本脱敏语义一致；`api_key`、`password`、`secret`、`token` 即使内嵌在 `OPENAI_API_KEY`、`db_password` 等配置名中也必须整体遮蔽其键值片段。若某项输出 guardrail 只能对完整结果判断，则该结果不能先作为公开 speculative delta 提交；不得依赖逐 chunk 独立正则声称跨边界 secret 已被遮蔽。
+- MUST 单个 provider fragment 在进入 adapter/runtime collector 前经过不复制整段 bytes 的硬上限检查，累计 collector 也不得先接纳再判断超限；已耐久为 `result_persisted` 但尚未完成公开的 delta 必须保留并进入 needs-review/恢复围栏，不能被偏小的本地发布计数当作未使用槽位取消。
 - MUST provider 读取、event commit 与容量消费使用有界背压；storage/event sink 变慢时不得无限缓存、静默丢片、乱序或绕过预约。具体是等待、受控合并还是显式终止，由 change 契约冻结并在 SQLite/PostgreSQL crash-recovery 中逐值证明。
 - MUST partial delta 的字符数、chunk 数或本地估算不冒充可信 provider usage。正常完成使用 provider 最终 usage；取消/未知时只记录 provider 可验证的部分值，其余保持 unknown/needs_review，并遵守共享预算 terminal fencing。
 - MUST 分开记录 SSE 握手/已有事件首 frame、provider 首 delta、首个已持久化 model delta 和客户端收到该 delta 的时延。AC-066 的 `<1s` 只约束已有事件的 SSE transport，不对外部 provider 首 token 作统一 SLA。
-- MUST 默认 CI、unit、contract、eval 和 local smoke 使用可确定分片、取消、背压与恢复的 fake stream double，不访问外网；真实 provider streaming smoke 仍需显式授权、隔离凭据和受信 endpoint，未运行只能记录 external-blocked/hosted-unverified。
+- MUST 默认 CI、unit、contract、eval 和 local smoke 使用可确定分片、取消、背压与恢复的 fake stream double，不访问外网；真实 provider streaming smoke 仍需显式授权、隔离凭据和受信 endpoint，前置不足只能记录 hosted-unverified，已授权后的外部 provider/network 故障记录 external-blocked，本地编排或终态契约失败记录 failed，三者均不得伪造 PASS 或 provider 调用事实。
 
 **验收标准：**
-- [ ] AC-085: Given 有效的 streaming-capable route 与确定性 provider stream, when 完成一次普通文本流, then 按稳定 operation/attempt/chunk identity 持久化有界且有序的 provider-neutral `model.output.delta`，随后严格按 completed、usage、run terminal 顺序收口；公开增量的规范化拼接结果与经过同一安全处理的最终 public text/checksum 一致，公共 DTO/event 不含 SDK 类型或原始事件。
-- [ ] AC-086: Given 已发送请求后发生显式取消、deadline 或结果未知, when provider 不能证明远端已停止, then 已提交文本前缀和 reservation 保留，attempt 进入 interrupted/unknown，未发布虚假的 output completed 或 run terminal，未知 usage/cost 不记零，且不会自动 retry/fallback 或再次调用 provider。
-- [ ] AC-087: Given SSE/CLI reader 在流中断线后携带最后可见 cursor 重连, when 继续读取同一 run, then 只按 seq 返回未读的已提交 delta/completion/usage/terminal，断线本身不取消 run，reader 不持有 provider cursor，也不恢复、重启或重放 provider 调用。
-- [ ] AC-088: Given provider 产生跨 chunk 敏感模式、超过分片/容量上限或 storage/消费者变慢, when 执行流式调用, then 跨 chunk 安全门禁、受信合并/背压、event capacity 和 envelope 上限按冻结契约 fail closed 或有界推进，无 secret、静默丢片、乱序和无界缓存；默认 fake stream 全面验证，opt-in live smoke 分别报告 provider 首 delta 与首个已提交 delta 时延。
+- [x] AC-085: Given 有效的 streaming-capable route 与确定性 provider stream, when 完成一次普通文本流, then 按稳定 operation/attempt/chunk identity 持久化有界且有序的 provider-neutral `model.output.delta`，随后严格按 completed、usage、run terminal 顺序收口；公开增量的规范化拼接结果与经过同一安全处理的最终 public text/checksum 一致，公共 DTO/event 不含 SDK 类型或原始事件。
+- [x] AC-086: Given 已发送请求后发生显式取消、deadline 或结果未知, when provider 不能证明远端已停止, then 已提交文本前缀和 reservation 保留，attempt 进入 interrupted/unknown，未发布虚假的 output completed 或 run terminal，未知 usage/cost 不记零，且不会自动 retry/fallback 或再次调用 provider。
+- [x] AC-087: Given SSE/CLI reader 在流中断线后携带最后可见 cursor 重连, when 继续读取同一 run, then 默认公开 reader 只按 seq 返回未读的已提交 public delta/completion/run terminal；获得内部读取权限时还可查看同一 committed stream 中的 started/usage。两种模式下断线本身都不取消 run，reader 不持有 provider cursor，也不恢复、重启或重放 provider 调用。
+- [x] AC-088: Given provider 产生跨 chunk 敏感模式、超过分片/容量上限或 storage/消费者变慢, when 执行流式调用, then 跨 chunk 安全门禁、受信合并/背压、event capacity 和 envelope 上限按冻结契约 fail closed 或有界推进，无 secret、静默丢片、乱序和无界缓存；默认 fake stream 全面验证，opt-in live smoke 分别报告 provider 首 delta 与首个已提交 delta 时延。
 
 ### REQ-027: 受控跨 deployment/provider fallback
 

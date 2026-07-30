@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping
 from contextlib import asynccontextmanager
 
 from agent_harness.events.capacity import (
     LocalCapacityCommitUncertain,
+    StreamCapacitySettlement,
     UsageCapacitySettlement,
+    stream_capacity_binding,
     usage_capacity_binding,
+    validate_stream_capacity_outbox,
     validate_usage_capacity_outbox,
 )
 from agent_harness.events.types import CanonicalEvent
@@ -42,6 +45,7 @@ class LocalEventCapacityClaim:
                 yield
                 return
             usage_binding = usage_capacity_binding(event)
+            stream_binding = stream_capacity_binding(event)
             if usage_binding is not None:
                 try:
                     outbox = await uow.evidence_outbox.get_usage(
@@ -73,6 +77,40 @@ class LocalEventCapacityClaim:
                         EvidenceOperationKind(usage_binding.operation_kind)
                     ),
                 )
+                if usage_binding.phase == "final" and usage_binding.started_event_id.startswith(
+                    "usage-stream:"
+                ):
+                    payload = event.payload
+                    outcome = payload.get("outcome") if isinstance(payload, Mapping) else None
+                    if not isinstance(outcome, str):
+                        raise ValueError("stream usage final requires an outcome")
+                    await uow.evidence_outbox.ensure_stream_settled_before_usage_final(
+                        usage_call_id=usage_binding.usage_call_id,
+                        outcome=outcome,
+                    )
+            elif stream_binding is not None:
+                stream_outbox = await uow.evidence_outbox.get_by_event_id(event_id=event.event_id)
+                settlement = (
+                    StreamCapacitySettlement(
+                        tenant_id=stream_outbox.tenant_id,
+                        run_id=stream_outbox.run_id,
+                        event_id=stream_outbox.event_id,
+                        operation_kind=stream_outbox.operation_kind,
+                        state=stream_outbox.state,
+                        reserved_event_count=stream_outbox.reserved_event_count,
+                        group_id=stream_outbox.group_id,
+                        sequence_in_group=stream_outbox.sequence_in_group,
+                        result_json=stream_outbox.result_json,
+                    )
+                    if stream_outbox is not None
+                    else None
+                )
+                reserved_event_count = validate_stream_capacity_outbox(
+                    event=event,
+                    binding=stream_binding,
+                    outbox=settlement,
+                )
+                await uow.evidence_outbox.ensure_event_publishable(event_id=event.event_id)
             else:
                 outbox = await uow.evidence_outbox.get_by_event_id(event_id=event.event_id)
                 reserved_event_count = outbox.reserved_event_count if outbox is not None else 0

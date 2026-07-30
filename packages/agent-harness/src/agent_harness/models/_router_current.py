@@ -53,7 +53,7 @@ class RouterCurrentPlanningMixin:
         provider = self._providers.get(resolved.provider_kind)
         if provider is None or provider.provider_id != resolved.provider_kind:
             raise ModelRouteError("model.route_not_allowed", "bound provider identity mismatch")
-        if request.capability != "text_completion":
+        if request.capability not in {"text_completion", "text_stream"}:
             raise ModelRouteError("model.capability_unsupported", "capability is not supported")
         deployment = model_settings.deployments[deployment_id]
         if request.capability not in deployment.capabilities:
@@ -406,6 +406,11 @@ class RouterCurrentPlanningMixin:
     ) -> ModelRoutePlan:
         active = config or self.config
         provider_id = request.provider or active.default_provider
+        if request.capability not in {"text_completion", "text_stream"}:
+            raise ModelRouteError(
+                "model.capability_unsupported",
+                "legacy route only supports text completion or streaming",
+            )
         if provider_id not in self._providers:
             raise KeyError(f"model provider is not configured: {provider_id}")
         trusted_input_bound = len(request.prompt.encode("utf-8"))
@@ -461,6 +466,7 @@ class RouterCurrentPlanningMixin:
             provider_kind=provider_id,
             allowed_models=(selected_model,),
             model=selected_model,
+            capability=request.capability,
             decision=decision,
             approval_kind="soft_budget" if action == "policy_required" else None,
             prompt_utf8_bytes=trusted_input_bound,

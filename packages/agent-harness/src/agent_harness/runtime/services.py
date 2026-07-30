@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
 
@@ -113,6 +113,7 @@ def build_agent_execution_services(
     service_root: Path,
     registry: AgentRegistry,
     workspace_root: Path | None = None,
+    stream_timing_observer: Callable[[str], None] | None = None,
 ) -> Mapping[str, object]:
     """构造 executor 私有依赖映射，不让进程对象穿透 DTO 或 checkpoint。
 
@@ -178,6 +179,7 @@ def build_agent_execution_services(
         shared_budget=shared_budget,
         agent_policy_resolver=lambda agent_id: registry.get(agent_id).model_policy,
         policy_engine=policy,
+        stream_timing_observer=stream_timing_observer,
     )
     embedding_invocation = EmbeddingInvocationService(
         provider=LocalEmbeddingProvider(cache=StorageEmbeddingCache(storage)),

@@ -187,7 +187,7 @@ class ModelDeploymentSettings(HarnessDTO):
     max_output_tokens: int = Field(default=8192, ge=1)
     max_per_attempt_token_bound: int | None = Field(default=None, ge=1)
     max_per_attempt_cost_bound: Decimal | None = None
-    capabilities: list[Literal["text_completion"]] = Field(
+    capabilities: list[Literal["text_completion", "text_stream"]] = Field(
         default_factory=lambda: ["text_completion"]
     )
     allow_local_http: bool = False
@@ -232,6 +232,13 @@ class ModelSettings(HarnessDTO):
     requires_api_key: bool = False
     default_model: str | None = None
     timeout_seconds: int = 60
+    model_stream_chunk_utf8_bytes: int = Field(default=1024, ge=1, le=4096, strict=True)
+    model_stream_sensitive_candidate_utf8_bytes: int = Field(
+        default=512,
+        ge=128,
+        le=4096,
+        strict=True,
+    )
     default_deployment_id: str = "fake_default"
     deployments: dict[str, ModelDeploymentSettings] = Field(default_factory=dict)
     credentials: dict[str, ModelCredentialSettings] = Field(default_factory=dict)

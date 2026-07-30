@@ -89,6 +89,7 @@ class SettlementValidationMixin(SettlementPublicationMixin):
             "completed",
             "rejected",
             "failed",
+            "cancelled",
         }:
             raise UsageInvocationReplayError(state)
 
@@ -103,7 +104,10 @@ class SettlementValidationMixin(SettlementPublicationMixin):
         if error_code in ModelProviderInvocationError.stable_codes:
             # 稳定错误身份先于任何 payload 解释；失败记录绝不能用伪造 response
             # 覆盖原错误，否则重放会把已失败的外部副作用误报为成功。
-            if outcome != "failed" or "response" in result:
+            expected_failure_outcome = (
+                "cancelled" if error_code == "model.invocation_cancelled" else "failed"
+            )
+            if outcome != expected_failure_outcome or "response" in result:
                 raise UsageInvocationReplayError(state)
             failure_value = result.get("failure")
             if not isinstance(failure_value, dict):

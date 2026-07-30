@@ -25,6 +25,10 @@ from agent_harness.storage.models import (
 from agent_harness.storage.ordered_evidence_repositories import (
     OrderedEvidenceRepositoryMixin,
 )
+from agent_harness.storage.stream_evidence_repositories import (
+    StreamEvidenceRepositoryMixin,
+    require_complete_settled_predecessors,
+)
 from agent_harness.storage.usage_evidence_repositories import (
     UsageEvidenceRepositoryMixin,
 )
@@ -36,7 +40,11 @@ from agent_harness.storage.usage_evidence_repositories import (
 UsageSettlementClaim.__module__ = __name__
 
 
-class EvidenceOutboxRepository(UsageEvidenceRepositoryMixin, OrderedEvidenceRepositoryMixin):
+class EvidenceOutboxRepository(
+    StreamEvidenceRepositoryMixin,
+    UsageEvidenceRepositoryMixin,
+    OrderedEvidenceRepositoryMixin,
+):
     """usage settlement 的稳定 event-id 与 crash recovery 状态。"""
 
     def __init__(self, session: AsyncSession) -> None:
@@ -63,9 +71,12 @@ class EvidenceOutboxRepository(UsageEvidenceRepositoryMixin, OrderedEvidenceRepo
             raise LookupError("evidence outbox event not publishable")
         if model.group_id is None or model.sequence_in_group is None:
             return
-        predecessors = list(
-            await self._session.scalars(
-                select(RunEvidenceOutboxModel)
+        predecessor_rows = (
+            await self._session.execute(
+                select(
+                    RunEvidenceOutboxModel.sequence_in_group,
+                    RunEvidenceOutboxModel.state,
+                )
                 .where(
                     RunEvidenceOutboxModel.group_id == model.group_id,
                     RunEvidenceOutboxModel.sequence_in_group < model.sequence_in_group,
@@ -73,9 +84,11 @@ class EvidenceOutboxRepository(UsageEvidenceRepositoryMixin, OrderedEvidenceRepo
                 .order_by(RunEvidenceOutboxModel.sequence_in_group)
                 .with_for_update()
             )
+        ).all()
+        require_complete_settled_predecessors(
+            current_sequence=model.sequence_in_group,
+            predecessors=[(sequence, str(state)) for sequence, state in predecessor_rows],
         )
-        if any(item.state not in {"published", "cancelled"} for item in predecessors):
-            raise LookupError("ordered evidence predecessor is not settled")
 
     async def mark_event_published(self, *, event_id: str) -> None:
         """逐项完成非 terminal ordered group，允许其余预约继续阻断 terminal。"""

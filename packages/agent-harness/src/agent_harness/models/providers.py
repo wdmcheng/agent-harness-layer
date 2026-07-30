@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import math
+from collections.abc import AsyncIterator
 from decimal import Decimal
 from typing import TYPE_CHECKING, Literal, Protocol, cast, runtime_checkable
 
-from pydantic import AliasChoices, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.models.streaming import MAX_STREAM_COLLECTOR_UTF8_BYTES, bounded_utf8_size
 
 if TYPE_CHECKING:
     from agent_harness.models.router import ModelRoutePlan
@@ -216,6 +218,101 @@ class ModelResponse(HarnessDTO):
         return value
 
 
+class ModelStreamDelta(HarnessDTO):
+    """供应商中立的追加文本片段；稳定 ordinal 由 invocation 分配。"""
+
+    text: str
+    _utf8_bytes: int = PrivateAttr(default=0)
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        """空片段没有可观察意义，必须在 adapter 边界直接丢弃。"""
+
+        if not value:
+            raise ValueError("model stream delta text must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def cache_bounded_utf8_size(self) -> ModelStreamDelta:
+        """在 DTO 进入 adapter/invocation collector 前完成无大块复制的硬上限检查。"""
+
+        size = bounded_utf8_size(self.text, max_bytes=MAX_STREAM_COLLECTOR_UTF8_BYTES)
+        if size is None:
+            raise ValueError("model stream delta exceeds the fixed collector bound")
+        self._utf8_bytes = size
+        return self
+
+    @property
+    def utf8_bytes(self) -> int:
+        """返回校验时缓存的字节数，不在 invocation 中再次编码整段文本。"""
+
+        return self._utf8_bytes
+
+
+class ModelStreamUsage(HarnessDTO):
+    """流关闭时已观察到的 provider-neutral 用量，不携带 SDK 对象。"""
+
+    finality: Literal["partial", "complete"]
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
+    cost_status: Literal["reported", "estimated", "unavailable"] = "unavailable"
+    latency_ms: int
+
+    @field_validator("input_tokens", "output_tokens", "latency_ms", mode="before")
+    @classmethod
+    def validate_integer(cls, value: object) -> object:
+        """计量整数拒绝 bool、字符串与负数，未知必须保持 null。"""
+
+        if value is None:
+            return value
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError("model stream usage integers must be non-negative integers or null")
+        return value
+
+    @field_validator("cost_usd", mode="before")
+    @classmethod
+    def validate_cost(cls, value: object) -> object:
+        """成本只接受有限非负 number；未知成本使用 null。"""
+
+        if value is None:
+            return value
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not math.isfinite(value)
+            or value < 0
+        ):
+            raise ValueError("model stream usage cost must be finite and non-negative or null")
+        return value
+
+    @model_validator(mode="after")
+    def validate_cost_shape(self) -> ModelStreamUsage:
+        """null 成本与 unavailable 一一对应，避免把未知误写成已报告零成本。"""
+
+        if (self.cost_usd is None) != (self.cost_status == "unavailable"):
+            raise ValueError("model stream usage cost and status are inconsistent")
+        return self
+
+
+class ModelStreamCloseResult(HarnessDTO):
+    """本地关闭后对远端副作用与已观察用量的最小事实分类。"""
+
+    state: Literal["not_started", "stopped", "unknown"]
+    usage: ModelStreamUsage | None = None
+
+    @model_validator(mode="after")
+    def validate_state_usage(self) -> ModelStreamCloseResult:
+        """未开始禁止用量，unknown 禁止把完整用量冒充停止证明。"""
+
+        if self.state == "not_started" and self.usage is not None:
+            raise ValueError("not_started stream close result cannot contain usage")
+        if self.state == "unknown" and self.usage is not None and self.usage.finality == "complete":
+            raise ValueError("unknown stream close result cannot contain complete usage")
+        return self
+
+
 class ModelProvider(Protocol):
     """所有模型 adapter 必须实现的最小 provider seam。"""
 
@@ -244,4 +341,37 @@ class PreparedModelCall(Protocol):
 
     async def aclose(self) -> None:
         """释放本次调用 permit；client 由进程级 factory 统一管理。"""
+        ...
+
+
+@runtime_checkable
+class PreparedModelStreamCall(Protocol):
+    """已 prepare 但保持惰性的文本流；首次迭代才允许 provider 副作用。"""
+
+    def __aiter__(self) -> AsyncIterator[ModelStreamDelta]:
+        """按供应商观察顺序返回追加文本，不公开 SDK event 或 cursor。"""
+        ...
+
+    async def result(self) -> ModelResponse:
+        """流自然耗尽后返回唯一、已校验的最终结果。"""
+        ...
+
+    async def aclose(self) -> ModelStreamCloseResult:
+        """确定性清理本地资源，并按可证明事实返回关闭分类。"""
+        ...
+
+
+@runtime_checkable
+class ModelStreamingProvider(Protocol):
+    """与一次性 complete 正交的供应商中立文本流能力。"""
+
+    provider_id: str
+
+    async def prepare_stream(
+        self,
+        request: ModelRequest,
+        *,
+        plan: ModelRoutePlan,
+    ) -> PreparedModelStreamCall:
+        """取得 permit/client lease，但不得开始网络请求或 SDK 迭代。"""
         ...

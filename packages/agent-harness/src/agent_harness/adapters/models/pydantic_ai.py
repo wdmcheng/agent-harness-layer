@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from pydantic_ai.settings import ModelSettings as PydanticModelSettings
 
@@ -20,6 +20,14 @@ from agent_harness.adapters.models._pydantic_ai_client import (
     ControlledOpenAITransport,
     ModelProviderError,
 )
+from agent_harness.adapters.models._pydantic_ai_streaming import (
+    AgentRunResult as _AgentRunResult,
+)
+from agent_harness.adapters.models._pydantic_ai_streaming import (
+    PreparedPydanticStream,
+    PydanticStreamLifecycle,
+    StreamEventContext,
+)
 from agent_harness.models.providers import (
     ModelAttemptEvidence,
     ModelDecision,
@@ -28,15 +36,15 @@ from agent_harness.models.providers import (
 )
 from agent_harness.models.router import ModelRoutePlan
 
+if TYPE_CHECKING:
+    from pydantic_ai import Agent as _SDKAgent
 
-class _AgentRunResult(Protocol):
-    """隔离 Pydantic AI result 所需的最小表面。"""
-
-    output: object
-
-    def usage(self) -> object:
-        """返回 provider SDK usage；只允许本 adapter 读取。"""
-        ...
+    # 该赋值只由 Pyright 分析，证明锁定 SDK 的真实返回类型兼容窄 protocol；
+    # 不能用 Any 中转，否则 vendor 类型漂移会绕过 adapter 边界。
+    _sdk_agent_for_typecheck = cast("_SDKAgent[None, str]", None)
+    _sdk_stream_context_compatibility: StreamEventContext = (
+        _sdk_agent_for_typecheck.run_stream_events("prompt", model_settings={})
+    )
 
 
 class _PydanticAgent(Protocol):
@@ -49,6 +57,15 @@ class _PydanticAgent(Protocol):
         model_settings: object,
     ) -> _AgentRunResult:
         """执行单 user prompt、无 history/tools 的非流式调用。"""
+        ...
+
+    def run_stream_events(
+        self,
+        prompt: str,
+        *,
+        model_settings: object,
+    ) -> StreamEventContext:
+        """返回首次迭代才启动后台 run 的 SDK async context manager。"""
         ...
 
 
@@ -68,16 +85,16 @@ class PydanticAIModelProvider:
         self._client_factory = client_factory
         self._agent_factory = agent_factory
         self._bulkheads: dict[str, asyncio.Semaphore] = {}
-        self._closed = False
+        self._stream_lifecycle = PydanticStreamLifecycle()
 
     async def aclose(self) -> None:
-        """幂等关闭 provider 持有的 client factory；测试 agent 不持有外部资源。"""
+        """等待活动 stream/context 收口后，幂等关闭共享 client factory。"""
 
-        if self._closed:
-            return
-        self._closed = True
-        if self._client_factory is not None:
-            await self._client_factory.aclose()
+        async def close_client() -> None:
+            if self._client_factory is not None:
+                await self._client_factory.aclose()
+
+        await self._stream_lifecycle.aclose(close_client)
 
     async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
         """兼容直接调用：prepare 后发送并确保释放 process-local permit。"""
@@ -98,7 +115,10 @@ class PydanticAIModelProvider:
     ) -> _PreparedPydanticCall:
         """在同一 total deadline 内取得 permit 与 lazy client，期间绝不发送请求。"""
 
-        if self._closed:
+        if self._stream_lifecycle.closed:
+            current_task = asyncio.current_task()
+            if self._stream_lifecycle.owns_prepare(current_task):
+                raise asyncio.CancelledError
             raise RuntimeError("model provider is closed")
         if plan.provider != self.provider_id:
             raise ValueError("provider identity does not match frozen route")
@@ -126,7 +146,7 @@ class PydanticAIModelProvider:
             ) from None
         try:
             if self._agent_factory is not None:
-                agent = self._agent_factory(plan)
+                agent = cast(_PydanticAgent, self._agent_factory(plan))
             else:
                 assert self._client_factory is not None
                 remaining = deadline - loop.time()
@@ -134,7 +154,7 @@ class PydanticAIModelProvider:
                     raise TimeoutError
                 async with asyncio.timeout(remaining):
                     lease = await self._client_factory.acquire(plan)
-                agent = lease.agent
+                agent = cast(_PydanticAgent, lease.agent)
             if loop.time() >= deadline:
                 raise TimeoutError
         except TimeoutError:
@@ -154,6 +174,50 @@ class PydanticAIModelProvider:
             deadline=deadline,
             started_at=started_at,
         )
+
+    async def prepare_stream(
+        self,
+        request: ModelRequest,
+        *,
+        plan: ModelRoutePlan,
+    ) -> PreparedPydanticStream:
+        """取得与非流式相同的 permit/client，但把所有权转交惰性 event stream。"""
+
+        prepare_task = await self._stream_lifecycle.begin_prepare()
+        prepared: _PreparedPydanticCall | None = None
+        stream: PreparedPydanticStream | None = None
+        registered = False
+        try:
+            prepared = await self.prepare(request, plan=plan)
+            # `_PreparedPydanticCall` 只是资源取得载体；这里显式转移 permit
+            # 所有权，防止两个 prepared 对象重复 release 同一 semaphore。
+            prepared.transfer_to_stream()
+            stream = PreparedPydanticStream(
+                provider_id=self.provider_id,
+                request=request,
+                plan=plan,
+                agent=prepared.agent,
+                permit=prepared.permit,
+                deadline=prepared.deadline,
+                started_at=prepared.started_at,
+                token_usage_reader=_provider_token_usage,
+                cost_estimator=_estimated_cost,
+                unregister=self._stream_lifecycle.unregister,
+            )
+            # prepare task → active stream 的所有权转移与 provider close
+            # 共用一把锁，不能留下快照看不见两者的生命周期空窗。
+            await self._stream_lifecycle.transfer(prepare_task, stream)
+            registered = True
+            return stream
+        except BaseException:
+            if stream is not None:
+                await stream.aclose()
+            elif prepared is not None:
+                await prepared.aclose()
+            raise
+        finally:
+            if not registered:
+                await self._stream_lifecycle.end_prepare(prepare_task)
 
     async def execute_prepared(
         self,
@@ -366,6 +430,15 @@ class _PreparedPydanticCall:
     started_at: float
     _closed: bool = False
     _sent: bool = False
+
+    def transfer_to_stream(self) -> None:
+        """把 permit 所有权转交 stream 对象，禁止 call wrapper 再次释放。"""
+
+        if self._closed or self._sent:
+            raise ModelProviderError(
+                "model.provider_side_effect_unknown", side_effect_state="unknown"
+            )
+        self._closed = True
 
     async def send(self) -> ModelResponse:
         """只允许发送一次，避免同一 durable mark 被进程内重复消费。"""

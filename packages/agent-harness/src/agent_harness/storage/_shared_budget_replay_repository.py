@@ -142,8 +142,9 @@ class _SharedBudgetReplayMixin:
             valid = (
                 seed.state in {"settled", "needs_review"}
                 and seed.result is not None
-                and usage_state in {"result_persisted", "published"}
+                and usage_state in {"result_persisted", "published", "needs_review"}
                 and outbox_result == seed.result
+                and (usage_state != "needs_review" or set(seed.result) == {"attempt_review"})
             )
         if not valid:
             raise BudgetOperationConflict

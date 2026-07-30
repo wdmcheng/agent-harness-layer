@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from tests.contracts.model_usage_capacity_test_helpers import resolve_trace, seed_run
+from tests.contracts.model_usage_recovery_test_support import completed_response_payload
 
 from agent_harness.events import CanonicalEventType, EventBus, LocalJsonlEventSink
 from agent_harness.models import (
@@ -99,7 +100,11 @@ async def test_local_hard_exit_replay_repairs_capacity_before_outbox_publish(
             await uow.evidence_outbox.persist_result(
                 tenant_id="tenant-a",
                 usage_call_id=usage_call_id,
-                result={"evidence": evidence.to_payload(), "outcome": "completed"},
+                result={
+                    "evidence": evidence.to_payload(),
+                    "outcome": "completed",
+                    "response": completed_response_payload(evidence),
+                },
             )
             await uow.commit()
         bus = EventBus(

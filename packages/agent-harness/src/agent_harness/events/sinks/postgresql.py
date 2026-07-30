@@ -10,10 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_harness.events.capacity import (
     UsageCapacitySettlement,
+    stream_capacity_binding,
     usage_capacity_binding,
     validate_usage_capacity_outbox,
 )
 from agent_harness.events.serialization import canonical_event_bytes, validate_persisted_event_bytes
+from agent_harness.events.sinks._postgresql_streaming import (
+    validate_stream_event_capacity,
+    validate_stream_usage_final,
+)
 from agent_harness.events.sinks.base import (
     DEFAULT_EVENT_PAGE_SIZE,
     MAX_EVENT_PAGE_BYTES,
@@ -185,6 +190,7 @@ class PostgreSQLEventSink:
                     outstanding = int(capacity_row.outstanding_reserved_event_count)
                     terminal_reservation = int(capacity_row.terminal_reservation)
                     usage_binding = usage_capacity_binding(event)
+                    stream_binding = stream_capacity_binding(event)
                     if usage_binding is not None:
                         usage_outbox = await connection.execute(
                             select(
@@ -248,8 +254,22 @@ class PostgreSQLEventSink:
                                 raise RuntimeError(
                                     "usage final event requires a persisted started event"
                                 )
+                            if usage_binding.started_event_id.startswith("usage-stream:"):
+                                await validate_stream_usage_final(
+                                    connection,
+                                    event=event,
+                                    usage_call_id=usage_binding.usage_call_id,
+                                )
                     else:
                         usage_reserved_event_count = 0
+                    if stream_binding is not None:
+                        stream_reserved_event_count = await validate_stream_event_capacity(
+                            connection,
+                            event=event,
+                            binding=stream_binding,
+                        )
+                    else:
+                        stream_reserved_event_count = 0
                     outbox = await connection.execute(
                         select(
                             RunEvidenceOutboxModel.operation_kind,
@@ -266,6 +286,10 @@ class PostgreSQLEventSink:
                             if outstanding < usage_reserved_event_count:
                                 raise RuntimeError("usage event has no capacity reservation")
                             outstanding -= usage_reserved_event_count
+                        elif stream_binding is not None:
+                            if outstanding < stream_reserved_event_count:
+                                raise RuntimeError("stream event has no capacity reservation")
+                            outstanding -= stream_reserved_event_count
                         elif outbox_row is not None and outbox_row.reserved_event_count:
                             if outstanding < outbox_row.reserved_event_count:
                                 raise RuntimeError("outbox event has no capacity reservation")

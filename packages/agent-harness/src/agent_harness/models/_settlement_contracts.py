@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from agent_harness.models.providers import ModelResponse
 from agent_harness.models.router import ModelRouterConfig
@@ -43,8 +43,9 @@ class ModelProviderInvocationError(RuntimeError):
         provider_called: bool = False,
         attempt_count: int = 0,
         latency_ms: int | None = None,
+        failure_domain: Literal["provider", "runtime"] = "provider",
     ) -> None:
-        """封闭 raw 异常，同时让运维入口按事实报告是否已发生副作用。"""
+        """封闭 raw 异常，并区分 provider 故障与本地运行时失败。"""
 
         if attempt_count < 0:
             raise ValueError("attempt_count must be non-negative")
@@ -52,6 +53,8 @@ class ModelProviderInvocationError(RuntimeError):
             raise ValueError("latency_ms must be non-negative")
         if provider_called != (attempt_count > 0):
             raise ValueError("provider_called and attempt_count must describe the same side effect")
+        if failure_domain not in {"provider", "runtime"}:
+            raise ValueError("failure_domain must be provider or runtime")
 
         message = "model provider invocation failed" if code == self.code else code
         super().__init__(message)
@@ -59,6 +62,7 @@ class ModelProviderInvocationError(RuntimeError):
         self.provider_called = provider_called
         self.attempt_count = attempt_count
         self.latency_ms = latency_ms
+        self.failure_domain: Literal["provider", "runtime"] = failure_domain
 
 
 @dataclass(frozen=True)

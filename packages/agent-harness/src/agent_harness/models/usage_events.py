@@ -26,9 +26,24 @@ class UsageEvidenceLifecycle:
 
         if not usage_call_id:
             raise ValueError("usage call id must not be empty")
+        marker_present = "usage_event_identity" in evidence.decision
+        marker = evidence.decision.get("usage_event_identity")
+        expected_marker = {"ref": "stream-usage", "version": "v1"}
+        if marker_present and marker != expected_marker:
+            raise ValueError("stream usage identity marker is invalid")
+        if marker_present:
+            if evidence.usage_kind != "model":
+                raise ValueError("stream usage identity marker only supports model usage")
+            # 局部 import 避免 models 初始化时引入 storage -> models 循环。
+            from agent_harness.storage.stream_evidence_repositories import (
+                stream_usage_event_id,
+            )
+
+            stream_usage_event_id(usage_call_id, "started")
         self._event_bus = event_bus
         self._evidence = evidence
         self.usage_call_id = usage_call_id
+        self._stream_identity = marker_present
 
     @property
     def correlation(self) -> dict[str, str]:
@@ -87,6 +102,12 @@ class UsageEvidenceLifecycle:
     def _event_id(self, phase: str) -> str:
         """按调用身份和生命周期标识构造可重放的稳定事件标识。"""
 
+        if self._stream_identity:
+            from agent_harness.storage.stream_evidence_repositories import (
+                stream_usage_event_id,
+            )
+
+            return stream_usage_event_id(self.usage_call_id, phase)
         return f"usage:{self._evidence.tenant_id}:{self.usage_call_id}:{phase}"
 
 

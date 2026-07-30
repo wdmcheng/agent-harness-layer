@@ -8,6 +8,7 @@
 - 跨 provider 切换只允许发生在前一候选可证明 `not_started` 后；任何 started/unknown、response identity、usage、文本或 delta 都立即停止 failover。Streaming 观察或提交首个 delta 后永久禁止切换 provider。
 - 每个候选独立预约和结算，只有前一 reservation 已耐久安全释放或转移时才能原子建立下一 reservation；unknown 保留原 reservation并进入 needs-review，恢复不得重放 provider。
 - Phase 18.2 依赖 Phase 18.1 归档，排在 Phase 19 structured output 之前；当前只补 Product Spec、API Contract、DEV-PLAN、living plan 与 change matrix，不创建 OpenSpec change、不实现代码、不运行真实 provider。
+- 澄清 AC-087 的流式读取可见性：默认公开 reader 只返回 public delta、completion 与 run terminal；获得内部读取权限后才额外可见 started/usage。两种模式都只读取已提交事件，断线或重连不会触碰 provider。
 
 ## [v1.21] - 2026-07-29
 ### 受控真实非流式文本模型运行时

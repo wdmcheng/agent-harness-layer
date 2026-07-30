@@ -22,6 +22,7 @@ class EvidenceOperationKind(StrEnum):
     """允许在副作用前预约 event 容量的封闭 operation kind。"""
 
     MODEL_USAGE = "model_usage"
+    MODEL_STREAM = "model_stream"
     EMBEDDING_USAGE = "embedding_usage"
     APPROVAL_RESOLUTION = "approval_resolution"
     TOOL_INVOCATION = "tool_invocation"
@@ -42,6 +43,10 @@ _OPERATION_EVENT_CAPACITY: Mapping[EvidenceOperationKind, OperationReservationSp
             EvidenceOperationKind.MODEL_USAGE: OperationReservationSpec(
                 version=EVIDENCE_OPERATION_REGISTRY_VERSION,
                 max_prerequisite_events=2,
+            ),
+            EvidenceOperationKind.MODEL_STREAM: OperationReservationSpec(
+                version=EVIDENCE_OPERATION_REGISTRY_VERSION,
+                max_prerequisite_events=65,
             ),
             EvidenceOperationKind.EMBEDDING_USAGE: OperationReservationSpec(
                 version=EVIDENCE_OPERATION_REGISTRY_VERSION,
@@ -252,6 +257,42 @@ class EventCapacityRepository:
         model.outstanding_reserved_event_count -= reserved_event_count
         model.highest_persisted_seq += consumed
         await self._session.flush()
+
+    async def release(self, *, run_id: str, reserved_event_count: object) -> None:
+        """只释放从未产生事件的预约，并在仓储边界收窄运行时输入。"""
+
+        if (
+            isinstance(reserved_event_count, bool)
+            or not isinstance(reserved_event_count, int)
+            or reserved_event_count <= 0
+        ):
+            raise ValueError("event reservation release must be a positive integer")
+        changed = cast(
+            CursorResult[Any],
+            await self._session.execute(
+                update(RunEventCapacityModel)
+                .where(
+                    RunEventCapacityModel.run_id == run_id,
+                    RunEventCapacityModel.highest_persisted_seq >= 0,
+                    RunEventCapacityModel.outstanding_reserved_event_count >= reserved_event_count,
+                    RunEventCapacityModel.terminal_reservation == 1,
+                )
+                .values(
+                    outstanding_reserved_event_count=(
+                        RunEventCapacityModel.outstanding_reserved_event_count
+                        - reserved_event_count
+                    )
+                )
+            ),
+        )
+        if changed.rowcount == 1:
+            return
+        model = await self._session.scalar(
+            select(RunEventCapacityModel).where(RunEventCapacityModel.run_id == run_id)
+        )
+        if model is None:
+            raise LookupError(f"event capacity is not initialized: {run_id}")
+        raise RuntimeError("event reservation state is invalid")
 
     async def publish_terminal(self, *, run_id: str, seq: int) -> None:
         """消耗唯一终态槽位并写入最终序列，前置证据尚未结算时严格拒绝。

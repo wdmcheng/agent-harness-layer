@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from typing import cast
 
@@ -18,7 +19,9 @@ from agent_harness.models.providers import (
     ModelProviderLifecycle,
     ModelRequest,
     ModelResponse,
+    ModelStreamingProvider,
     PreparedModelCall,
+    PreparedModelStreamCall,
 )
 
 
@@ -36,6 +39,8 @@ class ModelRouter(RouterSnapshotPlanningMixin):
         self._providers = dict(providers)
         self._model_settings = model_settings
         self._closed = False
+        self._close_complete = asyncio.Event()
+        self._close_failure: BaseException | None = None
 
     def reload(self, config: ModelRouterConfig) -> None:
         """只替换旧 fake 配置；已有 plan 不读取 reload 后的可变值。"""
@@ -46,16 +51,27 @@ class ModelRouter(RouterSnapshotPlanningMixin):
         """幂等关闭唯一 provider 实例，隐藏具体 client/factory 生命周期。"""
 
         if self._closed:
+            await self._close_complete.wait()
+            if self._close_failure is not None:
+                raise RuntimeError("model router close did not complete") from self._close_failure
             return
         self._closed = True
-        closed: set[int] = set()
-        for provider in self._providers.values():
-            identity = id(provider)
-            if identity in closed:
-                continue
-            closed.add(identity)
-            if isinstance(provider, ModelProviderLifecycle):
-                await provider.aclose()
+        try:
+            closed: set[int] = set()
+            for provider in self._providers.values():
+                identity = id(provider)
+                if identity in closed:
+                    continue
+                closed.add(identity)
+                if isinstance(provider, ModelProviderLifecycle):
+                    await provider.aclose()
+        except BaseException as exc:
+            # 并发 close 必须观察同一失败，不能让后续 composition root 把
+            # provider 未完成清理永久误认成成功并继续释放 storage。
+            self._close_failure = exc
+            raise
+        finally:
+            self._close_complete.set()
 
     @property
     def has_controlled_settings(self) -> bool:
@@ -65,6 +81,41 @@ class ModelRouter(RouterSnapshotPlanningMixin):
             deployment.provider_kind != "fake"
             for deployment in self._model_settings.deployments.values()
         )
+
+    @property
+    def stream_chunk_utf8_bytes(self) -> int:
+        """返回受 typed config 约束的项目级分片目标。"""
+
+        return (
+            self._model_settings.model_stream_chunk_utf8_bytes
+            if self._model_settings is not None
+            else 1024
+        )
+
+    @property
+    def stream_sensitive_candidate_utf8_bytes(self) -> int:
+        """返回跨片段敏感候选的项目级硬上限。"""
+
+        return (
+            self._model_settings.model_stream_sensitive_candidate_utf8_bytes
+            if self._model_settings is not None
+            else 512
+        )
+
+    def validate_stream_route(self, request: ModelRequest, *, plan: ModelRoutePlan) -> None:
+        """在容量与 started 前证明 route/provider 支持独立流协议。"""
+
+        if request.capability != "text_stream" or plan.capability != "text_stream":
+            raise ModelRouteError(
+                "model.capability_unsupported",
+                "stream prepare requires text_stream capability",
+            )
+        provider = self._providers.get(plan.provider)
+        if provider is None or not isinstance(provider, ModelStreamingProvider):
+            raise ModelRouteError(
+                "model.capability_unsupported",
+                "bound provider does not support text streaming",
+            )
 
     async def route(
         self,
@@ -173,6 +224,21 @@ class ModelRouter(RouterSnapshotPlanningMixin):
             )
             return await typed_prepare(request, plan=plan)
         return _DirectPreparedCall(provider=provider, request=request, plan=plan)
+
+    async def prepare_stream(
+        self,
+        request: ModelRequest,
+        *,
+        plan: ModelRoutePlan,
+    ) -> PreparedModelStreamCall:
+        """取得惰性流调用；不支持路径不得回退到一次性 complete。"""
+
+        if self._closed:
+            raise RuntimeError("model router is closed")
+        self.validate_stream_route(request, plan=plan)
+        provider = self._providers.get(plan.provider)
+        assert isinstance(provider, ModelStreamingProvider)
+        return await provider.prepare_stream(request, plan=plan)
 
 
 class _DirectPreparedCall:

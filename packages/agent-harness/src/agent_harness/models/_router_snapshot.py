@@ -63,7 +63,7 @@ class RouterSnapshotPlanningMixin(RouterCurrentPlanningMixin):
             raise ModelRouteError("model.route_not_allowed", "request cannot change deployment")
         if request.provider is not None and request.provider != policy.provider:
             raise ModelRouteError("model.route_not_allowed", "provider assertion mismatch")
-        if request.capability != "text_completion":
+        if request.capability not in {"text_completion", "text_stream"}:
             raise ModelRouteError("model.capability_unsupported", "capability is not supported")
         selected_model = request.model or policy.default_model
         if selected_model not in policy.allowed_models:

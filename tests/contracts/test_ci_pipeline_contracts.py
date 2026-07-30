@@ -38,6 +38,7 @@ def test_acceptance_validator_is_a_required_job_in_both_ci_release_dags() -> Non
         "smoke-local",
         "smoke-service",
         "smoke-live-model",
+        "smoke-live-model-stream",
         "license",
         "build",
         "release-dry-run",
@@ -62,6 +63,7 @@ def test_acceptance_validator_is_a_required_job_in_both_ci_release_dags() -> Non
         "ci-smoke-local-${{ github.run_id }}": ".artifacts",
         "ci-smoke-service-${{ github.run_id }}": ".artifacts",
         "ci-smoke-live-model-${{ github.run_id }}": ".artifacts",
+        "ci-smoke-live-model-stream-${{ github.run_id }}": ".artifacts",
         "ci-license-${{ github.run_id }}": ".artifacts",
         "ci-build-${{ github.run_id }}": ".",
         "ci-release-dry-run-${{ github.run_id }}": ".artifacts",
@@ -71,6 +73,29 @@ def test_acceptance_validator_is_a_required_job_in_both_ci_release_dags() -> Non
     # 需求验收依赖 release dry-run 的真实 evidence，所以它是终端门禁；GitLab
     # promotion 必须显式等待该门禁，不能构造反向依赖造成 DAG 环。
     assert gitlab["promote-plan"]["needs"] == ["acceptance-validate"]
+
+
+def test_stream_live_smoke_has_independent_ci_producer_and_artifact() -> None:
+    """Make、manifest 与双 CI 必须使用独立 stream job，并进入 acceptance 依赖。"""
+
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    manifest = (ROOT / "compliance" / "ci-jobs.toml").read_text(encoding="utf-8")
+    evidence = (ROOT / "scripts" / "ci_evidence.py").read_text(encoding="utf-8")
+    github = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    gitlab = (ROOT / ".gitlab-ci.yml").read_text(encoding="utf-8")
+
+    assert "smoke-live-model-stream:" in makefile
+    assert "$(UV) run python -m scripts.smoke_live_model_stream" in makefile
+    assert "ci-smoke-live-model-stream:" in makefile
+    assert 'id = "smoke-live-model-stream"' in manifest
+    assert '"smoke-live-model-stream": "smoke-live-model-stream"' in evidence
+    assert "smoke-live-model-stream:" in github
+    assert "smoke-live-model-stream:" in gitlab
+    assert "ci-smoke-live-model-stream-${{ github.run_id }}" in github
+    assert ".artifacts/smoke/live-model-stream/result.json" in makefile
+    assert "model-stream-live-smoke/v1" in (
+        ROOT / "scripts" / "live_model_stream_contract.py"
+    ).read_text(encoding="utf-8")
 
 
 def test_github_artifact_jobs_explicitly_include_hidden_evidence_paths() -> None:

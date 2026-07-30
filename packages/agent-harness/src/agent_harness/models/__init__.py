@@ -1,6 +1,7 @@
 """模型 provider 与路由公共 API。"""
 
 from agent_harness.adapters.models.fake import FakeModelProvider as FakeModelProvider
+from agent_harness.adapters.models.fake import FakeModelStreamScript as FakeModelStreamScript
 from agent_harness.models.invocation import (
     BoundModelInvocationService as BoundModelInvocationService,
 )
@@ -14,6 +15,11 @@ from agent_harness.models.providers import ModelDecision as ModelDecision
 from agent_harness.models.providers import ModelProvider as ModelProvider
 from agent_harness.models.providers import ModelRequest as ModelRequest
 from agent_harness.models.providers import ModelResponse as ModelResponse
+from agent_harness.models.providers import ModelStreamCloseResult as ModelStreamCloseResult
+from agent_harness.models.providers import ModelStreamDelta as ModelStreamDelta
+from agent_harness.models.providers import ModelStreamingProvider as ModelStreamingProvider
+from agent_harness.models.providers import ModelStreamUsage as ModelStreamUsage
+from agent_harness.models.providers import PreparedModelStreamCall as PreparedModelStreamCall
 from agent_harness.models.router import ModelRouteError as ModelRouteError
 from agent_harness.models.router import ModelRoutePlan as ModelRoutePlan
 from agent_harness.models.router import ModelRouter as ModelRouter
@@ -28,6 +34,7 @@ from agent_harness.models.usage_events import UsageEvidenceLifecycle as UsageEvi
 
 __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "FakeModelProvider",
+    "FakeModelStreamScript",
     "BoundModelInvocationService",
     "ModelDecision",
     "ModelAttemptEvidence",
@@ -37,6 +44,11 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "ModelProvider",
     "ModelRequest",
     "ModelResponse",
+    "ModelStreamCloseResult",
+    "ModelStreamDelta",
+    "ModelStreamingProvider",
+    "ModelStreamUsage",
+    "PreparedModelStreamCall",
     "ModelRouter",
     "ModelRouterConfig",
     "ModelRoutePlan",
