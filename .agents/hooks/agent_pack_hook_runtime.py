@@ -65,6 +65,19 @@ CORRECTION_PHRASES = (
 )
 
 FEEDBACK_ROLE_CLAUSE_ENDS = "，,。.；;：:！？!?\r\n"
+FEEDBACK_META_PROMPT_PREFIX = (
+    "# Overview\n\n"
+    "Generate 0 to 3 hyperpersonalized suggestions for what this user "
+    "can do with Codex in this local project: "
+)
+FEEDBACK_META_PROMPT_MARKERS = (
+    "\n\n# Rules\n",
+    "Recent Codex tasks in this project:\n[",
+    "\n\n# Examples\n",
+    "\n\n# Response format\n",
+    "Each suggestion must include:\n",
+    "- appId:",
+)
 
 
 def run(
@@ -136,17 +149,32 @@ def npx_command() -> str:
 
 
 def should_skip_feedback_prompt(prompt: str) -> bool:
-    """识别首个分句内的固定角色声明，避免任务正文纠正词被误抓。"""
+    """跳过固定 Agent 派发和结构完整的自动建议元任务。"""
 
+    normalized = prompt.replace("\r\n", "\n")
     clause_ends = re.escape(FEEDBACK_ROLE_CLAUSE_ENDS)
-    return (
+    fixed_agent_dispatch = (
         re.search(
             rf"\A[ \t]*你是[^{clause_ends}]*"
             rf"(?:code-reviewer|evolution-runner)(?=\s|[{clause_ends}]|$)",
-            prompt,
+            normalized,
         )
         is not None
     )
+    if fixed_agent_dispatch:
+        return True
+
+    # 元任务中的项目路径和历史 JSON 都会变化；只有精确开头与完整有序结构
+    # 同时匹配才跳过，避免单个标题或普通正文关键词吞掉真实用户纠正。
+    if not normalized.startswith(FEEDBACK_META_PROMPT_PREFIX):
+        return False
+    cursor = len(FEEDBACK_META_PROMPT_PREFIX)
+    for marker in FEEDBACK_META_PROMPT_MARKERS:
+        index = normalized.find(marker, cursor)
+        if index < 0:
+            return False
+        cursor = index + len(marker)
+    return True
 
 
 def evolution_dir(root: Path, agent: str) -> Path:
