@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import Field, model_validator
 
+from agent_harness.config.schemas import ModelRouteRef
 from agent_harness.contracts.dto import HarnessDTO
 
 
@@ -21,11 +22,31 @@ class AgentModelPolicy(HarnessDTO):
     allowed_models: list[str] = Field(default_factory=list)
     default_model: str
     fallback_models: list[str]
+    fallback_routes: tuple[ModelRouteRef, ...] = Field(default=(), max_length=8)
 
     @model_validator(mode="after")
     def validate_model_subset(self) -> AgentModelPolicy:
         """Agent 只能声明 deployment 允许集合的一个静态子集。"""
 
+        if self.fallback_routes:
+            if len(self.fallback_routes) != len(set(self.fallback_routes)):
+                raise ValueError("fallback_routes must be unique")
+            first = self.fallback_routes[0]
+            projected_models = list(
+                dict.fromkeys(
+                    route.model_id
+                    for route in self.fallback_routes
+                    if route.deployment_id == first.deployment_id
+                )
+            )
+            if (
+                self.deployment_id != first.deployment_id
+                or self.default_model != first.model_id
+                or self.allowed_models != projected_models
+                or self.fallback_models
+            ):
+                raise ValueError("legacy model fields must exactly project the first route")
+            return self
         if not self.allowed_models:
             self.allowed_models = list(dict.fromkeys([self.default_model, *self.fallback_models]))
         if len(self.allowed_models) != len(set(self.allowed_models)):

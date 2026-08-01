@@ -5,15 +5,21 @@ from __future__ import annotations
 import asyncio
 
 from agent_harness.events import EventBus
+from agent_harness.models._invocation_chain import ModelRouteChainExecutionMixin
+from agent_harness.models._invocation_chain_settlement import ModelChainSettlementMixin
+from agent_harness.models._invocation_planning import ModelInvocationPlanningMixin
+from agent_harness.models._route_chain_state import (
+    validate_route_chain_state_identities,
+)
+from agent_harness.models._router_contracts import ModelRouteChainPlan
 from agent_harness.models._settlement_contracts import (
     DurableMarkStateUnknown,
     IdentityRuntime,
     ModelProviderInvocationError,
     SettlementStart,
 )
-from agent_harness.models._settlement_validation import SettlementValidationMixin
 from agent_harness.models.providers import ModelRequest
-from agent_harness.models.router import ModelRoutePlan
+from agent_harness.models.router import ModelRoutePlan, ModelRouter
 from agent_harness.models.usage import (
     ModelUsageEvidence,
     UsageEvidenceContext,
@@ -25,25 +31,35 @@ from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
 from agent_harness.storage.evidence_repositories import (
     EvidenceOperationKind,
 )
+from agent_harness.storage.model_route_chain_state import (
+    route_chain_can_start_active_candidate,
+)
 from agent_harness.storage.shared_budget import (
     AllocationBudgetClaim,
+    BudgetOperationConflict,
     BudgetOperationOwnership,
     BudgetReservationRejected,
     DirectBudgetClaim,
 )
 
 
-class _ModelSettlementMixin(SettlementValidationMixin):
+class _ModelSettlementMixin(
+    ModelInvocationPlanningMixin,
+    ModelRouteChainExecutionMixin,
+    ModelChainSettlementMixin,
+):
     """承载 provider 调用前后必须保持原子一致的 usage 生命周期。
 
-    该 mixin 协调 shared budget、usage outbox、外部模型调用和 canonical event；任何
-    重放必须优先使用已耐久的身份与结果，不能按当前快照重新预留或再次调用 provider。
+    该类仍是执行 façade 的唯一线性 owner；拆出的 planning、route-chain 与 settlement
+    职责只在本层组合，避免公开执行类依赖多个直接基类的覆盖顺序。任何重放必须优先
+    使用已耐久的身份与结果，不能按当前快照重新预留或再次调用 provider。
     """
 
     _storage: SQLAlchemyStorage
     _event_bus: EventBus
     _shared_budget: IdentityRuntime | None
     _telemetry: TelemetryFacade | None
+    _router: ModelRouter
 
     @staticmethod
     def _semantic_request(request: ModelRequest) -> dict[str, object]:
@@ -74,6 +90,7 @@ class _ModelSettlementMixin(SettlementValidationMixin):
 
         if self._shared_budget is None:
             return None
+        chain_safe_to_start = False
         async with self._storage.uow() as uow:
             seed = await uow.shared_budget.usage_replay_seed(
                 tenant_id=context.tenant_id,
@@ -84,6 +101,20 @@ class _ModelSettlementMixin(SettlementValidationMixin):
             persisted = seed.identity
             assert persisted.provider is not None
             assert persisted.model is not None
+            chain: ModelRouteChainPlan | None = None
+            if persisted.identity_schema_version == "budget-operation-v2":
+                snapshot = await uow.shared_budget.get_tree_snapshot(
+                    context.tenant_id, seed.ownership.budget_owner_run_id
+                )
+                if snapshot is None:
+                    raise BudgetReservationRejected(reason="snapshot_invalid")
+                chain = self._router.plan_chain_from_snapshot(
+                    request,
+                    snapshot=snapshot,
+                    agent_id=context.agent_id,
+                )
+                if chain.chain_id != persisted.route_chain_digest:
+                    raise BudgetReservationRejected(reason="snapshot_invalid")
             expected = self._shared_budget.operation_identity(
                 tenant_id=context.tenant_id,
                 ownership_kind=seed.ownership.kind,
@@ -92,7 +123,11 @@ class _ModelSettlementMixin(SettlementValidationMixin):
                 delegation_claim_id=seed.ownership.delegation_id,
                 usage_kind="model",
                 operation_slot=usage_call_id,
-                semantic_request=self._semantic_request(request),
+                semantic_request=(
+                    self._semantic_request(request)
+                    if chain is None
+                    else self._semantic_chain_request(request, chain)
+                ),
                 tree_snapshot_id=persisted.tree_snapshot_id,
                 agent_sub_snapshot_id=persisted.agent_sub_snapshot_id,
                 provider=persisted.provider,
@@ -103,6 +138,8 @@ class _ModelSettlementMixin(SettlementValidationMixin):
                 cost_enabled=persisted.cost_enabled,
                 trusted_token_bound=persisted.trusted_token_bound,
                 trusted_cost_bound=persisted.trusted_cost_bound,
+                route_chain_digest=persisted.route_chain_digest,
+                route_candidate_count=persisted.route_candidate_count,
             )
             uow.shared_budget.validate_usage_replay_identity(
                 seed=seed,
@@ -133,7 +170,78 @@ class _ModelSettlementMixin(SettlementValidationMixin):
                 usage_state=usage.state,
                 usage_result=usage.result_json,
             )
-        if seed.state == "reserved" and seed.side_effect_state == "not_started":
+            if persisted.identity_schema_version == "budget-operation-v2":
+                if seed.route_chain_state is None or chain is None:
+                    raise BudgetOperationConflict
+                try:
+                    validate_route_chain_state_identities(
+                        seed.route_chain_state,
+                        chain=chain,
+                    )
+                except ValueError as exc:
+                    raise BudgetOperationConflict from exc
+                if usage.state == "needs_review":
+                    if (
+                        seed.state != "needs_review"
+                        or seed.side_effect_state != "result_committed"
+                        or seed.result is None
+                        or set(seed.result) != {"attempt_review"}
+                        or usage.error_code != "model.provider_side_effect_unknown"
+                    ):
+                        raise BudgetOperationConflict
+                    route_state = seed.route_chain_state
+                    raise ModelProviderInvocationError(
+                        "model.provider_side_effect_unknown",
+                        provider_called=any(
+                            item.request_sent
+                            or item.http_response_observed
+                            or item.response_identity_observed
+                            or item.usage_observed
+                            or item.text_observed
+                            or item.delta_observed
+                            for item in route_state.attempt_lifecycle
+                        ),
+                        attempt_count=len(route_state.attempt_lifecycle),
+                    )
+            chain_safe_to_start = (
+                persisted.identity_schema_version == "budget-operation-v2"
+                and seed.state == "reserved"
+                and usage.state == "started"
+                and seed.route_chain_state is not None
+                and route_chain_can_start_active_candidate(seed.route_chain_state)
+            )
+            if (
+                persisted.identity_schema_version == "budget-operation-v2"
+                and seed.side_effect_state == "started"
+                and usage.state == "started"
+                and not chain_safe_to_start
+            ):
+                await uow.shared_budget.recover_unknown_started(
+                    tenant_id=context.tenant_id,
+                    budget_owner_run_id=seed.ownership.budget_owner_run_id,
+                )
+                await uow.commit()
+                route_state = seed.route_chain_state
+                assert route_state is not None
+                provider_called = any(
+                    lifecycle.request_sent
+                    or lifecycle.http_response_observed
+                    or lifecycle.response_identity_observed
+                    or lifecycle.usage_observed
+                    or lifecycle.text_observed
+                    or lifecycle.delta_observed
+                    for lifecycle in route_state.attempt_lifecycle
+                )
+                raise ModelProviderInvocationError(
+                    "model.provider_side_effect_unknown",
+                    provider_called=provider_called,
+                    attempt_count=len(route_state.attempt_lifecycle),
+                )
+        if (
+            seed.state == "reserved"
+            and seed.side_effect_state == "not_started"
+            or chain_safe_to_start
+        ):
             # 首次事务尚未开始外部副作用时，仍走正常 frozen snapshot 路径恢复。
             return None
         return SettlementStart(usage=usage, ownership=seed.ownership)

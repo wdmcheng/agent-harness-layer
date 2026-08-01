@@ -33,6 +33,7 @@ GATE_TARGETS = {
     "smoke-service": "smoke-service",
     "smoke-live-model": "smoke-live-model",
     "smoke-live-model-stream": "smoke-live-model-stream",
+    "smoke-live-model-failover": "smoke-live-model-failover",
     "build": "build",
     "license": "license-check",
     "release-dry-run": "release-dry-run",
@@ -279,6 +280,21 @@ def run_gate(repo: Path, gate: str, artifact_specs: list[str]) -> int:
         ):
             status = "skipped"
         elif stream_status != "passed":
+            status = "fail"
+            if exit_code == 0:
+                exit_code = 2
+    if gate == "smoke-live-model-failover" and not artifact_error:
+        failover_path = repo / ".artifacts" / "smoke" / "live-model-failover" / "result.json"
+        try:
+            from live_model_failover_contract import validate_result
+
+            failover_live = validate_result(json.loads(failover_path.read_text(encoding="utf-8")))
+            failover_status = failover_live["status"]
+        except (OSError, json.JSONDecodeError, ValueError):
+            failover_status = None
+        if failover_status == "hosted-unverified" and exit_code == 0:
+            status = "skipped"
+        elif failover_status != "passed":
             status = "fail"
             if exit_code == 0:
                 exit_code = 2

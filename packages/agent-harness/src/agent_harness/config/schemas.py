@@ -5,10 +5,13 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import ConfigDict, Field, SecretStr, field_validator, model_validator
 
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.identity import IdentityContext
+
+CompletionClassifierRef = Literal["trusted_response_header_not_started"]
+CompletionClassifierVersion = Literal["v1"]
 
 
 class StorageSettings(HarnessDTO):
@@ -78,11 +81,20 @@ class ModelCredentialSettings(HarnessDTO):
     allowed_origins: list[str] = Field(min_length=1)
 
 
+class ModelRouteRef(HarnessDTO):
+    """Agent 与请求共享的最小模型路由引用，不携带任何安全配置。"""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, frozen=True)
+
+    deployment_id: str = Field(min_length=1)
+    model_id: str = Field(min_length=1)
+
+
 class CompletionClassifierSettings(HarnessDTO):
     """endpoint policy 明确允许的完成状态分类器 identity。"""
 
-    ref: str
-    version: str
+    ref: CompletionClassifierRef
+    version: CompletionClassifierVersion
 
 
 def _empty_completion_classifiers() -> list[CompletionClassifierSettings]:
@@ -171,13 +183,14 @@ class ModelDeploymentSettings(HarnessDTO):
     endpoint_policy_ref: str | None = None
     endpoint_policy_version: str | None = None
     credential_ref: str | None = None
-    completion_classifier_ref: str | None = None
-    completion_classifier_version: str | None = None
+    completion_classifier_ref: CompletionClassifierRef | None = None
+    completion_classifier_version: CompletionClassifierVersion | None = None
     connect_timeout_ms: int = Field(default=5_000, ge=1)
     read_timeout_ms: int = Field(default=60_000, ge=1)
     total_timeout_ms: int = Field(default=60_000, ge=1)
     max_attempts: int = Field(default=1, ge=1, le=10)
     retryable_http_statuses: list[int] = Field(default_factory=lambda: list[int]())
+    cross_provider_failover_http_statuses: list[int] = Field(default_factory=lambda: list[int]())
     backoff_initial_ms: int = Field(default=0, ge=0)
     backoff_max_ms: int = Field(default=0, ge=0)
     max_retry_wait_ms: int = Field(default=0, ge=0)
@@ -201,6 +214,18 @@ class ModelDeploymentSettings(HarnessDTO):
             raise ValueError("retryable statuses must be 429 or 5xx")
         return sorted(set(value))
 
+    @field_validator("cross_provider_failover_http_statuses")
+    @classmethod
+    def validate_cross_provider_statuses(cls, value: list[int]) -> list[int]:
+        """跨候选切换只接受显式 HTTP 失败状态；默认空列表不包含 403。"""
+
+        if any(
+            isinstance(item, bool) or item not in {403, 429} and not 500 <= item <= 599
+            for item in value
+        ):
+            raise ValueError("cross-provider failover statuses must be 403, 429, or 5xx")
+        return sorted(set(value))
+
     @model_validator(mode="after")
     def validate_local_shape(self) -> ModelDeploymentSettings:
         """先锁定集合关系与成对 identity；目录/endpoint 逐值校验由 resolver 完成。"""
@@ -214,6 +239,8 @@ class ModelDeploymentSettings(HarnessDTO):
             raise ValueError("completion classifier ref/version must be both set or null")
         if self.retryable_http_statuses and self.completion_classifier_ref is None:
             raise ValueError("response retries require a completion classifier")
+        if self.cross_provider_failover_http_statuses and self.completion_classifier_ref is None:
+            raise ValueError("cross-provider failover requires a completion classifier")
         if self.total_timeout_ms < max(self.connect_timeout_ms, self.read_timeout_ms):
             raise ValueError("total timeout must cover connect and read timeout")
         if self.backoff_max_ms < self.backoff_initial_ms:

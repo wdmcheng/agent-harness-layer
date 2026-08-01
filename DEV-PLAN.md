@@ -7,12 +7,12 @@
 
 ## 当前状态
 
-- Product Spec: `Product-Spec.md` 已存在；Phase 18 与 Phase 18.1 均已实现、review、同步并归档。P1 Phase 18.2 active change `controlled-multi-provider-failover` 已进入生产实现收口，typed route refs、冻结链、逐 attempt proof、审批、completion/streaming、迁移和 live/CI producer已有聚焦合同；双真实 provider 成功仍未建立。
+- Product Spec: `Product-Spec.md` 已存在；Phase 18、Phase 18.1 与 Phase 18.2 均已实现、review、同步并归档。Phase 18.2 的双真实 provider 成功仍未建立，AC-095 保持 `hosted-unverified`。
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；RUN-006 仍是 committed CanonicalEvent transport。Phase 18.1 的 `MOD-004` 已归档；Phase 18.2 的 `MOD-003` 已按当前实现同步 route-chain/config/evidence/error/smoke 字段级事实，不新增 endpoint。
-- OpenSpec: 仓库存在 `openspec/`；Phase 1-18.1 均已同步主规格并归档。当前唯一 active change 为 `controlled-multi-provider-failover`，正在按 39 项任务收口；本批次不 sync/archive，也不直接改 `openspec/specs/` 或已归档的 Phase 18.1。
-- Git / 代码状态: 当前契约基线为 `develop@6c5f256dacf16162f96355900fdd566f93aa566f`；D-154更新 Spec 与实现仍共处同一 dirty 工作树。用户要求先让更新 Spec 完成 fresh `1+2`，再单独 amend 到原契约提交，之后才以 amend 后的新 HEAD 重冻实现；生产实现不得随本次提交进入历史，且未授权 push、sync、archive、release、deploy、Phase 19 或真实 provider 调用。
+- OpenSpec: 仓库存在 `openspec/`；Phase 1-18.2 均已同步主规格并归档，当前无 active change。Phase 18.2 归档路径为 `openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/`。
+- Git / 代码状态: 当前 `develop` HEAD 已包含 Phase 18.2 生产实现、主规格同步、归档移动与状态回写的本地交付提交；提交后工作树应保持 clean。未授权push、release、deploy、Phase 19或真实provider调用。
 - 长期计划: `docs/plans/architecture-evolution-plan.md` 记录跨 session 的冻结基线、进度、发现、决策和 handoff；`docs/plans/architecture-evolution-change-matrix.md` 记录阶段依赖、共享接口、验收与文件所有权。上下文压缩或更换 Agent 后必须先以磁盘文件和当前 Git/OpenSpec 状态重新校准。
 - 计划模式: 迭代模式。Phase 1-16 保持历史冻结；新增 Phase 17-21 采用窄 change 演进，不进行全仓一次性重构。
 
@@ -20,13 +20,13 @@
 
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
-| 总体状态 | Phase 18 与 Phase 18.1 已归档 | 两阶段对应主规格同步、tasks、fresh Reviewer 1/2/3 Stage 1/2与本地提交均已闭合；AC-081/083及真实 streaming/completion仍保持各自 `hosted-unverified` 边界。 |
-| 当前 Phase | Phase 18.2 更新 Spec 重审与提交 | D-153冻结身份`72aefdf4…`的fresh Reviewer 1为Stage 1/2 PASS、0 findings；Reviewer 3以AC-095验收矩阵和Phase关键文件漏列live evidence helper及terminal后置失败恢复节点的1项MEDIUM阻断Stage 1，Reviewer 2已中断，旧票失效。D-154仅补契约映射与状态事实，不改变运行行为；当前先对全部待提交Spec完成fresh`1+2`，通过后单独amend，再重冻131路径实现身份。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, Phase 18, Phase 18.1 | 既有 changes 已同步主规格并归档；Phase 18本地提交为 `ff0c49b`，Phase 18.1本地提交为 `395c805`。历史验证只证明各自冻结范围，不证明当前 Phase 18.2。 |
-| 当前 OpenSpec change | `controlled-multi-provider-failover` | 增量契约留在 active change，等待后续明确 `sync` 或 `archive` 指令；不得直接修改主规格。 |
+| 总体状态 | Phase 18、Phase 18.1 与 Phase 18.2 已归档 | 三阶段对应主规格同步、tasks 与 fresh Reviewer 1/2/3 Stage 1/2均已闭合；真实 completion/streaming/failover继续保持各自 `hosted-unverified` 边界。 |
+| 当前 Phase | Phase 18.2 已归档 | D-159最终候选已由fresh Reviewer 1/2/3在同一身份完成Stage 1/2 PASS、0 findings；39/39 tasks、最终重型门禁、39个真实PostgreSQL节点与零调用live preflight均已闭合，六组delta已同步主规格。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, Phase 18, Phase 18.1, Phase 18.2 | Phase 18本地提交为 `ff0c49b`，Phase 18.1本地提交为 `395c805`；Phase 18.2生产实现与归档事务已包含在当前本地HEAD。 |
+| 当前 OpenSpec change | 无 | `openspec list --json` 应为空；Phase 18.2 已移动到 `openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/`。 |
 | Phase 16 本地验证 | PASS | 2026-07-24 后续修正中，固定 uv `0.11.29` 与本机 uv `0.11.31` 都通过 lock check、frozen release sync、无隔离 build、release dry-run 与 17 项范围/identity 合同，两版 wheel/sdist 和 preview artifact checksum 完全一致；本机 `0.11.31` 下 quality PASS、审查修复后全量 pytest `1306 passed, 223 skipped`。207 项 lock identity SHA-256 保持 `bb9046c25267f611007c6b74ee74c3ff8e55f885b3f92d091aed0642c5adef58`。 |
-| 当前阻塞项 | live真实前置缺失 | 本地合同与临时隔离PostgreSQL均已通过；未提供双隔离真实凭据、endpoint和受信not-started fixture，因此AC-095只能保持零调用`hosted-unverified`。最终实现仍须先1名fresh reviewer、再2名fresh reviewer并行审查同一身份。 |
-| 当前建议下一步 | 冻结更新 Spec 补丁并完成 fresh `1+2`，通过后单独 amend | amend 后以新 HEAD 重冻实现，再启动最终实现严格`1+2`；不把生产实现带入本次提交，不 sync/archive、不 push、不启动 Phase 19。 |
+| 当前阻塞项 | 无本地交付阻塞；真实live前置仍缺失 | 本地合同与临时隔离PostgreSQL均已通过；未提供双隔离真实凭据、endpoint和受信not-started fixture，因此AC-095保持零调用`hosted-unverified`，不影响本change进入归档等待态。 |
+| 当前建议下一步 | 等待用户明确授权启动 Phase 19 | 不自动push、release、deploy，也不创建 Phase 19 change。 |
 
 ## 剩余工作
 
@@ -37,7 +37,7 @@
 - 建立 `CONTRIBUTING*`：把人与 Agent 共用的代码、测试、文档、Git、安全和最小充分验证规则集中到稳定入口。
 - 建立 `docs/plans/architecture-evolution-plan.md` 与 change matrix：冻结基线、阶段 DAG、共享接口、文件所有权、并行等级、Codex 时间估计和下一动作；每个 session 结束必须刷新 handoff。
 - Phase 17 文档基线完成后，不直接改 `runtime/services.py`。先以独立窄 change 处置重复 `AC-070`，不夹带模型行为；随后创建 `controlled-real-model-runtime`，冻结 public config/route/error/evidence 契约和 red tests，进入 Phase 18 实现；其完成并归档后才创建 `controlled-model-streaming`。
-- 本轮没有新增 HTTP endpoint。Phase 18.1 已在 `API-Contract.md` MOD-004 冻结 bound façade、delta payload/identity/capacity/settlement；Phase 18.2 active change 与 MOD-003 的 route-chain/config/evidence 字段级增量已实现。任何后续修订若触及未列 owner 或改变上述字段，必须先更新 active 契约并重新 review。
+- 本轮没有新增 HTTP endpoint。Phase 18.1 已在 `API-Contract.md` MOD-004 冻结 bound façade、delta payload/identity/capacity/settlement；Phase 18.2 已归档契约与 MOD-003 的 route-chain/config/evidence 字段级增量已实现。任何后续修订若改变上述字段，必须先创建或更新对应 active 契约并重新 review。
 
 ### 历史基线与后续 Phase
 
@@ -1122,7 +1122,7 @@ Phase 1 Monorepo / quality spine
 
 **Codex 执行时间估计**：24-40 小时，包括 OpenSpec/API/config/evidence 契约、red tests、实现、SQLite/PostgreSQL recovery、离线验证和 review/fix；若需要新增 provider-specific dependency 或 migration，在 design 冻结后重新估算。双真实 deployment smoke 另需 2-4 小时墙钟，不含外部等待。
 
-**当前状态**：修订后行为契约聚合身份 `690501a120fffc2d4cd9899da6bfecd1a1c05120f58b59dfebfb5f158fec327c` 已完成 fresh Reviewer 1/2/3 Stage 1/2 PASS、0 findings，并由本地提交 `6c5f256` 固定。生产实现已覆盖可信actual取消终态、保守unknown收口、原子预算/容量释放、evidence/replay与completion/streaming安全错误优先级。D-153冻结身份`72aefdf4…`的fresh Reviewer 1判定Stage 1/2 PASS、0 findings；Reviewer 3随后以AC-095矩阵漏列`scripts/live_model_failover_evidence.py`与terminal后置失败恢复节点、Phase关键文件漏列该helper的1项MEDIUM阻断Stage 1，Reviewer 2已中断，旧票失效。D-154仅同步验收映射、关键文件和状态事实，不改变运行行为；更新 Spec 必须先完成fresh`1+2`并单独amend到原契约提交，随后才以新HEAD重冻当前dirty实现并重启最终`1+2`。三票通过后才运行同身份重型门禁与零调用live preflight。不自动sync/archive，不提交当前生产实现、push或启动Phase 19。
+**当前状态**：已同步并归档。D-159实现候选`a1fa3fa2…`已由fresh Reviewer 1/2/3在同一身份完成Stage 1/2 PASS、0 findings；最终`make test`为`1964 passed / 269 skipped`，eval 11/11、local/service smoke、build、license、quality、39个真实PostgreSQL节点与零调用live preflight均已闭合。OpenSpec于2026-08-01把六组delta的22条新增、17条修改同步到主规格，并归档至`openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/`；当前无active change。生产实现与归档事务已本地提交；不自动push或启动Phase 19。
 
 ---
 
@@ -1293,7 +1293,7 @@ Phase 1 Monorepo / quality spine
 | `.env` 比 YAML 优先但只解析 `AGENT_HARNESS_*`；把 provider 原生 key 写入 `.env` 既可能无效，也会制造第二条不可见配置路径。 | local onboarding、service deployment、secret redaction。 | Phase 18 | 已闭合 | 使用 typed credential reference；正式 secret 走 direct env 或 `_FILE`，direct/file 冲突在读取 secret 前 fail closed，composition root 显式传给 provider client。 |
 | 自定义 `base_url` 会决定凭据发送目标，若只当普通字符串配置可能产生 secret exfiltration、SSRF 或明文传输。 | provider factory、网络 egress、错误与 health。 | Phase 18 | 已闭合 | 已校验无 userinfo/query/fragment 的 exact origin，service 默认 HTTPS allowlist，local loopback HTTP 仅显式允许，credential 与 origin 绑定。 |
 | 当前 Pydantic AI adapter 的线程池 timeout 只停止等待，不能证明已经开始的网络调用被取消；盲目重试可能重复费用。 | timeout、retry、budget settlement、recovery。 | Phase 18、Phase 18.1 | 已闭合；真实外部停止证明仍按 unknown 保守处理 | Phase 18 已改用异步 client/transport deadline；Phase 18.1 的 stream close 将未证明停止、SDK context 退出失败与已观察 delta 统一围栏为 unknown/partial，禁止 retry/fallback 并保留 committed prefix 与 reservation。 |
-| 跨 deployment/provider failover 若依赖异常字符串、共享 client/credential、把prepared当作已调用，或在 unknown 后继续，会造成凭据错发、调用事实误报、重复生成和跨 provider 重复计费。 | route chain、composition、endpoint/credential、budget settlement、recovery。 | Phase 18.2 | 行为与契约已实现；最终实现审查修复中，真实外部 failover 未验证 | 完整 chain 在副作用前冻结；候选逐项隔离。只有 `client_not_started` 或完整受信 `trusted_business_not_started` 才推进；取消仅在`stopped + complete usage`且无durable delta不确定性时按actual以cancelled终止，close失败、unknown、partial或null保留reservation/capacity并needs-review；稳定分类后的本地cleanup异常不改写既有稳定错误。 |
+| 跨 deployment/provider failover 若依赖异常字符串、共享 client/credential、把prepared当作已调用，或在 unknown 后继续，会造成凭据错发、调用事实误报、重复生成和跨 provider 重复计费。 | route chain、composition、endpoint/credential、budget settlement、recovery。 | Phase 18.2 | 本地实现、审查与门禁已闭合；真实外部 failover 保持`hosted-unverified` | 完整 chain 在副作用前冻结；候选逐项隔离。只有 `client_not_started` 或完整受信 `trusted_business_not_started` 才推进；取消仅在`stopped + complete usage`且无durable delta不确定性时按actual以cancelled终止，close失败、unknown、partial或null保留reservation/capacity并needs-review；稳定分类后的本地cleanup异常不改写既有稳定错误。 |
 | Provider token/delta 数量不定，而当前 usage operation 只为固定 prerequisite events 预约容量；直接逐 token 入 EventBus 会耗尽 seq、制造无界缓存或在副作用后才失败。 | provider stream、event capacity、outbox、SQLite/PostgreSQL recovery。 | Phase 18.1 | 已缓解；实现与证据 `1+2`、重型门禁、同步归档均闭合 | provider 副作用前固定 `MODEL_STREAM=65`，最多 64 条 delta + completed；逐片 durable commit 后才拉取下一片。stopped final 只有 token 与启用 cost 全可信才释放占位，其余同事务 needs-review。SQLite 与最终真实 PostgreSQL 5/5 合同证明 claim、五类定长 identity、legacy recovery、锁、原子回滚、占位取消与 terminal guard；实现候选 `361678bf…` 已由 Reviewer 1/2/3 Stage 1/2 PASS、0 findings，并在其后通过最终重型复验。 |
 | 逐 chunk 独立脱敏会漏掉跨 chunk secret，SSE 断线若与 provider cancel/retry 混用还会公开不可撤回内容并重复计费。 | output guardrail、redaction、RUN-006/CLI、partial usage、budget。 | Phase 18.1 | 已缓解；实现与证据 `1+2`、同步归档均闭合 | 跨块有状态安全门禁覆盖敏感候选与溢出；完整结果 guardrail 禁止 speculative delta。reader 断线只影响 committed reader，unknown 不重试、不记零、不提前 terminal。 |
 | 架构规则若只写文档会继续漂移，若一次性扩大 checker 又会造成高噪音和大范围修复。 | 全仓依赖、review、CI。 | Phase 17、Phase 21 | 部分处理 | Phase 17 建立共享原则与 change matrix；每个后续 change 只把已稳定且与本次行为相关的机械规则加入 checker/contract/CI。 |

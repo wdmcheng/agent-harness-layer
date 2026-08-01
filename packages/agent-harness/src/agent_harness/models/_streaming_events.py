@@ -3,16 +3,24 @@
 from __future__ import annotations
 
 import hashlib
+from typing import Protocol
 
 from agent_harness.events import CanonicalEvent, CanonicalEventType
 from agent_harness.models._streaming_contracts import StreamingRuntime
 from agent_harness.models.providers import ModelResponse
 from agent_harness.models.usage import ModelUsageEvidence, UsageEvidenceContext
+from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyUnitOfWork
 from agent_harness.storage.shared_budget import BudgetOperationOwnership
 from agent_harness.storage.stream_evidence_repositories import (
     stream_completed_event_id,
     stream_delta_event_id,
 )
+
+
+class MutateStreamingUow(Protocol):
+    """首 delta 持久化事务内允许执行的窄 mutation 回调。"""
+
+    async def __call__(self, uow: SQLAlchemyUnitOfWork) -> None: ...
 
 
 async def persist_delta(
@@ -22,8 +30,10 @@ async def persist_delta(
     usage_call_id: str,
     ordinal: int,
     text: str,
+    attempt: int = 1,
+    mutate_uow: MutateStreamingUow | None = None,
 ) -> CanonicalEvent:
-    """固化 delta intent；调用方登记 durable chunk 后再串行发布。"""
+    """固化 delta intent；可在同一 UoW 同步提交首 delta 的额外围栏。"""
 
     intent = CanonicalEvent(
         event_id=stream_delta_event_id(usage_call_id, ordinal),
@@ -34,7 +44,7 @@ async def persist_delta(
         seq=0,
         payload={
             "correlation": {"usage_call_id": usage_call_id},
-            "attempt": 1,
+            "attempt": attempt,
             "chunk_ordinal": ordinal,
             "text": text,
         },
@@ -43,6 +53,8 @@ async def persist_delta(
         trace_id=context.trace_id,
     )
     async with runtime.storage.uow() as uow:
+        if mutate_uow is not None:
+            await mutate_uow(uow)
         await uow.evidence_outbox.persist_stream_event(intent)
         await uow.commit()
     return intent
@@ -59,6 +71,7 @@ async def persist_completed_and_final(
     error_code: str | None,
     ownership: BudgetOperationOwnership | None,
     response: ModelResponse,
+    attempt: int = 1,
 ) -> CanonicalEvent:
     """同事务固化 completed、usage final、共享预算与未用槽位释放。"""
 
@@ -73,7 +86,7 @@ async def persist_completed_and_final(
         seq=0,
         payload={
             "correlation": {"usage_call_id": usage_call_id},
-            "attempt": 1,
+            "attempt": attempt,
             "chunk_count": len(chunks),
             "text_utf8_bytes": len(encoded),
             "text_sha256": hashlib.sha256(encoded).hexdigest(),
@@ -147,4 +160,9 @@ async def publish_persisted_stream(
     return persisted
 
 
-__all__ = ["persist_completed_and_final", "persist_delta", "publish_persisted_stream"]
+__all__ = [
+    "MutateStreamingUow",
+    "persist_completed_and_final",
+    "persist_delta",
+    "publish_persisted_stream",
+]

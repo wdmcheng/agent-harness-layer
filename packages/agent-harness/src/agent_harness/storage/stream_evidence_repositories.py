@@ -480,11 +480,14 @@ def _validated_stream_event_result(
     correlation = {"usage_call_id": usage_call_id}
     payload = event.payload
     payload_mapping = cast(Mapping[str, object], payload) if isinstance(payload, Mapping) else None
+    attempt = payload_mapping.get("attempt") if payload_mapping is not None else None
+    if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
+        raise ValueError("stream event attempt must be a positive global ordinal")
     if kind == "delta":
         text = payload_mapping.get("text") if payload_mapping is not None else None
         expected_payload = {
             "correlation": correlation,
-            "attempt": 1,
+            "attempt": attempt,
             "chunk_ordinal": ordinal,
             "text": text,
         }
@@ -515,7 +518,7 @@ def _validated_stream_event_result(
             or event.event_id != stream_completed_event_id(usage_call_id)
             or set(payload_mapping) != expected_keys
             or payload_mapping.get("correlation") != correlation
-            or payload_mapping.get("attempt") != 1
+            or payload_mapping.get("attempt") != attempt
             or isinstance(chunk_count, bool)
             or not isinstance(chunk_count, int)
             or not 0 <= chunk_count <= 64

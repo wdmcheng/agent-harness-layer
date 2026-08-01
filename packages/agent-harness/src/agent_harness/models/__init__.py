@@ -2,6 +2,17 @@
 
 from agent_harness.adapters.models.fake import FakeModelProvider as FakeModelProvider
 from agent_harness.adapters.models.fake import FakeModelStreamScript as FakeModelStreamScript
+from agent_harness.models._router_contracts import ModelRouteCandidate as ModelRouteCandidate
+from agent_harness.models._router_contracts import ModelRouteChainPlan as ModelRouteChainPlan
+from agent_harness.models._settlement_contracts import (
+    ModelRouteChainExhaustedCause as ModelRouteChainExhaustedCause,
+)
+from agent_harness.models._settlement_contracts import (
+    ModelRouteChainExhaustedDetail as ModelRouteChainExhaustedDetail,
+)
+from agent_harness.models._settlement_validation import (
+    validate_durable_model_settlement as validate_durable_model_settlement,
+)
 from agent_harness.models.invocation import (
     BoundModelInvocationService as BoundModelInvocationService,
 )
@@ -20,6 +31,27 @@ from agent_harness.models.providers import ModelStreamDelta as ModelStreamDelta
 from agent_harness.models.providers import ModelStreamingProvider as ModelStreamingProvider
 from agent_harness.models.providers import ModelStreamUsage as ModelStreamUsage
 from agent_harness.models.providers import PreparedModelStreamCall as PreparedModelStreamCall
+from agent_harness.models.route_chain_identity import (
+    ModelRouteApprovalGrantIdentity as ModelRouteApprovalGrantIdentity,
+)
+from agent_harness.models.route_chain_identity import (
+    ModelRouteApprovalRequestIdentity as ModelRouteApprovalRequestIdentity,
+)
+from agent_harness.models.route_chain_identity import (
+    ModelRouteAttemptIdentity as ModelRouteAttemptIdentity,
+)
+from agent_harness.models.route_chain_identity import (
+    ModelRouteCandidateIdentity as ModelRouteCandidateIdentity,
+)
+from agent_harness.models.route_chain_identity import (
+    ModelRouteChainIdentity as ModelRouteChainIdentity,
+)
+from agent_harness.models.route_chain_identity import (
+    ModelRouteNotStartedProofIdentity as ModelRouteNotStartedProofIdentity,
+)
+from agent_harness.models.route_chain_identity import (
+    model_route_operation_identity_digest as model_route_operation_identity_digest,
+)
 from agent_harness.models.router import ModelRouteError as ModelRouteError
 from agent_harness.models.router import ModelRoutePlan as ModelRoutePlan
 from agent_harness.models.router import ModelRouter as ModelRouter
@@ -41,6 +73,8 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "ModelInvocationService",
     "ModelApprovalRequired",
     "ModelProviderInvocationError",
+    "ModelRouteChainExhaustedCause",
+    "ModelRouteChainExhaustedDetail",
     "ModelProvider",
     "ModelRequest",
     "ModelResponse",
@@ -53,9 +87,19 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "ModelRouterConfig",
     "ModelRoutePlan",
     "ModelRouteError",
+    "ModelRouteCandidate",
+    "ModelRouteChainPlan",
+    "ModelRouteAttemptIdentity",
+    "ModelRouteNotStartedProofIdentity",
+    "ModelRouteApprovalRequestIdentity",
+    "ModelRouteApprovalGrantIdentity",
+    "ModelRouteCandidateIdentity",
+    "ModelRouteChainIdentity",
+    "model_route_operation_identity_digest",
     "ModelUsageEvidence",
     "UsageEvidenceContext",
     "UsageInvocationReplayError",
+    "validate_durable_model_settlement",
     "embedding_usage_evidence",
     "model_usage_evidence",
     "stable_usage_call_id",

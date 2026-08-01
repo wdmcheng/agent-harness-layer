@@ -193,6 +193,7 @@ async def test_live_smoke_external_blocked_output_keeps_attempt_and_call_facts(
         def __init__(self, _request: ModelRequest) -> None:
             self.response = None
             self.error_code = error_code
+            self.failure_domain = "provider"
             self.provider_called = True
             self.attempt_count = attempt_count
             self.latency_ms = 37

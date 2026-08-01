@@ -9,6 +9,7 @@ from typing import cast
 from agent_harness.config.schemas import ModelSettings
 from agent_harness.models._router_contracts import (
     AgentModelPolicyLike,
+    ModelRouteChainPlan,
     ModelRouteError,
     ModelRoutePlan,
     ModelRouterConfig,
@@ -151,6 +152,20 @@ class ModelRouter(RouterSnapshotPlanningMixin):
             )
         return self._plan_legacy_fake(request, config=config)
 
+    def plan_chain(
+        self,
+        request: ModelRequest,
+        *,
+        agent_policy: AgentModelPolicyLike,
+    ) -> ModelRouteChainPlan:
+        """显式冻结跨 deployment route chain；legacy `plan()` 语义保持不变。"""
+
+        if self._model_settings is None:
+            raise ModelRouteError(
+                "model.route_not_allowed", "route chain requires controlled model settings"
+            )
+        return self._plan_controlled_chain(request, agent_policy=agent_policy)
+
     async def execute(self, request: ModelRequest, *, plan: ModelRoutePlan) -> ModelResponse:
         """执行已冻结 plan；后续实现层负责 reservation/permit/mark 顺序。"""
 
@@ -260,4 +275,10 @@ class _DirectPreparedCall:
         """兼容包装没有独占资源。"""
 
 
-__all__ = ["ModelRouteError", "ModelRoutePlan", "ModelRouter", "ModelRouterConfig"]
+__all__ = [
+    "ModelRouteChainPlan",
+    "ModelRouteError",
+    "ModelRoutePlan",
+    "ModelRouter",
+    "ModelRouterConfig",
+]

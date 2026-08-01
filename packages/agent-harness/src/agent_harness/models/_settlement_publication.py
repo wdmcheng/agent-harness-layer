@@ -115,6 +115,11 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
                         "provider_called": provider_called,
                         "attempt_count": attempt_count,
                         "latency_ms": evidence.latency_ms,
+                        **(
+                            {"detail": evidence.decision.get("route_chain_exhausted")}
+                            if error_code == "model.route_chain_exhausted"
+                            else {}
+                        ),
                     }
                 }
                 if error_code in ModelProviderInvocationError.stable_codes

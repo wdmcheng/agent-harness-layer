@@ -12,7 +12,9 @@ from typing import TYPE_CHECKING, Literal, cast
 from agent_harness.contracts.trust import GuardrailDecisionStatus
 from agent_harness.events import EventBus
 from agent_harness.identity import IdentityContext
+from agent_harness.models._invocation_chain import ModelApprovalGrantLike
 from agent_harness.models._invocation_execution import ModelApprovalRequired
+from agent_harness.models._router_contracts import ModelRouteChainPlan
 from agent_harness.models._settlement_contracts import (
     IdentityRuntime,
     ModelProviderInvocationError,
@@ -88,7 +90,20 @@ class ModelInvocationStreamingMixin:
             request: ModelRequest,
             context: UsageEvidenceContext,
             approved: bool,
-        ) -> ModelRoutePlan: ...
+        ) -> ModelRoutePlan | ModelRouteChainPlan: ...
+
+        async def _stream_chain(
+            self,
+            request: ModelRequest,
+            *,
+            chain: ModelRouteChainPlan,
+            context: UsageEvidenceContext,
+            usage_call_id: str,
+            operation_identity_digest: str,
+            soft_approved: bool,
+            actor: IdentityContext | None,
+            approved_grant: ModelApprovalGrantLike | None = None,
+        ) -> ModelResponse: ...
 
         @staticmethod
         def _started_evidence(
@@ -197,8 +212,10 @@ class ModelInvocationStreamingMixin:
         *,
         context: UsageEvidenceContext,
         usage_call_id: str,
+        route_operation_identity_digest: str | None,
         soft_approved: bool,
         actor: IdentityContext | None,
+        approved_grant: ModelApprovalGrantLike | None,
     ) -> ModelResponse:
         """执行一次无 retry/fallback 的普通文本流，并严格串行持久化公共事件。"""
 
@@ -219,6 +236,19 @@ class ModelInvocationStreamingMixin:
             context=context,
             approved=soft_approved,
         )
+        if isinstance(plan, ModelRouteChainPlan):
+            if route_operation_identity_digest is None:
+                raise ValueError("bound route-chain operation identity is required")
+            return await self._stream_chain(
+                request,
+                chain=plan,
+                context=context,
+                usage_call_id=usage_call_id,
+                operation_identity_digest=route_operation_identity_digest,
+                soft_approved=soft_approved,
+                actor=actor,
+                approved_grant=approved_grant,
+            )
         if self._policy_engine is not None and not soft_approved:
             if actor is None:
                 raise RuntimeError("model policy requires bound identity")

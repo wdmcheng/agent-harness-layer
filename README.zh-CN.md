@@ -230,6 +230,13 @@ orchestrator、policy audit、shared budget reservation、usage evidence 和 pro
 同一 deployment 可声明有序的多个 fallback models；router 只在 provider 副作用前按冻结
 预算选择，真实失败后不自动重放。非默认 secret 目录必须通过 `--secret-root` 显式限定。
 
+显式跨 deployment fallback 使用 Agent `fallback_routes` 冻结候选链。每个候选独立绑定
+endpoint、credential、catalog、Bulkhead 和预算；只有耐久的 `client_not_started` 或受
+endpoint policy约束的 `trusted_business_not_started` proof 才能推进。任一 unknown、未受信
+response、usage、文本或首 delta 都会围栏后继。`make smoke-live-model-failover` 默认零调用并
+报告 `hosted-unverified`；真实验证还需要五项显式授权前置和
+`AGENT_HARNESS_LIVE_MODEL_FAILOVER_DEPLOYMENTS=<primary>,<secondary>`。
+
 ### 根目录常用命令
 
 | 命令 | 证明什么 | 额外前置 |
@@ -239,6 +246,7 @@ orchestrator、policy audit、shared budget reservation、usage evidence 和 pro
 | `make eval` | approved fake-model eval cases | 无需真实 provider key |
 | `make smoke-local` | 隔离的 SQLite/in-memory/local-JSONL runtime | 无需外部服务 |
 | `make smoke-live-model` | 如实报告 opt-in 状态，或执行一次受治理 completion | 需另行授权、品牌化隔离 credential 与受信 endpoint |
+| `make smoke-live-model-failover` | 校验双 deployment failover artifact，或执行受控真实链 | 需另行授权、双隔离 credential/endpoint 与受信 not-started fixture |
 | `make smoke-service` | 复制模板后经 PostgreSQL/Redis 验证 API/worker 恢复 | Docker Compose |
 | `make build` | 本地 wheel、sdist 和 checksum | 不发布 |
 | `make license-check` | 依赖/license 清单、NOTICE、vendoring 和镜像身份策略 | 不是法律意见或完整 SBOM |

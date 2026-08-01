@@ -10,6 +10,7 @@ from typing import cast
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agent_harness.storage.model_route_chain_state import ModelRouteChainState
 from agent_harness.storage.shared_budget import (
     BudgetOperationConflict,
     BudgetOperationOwnership,
@@ -74,6 +75,11 @@ class _SharedBudgetReplayMixin:
                 state=cast(OperationState, model.state),
                 side_effect_state=cast(SideEffectState, model.side_effect_state),
                 result=model.result_json,
+                route_chain_state=(
+                    None
+                    if model.route_chain_state_json is None
+                    else ModelRouteChainState.model_validate(model.route_chain_state_json)
+                ),
             )
         if allocations:
             model = allocations[0]
@@ -94,6 +100,11 @@ class _SharedBudgetReplayMixin:
                 state=cast(OperationState, model.state),
                 side_effect_state=cast(SideEffectState, model.side_effect_state),
                 result=model.result_json,
+                route_chain_state=(
+                    None
+                    if model.route_chain_state_json is None
+                    else ModelRouteChainState.model_validate(model.route_chain_state_json)
+                ),
             )
         return None
 

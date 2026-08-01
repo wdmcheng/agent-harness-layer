@@ -6,6 +6,9 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
+from pydantic import ConfigDict, Field, model_validator
+
+from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.models.providers import ModelResponse
 from agent_harness.models.router import ModelRouterConfig
 from agent_harness.models.usage import ModelUsageEvidence
@@ -20,6 +23,61 @@ class SettlementStart:
     usage: UsageSettlementClaim
     ownership: BudgetOperationOwnership | None
     safe_to_start: bool = False
+    started_evidence: ModelUsageEvidence | None = None
+
+
+@dataclass(frozen=True)
+class RouteAttemptNotStartedFacts:
+    """可信未开始分类器交给 proof canonicalizer 的封闭事实。"""
+
+    not_started_reason: Literal["client_not_started", "trusted_business_not_started"]
+    side_effect_state: Literal["not_started", "started"]
+    request_sent: bool
+    http_response_observed: bool
+    http_status: int | None
+    response_identity_observed: bool
+    usage_observed: bool
+    text_observed: bool
+    delta_observed: bool
+    completion_observed: bool | None
+    endpoint_policy_digest: str
+    classifier_ref: str | None
+    classifier_version: str | None
+
+
+class ModelRouteChainExhaustedCause(HarnessDTO):
+    """一个冻结 ordinal 的封闭耗尽原因。"""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, frozen=True)
+
+    ordinal: int = Field(ge=1, le=8, strict=True)
+    cause: Literal[
+        "capability",
+        "catalog",
+        "input_bound",
+        "hard_budget",
+        "soft_budget",
+        "balance",
+        "not_started_failure",
+    ]
+
+
+class ModelRouteChainExhaustedDetail(HarnessDTO):
+    """`model.route_chain_exhausted` 的 exact、去敏错误明细。"""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, frozen=True)
+
+    schema_version: Literal["model-route-chain-exhausted-v1"] = "model-route-chain-exhausted-v1"
+    chain_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    causes: tuple[ModelRouteChainExhaustedCause, ...] = Field(min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def validate_ordinals(self) -> ModelRouteChainExhaustedDetail:
+        """原因必须覆盖从 1 开始的连续冻结候选，禁止遗漏或重排。"""
+
+        if [item.ordinal for item in self.causes] != list(range(1, len(self.causes) + 1)):
+            raise ValueError("route-chain exhausted causes must be continuous")
+        return self
 
 
 class ModelProviderInvocationError(RuntimeError):
@@ -33,6 +91,8 @@ class ModelProviderInvocationError(RuntimeError):
             "model.provider_side_effect_unknown",
             "model.invocation_cancelled",
             "model.bulkhead_saturated",
+            "model.route_chain_exhausted",
+            "model.policy_denied",
         }
     )
 
@@ -44,17 +104,20 @@ class ModelProviderInvocationError(RuntimeError):
         attempt_count: int = 0,
         latency_ms: int | None = None,
         failure_domain: Literal["provider", "runtime"] = "provider",
+        detail: ModelRouteChainExhaustedDetail | None = None,
     ) -> None:
         """封闭 raw 异常，并区分 provider 故障与本地运行时失败。"""
 
-        if attempt_count < 0:
+        if isinstance(attempt_count, bool) or attempt_count < 0:
             raise ValueError("attempt_count must be non-negative")
         if latency_ms is not None and latency_ms < 0:
             raise ValueError("latency_ms must be non-negative")
-        if provider_called != (attempt_count > 0):
-            raise ValueError("provider_called and attempt_count must describe the same side effect")
+        if code != "model.route_chain_exhausted" and provider_called and attempt_count == 0:
+            raise ValueError("provider_called requires at least one durable attempt")
         if failure_domain not in {"provider", "runtime"}:
             raise ValueError("failure_domain must be provider or runtime")
+        if code != "model.route_chain_exhausted" and detail is not None:
+            raise ValueError("only route-chain exhaustion may carry detail")
 
         message = "model provider invocation failed" if code == self.code else code
         super().__init__(message)
@@ -63,6 +126,7 @@ class ModelProviderInvocationError(RuntimeError):
         self.attempt_count = attempt_count
         self.latency_ms = latency_ms
         self.failure_domain: Literal["provider", "runtime"] = failure_domain
+        self.detail = detail
 
 
 @dataclass(frozen=True)

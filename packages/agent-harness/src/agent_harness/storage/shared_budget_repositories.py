@@ -29,6 +29,9 @@ from agent_harness.storage._shared_budget_repository_records import (
     _ledger_snapshot_valid,
     _snapshot_hash,
 )
+from agent_harness.storage._shared_budget_route_chain_repository import (
+    _SharedBudgetRouteChainMixin,
+)
 from agent_harness.storage.delegation_models import AgentDelegationModel
 from agent_harness.storage.run_models import AgentRunModel
 from agent_harness.storage.shared_budget import (
@@ -50,6 +53,7 @@ class SharedBudgetRepository(
     _SharedBudgetAllocationMixin,
     _SharedBudgetReplayMixin,
     _SharedBudgetLifecycleMixin,
+    _SharedBudgetRouteChainMixin,
 ):
     """所有调用都运行在 application UoW 的同一个 AsyncSession 内。"""
 

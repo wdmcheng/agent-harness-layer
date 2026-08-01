@@ -35,6 +35,7 @@ from agent_harness.config.schemas import (
 from agent_harness.config.schemas import (
     ModelEndpointPolicySettings as ModelEndpointPolicySettings,
 )
+from agent_harness.config.schemas import ModelRouteRef as ModelRouteRef
 from agent_harness.config.schemas import (
     ModelSettings as ModelSettings,
 )
@@ -71,6 +72,7 @@ _SCHEMA_MODEL_EXPORTS = [
     "ModelCredentialSettings",
     "ModelDeploymentSettings",
     "ModelEndpointPolicySettings",
+    "ModelRouteRef",
     "ObservabilitySettings",
     "ObservabilityProviderSettings",
     "PolicySettings",

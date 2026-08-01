@@ -19,10 +19,11 @@ from agent_harness.models._router_contracts import (
     ModelRoutePlan,
     ModelRouterConfig,
 )
+from agent_harness.models._router_current_chain import RouterCurrentChainPlanningMixin
 from agent_harness.models.providers import ModelDecision, ModelProvider, ModelRequest
 
 
-class RouterCurrentPlanningMixin:
+class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
     """只负责当前配置、fallback、预算界限和 legacy fake 的纯规划。"""
 
     config: ModelRouterConfig
@@ -153,6 +154,7 @@ class RouterCurrentPlanningMixin:
         deployment_id: str,
         allowed: tuple[str, ...],
         resolved: ResolvedModelDeployment,
+        tolerate_input_bound: bool = False,
     ) -> ModelRoutePlan:
         """用单个候选的受信目录重算 immutable plan，不读取 request 外的 override。"""
 
@@ -164,7 +166,10 @@ class RouterCurrentPlanningMixin:
         prompt_bytes = len(request.prompt.encode("utf-8"))
         if resolved.provider_kind == "fake":
             per_attempt_tokens = prompt_bytes + request.max_output_tokens
-            if per_attempt_tokens > resolved.max_per_attempt_token_bound:
+            if (
+                per_attempt_tokens > resolved.max_per_attempt_token_bound
+                and not tolerate_input_bound
+            ):
                 raise ModelRouteError(
                     "budget.reservation_rejected",
                     "dynamic token bound exceeds static ceiling",
@@ -207,7 +212,7 @@ class RouterCurrentPlanningMixin:
             )
         trusted_input = prompt_bytes + catalog.input_envelope_token_bound
         per_attempt_tokens = trusted_input + request.max_output_tokens
-        if per_attempt_tokens > static_token_ceiling:
+        if per_attempt_tokens > static_token_ceiling and not tolerate_input_bound:
             raise ModelRouteError(
                 "budget.reservation_rejected", "dynamic token bound exceeds static ceiling"
             )
@@ -293,6 +298,9 @@ class RouterCurrentPlanningMixin:
                 max_wait_ms=deployment.max_retry_wait_ms,
                 backoff_initial_ms=deployment.backoff_initial_ms,
                 backoff_max_ms=deployment.backoff_max_ms,
+            ),
+            cross_provider_failover_http_statuses=tuple(
+                deployment.cross_provider_failover_http_statuses
             ),
             bulkhead_policy=ModelBulkheadPolicy(
                 max_in_flight=deployment.max_in_flight,

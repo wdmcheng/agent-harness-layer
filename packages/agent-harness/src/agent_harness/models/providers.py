@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Literal, Protocol, cast, runtime_checkable
 
 from pydantic import AliasChoices, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
+from agent_harness.config.schemas import ModelRouteRef
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.models.streaming import MAX_STREAM_COLLECTOR_UTF8_BYTES, bounded_utf8_size
 
@@ -27,6 +28,7 @@ class ModelRequest(HarnessDTO):
     estimated_input_tokens: int = 0
     max_output_tokens: int = 0
     timeout_seconds: int | None = None
+    route_refs: tuple[ModelRouteRef, ...] | None = Field(default=None, max_length=8)
 
     @field_validator("estimated_input_tokens", "max_output_tokens", mode="before")
     @classmethod

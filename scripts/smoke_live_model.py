@@ -9,7 +9,7 @@ import os
 import tempfile
 from pathlib import Path
 from time import perf_counter
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
@@ -55,8 +55,10 @@ class LiveSmokeExecutor:
 
     def __init__(self, request: ModelRequest) -> None:
         self._request = request
+        self.run_id: str | None = None
         self.response: ModelResponse | None = None
         self.error_code: str | None = None
+        self.failure_domain: Literal["provider", "runtime"] | None = None
         self.provider_called = False
         self.attempt_count = 0
         self.latency_ms: int | None = None
@@ -68,7 +70,7 @@ class LiveSmokeExecutor:
     ) -> AgentExecutionResult:
         """经 bound identity、policy、预算与 evidence 执行一次固定非流式请求。"""
 
-        del request
+        self.run_id = request.run_id
         invocation = cast(
             BoundModelInvocationService,
             context.require_service("model_invocation"),
@@ -80,6 +82,7 @@ class LiveSmokeExecutor:
             )
         except ModelProviderInvocationError as exc:
             self.error_code = exc.code
+            self.failure_domain = exc.failure_domain
             self.provider_called = exc.provider_called
             self.attempt_count = exc.attempt_count
             self.latency_ms = exc.latency_ms
@@ -285,7 +288,7 @@ async def run(
             await close_agent_execution_services(services)
             await storage.dispose()
     if run_result.status is not RunStatus.COMPLETED or executor.response is None:
-        external_error = executor.error_code in {
+        external_error = executor.failure_domain == "provider" and executor.error_code in {
             "model.provider_failed",
             "model.provider_retry_exhausted",
             "model.provider_side_effect_unknown",

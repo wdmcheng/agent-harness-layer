@@ -147,6 +147,15 @@ smoke-live-model-stream:
     expire_in: "14 days"
     paths: [".artifacts/ci/smoke-live-model-stream", ".artifacts/smoke/live-model-stream/result.json"]
 
+smoke-live-model-failover:
+  stage: verify
+  needs: [install]
+  script: ["make ci-smoke-live-model-failover"]
+  artifacts:
+    when: always
+    expire_in: "14 days"
+    paths: [".artifacts/ci/smoke-live-model-failover", ".artifacts/smoke/live-model-failover/result.json"]
+
 license:
   stage: verify
   needs: [install, smoke-service]
@@ -182,7 +191,7 @@ release-dry-run:
 
 acceptance-validate:
   stage: acceptance
-  needs: [install, quality-aggregate, test-aggregate, integration, eval, smoke-local, smoke-service, smoke-live-model, smoke-live-model-stream, license, build, release-dry-run, ci-contract]
+  needs: [install, quality-aggregate, test-aggregate, integration, eval, smoke-local, smoke-service, smoke-live-model, smoke-live-model-stream, smoke-live-model-failover, license, build, release-dry-run, ci-contract]
   script: ["make ci-acceptance-validate"]
   artifacts: {when: always, expire_in: "14 days", paths: [".artifacts/ci/acceptance-validate"]}
 

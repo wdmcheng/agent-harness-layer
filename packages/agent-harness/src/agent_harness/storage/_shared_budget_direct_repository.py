@@ -16,6 +16,9 @@ from agent_harness.storage._shared_budget_repository_records import (
     _claim_record,
     _decimal,
 )
+from agent_harness.storage._shared_budget_route_chain_validation import (
+    validate_initial_route_state,
+)
 from agent_harness.storage.shared_budget import (
     BudgetOperationConflict,
     BudgetReservationRejected,
@@ -50,6 +53,8 @@ class _SharedBudgetDirectMixin:
     async def claim_direct(self, data: DirectBudgetClaim) -> ClaimRecord:
         """Identity 优先判定后，以 owner version CAS 原子取得 token/cost 余额。"""
 
+        if data.route_chain_state is not None:
+            validate_initial_route_state(data.route_chain_state)
         existing = await self._direct_by_key(
             tenant_id=data.tenant_id,
             budget_owner_run_id=data.budget_owner_run_id,
@@ -79,6 +84,11 @@ class _SharedBudgetDirectMixin:
             ledger=ledger,
             token_reservation=data.token_reservation,
             cost_reservation=data.cost_reservation,
+            allow_zero_cost_coordination=(
+                data.route_chain_state is not None
+                and data.route_chain_state.current_reservation.token_bound == 0
+                and data.route_chain_state.current_reservation.cost_bound is None
+            ),
         )
         changed = cast(
             CursorResult[Any],
@@ -150,6 +160,9 @@ class _SharedBudgetDirectMixin:
             state="settled" if data.zero_impact else "reserved",
             side_effect_state="result_committed" if data.zero_impact else "not_started",
             result_json=data.result,
+            route_chain_state_json=(
+                None if data.route_chain_state is None else data.route_chain_state.to_payload()
+            ),
         )
         self._session.add(model)
         await self._session.flush()

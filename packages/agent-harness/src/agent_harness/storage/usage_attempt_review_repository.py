@@ -12,7 +12,7 @@ from agent_harness.storage.event_capacity_repositories import EvidenceOperationK
 from agent_harness.storage.models import RunEvidenceOutboxModel
 
 
-def _normalize_attempt_review(review: Mapping[str, object]) -> dict[str, object]:
+def normalize_attempt_review(review: Mapping[str, object]) -> dict[str, object]:
     """封闭 needs-review 的脱敏 shape，禁止混入可结算 final evidence。"""
 
     expected_keys = {
@@ -58,14 +58,14 @@ def _normalize_attempt_review(review: Mapping[str, object]) -> dict[str, object]
 
     attempt = ModelAttemptEvidence.model_validate(attempts[0])
     expected_side_effect = "unknown" if close_state == "unknown" else "started"
-    if attempt.attempt != 1 or attempt.side_effect_state != expected_side_effect:
+    if attempt.side_effect_state != expected_side_effect:
         raise ValueError("attempt review side-effect state is invalid")
     charge = dict(cast(Mapping[str, object], raw_charge))
     if charge != {
         "charged_tokens": None,
         "charged_cost_usd": None,
         "charge_status": "unknown",
-        "unresolved_attempts": [1],
+        "unresolved_attempts": [attempt.attempt],
     }:
         raise ValueError("attempt review must preserve the unresolved reservation")
     return {
@@ -116,7 +116,7 @@ class UsageAttemptReviewRepositoryMixin:
         )
         if not isinstance(started, Mapping):
             raise RuntimeError("usage settlement is missing its durable started identity")
-        normalized_review = _normalize_attempt_review(review)
+        normalized_review = normalize_attempt_review(review)
         normalized_result = {
             "started": dict(cast(Mapping[str, object], started)),
             "attempt_review": normalized_review,
@@ -134,4 +134,4 @@ class UsageAttemptReviewRepositoryMixin:
         return model
 
 
-__all__ = ["UsageAttemptReviewRepositoryMixin"]
+__all__ = ["UsageAttemptReviewRepositoryMixin", "normalize_attempt_review"]

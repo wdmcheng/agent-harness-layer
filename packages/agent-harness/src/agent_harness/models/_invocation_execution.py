@@ -12,13 +12,17 @@ from typing import TYPE_CHECKING, Any, cast
 from agent_harness.contracts.trust import GuardrailDecisionStatus
 from agent_harness.events import EventBus
 from agent_harness.identity import IdentityContext
+from agent_harness.models._invocation_chain import (
+    ModelApprovalGrantLike,
+)
 from agent_harness.models._invocation_settlement import (
     DurableMarkStateUnknown,
     ModelProviderInvocationError,
     _ModelSettlementMixin,
 )
+from agent_harness.models._router_contracts import ModelRouteChainPlan
 from agent_harness.models.providers import ModelAttemptEvidence, ModelRequest, ModelResponse
-from agent_harness.models.router import ModelRoutePlan, ModelRouter
+from agent_harness.models.router import ModelRouter
 from agent_harness.models.usage import ModelUsageEvidence, UsageEvidenceContext
 from agent_harness.models.usage_events import UsageEvidenceLifecycle
 from agent_harness.observability.facade import TelemetryFacade
@@ -59,8 +63,10 @@ class ModelInvocationExecutionMixin(_ModelSettlementMixin):
         *,
         context: UsageEvidenceContext,
         usage_call_id: str,
+        route_operation_identity_digest: str | None,
         soft_approved: bool,
         actor: IdentityContext | None,
+        approved_grant: ModelApprovalGrantLike | None,
     ) -> ModelResponse:
         """执行一次 model 调用；任何 provider 副作用都晚于 durable 预约。"""
 
@@ -79,11 +85,25 @@ class ModelInvocationExecutionMixin(_ModelSettlementMixin):
         await self._event_bus.reconcile_local_capacity(run_id=context.run_id)
         started_evidence: ModelUsageEvidence | None = None
         try:
-            plan = await self._plan(
+            route_plan = await self._plan(
                 request=request,
                 context=context,
                 approved=soft_approved,
             )
+            if isinstance(route_plan, ModelRouteChainPlan):
+                if route_operation_identity_digest is None:
+                    raise ValueError("bound route-chain operation identity is required")
+                return await self._complete_chain(
+                    request,
+                    chain=route_plan,
+                    context=context,
+                    usage_call_id=call_id,
+                    operation_identity_digest=route_operation_identity_digest,
+                    soft_approved=soft_approved,
+                    actor=actor,
+                    approved_grant=approved_grant,
+                )
+            plan = route_plan
             if self._policy_engine is not None and not soft_approved:
                 if actor is None:
                     raise RuntimeError("model policy requires bound identity")
@@ -439,99 +459,3 @@ class ModelInvocationExecutionMixin(_ModelSettlementMixin):
             response=response,
         )
         return response
-
-    async def _plan(
-        self,
-        *,
-        request: ModelRequest,
-        context: UsageEvidenceContext,
-        approved: bool,
-    ) -> ModelRoutePlan:
-        """依据共享预算树快照或默认路由生成本次调用计划。
-
-        快照、账本和归属在同一个 UoW 中读取，确保路由限制来自同一持久化视图；任何
-        缺失或无效快照都转换成稳定预算拒绝，而不是悄悄回退到当前进程配置。
-        """
-
-        if self._router.has_controlled_settings and self._agent_policy_resolver is None:
-            raise BudgetReservationRejected(reason="snapshot_invalid")
-        if self._shared_budget is None:
-            if self._router.has_controlled_settings:
-                assert self._agent_policy_resolver is not None
-                plan = self._router.plan(
-                    request,
-                    agent_policy=self._agent_policy_resolver(context.agent_id),
-                )
-            else:
-                plan = self._router.plan(request)
-            return self._apply_durable_soft_approval(plan) if approved else plan
-        # 三项读取必须保持一致，否则并发迁移预算树时可能组合出不存在的路由视图。
-        async with self._storage.uow() as uow:
-            ownership = await uow.shared_budget.resolve_operation_ownership(
-                tenant_id=context.tenant_id,
-                run_id=context.run_id,
-            )
-            ledger = await uow.shared_budget.get_ledger(
-                context.tenant_id,
-                ownership.budget_owner_run_id,
-            )
-            snapshot = await uow.shared_budget.get_tree_snapshot(
-                context.tenant_id,
-                ownership.budget_owner_run_id,
-            )
-        if ledger is None:
-            # `_start_settlement` 负责把 snapshot_invalid 保存为稳定拒绝 evidence。
-            try:
-                plan = self._router.plan(request)
-                return self._apply_durable_soft_approval(plan) if approved else plan
-            except KeyError as exc:
-                raise BudgetReservationRejected(reason="snapshot_invalid") from exc
-        if snapshot is None:
-            try:
-                plan = self._router.plan(request)
-                return self._apply_durable_soft_approval(plan) if approved else plan
-            except KeyError as exc:
-                raise BudgetReservationRejected(reason="snapshot_invalid") from exc
-        if (
-            self._router.has_controlled_settings
-            and snapshot.get("schema_version") == "budget-tree-v2"
-        ):
-            try:
-                plan = self._router.plan_from_snapshot(
-                    request,
-                    snapshot=snapshot,
-                    agent_id=context.agent_id,
-                )
-                return self._apply_durable_soft_approval(plan) if approved else plan
-            except ValueError as exc:
-                # 路由缩权错误保留其公开错误；快照损坏统一映射为安全预算拒绝。
-                if getattr(exc, "code", None) != "budget.reservation_rejected":
-                    raise
-                raise BudgetReservationRejected(reason="snapshot_invalid") from exc
-        try:
-            config = self._shared_budget.model_router_config(
-                snapshot=snapshot,
-                agent_id=context.agent_id,
-                base=self._router.config,
-            )
-        except ValueError as exc:
-            raise BudgetReservationRejected(reason="snapshot_invalid") from exc
-        try:
-            plan = self._router.plan(request, config=config)
-            return self._apply_durable_soft_approval(plan) if approved else plan
-        except KeyError as exc:
-            raise BudgetReservationRejected(reason="snapshot_invalid") from exc
-
-    @staticmethod
-    def _apply_durable_soft_approval(plan: ModelRoutePlan) -> ModelRoutePlan:
-        """只把 Router 明确标记的 soft gate 升级为调用，不触碰 hard eligibility。"""
-
-        if plan.decision.action != "policy_required" or plan.approval_kind != "soft_budget":
-            return plan
-        decision = plan.decision.model_copy(
-            update={
-                "action": "call",
-                "reason": "durable approval accepted for soft budget threshold",
-            }
-        )
-        return plan.model_copy(update={"decision": decision, "approval_kind": None})

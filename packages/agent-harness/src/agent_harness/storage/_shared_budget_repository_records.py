@@ -7,6 +7,7 @@ import json
 from decimal import Decimal
 from typing import Any, cast
 
+from agent_harness.storage.model_route_chain_state import ModelRouteChainState
 from agent_harness.storage.run_models import AgentRunModel
 from agent_harness.storage.shared_budget import (
     AllocationRecord,
@@ -66,6 +67,7 @@ def _snapshot_route_valid(
     *,
     allowed_model_routes: set[tuple[str, str]],
     schema_version: str,
+    chain_mode: bool = False,
 ) -> bool:
     """验证单条冻结路由的字段、价格和模型授权范围是否完整一致。"""
 
@@ -89,11 +91,14 @@ def _snapshot_route_valid(
             typed.get("price_source_version")
         ):
             return False
-    if (
-        usage_kind == "model"
-        and (cast(str, provider), cast(str, model)) not in allowed_model_routes
-    ):
-        return False
+    if usage_kind == "model":
+        route_key = (
+            (cast(str, typed.get("deployment_id")), cast(str, model))
+            if chain_mode
+            else (cast(str, provider), cast(str, model))
+        )
+        if route_key not in allowed_model_routes:
+            return False
     try:
         _snapshot_decimal(typed.get("input_token_price_usd"))
         if usage_kind == "model":
@@ -147,8 +152,12 @@ def _snapshot_route_valid(
             )
             if (
                 not isinstance(capabilities, list)
-                or "text_completion" not in capabilities
+                or not capabilities
                 or any(not _non_empty_string(item) for item in cast(list[object], capabilities))
+                or any(
+                    item not in {"text_completion", "text_stream"}
+                    for item in cast(list[object], capabilities)
+                )
                 or not isinstance(retry_policy, dict)
                 or not isinstance(bulkhead_policy, dict)
                 or any(
@@ -170,6 +179,7 @@ def _snapshot_route_valid(
             if typed.get("max_per_attempt_token_bound") != max_prompt + envelope + max_output:
                 return False
             retry_statuses = retry.get("retryable_http_statuses")
+            failover_statuses = typed.get("cross_provider_failover_http_statuses")
             if (
                 not isinstance(retry_statuses, list)
                 or any(
@@ -178,6 +188,11 @@ def _snapshot_route_valid(
                 )
                 or retry.get("max_attempts") != typed.get("max_attempts")
                 or bulkhead.get("scope") != "process_deployment"
+                or not isinstance(failover_statuses, list)
+                or any(
+                    isinstance(item, bool) or not isinstance(item, int) or item < 400 or item > 599
+                    for item in cast(list[object], failover_statuses)
+                )
             ):
                 return False
             if retry_statuses and (
@@ -265,20 +280,48 @@ def _agent_sub_snapshot_valid(
     if len(set(policy_models)) != len(policy_models):
         return False
     allowed_model_routes = {(cast(str, provider), model) for model in policy_models}
+    chain_mode = False
     if schema_version == "budget-tree-v2":
         deployment_id = policy.get("deployment_id")
         raw_allowed = policy.get("allowed_models")
+        allowed_values = cast(list[object], raw_allowed) if isinstance(raw_allowed, list) else []
         if (
             not _non_empty_string(deployment_id)
             or not isinstance(raw_allowed, list)
-            or not all(_non_empty_string(item) for item in cast(list[object], raw_allowed))
-            or len(cast(list[object], raw_allowed)) != len(set(cast(list[str], raw_allowed)))
-            or not set(policy_models) <= set(cast(list[str], raw_allowed))
+            or not all(_non_empty_string(item) for item in allowed_values)
+            or len(allowed_values) != len(set(cast(list[str], allowed_values)))
+            or not set(policy_models) <= set(cast(list[str], allowed_values))
         ):
             return False
-        allowed_model_routes = {
-            (cast(str, provider), model) for model in cast(list[str], raw_allowed)
-        }
+        raw_route_refs = policy.get("fallback_routes")
+        if raw_route_refs:
+            if (
+                not isinstance(raw_route_refs, list)
+                or not 1 <= len(cast(list[object], raw_route_refs)) <= 8
+            ):
+                return False
+            route_refs = cast(list[object], raw_route_refs)
+            if any(
+                not isinstance(item, dict)
+                or not _non_empty_string(cast(dict[str, object], item).get("deployment_id"))
+                or not _non_empty_string(cast(dict[str, object], item).get("model_id"))
+                for item in route_refs
+            ):
+                return False
+            allowed_model_routes = {
+                (
+                    cast(str, cast(dict[str, object], item).get("deployment_id")),
+                    cast(str, cast(dict[str, object], item).get("model_id")),
+                )
+                for item in route_refs
+            }
+            if len(allowed_model_routes) != len(route_refs):
+                return False
+            chain_mode = True
+        else:
+            allowed_model_routes = {
+                (cast(str, provider), model) for model in cast(list[str], allowed_values)
+            }
     elif provider != "fake":
         # v1 从未冻结真实 deployment/catalog/endpoint identity，禁止用当前配置补齐。
         return False
@@ -305,13 +348,17 @@ def _agent_sub_snapshot_valid(
             route,
             allowed_model_routes=allowed_model_routes,
             schema_version=schema_version,
+            chain_mode=chain_mode,
         )
         for route in route_values
     ):
         return False
     frozen_model_routes = [
         (
-            cast(str, cast(dict[str, object], route).get("provider")),
+            cast(
+                str,
+                cast(dict[str, object], route).get("deployment_id" if chain_mode else "provider"),
+            ),
             cast(str, cast(dict[str, object], route).get("model")),
         )
         for route in route_values
@@ -415,6 +462,11 @@ def _claim_record(model: BudgetOperationClaimModel, *, replayed: bool = False) -
         token_impact=model.token_impact,
         cost_impact=model.cost_impact,
         result=model.result_json,
+        route_chain_state=(
+            None
+            if model.route_chain_state_json is None
+            else ModelRouteChainState.model_validate(model.route_chain_state_json)
+        ),
         replayed=replayed,
     )
 
@@ -435,6 +487,11 @@ def _allocation_record(
         token_impact=model.token_impact,
         cost_impact=model.cost_impact,
         result=model.result_json,
+        route_chain_state=(
+            None
+            if model.route_chain_state_json is None
+            else ModelRouteChainState.model_validate(model.route_chain_state_json)
+        ),
         replayed=replayed,
     )
 

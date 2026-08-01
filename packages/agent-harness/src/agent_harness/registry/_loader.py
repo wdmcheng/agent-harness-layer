@@ -16,6 +16,7 @@ import yaml
 from pydantic import BaseModel, Field, ValidationError
 from yaml import YAMLError
 
+from agent_harness.config.schemas import ModelRouteRef
 from agent_harness.contracts import ErrorDetail, HarnessError
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.registry.descriptor import (
@@ -39,6 +40,7 @@ class _AgentModelConfig(HarnessDTO):
     allowed_models: list[str] = Field(default_factory=list)
     default_model: str
     fallback_models: list[str] = Field(default_factory=list)
+    fallback_routes: tuple[ModelRouteRef, ...] = Field(default=(), max_length=8)
 
 
 class _AgentBudgetConfig(HarnessDTO):
@@ -79,29 +81,33 @@ def load_descriptor(config_path: Path, *, root: Path) -> tuple[AgentDescriptor, 
         raise RegistryLoadError(_validation_errors(exc, config_path)) from exc
     # public descriptor 只能带相对 config_ref 和摘要字段，不能把本机路径或
     # provider/client/callable 暴露给 API 和 CLI 调用方。
-    descriptor = AgentDescriptor(
-        agent_id=config.agent_id,
-        version=config.version,
-        name=config.name,
-        description=config.description,
-        input_schema_ref=config.input_schema,
-        output_schema_ref=config.output_schema,
-        config_ref=config_path.relative_to(root).as_posix(),
-        tool_policy=AgentToolPolicy(allowed_tools=config.tool_allowlist),
-        model_policy=AgentModelPolicy(
-            deployment_id=config.model.deployment_id,
-            provider=config.model.provider,
-            allowed_models=config.model.allowed_models,
-            default_model=config.model.default_model,
-            fallback_models=config.model.fallback_models,
-        ),
-        budget=AgentBudget(
-            max_tokens_per_run=config.budget.max_tokens_per_run,
-            max_cost_usd_per_run=config.budget.max_cost_usd_per_run,
-        ),
-        eval_dataset=config.eval_dataset,
-        delegation_targets=config.delegation_edges,
-    )
+    try:
+        descriptor = AgentDescriptor(
+            agent_id=config.agent_id,
+            version=config.version,
+            name=config.name,
+            description=config.description,
+            input_schema_ref=config.input_schema,
+            output_schema_ref=config.output_schema,
+            config_ref=config_path.relative_to(root).as_posix(),
+            tool_policy=AgentToolPolicy(allowed_tools=config.tool_allowlist),
+            model_policy=AgentModelPolicy(
+                deployment_id=config.model.deployment_id,
+                provider=config.model.provider,
+                allowed_models=config.model.allowed_models,
+                default_model=config.model.default_model,
+                fallback_models=config.model.fallback_models,
+                fallback_routes=config.model.fallback_routes,
+            ),
+            budget=AgentBudget(
+                max_tokens_per_run=config.budget.max_tokens_per_run,
+                max_cost_usd_per_run=config.budget.max_cost_usd_per_run,
+            ),
+            eval_dataset=config.eval_dataset,
+            delegation_targets=config.delegation_edges,
+        )
+    except ValidationError as exc:
+        raise RegistryLoadError(_validation_errors(exc, config_path)) from exc
     _validate_executor_reference(config.executor, config_path)
     return descriptor, config.executor
 

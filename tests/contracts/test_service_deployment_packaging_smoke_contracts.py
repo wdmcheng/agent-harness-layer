@@ -174,7 +174,7 @@ def test_service_smoke_executes_postgresql_migration_and_shared_budget_scenarios
         '"assert-budget-race"',
         '"assert-budget-topology"',
         '"shared-budget-crash-windows"',
-        '"0016_shared_parent_budget_ledger"',
+        '"0017_model_route_chain_state"',
     ):
         assert marker in smoke
 

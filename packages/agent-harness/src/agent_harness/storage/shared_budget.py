@@ -13,6 +13,7 @@ from typing import Any, Literal, cast
 from pydantic import Field, field_validator, model_validator
 
 from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.storage.model_route_chain_state import ModelRouteChainState
 
 BudgetState = Literal["active", "needs_review", "terminal"]
 OperationState = Literal["reserved", "settled", "released", "needs_review"]
@@ -122,12 +123,19 @@ class OperationIdentity(HarnessDTO):
     cost_enabled: bool
     trusted_token_bound: int
     trusted_cost_bound: Decimal | None = None
+    route_chain_digest: str | None = None
+    route_candidate_count: int | None = None
     identity_hash: str
 
     def to_payload(self) -> dict[str, Any]:
         """导出身份载荷，并保留固定为 ``null`` 的封闭字段参与稳定比对。"""
 
-        return self.model_dump(mode="json", exclude_none=False)
+        exclude = (
+            {"route_chain_digest", "route_candidate_count"}
+            if self.identity_schema_version != "budget-operation-v2"
+            else None
+        )
+        return self.model_dump(mode="json", exclude_none=False, exclude=exclude)
 
     @field_validator("trusted_token_bound")
     @classmethod
@@ -144,6 +152,15 @@ class OperationIdentity(HarnessDTO):
         """复用金额归一化规则，确保 identity hash 不受等价 Decimal 表示影响。"""
 
         return _non_negative_decimal(value)
+
+    @field_validator("route_candidate_count")
+    @classmethod
+    def validate_route_candidate_count(cls, value: int | None) -> int | None:
+        """显式链候选数只接受 1～8 的非 bool 整数。"""
+
+        if value is not None and (isinstance(value, bool) or not 1 <= value <= 8):
+            raise ValueError("route_candidate_count must be an integer from 1 to 8")
+        return value
 
     @model_validator(mode="after")
     def validate_shape(self) -> OperationIdentity:
@@ -168,11 +185,16 @@ class OperationIdentity(HarnessDTO):
                 or self.price_source_ref is not None
                 or self.price_source_version is not None
                 or self.cache_key_digest is not None
+                or self.route_chain_digest is not None
+                or self.route_candidate_count is not None
             ):
                 raise ValueError("delegation identity shape is invalid")
         else:
             # 直接调用和额度分配共享模型身份，但禁止混入委派路由字段。
-            if self.identity_schema_version != "budget-operation-v1":
+            if self.identity_schema_version not in {
+                "budget-operation-v1",
+                "budget-operation-v2",
+            }:
                 raise ValueError("usage identity schema version is invalid")
             if self.usage_kind not in {"model", "embedding"}:
                 raise ValueError("usage identity kind is invalid")
@@ -191,6 +213,28 @@ class OperationIdentity(HarnessDTO):
                 raise ValueError("allocation identity requires delegation_claim_id")
             if self.ownership_kind == "direct" and self.delegation_claim_id is not None:
                 raise ValueError("direct identity forbids delegation_claim_id")
+            route_fields_set = bool(
+                {"route_chain_digest", "route_candidate_count"} & self.model_fields_set
+            )
+            if self.identity_schema_version == "budget-operation-v1":
+                if (
+                    route_fields_set
+                    or self.route_chain_digest is not None
+                    or self.route_candidate_count is not None
+                ):
+                    raise ValueError("budget-operation-v1 forbids route-chain fields")
+            elif (
+                self.usage_kind != "model"
+                or not self.route_chain_digest
+                or len(self.route_chain_digest) != 64
+                or any(character not in "0123456789abcdef" for character in self.route_chain_digest)
+                or self.route_candidate_count is None
+                or not {
+                    "route_chain_digest",
+                    "route_candidate_count",
+                }.issubset(self.model_fields_set)
+            ):
+                raise ValueError("budget-operation-v2 requires exact route-chain identity")
         # 成本开关与成本上界必须成对出现，避免“启用但无上界”的隐性无限预留。
         if self.cost_enabled != (self.trusted_cost_bound is not None):
             raise ValueError("cost-enabled identity requires exactly one trusted cost bound")
@@ -202,7 +246,10 @@ class OperationIdentity(HarnessDTO):
     def _hash_payload(self) -> dict[str, Any]:
         """返回唯一排除 ``identity_hash`` 的待摘要字段，防止自引用。"""
 
-        return self.model_dump(mode="json", exclude={"identity_hash"})
+        exclude = {"identity_hash"}
+        if self.identity_schema_version != "budget-operation-v2":
+            exclude.update({"route_chain_digest", "route_candidate_count"})
+        return self.model_dump(mode="json", exclude=exclude)
 
     def _calculate_hash(self) -> str:
         """按 canonical JSON 计算身份摘要，供构造和读取校验使用。"""
@@ -212,7 +259,10 @@ class OperationIdentity(HarnessDTO):
     def rehashed(self) -> OperationIdentity:
         """在受控字段调整后重新归一化金额并生成可再次校验的身份对象。"""
 
-        payload = self.model_dump(exclude={"identity_hash"})
+        exclude = {"identity_hash"}
+        if self.identity_schema_version != "budget-operation-v2":
+            exclude.update({"route_chain_digest", "route_candidate_count"})
+        payload = self.model_dump(exclude=exclude)
         payload["trusted_cost_bound"] = _non_negative_decimal(self.trusted_cost_bound)
         payload["identity_hash"] = hashlib.sha256(_canonical_bytes(payload)).hexdigest()
         return OperationIdentity.model_validate(payload)
@@ -241,6 +291,8 @@ class OperationIdentity(HarnessDTO):
         cost_enabled: bool,
         trusted_token_bound: int,
         trusted_cost_bound: Decimal | None,
+        route_chain_digest: str | None = None,
+        route_candidate_count: int | None = None,
     ) -> OperationIdentity:
         """从模型或 embedding 的语义请求构造不可变身份。
 
@@ -258,8 +310,15 @@ class OperationIdentity(HarnessDTO):
             hashlib.sha256,
         ).hexdigest()
         normalized_cost_bound = _non_negative_decimal(trusted_cost_bound)
+        chain_mode = route_chain_digest is not None or route_candidate_count is not None
+        if chain_mode and (route_chain_digest is None or route_candidate_count is None):
+            raise ValueError("route-chain identity requires digest and candidate count")
+        if chain_mode and usage_kind != "model":
+            raise ValueError("only model usage may use budget-operation-v2")
         payload: dict[str, Any] = {
-            "identity_schema_version": "budget-operation-v1",
+            "identity_schema_version": (
+                "budget-operation-v2" if chain_mode else "budget-operation-v1"
+            ),
             "ownership_kind": ownership_kind,
             "run_id": run_id,
             "agent_id": agent_id,
@@ -282,6 +341,9 @@ class OperationIdentity(HarnessDTO):
             "trusted_token_bound": trusted_token_bound,
             "trusted_cost_bound": normalized_cost_bound,
         }
+        if chain_mode:
+            payload["route_chain_digest"] = route_chain_digest
+            payload["route_candidate_count"] = route_candidate_count
         payload["identity_hash"] = hashlib.sha256(_canonical_bytes(payload)).hexdigest()
         return cls.model_validate(payload)
 
@@ -398,6 +460,7 @@ class DirectBudgetClaim(HarnessDTO):
     cost_reservation: Decimal | None
     zero_impact: bool = False
     result: dict[str, Any] | None = None
+    route_chain_state: ModelRouteChainState | None = None
 
     @model_validator(mode="after")
     def validate_claim(self) -> DirectBudgetClaim:
@@ -405,9 +468,25 @@ class DirectBudgetClaim(HarnessDTO):
 
         if self.identity.ownership_kind != "direct":
             raise ValueError("direct claim requires direct identity")
-        if not self.zero_impact and self.token_reservation != self.identity.trusted_token_bound:
+        if self.identity.identity_schema_version == "budget-operation-v2":
+            if (
+                self.route_chain_state is None
+                or self.route_chain_state.chain_id != self.identity.route_chain_digest
+                or self.route_chain_state.usage_call_id != self.usage_call_id
+                or self.token_reservation != self.route_chain_state.current_reservation.token_bound
+                or self.cost_reservation
+                != (
+                    None
+                    if self.route_chain_state.current_reservation.cost_bound is None
+                    else Decimal(str(self.route_chain_state.current_reservation.cost_bound))
+                )
+            ):
+                raise ValueError("direct route-chain claim state is invalid")
+        elif self.route_chain_state is not None:
+            raise ValueError("legacy direct claim forbids route-chain state")
+        elif not self.zero_impact and self.token_reservation != self.identity.trusted_token_bound:
             raise ValueError("token reservation must equal trusted bound")
-        if not self.zero_impact and self.cost_reservation != self.identity.trusted_cost_bound:
+        elif not self.zero_impact and self.cost_reservation != self.identity.trusted_cost_bound:
             raise ValueError("cost reservation must equal trusted bound")
         if self.zero_impact and (
             self.token_reservation != 0
@@ -435,6 +514,7 @@ class AllocationBudgetClaim(HarnessDTO):
     cost_reservation: Decimal | None
     zero_impact: bool = False
     result: dict[str, Any] | None = None
+    route_chain_state: ModelRouteChainState | None = None
 
     @model_validator(mode="after")
     def validate_claim(self) -> AllocationBudgetClaim:
@@ -444,9 +524,25 @@ class AllocationBudgetClaim(HarnessDTO):
             raise ValueError("allocation requires allocation identity")
         if self.identity.delegation_claim_id != self.delegation_id:
             raise ValueError("allocation identity must bind delegation_id")
-        if not self.zero_impact and self.token_reservation != self.identity.trusted_token_bound:
+        if self.identity.identity_schema_version == "budget-operation-v2":
+            if (
+                self.route_chain_state is None
+                or self.route_chain_state.chain_id != self.identity.route_chain_digest
+                or self.route_chain_state.usage_call_id != self.usage_call_id
+                or self.token_reservation != self.route_chain_state.current_reservation.token_bound
+                or self.cost_reservation
+                != (
+                    None
+                    if self.route_chain_state.current_reservation.cost_bound is None
+                    else Decimal(str(self.route_chain_state.current_reservation.cost_bound))
+                )
+            ):
+                raise ValueError("allocation route-chain claim state is invalid")
+        elif self.route_chain_state is not None:
+            raise ValueError("legacy allocation forbids route-chain state")
+        elif not self.zero_impact and self.token_reservation != self.identity.trusted_token_bound:
             raise ValueError("token reservation must equal trusted bound")
-        if not self.zero_impact and self.cost_reservation != self.identity.trusted_cost_bound:
+        elif not self.zero_impact and self.cost_reservation != self.identity.trusted_cost_bound:
             raise ValueError("cost reservation must equal trusted bound")
         if self.zero_impact and (
             self.token_reservation != 0
@@ -486,6 +582,7 @@ class ClaimRecord(HarnessDTO):
     token_impact: int
     cost_impact: Decimal
     result: dict[str, Any] | None
+    route_chain_state: ModelRouteChainState | None = None
     replayed: bool = False
 
 
@@ -502,6 +599,7 @@ class AllocationRecord(HarnessDTO):
     token_impact: int
     cost_impact: Decimal
     result: dict[str, Any] | None
+    route_chain_state: ModelRouteChainState | None = None
     replayed: bool = False
 
 
@@ -525,6 +623,7 @@ class BudgetOperationReplaySeed(HarnessDTO):
     state: OperationState
     side_effect_state: SideEffectState
     result: dict[str, Any] | None
+    route_chain_state: ModelRouteChainState | None = None
 
 
 def validate_actual_usage(

@@ -217,6 +217,7 @@ class _SharedBudgetLifecycleMixin:
         ledger: ParentBudgetLedgerModel,
         token_reservation: int,
         cost_reservation: Decimal | None,
+        allow_zero_cost_coordination: bool = False,
     ) -> None:
         """只比较单次可信上界与树、目标硬限额，不读取或占用实时剩余额度。"""
 
@@ -231,10 +232,16 @@ class _SharedBudgetLifecycleMixin:
         # token 与成本任一上界超过冻结树或目标限制都直接拒绝，不能等待审批后再发现。
         if token_reservation > ledger.token_limit or token_reservation > target_token_limit:
             raise BudgetReservationRejected(reason="hard_limit_ineligible")
-        if ledger.cost_enabled and (
-            cost_reservation is None
-            or cost > cast(Decimal, ledger.cost_limit)
-            or cost > effective_target_cost_limit
+        if (
+            ledger.cost_enabled
+            and not (
+                allow_zero_cost_coordination and token_reservation == 0 and cost_reservation is None
+            )
+            and (
+                cost_reservation is None
+                or cost > cast(Decimal, ledger.cost_limit)
+                or cost > effective_target_cost_limit
+            )
         ):
             raise BudgetReservationRejected(reason="hard_limit_ineligible")
 

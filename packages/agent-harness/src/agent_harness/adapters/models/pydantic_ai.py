@@ -162,6 +162,19 @@ class PydanticAIModelProvider:
             raise ModelProviderError(
                 "model.invocation_cancelled", side_effect_state="not_started"
             ) from None
+        except ModelProviderError:
+            semaphore.release()
+            raise
+        except Exception:
+            semaphore.release()
+            # lazy factory/agent 构造发生在任何 send/iterate 之前；只向核心暴露
+            # 封闭的 client-not-started 事实，不能让 vendor 或配置异常被误记为
+            # 已发送 unknown。显式取消仍由 BaseException 分支原样传播。
+            raise ModelProviderError(
+                "model.provider_failed",
+                completion_observed=False,
+                side_effect_state="not_started",
+            ) from None
         except BaseException:
             semaphore.release()
             raise
@@ -330,6 +343,10 @@ class PydanticAIModelProvider:
                 if attempt_number >= plan.max_attempts:
                     raise ModelProviderError(
                         "model.provider_retry_exhausted",
+                        status_code=exc.status_code,
+                        retry_after_ms=exc.retry_after_ms,
+                        completion_observed=exc.completion_observed,
+                        side_effect_state=exc.side_effect_state,
                         attempts=tuple(attempts),
                     ) from None
                 retry_after_ms = max(0, exc.retry_after_ms or 0)
@@ -344,7 +361,12 @@ class PydanticAIModelProvider:
                 )
                 if loop.time() + wait_ms / 1000 >= deadline:
                     raise ModelProviderError(
-                        "model.provider_retry_exhausted", attempts=tuple(attempts)
+                        "model.provider_retry_exhausted",
+                        status_code=exc.status_code,
+                        retry_after_ms=exc.retry_after_ms,
+                        completion_observed=exc.completion_observed,
+                        side_effect_state=exc.side_effect_state,
+                        attempts=tuple(attempts),
                     ) from None
                 if wait_ms:
                     await asyncio.sleep(wait_ms / 1000)

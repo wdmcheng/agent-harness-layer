@@ -263,7 +263,7 @@ async def test_0016_postgresql_claim_blocks_exact_opt_in_downgrade() -> None:
             ).scalar_one()
         await engine.dispose()
 
-    assert revision == "0016_shared_parent_budget_ledger"
+    assert revision == "0017_model_route_chain_state"
     assert claim_count == 1
 
 
@@ -324,5 +324,5 @@ async def test_0016_postgresql_run_relation_alone_blocks_exact_opt_in_downgrade(
             ).scalar_one()
         await engine.dispose()
 
-    assert revision == "0016_shared_parent_budget_ledger"
+    assert revision == "0017_model_route_chain_state"
     assert stored_parent_run_id == parent_run_id

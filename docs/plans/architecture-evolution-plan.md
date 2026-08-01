@@ -4,7 +4,7 @@
 >
 > 首次冻结：2026-07-27
 >
-> 当前状态：当前契约基线为 `develop@6c5f256`。Phase 18 与 Phase 18.1 均已同步主规格并归档；Phase 18.2 `controlled-multi-provider-failover` 仍是唯一 active change。D-153冻结身份`72aefdf4…`的fresh Reviewer 1为Stage 1/2 PASS、0 findings；Reviewer 3以AC-095验收矩阵和DEV关键文件漏列live evidence helper及terminal后置失败恢复节点的1项MEDIUM阻断Stage 1，Reviewer 2已中断，旧票失效。D-154只补真实契约映射与状态事实；当前先冻结全部更新Spec并完成fresh`1+2`，通过后单独amend，再以新HEAD重冻实现。不提交当前生产实现，不push、sync/archive、发布、部署或启动Phase 19。
+> 当前状态：当前 `develop` HEAD 已包含 Phase 18.2 生产实现、主规格同步、归档移动与状态回写的本地交付提交。Phase 18、Phase 18.1 与 Phase 18.2 均已同步主规格并归档；当前无 active change。当前唯一动作是等待用户明确授权启动下一阶段；不push、发布、部署或自动创建Phase19 change。
 >
 > 配套矩阵：[`architecture-evolution-change-matrix.md`](architecture-evolution-change-matrix.md)
 
@@ -28,19 +28,19 @@
 |---|---|
 | 快照日期 | 2026-08-01 |
 | 分支 | `develop` |
-| 当前 HEAD | `6c5f256dacf16162f96355900fdd566f93aa566f`（D-154更新Spec待fresh`1+2`与单独amend；工作树另有未提交实现） |
-| 基线工作树 | Phase 18.2 实现始于 `develop@4640217`；契约已由`6c5f256`单独固定，当前 dirty 范围为生产代码、迁移、合同、CI/live producer与实现状态文档，不修改主规格或归档目录 |
-| 当前 Git 事务 | 用户已授权在更新Spec完成fresh`1+2`后单独amend到原契约提交；该事务尚未完成，amend后才以新HEAD重冻实现。本批次不提交当前生产实现，不push、sync/archive、发布、部署、启动 Phase 19 或在前置不足时调用真实 provider |
-| OpenSpec | 当前唯一 active change 为 `controlled-multi-provider-failover`；中文 proposal、design、六组 delta specs 与 39 项实现任务已形成。增量修订留在 active change，等待后续明确 `sync` 或 `archive` 指令；本批次不直接修改 `openspec/specs/` 或归档 Phase 18.1 |
+| 当前 HEAD | `develop` 当前HEAD已包含Phase 18.2本地交付提交；精确哈希以`git rev-parse HEAD`为准，避免同一提交内自引用漂移 |
+| 基线工作树 | Phase 18.2 实现始于 `develop@4640217`；生产代码、迁移、合同、CI/live producer、六组已同步主规格、归档目录与状态文档均已纳入本地提交，提交后工作树应为clean |
+| 当前 Git 事务 | Phase 18.2实现、验证、主规格同步、归档移动与本地提交已完成；不push、发布、部署、启动Phase19或在前置不足时调用真实provider |
+| OpenSpec | 当前无active change；`controlled-multi-provider-failover`的22条新增、17条修改已同步到六个主规格，归档路径为`openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/` |
 | 契约准入审查身份 | 修订后16文件聚合身份`690501a120fffc2d4cd9899da6bfecd1a1c05120f58b59dfebfb5f158fec327c`；Reviewer 1与真正并行的Reviewer 2/3均在同一身份完成Stage 1/2 PASS、0 findings，并已 amend 为本地提交`6c5f256` |
-| 当前实现审查身份 | D-153冻结身份`72aefdf4…`的fresh Reviewer 1为Stage 1/2 PASS、0 findings；Reviewer 3以AC-095/DEV映射遗漏的1项MEDIUM阻断Stage 1，Reviewer 2已中断，全部旧票失效。从实现基线`4640217`到当前候选的完整owner manifest仍为131个路径；当前受审集合为`HEAD=6c5f256`加66个tracked、56个untracked，共122个dirty路径，待完成D-154机械校验并重新逐文件冻结后从全新Reviewer 1重启 |
-| 已完成历史 | Phase 1-18 已归档；归档事实以 Git、`openspec list --json` 和归档目录为准 |
-| 当前阶段 | Phase 18.2 更新Spec重审与提交；35/39任务。D-154已补AC-095 live evidence helper、terminal后置失败恢复精确节点及DEV关键文件映射，不改变运行行为或owner范围；当前先完成更新Spec的fresh`1+2`并单独amend，随后重冻131路径实现身份并从全新Reviewer 1重启 |
-| 后两项预定生产行为 change | Phase 19 必须等待 Phase 18.2 实现、验证并由用户另行授权sync/archive后再开始 |
-| 当前阻塞 | 无外部决策阻塞；正在执行用户已批准的契约修订与复审。双隔离真实凭据和受信not-started fixture未提供，因此live最终只运行零调用preflight并准确记录`hosted-unverified` |
-| 明确未做 | 尚未完成最终实现`1+2`、同身份重型门禁和零调用live preflight；未运行真实provider，未提交当前生产实现，未push、sync、archive、发布、部署或启动Phase 19 |
+| 当前实现审查身份 | D-159身份`a1fa3fa2…`的Reviewer 1/2/3初末一致，均Stage 1/2 PASS、0 findings；D-160记录性/旧合同适配漂移按用户授权放行 |
+| 已完成历史 | Phase 1-18.2 已归档；归档事实以 Git、`openspec list --json` 和归档目录为准 |
+| 当前阶段 | Phase 18.2已同步并归档；39/39 tasks，最终门禁与归档后strict均闭合 |
+| 后两项预定生产行为 change | Phase 19尚未创建，必须由用户另行授权后开始 |
+| 当前阻塞 | 无归档阻塞；双隔离真实凭据和受信not-started fixture未提供，因此AC-095保持零调用`hosted-unverified` |
+| 明确未做 | 未运行真实provider，未push、发布、部署或启动Phase 19 |
 
-`DEV-PLAN.md` 顶部已按 `develop@4640217`、唯一 active `controlled-multi-provider-failover`及当前实现收口边界同步，并保留 Phase 1-18.1 的历史阶段内容。后续 Agent 仍须按恢复顺序重新核对当前磁盘、Git 与 OpenSpec。
+`DEV-PLAN.md` 顶部已按 Phase 18.2本地提交、归档与当前无active change的事实同步，并保留 Phase 1-18.2 的历史阶段内容。后续 Agent 仍须按恢复顺序重新核对当前磁盘、Git 与 OpenSpec。
 
 ### 2.2 新 session 的最小恢复顺序
 
@@ -768,7 +768,12 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 - [x] 2026-08-01：D-153冻结身份`72aefdf4…`的fresh Reviewer 1判定Stage 1/2 PASS、0 findings；Reviewer 3以任务6.4/7.3的交付映射不真实为1项MEDIUM阻断Stage 1：AC-095漏列`scripts/live_model_failover_evidence.py`与terminal后置编排失败恢复精确节点，DEV关键文件也漏列helper。Reviewer 2已中断，全部旧票失效。D-154仅补上述映射与状态事实，不改变生产、测试或契约语义，owner manifest仍为131路径；当前机械校验并重冻后从fresh Reviewer 1重启。
 - [x] 2026-08-01：用户确认D-154更新Spec须先按同一冻结补丁完成fresh Reviewer 1→并行Reviewer 2/3的Stage 1/2 PASS、0 findings，再单独amend到原契约提交；只有amend完成后才以新HEAD重冻当前实现。该顺序不授权提交生产实现，也不改变8.2～8.5的验收边界。
 - [x] 2026-08-01：D-154/D-155更新Spec首名fresh Reviewer 1以Handoff Snapshot预先宣称amend已完成、会让接手者跳过Spec审查与提交顺序的1项HIGH阻断Stage 1。D-156将该行校准为事务尚未完成、amend后才重冻实现；其余AC-095、owner、tasks与131路径对账均已由该票确认，旧票失效并从新的Reviewer 1重启。
-- [ ] 对修复后的完整候选重新冻结身份，先取得 1 名 fresh reviewer Stage 1/2 PASS，再冻结同一内容由 2 名 fresh reviewer 并行 Stage 1/2 PASS；三者必须 0 findings，任一实质修订从第一名重启。
+- [x] 2026-08-01：D-156冻结补丁`c5b30079…`的fresh Reviewer 1/2/3初末身份一致，均Stage 1/2 PASS、0 findings；六份更新Spec/计划文档随后单独amend为`5e48883`，staged归零且生产实现仍全部留在dirty。post-amend只回写提交与下一动作状态，不改变行为契约、验收映射、任务完成数或131路径owner集合；当前以新HEAD重冻最终实现。
+- [x] 2026-08-01：D-157后的实现审查中，Reviewer 2发现成功响应后的cleanup unknown缺少`failure_domain=runtime`，会被live层误报为`external-blocked/provider_result_unknown`；Reviewer 3发现`cross_provider_failover_http_statuses`错误接受全部400～599，而契约只允许403、429和5xx。D-158先以非法400/401/402/404/499、合法白名单排序去重和真实bound cleanup→LiveSmokeExecutor公共seam锁定回归，再收紧配置校验并显式保留runtime失败域。受影响routing/composition/recovery/live/orchestration/offline超集`103 passed`，`make quality`检查776文件、Ruff、Pyright 0/0与import boundary通过，change strict、all strict 34/34及diff check退出0；全部旧实现票失效，当前重冻后从全新Reviewer 1重启任务8.2。
+- [x] 2026-08-01：D-158冻结身份`8c6eaa58…`的Reviewer 1/3均Stage 1/2 PASS、0 findings；Reviewer 2以endpoint policy与deployment允许任意classifier identity、而runtime只实现`trusted_response_header_not_started/v1`的1项HIGH阻断Stage 1，全部票失效。D-159先在deployment DTO与完整`load_settings` seam稳定复现`3 failed`，再以Literal typed fields同时封闭policy/deployment identity；精确节点`3 passed`，配置/路由/composition超集`58 passed`，quality检查776文件且Ruff、Pyright 0/0、import boundary通过。用户决定`tasks.md`审查流水与review checkbox最后清理，当前先重冻实现并从Reviewer 1重启。
+- [x] 2026-08-01：D-159冻结实现身份`a1fa3fa2…`的fresh Reviewer 1/2/3初末身份一致，均Stage 1/2 PASS、0 findings。按用户决定随后只清理`tasks.md`历史review叙事，并在全量测试暴露旧Agent列表合同未声明新增`fallback_routes: []`后补齐一行期望；生产实现未再修改，用户明确不追加review。最终`make test`为`1964 passed / 269 skipped`，eval 11/11、local/service smoke、build、license、quality、change/all strict与diff check通过；临时PostgreSQL两文件39/39通过且容器删除。零调用live preflight为`hosted-unverified/authorization_missing/provider_called=false`；acceptance语义合同54通过、1项因当前输入缺冻结CI evidence跳过，direct validator据此拒绝旧evidence。任务39/39、owner 132/132，终态`ready-to-archive`。
+- [x] 2026-08-01：用户通过`$opsx:archive`明确选择先同步主规格再归档。OpenSpec将六组delta的22条新增、17条修改同步到主规格，并把change移动到`openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/`；归档后无active change，all strict与引用/目录核对待本轮机械收口。
+- [x] 对修复后的完整候选重新冻结身份，先取得 1 名 fresh reviewer Stage 1/2 PASS，再冻结同一内容由 2 名 fresh reviewer 并行 Stage 1/2 PASS；三者必须 0 findings，任一实质修订从第一名重启。
 - [x] 从公共 seam 建立 AC-090 至 AC-095 red contracts并完成实现与聚焦验证；AC-090～AC-094按离线及数据库证据通过，AC-095因缺双隔离真实前置保持零调用`hosted-unverified`。本批次只做到`ready-to-archive`，不同步、不归档、不启动Phase19。
 
 ### Phase 19
@@ -1046,6 +1051,12 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | D-154 | 2026-08-01 | AC-095验收矩阵必须同时列出live入口、durable evidence helper与terminal后置失败恢复精确节点；DEV关键文件同步列出helper。该修订只校准任务6.4/7.3的真实映射，不改变行为契约或实现 | 验收矩阵和阶段交付清单本身是完成声明的证据入口；遗漏真实生产职责或故障路径节点会让审查者无法从文档恢复完整验证范围，不能按普通状态漂移放行 |
 | D-155 | 2026-08-01 | D-154更新Spec先完成同一补丁的fresh`1+2`，通过后单独amend到原契约提交；随后才以amend后的新HEAD重冻未提交实现并进入最终实现审查 | 把契约提交与生产实现提交边界分开，避免用尚未审查的Spec或混合提交身份启动实现收口；纯状态回写可按记录性漂移复核，但不得改变契约、验收或完成声明 |
 | D-156 | 2026-08-01 | Handoff Snapshot在Spec审查和amend真正完成前必须明确该Git事务尚未完成，不能提前把唯一下一动作切到最终实现审查 | living plan是跨session执行入口；错误完成声明会绕过D-155顺序，不属于可放行的纯状态漂移 |
+| D-157 | 2026-08-01 | D-156更新Spec身份`c5b30079…`完成fresh`1+2`后，只把六份Spec/计划文档amend为`5e48883`；生产实现继续保持未提交，并以该新HEAD作为任务8.2唯一冻结基线 | 履行用户要求的先审Spec、先提交Spec、再继续代码顺序；post-amend提交哈希与下一动作回写属于记录性状态漂移，不改变契约或验收结论 |
+| D-158 | 2026-08-01 | `cross_provider_failover_http_statuses`只接受403、429、500～599并排序去重；成功response后的cleanup unknown显式使用`failure_domain=runtime`，live producer只能把明确provider域的封闭错误分类为external-blocked | 状态范围属于typed-config行为契约，不能把任意4xx当作受信未开始；后置本地cleanup失败也不能伪装成外部provider阻断。两条公共seam与AC-091/AC-095验收映射共同锁定该边界 |
+| D-159 | 2026-08-01 | endpoint policy与deployment只接受runtime实际实现的`trusted_response_header_not_started/v1`，不能通过互相声明任意classifier来绕过typed配置边界 | resolver只验证deployment identity出现在policy allowlist不足以证明runtime支持；唯一实现身份必须在Pydantic配置解析时关闭失败，避免请求发出后才发现classifier不可执行 |
+| D-160 | 2026-08-01 | D-159三票后的`tasks.md`历史清理与旧Agent列表合同补齐`fallback_routes: []`不改变生产行为；按用户明确授权视为记录性/合同适配漂移，不重新发起实现review | 三票已覆盖新增route字段与实现行为；全量唯一真实失败只是旧精确输出断言遗漏该字段，补齐后整文件8/8及全量1964通过。重复review不会增加行为证据，最终重型门禁与132/132 owner对账负责关闭状态 |
+| D-161 | 2026-08-01 | 用户明确选择把Phase 18.2六组delta同步主规格后归档；归档事务不自动包含commit、push、发布、部署或Phase19创建 | OpenSpec archive负责22条新增、17条修改与change移动；生命周期状态必须与active list、归档目录和主规格strict共同核对，不能只看目录已移动 |
+| D-162 | 2026-08-01 | 用户明确授权本地提交Phase 18.2生产实现与归档事务；提交后的当前状态回写按既有D-028视为纯状态漂移，并amend进同一交付提交 | 保持工作树clean并避免文档继续声称“尚未提交”；提交内不固化自引用HEAD哈希，精确身份由Git读取；不扩大为push、发布、部署或Phase19授权 |
 | D-057 | 2026-07-29 | 流式成功的 completed intent、最终 usage result、shared-budget settlement 与未使用 delta 槽释放必须在同一 UoW 提交；提交后才按 completed → usage 公开，任一发布失败由 recovery 补投，不进入 provider 中断清理 | 可观察顺序不能以牺牲耐久原子性为代价；同事务先固定两类结果既消除 completed 已公开但 usage 不存在的窗口，也保持 sink 的跨组前驱围栏与零 provider replay |
 | D-058 | 2026-07-29 | stopped stream 只有 `finality=complete`、input/output token 齐全，且当前 route 启用成本时 cost 齐全，才允许 final 结算；任一维度不完整即使 provider 标记 complete 也进入同一封闭 `attempt_review` | provider 的完成标签不能替代计量证据完整性；统一谓词避免 usage、共享预算、owner ledger、容量和 lease 在不同状态上分裂 |
 
@@ -1172,16 +1183,20 @@ test -f docs/plans/architecture-evolution-change-matrix.md
 
 | 检查 | 结果 | 结论边界 |
 |---|---|---|
-| Git/OpenSpec 基线 | 实现起点`develop@464021711828aba398971c434b4385bf9b879178`；当前唯一 active change为`controlled-multi-provider-failover`，生产实现保持单worktree、单owner | 证明当前增量起点与active change身份；不把dirty diff、历史契约票或文档勾选冒充最终实现审查 |
+| Git/OpenSpec 基线 | 实现起点`develop@464021711828aba398971c434b4385bf9b879178`；Phase 18.2已同步、归档并本地提交，当前无active change，生产实现保持单worktree、单owner | 证明当前增量起点、交付提交与归档生命周期身份；不把历史契约票或文档勾选冒充最终实现审查 |
 | 联合契约范围 | Phase 18.2 proposal/design/tasks/六组 delta specs，与归档 `controlled-model-streaming`、当前主规格、Product/API/DEV、living plan/matrix 和现有 route/invocation/composition/recovery seam 一并审查 | 归档与主规格只作为冲突检查输入；兼容修订写入 active `MODIFIED` delta，未经明确指令不 sync/archive |
 | 取消终态契约修订 | 16文件聚合身份`690501a1…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings；本地提交为`6c5f256` | 契约准入和先提交事务已闭合；不代替当前dirty实现的最终`1+2` |
 | 取消终态契约机械校验 | change strict退出0；all strict 34/34；owned contract diff-check退出0；OpenSpec在实现状态回写前为34/39 | 证明已提交契约可解析、无空白错误；不代替实现验证 |
-| 当前实现聚焦证据 | D-153冻结身份`72aefdf4…`的fresh Reviewer 1为Stage 1/2 PASS、0 findings；Reviewer 3以AC-095/DEV遗漏live evidence helper与terminal后置失败恢复节点的1项MEDIUM阻断Stage 1，Reviewer 2中断。D-154仅补真实映射与状态记录，owner manifest仍为131路径 | D-153审查票因验收/交付映射修订失效；本轮须重跑acceptance、strict与diff，重新冻结并从Reviewer 1重启，不能替代任务8.2～8.5 |
-| live边界 | 未提供双隔离credential/endpoint和受信not-started fixture，未发起真实provider请求 | 最终只允许运行零调用preflight并记录`hosted-unverified`；不得写成PASS或external-blocked |
+| 当前实现聚焦证据 | D-159封闭任意classifier信任裂缝：修复前精确节点`3 failed`，修复后`3 passed`；配置/路由/composition超集`58 passed`，quality检查776文件且Ruff、Pyright 0/0、import boundary通过。D-158的`103 passed`、strict/diff证据保留为上一身份历史 | `8c6eaa58…`三票因Reviewer 2 HIGH与实质修订全部失效；当前证据只允许重新冻结并从Reviewer 1重启，不能替代三票或8.3～8.5 |
+| D-154～D-156更新Spec | 六文件补丁`c5b30079…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings；单独amend提交为`5e48883`，生产实现未提交 | 更新Spec的审查与提交事务已闭合；该票只证明Spec/计划补丁，不替代当前dirty实现的任务8.2最终`1+2` |
+| 最终实现审查 | D-159实现候选`a1fa3fa2…`的fresh Reviewer 1/2/3初末身份一致，均Stage 1/2 PASS、0 findings | 只证明受审生产实现；后续tasks历史清理与一行旧输出合同适配由D-160按用户授权放行，不冒充新的生产行为票 |
+| 最终重型门禁 | `make test`为`1964 passed / 269 skipped`；eval 11/11、local/service smoke、build、license、quality均退出0；隔离PostgreSQL两文件39/39退出0且容器删除；change/all strict 34/34与diff check退出0 | 首次全量失败中的30项由外层`UV_NO_SYNC=1`污染隔离release sync，移除继承后全量通过；另1项旧Agent列表断言补齐`fallback_routes: []`后通过 |
+| acceptance | 语义/identity/CI合同54通过、1项因当前输入未生成冻结CI evidence跳过；direct validator退出2并明确拒绝旧commit/diff evidence | 证明矩阵语义与拒绝旧证据行为正确；本地没有重跑21个CI producer生成完整冻结evidence，不能把历史artifact冒充当前acceptance PASS |
+| live边界 | 显式撤下授权、opt-in与双端点前置后运行零调用preflight，输出`hosted-unverified/authorization_missing/provider_called=false/attempt_count=0` | 未提供双隔离credential/endpoint和受信not-started fixture，未发起真实provider请求；不得写成PASS或external-blocked |
 
-### 12.8 Phase 18.2 最终候选 changed-file manifest
+### 12.8 Phase 18.2 归档后 changed-file manifest
 
-以下 131 个路径是从原始实现起点 `develop@464021711828aba398971c434b4385bf9b879178` 到当前候选的 tracked diff 与排序 untracked 集合；上一轮契约由`6c5f256`固定，D-154更新Spec须先审后单独amend，其余dirty实现仍由 Phase 18.2 单一写 owner 串行持有。列表包含公共模型导出 `packages/agent-harness/src/agent_harness/models/__init__.py`、durable approval identity/checkpoint 回归、active change owner修订、职责拆分文件、取消终态回归、transition source、candidate aggregate/history、cleanup review持久化、live失败域交叉不变量及旧迁移回归的必要适配。最终review身份以amend后的新HEAD加剩余dirty逐文件哈希现场冻结；后续若新增或删除路径，必须先更新本清单并使既有实现审查票失效。
+以下 140 个路径是从原始实现起点 `develop@464021711828aba398971c434b4385bf9b879178` 到 Phase 18.2本地交付提交的完整路径集合；Git将active change到archive的十项移动识别为rename，因此清单只保留归档后路径。D-154～D-156更新Spec已由`5e48883`先行固定，其余实现与本次sync/archive事务由 Phase 18.2 单一写 owner 串行完成并纳入交付提交。列表包含公共模型导出 `packages/agent-harness/src/agent_harness/models/__init__.py`、durable approval identity/checkpoint 回归、已归档change与同步后的六份主规格、职责拆分文件、取消终态回归、transition source、candidate aggregate/history、cleanup review持久化、live失败域交叉不变量、旧Agent列表输出合同适配及旧迁移回归的必要适配。最终实现审查身份为`a1fa3fa2…`；D-160状态/合同适配漂移与归档/提交状态回写均不改变受审生产行为。后续若新增或删除路径，必须先更新本清单。
 
 ```text
 .github/workflows/ci.yml
@@ -1197,14 +1212,22 @@ compliance/ci-jobs.toml
 docs/acceptance-matrix.md
 docs/plans/architecture-evolution-change-matrix.md
 docs/plans/architecture-evolution-plan.md
-openspec/changes/controlled-multi-provider-failover/design.md
-openspec/changes/controlled-multi-provider-failover/proposal.md
-openspec/changes/controlled-multi-provider-failover/specs/agent-registry-model-context/spec.md
-openspec/changes/controlled-multi-provider-failover/specs/controlled-model-streaming/spec.md
-openspec/changes/controlled-multi-provider-failover/specs/controlled-multi-provider-failover/spec.md
-openspec/changes/controlled-multi-provider-failover/specs/model-usage-evidence/spec.md
-openspec/changes/controlled-multi-provider-failover/specs/shared-parent-budget-ledger/spec.md
-openspec/changes/controlled-multi-provider-failover/tasks.md
+openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/.openspec.yaml
+openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/design.md
+openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/proposal.md
+openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/specs/agent-registry-model-context/spec.md
+openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/specs/controlled-model-streaming/spec.md
+openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/specs/controlled-multi-provider-failover/spec.md
+openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/specs/model-usage-evidence/spec.md
+openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/specs/shared-parent-budget-ledger/spec.md
+openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/specs/typed-config/spec.md
+openspec/changes/archive/2026-08-01-controlled-multi-provider-failover/tasks.md
+openspec/specs/agent-registry-model-context/spec.md
+openspec/specs/controlled-model-streaming/spec.md
+openspec/specs/controlled-multi-provider-failover/spec.md
+openspec/specs/model-usage-evidence/spec.md
+openspec/specs/shared-parent-budget-ledger/spec.md
+openspec/specs/typed-config/spec.md
 packages/agent-harness/src/agent_harness/adapters/models/pydantic_ai.py
 packages/agent-harness/src/agent_harness/config/__init__.py
 packages/agent-harness/src/agent_harness/config/schemas.py
@@ -1280,6 +1303,7 @@ tests/contracts/controlled_multi_provider_failover_test_support.py
 tests/contracts/test_agent_delegation_claim_reservation_contracts.py
 tests/contracts/test_agent_delegation_migration_downgrade_contracts.py
 tests/contracts/test_agent_delegation_postgresql_replay_migration_contracts.py
+tests/contracts/test_agent_registry_router_model_contracts.py
 tests/contracts/test_ci_pipeline_contracts.py
 tests/contracts/test_controlled_multi_provider_failover_approval_checkpoint_contracts.py
 tests/contracts/test_controlled_multi_provider_failover_approval_contracts.py
@@ -1397,8 +1421,8 @@ tests/contracts/test_tool_execution_boundaries_contracts.py
 
 ## 16. 下一动作
 
-当前契约基线为 `develop@6c5f256`；Phase 18 与 Phase 18.1 均已同步并归档，`controlled-multi-provider-failover`仍是唯一 active change。D-154更新Spec与当前dirty生产实现、迁移、合同、live/CI producer仍在同一工作树，但提交边界已明确隔离，主规格和归档目录不变。
+当前 `develop` HEAD 已包含 Phase 18.2主规格同步、归档移动、生产实现与状态回写的本地交付提交；Phase 18、Phase 18.1与Phase 18.2均已同步并归档，当前无active change，提交后工作树应为clean。
 
-D-153冻结身份`72aefdf4…`的fresh Reviewer 1判定Stage 1/2 PASS、0 findings；Reviewer 3以AC-095/DEV映射遗漏的1项MEDIUM阻断Stage 1，Reviewer 2已中断。D-154已补live evidence helper、terminal后置失败恢复精确节点与状态事实，owner manifest仍为131路径。当前先冻结全部更新Spec补丁并完成fresh`1+2`，通过后只暂存这些Spec/计划文档并amend到原契约提交；任务仍为35/39，不提交生产实现，不push、sync/archive、发布、部署或调用真实provider。
+D-159冻结身份`a1fa3fa2…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings。D-160只清理tasks历史并补齐旧Agent列表输出合同，用户明确不追加review；提交态交付manifest为140/140。全量、eval、smoke、build、license、quality、PostgreSQL、strict与diff均通过；acceptance direct validator诚实拒绝旧CI evidence，live保持零调用`hosted-unverified`。
 
-本批次唯一下一动作是：对全部更新Spec补丁完成 D-154 acceptance/OpenSpec/diff机械校验和严格fresh`1+2`，通过后单独amend；随后才以新HEAD和剩余dirty内容逐文件 SHA-256 重冻最终实现身份，由全新 Reviewer 1 从 Stage 1 重启。实现Reviewer 1通过后才并行派发2名Reviewer；三票通过后才运行同一身份重型门禁与零调用live preflight。仍不提交当前生产实现，不push、sync/archive、发布、部署或启动Phase 19。
+本批次唯一下一动作是：等待用户另行明确授权启动Phase19。当前不push、不发布、不部署，也不自动创建Phase19 change。

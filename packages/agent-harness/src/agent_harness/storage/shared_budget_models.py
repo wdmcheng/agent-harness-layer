@@ -49,7 +49,7 @@ def _required_identity_text(key: str) -> ColumnElement[bool]:
     return and_(field.is_not(None), func.length(field) > 0)
 
 
-def _claim_identity_json_shape() -> ColumnElement[bool]:
+def claim_identity_json_shape() -> ColumnElement[bool]:
     """定义顶层预算 claim 的 JSON 身份与关系列之间的不可变绑定。
 
     direct 和 delegation 的身份字段组合不同，ORM metadata 必须与迁移约束完全同构；
@@ -63,6 +63,22 @@ def _claim_identity_json_shape() -> ColumnElement[bool]:
     run_id = column("run_id", String)
     agent_id = column("agent_id", String)
     delegation_id = column("delegation_id", String)
+    route_count = column("identity_json", JSON)["route_candidate_count"].as_integer()
+    route_shape = or_(
+        and_(
+            schema_version == "budget-operation-v1",
+            _identity_text("route_chain_digest").is_(None),
+            route_count.is_(None),
+        ),
+        and_(
+            schema_version == "budget-operation-v2",
+            usage_kind == "model",
+            func.length(_identity_text("route_chain_digest")) == 64,
+            route_count >= 1,
+            route_count <= 8,
+        ),
+        schema_version == "budget-delegation-v1",
+    )
     return and_(
         _required_identity_equal("ownership_kind", operation_kind),
         _required_identity_equal("usage_kind", usage_kind),
@@ -72,6 +88,7 @@ def _claim_identity_json_shape() -> ColumnElement[bool]:
         _required_identity_equal("agent_id", agent_id),
         _required_identity_text("request_fingerprint"),
         _required_identity_text("fingerprint_key_version"),
+        route_shape,
         or_(
             and_(
                 operation_kind == "direct",
@@ -91,9 +108,25 @@ def _claim_identity_json_shape() -> ColumnElement[bool]:
     )
 
 
-def _allocation_identity_json_shape() -> ColumnElement[bool]:
+def allocation_identity_json_shape() -> ColumnElement[bool]:
     """定义 child allocation 的身份 JSON 形状，禁止携带顶层 delegation 路由字段。"""
 
+    schema_version = column("identity_schema_version", String)
+    route_count = column("identity_json", JSON)["route_candidate_count"].as_integer()
+    route_shape = or_(
+        and_(
+            schema_version == "budget-operation-v1",
+            _identity_text("route_chain_digest").is_(None),
+            route_count.is_(None),
+        ),
+        and_(
+            schema_version == "budget-operation-v2",
+            column("usage_kind", String) == "model",
+            func.length(_identity_text("route_chain_digest")) == 64,
+            route_count >= 1,
+            route_count <= 8,
+        ),
+    )
     return and_(
         _required_identity_equal("ownership_kind", "allocation"),
         _required_identity_equal("usage_kind", column("usage_kind", String)),
@@ -109,6 +142,7 @@ def _allocation_identity_json_shape() -> ColumnElement[bool]:
         _identity_text("target_route_catalog_digest").is_(None),
         _required_identity_text("request_fingerprint"),
         _required_identity_text("fingerprint_key_version"),
+        route_shape,
     )
 
 
@@ -198,13 +232,15 @@ class BudgetOperationClaimModel(Base):
         ),
         CheckConstraint(
             "(operation_kind = 'direct' and usage_kind in ('model','embedding') "
-            "and identity_schema_version = 'budget-operation-v1' and request_hash is null) or "
+            "and identity_schema_version in ('budget-operation-v1','budget-operation-v2') "
+            "and not (identity_schema_version = 'budget-operation-v2' and usage_kind != 'model') "
+            "and request_hash is null) or "
             "(operation_kind = 'delegation' and usage_kind = 'delegation' "
             "and identity_schema_version = 'budget-delegation-v1' and request_hash is not null)",
             name="ck_budget_claim_identity_shape",
         ),
         CheckConstraint(
-            _claim_identity_json_shape(),
+            claim_identity_json_shape(),
             name="ck_budget_claim_identity_json_shape",
         ),
         CheckConstraint(
@@ -252,6 +288,7 @@ class BudgetOperationClaimModel(Base):
         String(24), default="not_started", nullable=False
     )
     result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    route_chain_state_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     backfill_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.current_timestamp(), nullable=False
@@ -290,11 +327,12 @@ class DelegationBudgetAllocationModel(Base):
         ),
         CheckConstraint(
             "usage_kind in ('model','embedding') "
-            "and identity_schema_version = 'budget-operation-v1'",
+            "and identity_schema_version in ('budget-operation-v1','budget-operation-v2') "
+            "and not (identity_schema_version = 'budget-operation-v2' and usage_kind != 'model')",
             name="ck_budget_allocation_identity_shape",
         ),
         CheckConstraint(
-            _allocation_identity_json_shape(),
+            allocation_identity_json_shape(),
             name="ck_budget_allocation_identity_json_shape",
         ),
         CheckConstraint(
@@ -337,6 +375,7 @@ class DelegationBudgetAllocationModel(Base):
     state: Mapped[str] = mapped_column(String(24), nullable=False)
     side_effect_state: Mapped[str] = mapped_column(String(24), nullable=False)
     result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    route_chain_state_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     backfill_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.current_timestamp(), nullable=False

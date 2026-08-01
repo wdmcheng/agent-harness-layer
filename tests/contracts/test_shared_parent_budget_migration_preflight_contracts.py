@@ -10,7 +10,7 @@ def test_0016_fresh_upgrade_and_empty_downgrade(tmp_path: Path) -> None:
 
     path = tmp_path / "fresh.sqlite3"
     run_migrations(sqlite_dsn(path))
-    assert get_current_revision(sqlite_dsn(path)) == "0016_shared_parent_budget_ledger"
+    assert get_current_revision(sqlite_dsn(path)) == "0017_model_route_chain_state"
     with sqlite3.connect(path) as connection:
         tables = {
             row[0]
@@ -172,7 +172,7 @@ def test_0016_downgrade_refuses_any_shared_budget_evidence(tmp_path: Path) -> No
             migration_config(sqlite_dsn(path), x_args=["allow_empty_evidence_downgrade=true"]),
             "0015_agent_delegation",
         )
-    assert get_current_revision(sqlite_dsn(path)) == "0016_shared_parent_budget_ledger"
+    assert get_current_revision(sqlite_dsn(path)) == "0017_model_route_chain_state"
 
 
 @pytest.mark.parametrize(

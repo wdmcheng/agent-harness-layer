@@ -273,6 +273,26 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+  smoke-live-model-failover:
+    needs: [install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with: {version: "0.11.29"}
+      - run: make ci-smoke-live-model-failover
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-smoke-live-model-failover-${{ github.run_id }}
+          path: |
+            .artifacts/ci/smoke-live-model-failover
+            .artifacts/smoke/live-model-failover/result.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
   license:
     needs: [install, smoke-service]
     runs-on: ubuntu-latest
@@ -363,7 +383,7 @@ jobs:
           retention-days: 14
 
   acceptance-validate:
-    needs: [install, quality-aggregate, test-aggregate, integration, eval, smoke-local, smoke-service, smoke-live-model, smoke-live-model-stream, license, build, release-dry-run, ci-contract]
+    needs: [install, quality-aggregate, test-aggregate, integration, eval, smoke-local, smoke-service, smoke-live-model, smoke-live-model-stream, smoke-live-model-failover, license, build, release-dry-run, ci-contract]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -405,6 +425,10 @@ jobs:
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with:
           name: ci-smoke-live-model-stream-${{ github.run_id }}
+          path: .artifacts
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-smoke-live-model-failover-${{ github.run_id }}
           path: .artifacts
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with:

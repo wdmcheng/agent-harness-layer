@@ -9,6 +9,9 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from agent_harness.events import CanonicalEvent, EventBus
 from agent_harness.identity import IdentityContext
+from agent_harness.models._invocation_approval_identity import (
+    resolve_approved_invocation_identity,
+)
 from agent_harness.models._invocation_execution import (
     ModelApprovalRequired,
     ModelInvocationExecutionMixin,
@@ -18,6 +21,7 @@ from agent_harness.models._invocation_settlement import (
 )
 from agent_harness.models._invocation_streaming import ModelInvocationStreamingMixin
 from agent_harness.models.providers import ModelRequest, ModelResponse
+from agent_harness.models.route_chain_identity import model_route_operation_identity_digest
 from agent_harness.models.router import ModelRouter, ModelRouterConfig
 from agent_harness.models.usage import (
     UsageEvidenceContext,
@@ -64,15 +68,32 @@ class _ApprovedModelGrant(Protocol):
     参数后复用。
     """
 
-    approval_id: str
-    lease_id: str
-    tenant_id: str
-    identity_id: str
-    agent_id: str
-    run_id: str
-    action: str
-    resource: str
-    arguments_hash: str
+    @property
+    def approval_id(self) -> str: ...
+
+    @property
+    def lease_id(self) -> str: ...
+
+    @property
+    def tenant_id(self) -> str: ...
+
+    @property
+    def identity_id(self) -> str: ...
+
+    @property
+    def agent_id(self) -> str: ...
+
+    @property
+    def run_id(self) -> str: ...
+
+    @property
+    def action(self) -> str: ...
+
+    @property
+    def resource(self) -> str: ...
+
+    @property
+    def arguments_hash(self) -> str: ...
 
 
 class BoundModelInvocationService:
@@ -106,6 +127,14 @@ class BoundModelInvocationService:
                 context=self._context,
                 operation_key=operation_key,
             ),
+            route_operation_identity_digest=model_route_operation_identity_digest(
+                tenant_id=self._context.tenant_id,
+                run_id=self._context.run_id,
+                agent_id=self._context.agent_id,
+                request_id=self._context.request_id,
+                trace_id=self._context.trace_id,
+                operation_key=operation_key,
+            ),
             actor=self._identity,
         )
 
@@ -118,15 +147,16 @@ class BoundModelInvocationService:
     ) -> ModelResponse:
         """审批 continuation 只绕过 soft gate，硬上限与当前余额必须重新检查。"""
 
+        del operation_key  # 兼容公开签名；审批恢复身份只能来自 durable continuation。
+        usage_call_id, operation_identity_digest = await self._service.approved_invocation_identity(
+            context=self._context,
+            grant=grant,
+        )
         return await self._service.complete_with_approval(
             request,
             context=self._context,
-            usage_call_id=stable_usage_call_id(
-                context=self._context,
-                # approval_id 是该 lease 唯一的模型操作槽位；不能让业务 executor
-                # 通过更换 operation_key 把一次批准扩成多次 provider 调用。
-                operation_key=f"approved:{grant.approval_id}",
-            ),
+            usage_call_id=usage_call_id,
+            route_operation_identity_digest=operation_identity_digest,
             actor=self._identity,
             grant=grant,
         )
@@ -146,6 +176,14 @@ class BoundModelInvocationService:
                 context=self._context,
                 operation_key=operation_key,
             ),
+            route_operation_identity_digest=model_route_operation_identity_digest(
+                tenant_id=self._context.tenant_id,
+                run_id=self._context.run_id,
+                agent_id=self._context.agent_id,
+                request_id=self._context.request_id,
+                trace_id=self._context.trace_id,
+                operation_key=operation_key,
+            ),
             actor=self._identity,
         )
 
@@ -158,14 +196,16 @@ class BoundModelInvocationService:
     ) -> ModelResponse:
         """匹配 durable grant 的 continuation 才能绕过一次 stream soft gate。"""
 
-        del operation_key
+        del operation_key  # streaming 与 completion 共用同一可信恢复边界。
+        usage_call_id, operation_identity_digest = await self._service.approved_invocation_identity(
+            context=self._context,
+            grant=grant,
+        )
         return await self._service.stream_with_approval(
             request,
             context=self._context,
-            usage_call_id=stable_usage_call_id(
-                context=self._context,
-                operation_key=f"approved:{grant.approval_id}",
-            ),
+            usage_call_id=usage_call_id,
+            route_operation_identity_digest=operation_identity_digest,
             actor=self._identity,
             grant=grant,
         )
@@ -173,6 +213,20 @@ class BoundModelInvocationService:
 
 class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecutionMixin):
     """在 provider 副作用前建立 settlement，并只补投 evidence。"""
+
+    async def approved_invocation_identity(
+        self,
+        *,
+        context: UsageEvidenceContext,
+        grant: _ApprovedModelGrant,
+    ) -> tuple[str, str]:
+        """从 durable approval artifact 恢复 route-chain 或 legacy 调用身份。"""
+
+        return await resolve_approved_invocation_identity(
+            storage=self._storage,
+            context=context,
+            grant=grant,
+        )
 
     def __init__(
         self,
@@ -238,6 +292,7 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
         *,
         context: UsageEvidenceContext,
         usage_call_id: str,
+        route_operation_identity_digest: str | None = None,
         actor: IdentityContext | None = None,
     ) -> ModelResponse:
         """执行普通策略路径；公开调用面不接受布尔型审批旁路。"""
@@ -246,8 +301,10 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
             request,
             context=context,
             usage_call_id=usage_call_id,
+            route_operation_identity_digest=route_operation_identity_digest,
             soft_approved=False,
             actor=actor,
+            approved_grant=None,
         )
 
     async def stream(
@@ -256,6 +313,7 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
         *,
         context: UsageEvidenceContext,
         usage_call_id: str,
+        route_operation_identity_digest: str | None = None,
         actor: IdentityContext | None = None,
     ) -> ModelResponse:
         """执行受控普通文本流；增量只写 CanonicalEvent，不返回第二个 iterator。"""
@@ -264,8 +322,10 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
             request,
             context=context,
             usage_call_id=usage_call_id,
+            route_operation_identity_digest=route_operation_identity_digest,
             soft_approved=False,
             actor=actor,
+            approved_grant=None,
         )
 
     async def _validate_approved_grant(
@@ -333,6 +393,7 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
         *,
         context: UsageEvidenceContext,
         usage_call_id: str,
+        route_operation_identity_digest: str | None = None,
         actor: IdentityContext,
         grant: _ApprovedModelGrant,
     ) -> ModelResponse:
@@ -348,8 +409,10 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
             request,
             context=context,
             usage_call_id=usage_call_id,
+            route_operation_identity_digest=route_operation_identity_digest,
             soft_approved=True,
             actor=actor,
+            approved_grant=grant,
         )
 
     async def stream_with_approval(
@@ -358,6 +421,7 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
         *,
         context: UsageEvidenceContext,
         usage_call_id: str,
+        route_operation_identity_digest: str | None = None,
         actor: IdentityContext,
         grant: _ApprovedModelGrant,
     ) -> ModelResponse:
@@ -373,8 +437,10 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
             request,
             context=context,
             usage_call_id=usage_call_id,
+            route_operation_identity_digest=route_operation_identity_digest,
             soft_approved=True,
             actor=actor,
+            approved_grant=grant,
         )
 
     async def recover_pending(self, *, run_id: str) -> int:

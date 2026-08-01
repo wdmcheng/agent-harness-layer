@@ -236,6 +236,14 @@ One deployment may contain an ordered list of fallback models. The router select
 provider side effects from frozen budgets and never replays a real failure automatically. Use
 `--secret-root` when the isolated `_FILE` directory is not the default `/run/secrets`.
 
+Explicit cross-deployment fallback uses Agent `fallback_routes` to freeze an ordered candidate
+chain. Every candidate has its own endpoint, credential, catalog, bulkhead, and budget. The chain
+advances only with durable `client_not_started` or endpoint-policy-bound
+`trusted_business_not_started` proof; unknown results, untrusted responses, usage, text, or the
+first delta fence every successor. `make smoke-live-model-failover` is zero-call and
+`hosted-unverified` by default. A real probe additionally requires all five authorization flags and
+`AGENT_HARNESS_LIVE_MODEL_FAILOVER_DEPLOYMENTS=<primary>,<secondary>`.
+
 ### Repository commands
 
 | Command | What it proves | Additional requirements |
@@ -245,6 +253,7 @@ provider side effects from frozen budgets and never replays a real failure autom
 | `make eval` | approved fake-model eval cases | no real provider key |
 | `make smoke-local` | isolated SQLite/in-memory/local-JSONL runtime | no external services |
 | `make smoke-live-model` | truthful opt-in status or one governed completion | separate authorization, isolated branded credential, trusted endpoint |
+| `make smoke-live-model-failover` | validate the two-deployment artifact or execute one governed chain | separate authorization, isolated credentials/endpoints, trusted not-started fixture |
 | `make smoke-service` | copied-template API/worker recovery through PostgreSQL and Redis | Docker Compose |
 | `make build` | local wheel, sdist, and checksums | does not publish |
 | `make license-check` | dependency/license inventory, NOTICE, vendoring, and image identity policy | not legal advice or a full SBOM |

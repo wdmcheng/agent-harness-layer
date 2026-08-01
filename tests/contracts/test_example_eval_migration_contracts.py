@@ -287,5 +287,5 @@ async def test_0008_downgrade_only_allows_empty_disposable_data(tmp_path: Path) 
         )
     assert (
         await asyncio.to_thread(get_current_revision, _dsn(db_path))
-        == "0016_shared_parent_budget_ledger"
+        == "0017_model_route_chain_state"
     )

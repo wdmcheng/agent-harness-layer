@@ -83,6 +83,61 @@ def _difference_paths(
     return [] if persisted == replayed else [prefix or "root"]
 
 
+def _route_chain_final_identity_valid(
+    *,
+    started: object,
+    final: object,
+) -> bool:
+    """允许 frozen route-chain 只把 provider/model 切到耐久选中候选。
+
+    普通调用继续要求 started/final 的 provider 与 model 完全相同。受控多候选调用
+    则必须保持整份 chain identity 字节等价，并由 final state 的 evidence ordinal
+    指向该 identity 中的候选；不能仅凭 final 自报的 provider/model 放宽防伪边界。
+    """
+
+    from agent_harness.models.usage import ModelUsageEvidence
+
+    if not isinstance(started, ModelUsageEvidence) or not isinstance(final, ModelUsageEvidence):
+        return False
+    started_chain = started.decision.get("route_chain")
+    final_chain = final.decision.get("route_chain")
+    if not isinstance(started_chain, Mapping) or not isinstance(final_chain, Mapping):
+        return False
+    started_mapping = cast(Mapping[str, object], started_chain)
+    final_mapping = cast(Mapping[str, object], final_chain)
+    if (
+        started_mapping.get("schema_version") != "model-route-chain-evidence-v1"
+        or final_mapping.get("schema_version") != "model-route-chain-evidence-v1"
+        or started_mapping.get("identity") != final_mapping.get("identity")
+    ):
+        return False
+    identity = final_mapping.get("identity")
+    state = final_mapping.get("state")
+    if not isinstance(identity, Mapping) or not isinstance(state, Mapping):
+        return False
+    identity_mapping = cast(Mapping[str, object], identity)
+    state_mapping = cast(Mapping[str, object], state)
+    candidates = identity_mapping.get("candidates")
+    ordinal = state_mapping.get("evidence_route_ordinal")
+    if (
+        not isinstance(candidates, list)
+        or isinstance(ordinal, bool)
+        or not isinstance(ordinal, int)
+        or ordinal < 1
+        or ordinal > len(cast(list[object], candidates))
+    ):
+        return False
+    candidate = cast(list[object], candidates)[ordinal - 1]
+    if not isinstance(candidate, Mapping):
+        return False
+    candidate_mapping = cast(Mapping[str, object], candidate)
+    return (
+        candidate_mapping.get("ordinal") == ordinal
+        and candidate_mapping.get("provider") == final.provider
+        and candidate_mapping.get("model") == final.model
+    )
+
+
 @dataclass(frozen=True)
 class UsageSettlementClaim:
     """一次 usage claim 的持久化处置，调用方据此决定是否允许副作用。"""
@@ -440,8 +495,10 @@ class UsageEvidenceRepositoryMixin(UsageAttemptReviewRepositoryMixin):
             or evidence.agent_id != started.agent_id
             or evidence.request_id != started.request_id
             or evidence.trace_id != started.trace_id
-            or evidence.provider != started.provider
-            or evidence.model != started.model
+            or (
+                (evidence.provider != started.provider or evidence.model != started.model)
+                and not _route_chain_final_identity_valid(started=started, final=evidence)
+            )
         ):
             raise ValueError("usage final identity does not match durable started identity")
         outcome = result.get("outcome")

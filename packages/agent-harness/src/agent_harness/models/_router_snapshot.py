@@ -3,25 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from decimal import Decimal
 from typing import Any, cast
 
 from agent_harness.config.schemas import ModelSettings
 from agent_harness.models._router_contracts import (
-    AgentModelPolicyLike,
     FrozenAgentModelPolicy,
     FrozenModelRouteSnapshot,
-    ModelBulkheadPolicy,
-    ModelRetryPolicy,
     ModelRouteError,
     ModelRoutePlan,
     ModelRouterConfig,
 )
-from agent_harness.models._router_current import RouterCurrentPlanningMixin
-from agent_harness.models.providers import ModelDecision, ModelProvider, ModelRequest
+from agent_harness.models._router_snapshot_chain import RouterSnapshotChainPlanningMixin
+from agent_harness.models.providers import ModelProvider, ModelRequest
 
 
-class RouterSnapshotPlanningMixin(RouterCurrentPlanningMixin):
+class RouterSnapshotPlanningMixin(RouterSnapshotChainPlanningMixin):
     """只负责按冻结快照恢复 route；不读取当前 deployment 补齐旧身份。"""
 
     config: ModelRouterConfig
@@ -176,126 +172,4 @@ class RouterSnapshotPlanningMixin(RouterCurrentPlanningMixin):
                 hard_token_limit,
             ),
             cost_limit=hard_cost_limit,
-        )
-
-    def _plan_frozen_route(
-        self,
-        request: ModelRequest,
-        *,
-        policy: AgentModelPolicyLike,
-        frozen: FrozenModelRouteSnapshot,
-    ) -> ModelRoutePlan:
-        """对快照静态输入重做动态 hard eligibility 与 checked reservation 公式。"""
-
-        provider = self._providers.get(frozen.provider)
-        if provider is None or provider.provider_id != frozen.provider:
-            raise ModelRouteError("model.route_not_allowed", "bound provider identity mismatch")
-        if request.capability not in frozen.capabilities:
-            raise ModelRouteError("model.capability_unsupported", "snapshot capability mismatch")
-        if request.max_output_tokens < 1 or request.max_output_tokens > frozen.max_output_tokens:
-            raise ModelRouteError("model.route_not_allowed", "output cap cannot exceed snapshot")
-        prompt_bytes = len(request.prompt.encode("utf-8"))
-        if prompt_bytes > frozen.max_prompt_utf8_bytes:
-            raise ModelRouteError("model.route_not_allowed", "prompt exceeds snapshot byte cap")
-        expected_static_tokens = (
-            frozen.max_prompt_utf8_bytes
-            + frozen.input_envelope_token_bound
-            + frozen.max_output_tokens
-        )
-        if expected_static_tokens != frozen.max_per_attempt_token_bound:
-            raise ModelRouteError("budget.reservation_rejected", "snapshot token formula mismatch")
-        trusted_input = prompt_bytes + frozen.input_envelope_token_bound
-        per_attempt_tokens = trusted_input + request.max_output_tokens
-        if per_attempt_tokens > frozen.max_per_attempt_token_bound:
-            raise ModelRouteError(
-                "budget.reservation_rejected", "dynamic token bound exceeds snapshot"
-            )
-        per_attempt_cost: Decimal | None = None
-        reserved_cost: Decimal | None = None
-        if frozen.cost_enabled:
-            if (
-                frozen.input_token_price_usd is None
-                or frozen.output_token_price_usd is None
-                or frozen.price_source_ref is None
-                or frozen.price_source_version is None
-            ):
-                raise ModelRouteError("budget.reservation_rejected", "snapshot price is incomplete")
-            expected_static_cost = (
-                Decimal(frozen.max_prompt_utf8_bytes + frozen.input_envelope_token_bound)
-                * frozen.input_token_price_usd
-                + Decimal(frozen.max_output_tokens) * frozen.output_token_price_usd
-            )
-            if expected_static_cost != frozen.max_per_attempt_cost_bound:
-                raise ModelRouteError(
-                    "budget.reservation_rejected", "snapshot cost formula mismatch"
-                )
-            per_attempt_cost = (
-                Decimal(trusted_input) * frozen.input_token_price_usd
-                + Decimal(request.max_output_tokens) * frozen.output_token_price_usd
-            )
-            reserved_cost = per_attempt_cost * frozen.max_attempts
-        elif any(
-            item is not None
-            for item in (
-                frozen.input_token_price_usd,
-                frozen.output_token_price_usd,
-                frozen.price_source_ref,
-                frozen.price_source_version,
-                frozen.max_per_attempt_cost_bound,
-            )
-        ):
-            raise ModelRouteError(
-                "budget.reservation_rejected", "cost-disabled snapshot is invalid"
-            )
-        decision = ModelDecision(
-            action="call",
-            estimated_tokens=per_attempt_tokens,
-            max_tokens=frozen.max_per_attempt_token_bound,
-            price_source_ref=frozen.price_source_ref,
-            price_source_version=frozen.price_source_version,
-        )
-        return ModelRoutePlan(
-            deployment_id=frozen.deployment_id,
-            provider_kind=frozen.provider,
-            provider=frozen.provider,
-            allowed_models=tuple(policy.allowed_models),
-            model=frozen.model,
-            capability=request.capability,
-            decision=decision,
-            canonical_base_url=frozen.canonical_base_url,
-            endpoint_origin=frozen.endpoint_origin,
-            endpoint_policy_ref=frozen.endpoint_policy_ref,
-            endpoint_policy_version=frozen.endpoint_policy_version,
-            endpoint_policy_digest=frozen.endpoint_policy_digest,
-            completion_classifier_ref=frozen.completion_classifier_ref,
-            completion_classifier_version=frozen.completion_classifier_version,
-            credential_ref=frozen.credential_ref,
-            model_catalog_ref=frozen.model_catalog_ref,
-            model_catalog_version=frozen.model_catalog_version,
-            model_catalog_digest=frozen.model_catalog_digest,
-            request_shape_ref=frozen.request_shape_ref,
-            request_shape_version=frozen.request_shape_version,
-            input_bound_strategy_ref=frozen.input_bound_strategy_ref,
-            input_bound_strategy_version=frozen.input_bound_strategy_version,
-            input_envelope_token_bound=frozen.input_envelope_token_bound,
-            prompt_utf8_bytes=prompt_bytes,
-            trusted_input_token_bound=trusted_input,
-            output_token_cap=request.max_output_tokens,
-            per_attempt_token_bound=per_attempt_tokens,
-            per_attempt_cost_bound=per_attempt_cost,
-            max_attempts=frozen.max_attempts,
-            reserved_token_bound=per_attempt_tokens * frozen.max_attempts,
-            reserved_cost_bound=reserved_cost,
-            input_token_price_usd=frozen.input_token_price_usd,
-            output_token_price_usd=frozen.output_token_price_usd,
-            price_source_ref=frozen.price_source_ref,
-            price_source_version=frozen.price_source_version,
-            connect_timeout_ms=frozen.connect_timeout_ms,
-            read_timeout_ms=frozen.read_timeout_ms,
-            total_timeout_ms=frozen.total_timeout_ms,
-            retry_policy=ModelRetryPolicy.model_validate(frozen.retry_policy),
-            bulkhead_policy=ModelBulkheadPolicy.model_validate(frozen.bulkhead_policy),
-            snapshot_schema_version="budget-tree-v2",
-            trusted_token_bound=per_attempt_tokens * frozen.max_attempts,
-            trusted_cost_bound=reserved_cost,
         )

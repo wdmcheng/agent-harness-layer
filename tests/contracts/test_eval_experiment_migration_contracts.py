@@ -45,7 +45,7 @@ def test_0009_migration_creates_eval_experiment_schema(tmp_path: Path) -> None:
             """
         ).fetchone()
 
-    assert get_current_revision(dsn) == "0016_shared_parent_budget_ledger"
+    assert get_current_revision(dsn) == "0017_model_route_chain_state"
     assert {
         "eval_dataset_splits",
         "eval_experiments",
@@ -149,7 +149,7 @@ def test_0011_upgrades_existing_0009_experiment_without_rewriting_terminal_evide
     assert get_current_revision(dsn) == "0009_eval_experiment_loop"
     run_migrations(dsn)
 
-    assert get_current_revision(dsn) == "0016_shared_parent_budget_ledger"
+    assert get_current_revision(dsn) == "0017_model_route_chain_state"
     with sqlite3.connect(db_path) as connection:
         row = connection.execute(
             """

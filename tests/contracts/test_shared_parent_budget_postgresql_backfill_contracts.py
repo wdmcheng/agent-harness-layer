@@ -340,5 +340,5 @@ async def test_postgresql_0016_backfill_and_evidence_aware_downgrade(
                 "0015_agent_delegation",
             )
         assert await asyncio.to_thread(get_current_revision, dsn) == (
-            "0016_shared_parent_budget_ledger"
+            "0017_model_route_chain_state"
         )

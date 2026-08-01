@@ -5,9 +5,11 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Literal, Protocol
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from agent_harness.config.schemas import ModelRouteRef
 from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.models._router_identity import canonical_decimal, model_route_digest
 from agent_harness.models.providers import ModelDecision
 
 
@@ -19,6 +21,7 @@ class AgentModelPolicyLike(Protocol):
     allowed_models: list[str]
     default_model: str
     fallback_models: list[str]
+    fallback_routes: tuple[ModelRouteRef, ...]
 
 
 class FrozenAgentModelPolicy(HarnessDTO):
@@ -30,6 +33,7 @@ class FrozenAgentModelPolicy(HarnessDTO):
     default_model: str
     fallback_models: list[str]
     deployment_fallback_models: list[str] | None = None
+    fallback_routes: tuple[ModelRouteRef, ...] = Field(default=(), max_length=8)
 
 
 class ModelRouteError(ValueError):
@@ -133,10 +137,113 @@ class ModelRoutePlan(HarnessDTO):
     read_timeout_ms: int = 1
     total_timeout_ms: int = 1
     retry_policy: ModelRetryPolicy = Field(default_factory=ModelRetryPolicy)
+    cross_provider_failover_http_statuses: tuple[int, ...] = ()
     bulkhead_policy: ModelBulkheadPolicy = Field(default_factory=ModelBulkheadPolicy)
     snapshot_schema_version: str = "budget-tree-v1"
     trusted_token_bound: int
     trusted_cost_bound: Decimal | None
+
+
+class ModelRouteCandidate(HarnessDTO):
+    """公开脱敏 identity 与私有完整 route plan 的不可变组合。"""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, frozen=True)
+
+    ordinal: int = Field(ge=1, le=8, strict=True)
+    deployment_id: str = Field(min_length=1)
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    route_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    endpoint_policy_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    model_catalog_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    retry_policy_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    bulkhead_policy_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    credential_ref: str | None
+    model_catalog_ref: str = Field(min_length=1)
+    model_catalog_version: str = Field(min_length=1)
+    reserved_token_bound: int = Field(ge=0, strict=True)
+    reserved_cost_bound: Decimal | None = Field(ge=0)
+    static_ineligible_cause: (
+        Literal["capability", "catalog", "input_bound", "hard_budget"] | None
+    ) = Field(default=None, exclude=True, repr=False)
+    route: ModelRoutePlan = Field(exclude=True, repr=False)
+
+    @field_validator("reserved_cost_bound")
+    @classmethod
+    def validate_cost_bound(cls, value: Decimal | None) -> Decimal | None:
+        """拒绝非有限成本；Pydantic 的数值比较不能可靠拦截 NaN。"""
+
+        if value is not None and not value.is_finite():
+            raise ValueError("reserved cost bound must be finite")
+        return value
+
+
+class ModelRouteAgentPolicyIdentity(HarnessDTO):
+    """chain identity 中请求缩权前的完整 Agent 最大授权与 legacy 投影。"""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, frozen=True)
+
+    deployment_id: str = Field(min_length=1)
+    provider: str = Field(min_length=1)
+    allowed_models: tuple[str, ...] = Field(min_length=1)
+    default_model: str = Field(min_length=1)
+    fallback_models: tuple[str, ...]
+    fallback_routes: tuple[ModelRouteRef, ...] = Field(min_length=1, max_length=8)
+
+
+class ModelRouteRequestBounds(HarnessDTO):
+    """chain id 绑定的输入字节与输出上界，不保存 prompt 原文。"""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, frozen=True)
+
+    prompt_utf8_bytes: int = Field(ge=0, strict=True)
+    max_output_tokens: int = Field(ge=1, strict=True)
+
+
+class ModelRouteChainPlan(HarnessDTO):
+    """在任何预算或 provider 副作用前冻结的有序 route chain。"""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, frozen=True)
+
+    schema_version: Literal["model-route-chain-v1"] = "model-route-chain-v1"
+    chain_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    capability: Literal["text_completion", "text_stream"]
+    candidate_count: int = Field(ge=1, le=8, strict=True)
+    agent_model_policy: ModelRouteAgentPolicyIdentity
+    request_bounds: ModelRouteRequestBounds
+    candidates: tuple[ModelRouteCandidate, ...] = Field(min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def validate_chain_shape(self) -> ModelRouteChainPlan:
+        """候选数量与连续 ordinal 必须逐值一致。"""
+
+        if self.candidate_count != len(self.candidates):
+            raise ValueError("route candidate count does not match candidates")
+        if [item.ordinal for item in self.candidates] != list(range(1, self.candidate_count + 1)):
+            raise ValueError("route candidate ordinals must be continuous")
+        if any(item.route.capability != self.capability for item in self.candidates):
+            raise ValueError("route candidate capability mismatch")
+        preimage: dict[str, object] = {
+            "schema_version": "model-route-chain-id-v1",
+            "capability": self.capability,
+            "candidate_count": self.candidate_count,
+            "agent_model_policy": self.agent_model_policy.model_dump(mode="json"),
+            "request_bounds": self.request_bounds.model_dump(mode="json"),
+            "candidates": [
+                {
+                    **item.model_dump(mode="json", exclude={"route", "reserved_cost_bound"}),
+                    "reserved_cost_bound": (
+                        None
+                        if item.reserved_cost_bound is None
+                        else canonical_decimal(item.reserved_cost_bound)
+                    ),
+                }
+                for item in self.candidates
+            ],
+        }
+        if model_route_digest(preimage) != self.chain_id:
+            raise ValueError("route chain id does not match canonical identity")
+        return self
 
 
 class FrozenModelRouteSnapshot(HarnessDTO):
@@ -178,4 +285,5 @@ class FrozenModelRouteSnapshot(HarnessDTO):
     read_timeout_ms: int
     total_timeout_ms: int
     retry_policy: dict[str, Any]
+    cross_provider_failover_http_statuses: tuple[int, ...] = ()
     bulkhead_policy: dict[str, Any]

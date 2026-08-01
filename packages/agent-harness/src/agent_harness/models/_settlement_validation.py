@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from agent_harness.models._settlement_contracts import (
     ModelProviderInvocationError,
+    ModelRouteChainExhaustedDetail,
     ValidatedSettlementResult,
 )
 from agent_harness.models._settlement_evidence_validation import (
@@ -55,6 +56,35 @@ class SettlementValidationMixin(SettlementPublicationMixin):
         return self._replayed_response(validated, state=claim.state)
 
     @staticmethod
+    def _chain_final_provider_identity_valid(
+        *,
+        started: ModelUsageEvidence,
+        evidence: ModelUsageEvidence,
+    ) -> bool:
+        """只允许同一 frozen chain state 选择的候选改变 final provider/model。"""
+
+        from agent_harness.models.route_chain_identity import ModelRouteChainIdentity
+        from agent_harness.storage.model_route_chain_state import ModelRouteChainState
+
+        raw_started_chain = started.decision.get("route_chain")
+        raw_final_chain = evidence.decision.get("route_chain")
+        if not isinstance(raw_started_chain, dict) or not isinstance(raw_final_chain, dict):
+            return False
+        started_chain = cast(dict[str, object], raw_started_chain)
+        final_chain = cast(dict[str, object], raw_final_chain)
+        if started_chain.get("identity") != final_chain.get("identity"):
+            return False
+        try:
+            identity = ModelRouteChainIdentity.model_validate(final_chain.get("identity"))
+            state = ModelRouteChainState.model_validate(final_chain.get("state"))
+        except (ValueError, TypeError):
+            return False
+        if state.chain_id != identity.chain_id:
+            return False
+        candidate = identity.candidates[state.evidence_route_ordinal - 1]
+        return candidate.provider == evidence.provider and candidate.model == evidence.model
+
+    @staticmethod
     def _validated_settlement_result(
         result: dict[str, Any],
         *,
@@ -79,8 +109,13 @@ class SettlementValidationMixin(SettlementPublicationMixin):
             or evidence.agent_id != started.agent_id
             or evidence.request_id != started.request_id
             or evidence.trace_id != started.trace_id
-            or evidence.provider != started.provider
-            or evidence.model != started.model
+            or (
+                (evidence.provider != started.provider or evidence.model != started.model)
+                and not SettlementValidationMixin._chain_final_provider_identity_valid(
+                    started=started,
+                    evidence=evidence,
+                )
+            )
         ):
             raise UsageInvocationReplayError(state)
 
@@ -113,16 +148,41 @@ class SettlementValidationMixin(SettlementPublicationMixin):
             if not isinstance(failure_value, dict):
                 raise UsageInvocationReplayError(state)
             failure = cast(dict[str, object], failure_value)
-            if set(failure) != {
+            expected_failure_fields = {
                 "error_code",
                 "provider_called",
                 "attempt_count",
                 "latency_ms",
-            }:
+            }
+            if error_code == "model.route_chain_exhausted":
+                expected_failure_fields.add("detail")
+            if set(failure) != expected_failure_fields:
                 raise UsageInvocationReplayError(state)
             provider_called = failure.get("provider_called")
             attempt_count = failure.get("attempt_count")
             latency_ms = failure.get("latency_ms")
+            try:
+                exhausted_detail = (
+                    ModelRouteChainExhaustedDetail.model_validate(failure.get("detail"))
+                    if error_code == "model.route_chain_exhausted"
+                    else None
+                )
+            except Exception as exc:
+                raise UsageInvocationReplayError(state) from exc
+            if exhausted_detail is not None:
+                raw_chain = evidence.decision.get("route_chain")
+                raw_identity = (
+                    cast(dict[str, object], raw_chain).get("identity")
+                    if isinstance(raw_chain, dict)
+                    else None
+                )
+                if (
+                    failure.get("detail") != evidence.decision.get("route_chain_exhausted")
+                    or not isinstance(raw_identity, dict)
+                    or cast(dict[str, object], raw_identity).get("chain_id")
+                    != exhausted_detail.chain_id
+                ):
+                    raise UsageInvocationReplayError(state)
             evidence_provider_called = evidence.decision.get("provider_called")
             if (
                 failure.get("error_code") != error_code
@@ -130,7 +190,10 @@ class SettlementValidationMixin(SettlementPublicationMixin):
                 or isinstance(attempt_count, bool)
                 or not isinstance(attempt_count, int)
                 or attempt_count < 0
-                or provider_called != (attempt_count > 0)
+                or (
+                    error_code != "model.route_chain_exhausted"
+                    and provider_called != (attempt_count > 0)
+                )
                 or (
                     latency_ms is not None
                     and (
@@ -156,6 +219,7 @@ class SettlementValidationMixin(SettlementPublicationMixin):
                     provider_called=provider_called,
                     attempt_count=attempt_count,
                     latency_ms=latency_ms,
+                    detail=exhausted_detail,
                 ),
             )
 
@@ -209,3 +273,37 @@ class SettlementValidationMixin(SettlementPublicationMixin):
         # pre-0016 result 没有可恢复业务 response 时必须 fail closed，不能把
         # usage evidence 猜成 provider 输出或再次调用 provider。
         raise UsageInvocationReplayError(state)
+
+    @staticmethod
+    def validate_durable_settlement(
+        result: dict[str, Any],
+        *,
+        state: str,
+        error_code: str | None,
+    ) -> ModelUsageEvidence:
+        """让恢复路径之外的 producer 复用同一完整校验边界。"""
+
+        return SettlementValidationMixin._validated_settlement_result(
+            result,
+            state=state,
+            error_code=error_code,
+        ).evidence
+
+
+def validate_durable_model_settlement(
+    result: dict[str, Any],
+    *,
+    state: str,
+    error_code: str | None,
+) -> ModelUsageEvidence:
+    """完整验证耐久模型结算，并只返回已绑定 started/final 的 usage evidence。
+
+    恢复路径和独立验收 producer 必须共用同一校验边界，避免后者只解析 DTO
+    外形却漏掉 route-chain identity、attempt proof 或 budget charge 的交叉约束。
+    """
+
+    return SettlementValidationMixin.validate_durable_settlement(
+        result,
+        state=state,
+        error_code=error_code,
+    )

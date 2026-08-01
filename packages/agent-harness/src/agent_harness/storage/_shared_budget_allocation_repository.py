@@ -17,6 +17,9 @@ from agent_harness.storage._shared_budget_repository_records import (
     _claim_record,
     _decimal,
 )
+from agent_harness.storage._shared_budget_route_chain_validation import (
+    validate_initial_route_state,
+)
 from agent_harness.storage.delegation_models import AgentDelegationModel
 from agent_harness.storage.shared_budget import (
     AllocationBudgetClaim,
@@ -43,6 +46,8 @@ class _SharedBudgetAllocationMixin:
     async def allocate(self, data: AllocationBudgetClaim) -> AllocationRecord:
         """Child operation 只占用 delegation ceiling，不直接增加 parent impact。"""
 
+        if data.route_chain_state is not None:
+            validate_initial_route_state(data.route_chain_state)
         existing = await self._session.scalar(
             select(DelegationBudgetAllocationModel).where(
                 DelegationBudgetAllocationModel.tenant_id == data.tenant_id,
@@ -84,6 +89,11 @@ class _SharedBudgetAllocationMixin:
             ledger=ledger,
             token_reservation=data.token_reservation,
             cost_reservation=data.cost_reservation,
+            allow_zero_cost_coordination=(
+                data.route_chain_state is not None
+                and data.route_chain_state.current_reservation.token_bound == 0
+                and data.route_chain_state.current_reservation.cost_bound is None
+            ),
         )
         top = await self._session.scalar(
             select(BudgetOperationClaimModel)
@@ -125,6 +135,9 @@ class _SharedBudgetAllocationMixin:
             state=state,
             side_effect_state=side_effect_state,
             result_json=data.result,
+            route_chain_state_json=(
+                None if data.route_chain_state is None else data.route_chain_state.to_payload()
+            ),
         )
         self._session.add(model)
         await self._session.flush()
@@ -245,6 +258,10 @@ class _SharedBudgetAllocationMixin:
             if allocation.result_json != result:
                 raise BudgetOperationConflict
             return _allocation_record(allocation, replayed=True)
+        terminal_route_state = self._settlement_route_chain_state(
+            allocation.route_chain_state_json,
+            result,
+        )
         top = await self._session.scalar(
             select(BudgetOperationClaimModel)
             .where(BudgetOperationClaimModel.delegation_id == delegation_id)
@@ -274,6 +291,8 @@ class _SharedBudgetAllocationMixin:
         allocation.state = "needs_review" if needs_review else "settled"
         allocation.side_effect_state = "result_committed"
         allocation.result_json = result
+        if terminal_route_state is not None:
+            allocation.route_chain_state_json = terminal_route_state.to_payload()
         await self._session.flush()
         token_sum, cost_sum = await self._allocation_impact_sums(delegation_id)
         new_top_tokens = max(top.reserved_tokens, token_sum)
@@ -331,6 +350,10 @@ class _SharedBudgetAllocationMixin:
             if claim.result_json != result:
                 raise BudgetOperationConflict
             return _claim_record(claim, replayed=True)
+        terminal_route_state = self._settlement_route_chain_state(
+            claim.route_chain_state_json,
+            result,
+        )
         unknown_token = actual_tokens is None
         token_impact = claim.reserved_tokens if unknown_token else actual_tokens
         token_over = token_impact > claim.reserved_tokens
@@ -359,6 +382,8 @@ class _SharedBudgetAllocationMixin:
         claim.state = "needs_review" if needs_review else "settled"
         claim.side_effect_state = "result_committed"
         claim.result_json = result
+        if terminal_route_state is not None:
+            claim.route_chain_state_json = terminal_route_state.to_payload()
         await self._session.flush()
         return _claim_record(claim)
 

@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 from agent_harness.models._settlement_contracts import ModelProviderInvocationError
 from agent_harness.models._streaming_contracts import StreamingRuntime
-from agent_harness.models._streaming_events import persist_delta, publish_persisted_stream
+from agent_harness.models._streaming_events import (
+    MutateStreamingUow,
+    persist_delta,
+    publish_persisted_stream,
+)
 from agent_harness.models.providers import ModelResponse, PreparedModelStreamCall
 from agent_harness.models.router import ModelRoutePlan
 from agent_harness.models.streaming import (
@@ -26,14 +32,19 @@ async def consume_prepared_stream(
     ownership: BudgetOperationOwnership | None,
     plan: ModelRoutePlan,
     chunks: list[str],
+    attempt: int = 1,
+    mark_side_effect_started: bool = True,
+    on_first_delta: Callable[[], Awaitable[None]] | None = None,
+    persist_first_delta_uow: MutateStreamingUow | None = None,
 ) -> ModelResponse:
     """在冻结总 deadline 内拉取、保护、持久化并完成一个 provider stream。"""
 
-    await runtime.mark_side_effect_started(
-        context=context,
-        usage_call_id=usage_call_id,
-        ownership=ownership,
-    )
+    if mark_side_effect_started:
+        await runtime.mark_side_effect_started(
+            context=context,
+            usage_call_id=usage_call_id,
+            ownership=ownership,
+        )
     raw_fragments: list[str] = []
     raw_utf8_bytes = 0
     guard = IncrementalTextGuard(
@@ -41,7 +52,12 @@ async def consume_prepared_stream(
     )
     chunker = Utf8TextChunker(target_utf8_bytes=runtime.router.stream_chunk_utf8_bytes)
     full_result_mode = runtime.output_guardrail is not None
+    first_delta_observed = False
     async for fragment in prepared:
+        if not first_delta_observed:
+            first_delta_observed = True
+            if on_first_delta is not None:
+                await on_first_delta()
         if runtime.timing_observer is not None:
             runtime.timing_observer("provider_delta")
         next_size = raw_utf8_bytes + fragment.utf8_bytes
@@ -59,6 +75,8 @@ async def consume_prepared_stream(
             context=context,
             usage_call_id=usage_call_id,
             chunks=chunks,
+            attempt=attempt,
+            persist_first_delta_uow=persist_first_delta_uow,
         )
     provider_response = await prepared.result()
     response = ModelResponse.model_validate(provider_response.model_dump(mode="python"))
@@ -70,7 +88,7 @@ async def consume_prepared_stream(
         raise ModelProviderInvocationError(
             "model.provider_side_effect_unknown",
             provider_called=True,
-            attempt_count=1,
+            attempt_count=attempt,
             latency_ms=response.latency_ms,
             failure_domain="runtime",
         )
@@ -79,7 +97,7 @@ async def consume_prepared_stream(
             raise ModelProviderInvocationError(
                 "model.provider_failed",
                 provider_called=True,
-                attempt_count=1,
+                attempt_count=attempt,
                 latency_ms=response.latency_ms,
                 failure_domain="runtime",
             )
@@ -91,6 +109,8 @@ async def consume_prepared_stream(
             context=context,
             usage_call_id=usage_call_id,
             chunks=chunks,
+            attempt=attempt,
+            persist_first_delta_uow=persist_first_delta_uow,
         )
     for safe_part in guard.finish():
         await _feed_chunks(
@@ -100,6 +120,8 @@ async def consume_prepared_stream(
             context=context,
             usage_call_id=usage_call_id,
             chunks=chunks,
+            attempt=attempt,
+            persist_first_delta_uow=persist_first_delta_uow,
         )
     for chunk in chunker.finish():
         intent = await persist_delta(
@@ -108,6 +130,8 @@ async def consume_prepared_stream(
             usage_call_id=usage_call_id,
             ordinal=len(chunks) + 1,
             text=chunk,
+            attempt=attempt,
+            mutate_uow=(persist_first_delta_uow if not chunks else None),
         )
         chunks.append(chunk)
         await publish_persisted_stream(runtime, intent)
@@ -123,6 +147,8 @@ async def _feed_safe_text(
     context: UsageEvidenceContext,
     usage_call_id: str,
     chunks: list[str],
+    attempt: int,
+    persist_first_delta_uow: MutateStreamingUow | None,
 ) -> None:
     """把连续文本经有状态安全处理后串行交给公共分片器。"""
 
@@ -134,6 +160,8 @@ async def _feed_safe_text(
             context=context,
             usage_call_id=usage_call_id,
             chunks=chunks,
+            attempt=attempt,
+            persist_first_delta_uow=persist_first_delta_uow,
         )
 
 
@@ -145,6 +173,8 @@ async def _feed_chunks(
     context: UsageEvidenceContext,
     usage_call_id: str,
     chunks: list[str],
+    attempt: int,
+    persist_first_delta_uow: MutateStreamingUow | None,
 ) -> None:
     """逐条持久化安全分片，返回前不允许拉取下一个 provider 事件。"""
 
@@ -155,6 +185,8 @@ async def _feed_chunks(
             usage_call_id=usage_call_id,
             ordinal=len(chunks) + 1,
             text=chunk,
+            attempt=attempt,
+            mutate_uow=(persist_first_delta_uow if not chunks else None),
         )
         chunks.append(chunk)
         await publish_persisted_stream(runtime, intent)

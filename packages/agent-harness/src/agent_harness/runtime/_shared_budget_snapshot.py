@@ -12,7 +12,7 @@ from agent_harness.runtime._shared_budget_common import digest
 from agent_harness.storage.shared_budget import LedgerCreate
 
 if TYPE_CHECKING:
-    from agent_harness.registry import AgentRegistry
+    from agent_harness.registry import AgentDescriptor, AgentRegistry
 
 
 class SharedBudgetSnapshotBuilder:
@@ -46,12 +46,23 @@ class SharedBudgetSnapshotBuilder:
         # 未被本 root/child tree 引用的真实 deployment 不得把纯 fake 运行升级为 v2，
         # 否则仅仅配置一个 opt-in 真实入口就会破坏默认离线 agent 的旧快照路径。
         controlled_v2 = any(
-            self._settings.model.deployments[descriptor.model_policy.deployment_id].provider_kind
+            any(
+                self._settings.model.deployments[route.deployment_id].provider_kind != "fake"
+                for route in descriptor.model_policy.fallback_routes
+            )
+            if descriptor.model_policy.fallback_routes
+            else self._settings.model.deployments[
+                descriptor.model_policy.deployment_id
+            ].provider_kind
             != "fake"
             for descriptor in descriptors.values()
         )
         agents: dict[str, Any] = {}
         for item_id, descriptor in descriptors.items():
+            if controlled_v2 and descriptor.model_policy.fallback_routes:
+                route_refs = list(descriptor.model_policy.fallback_routes)
+            else:
+                route_refs = []
             routes = (
                 list(descriptor.model_policy.allowed_models)
                 if controlled_v2
@@ -75,12 +86,24 @@ class SharedBudgetSnapshotBuilder:
                 else owner_cost
             )
             model_routes: list[dict[str, Any]] = []
-            for model in routes:
+            if route_refs:
+                for route_ref in route_refs:
+                    model_routes.append(
+                        self._controlled_model_route(
+                            descriptor=descriptor,
+                            deployment_id=route_ref.deployment_id,
+                            model=route_ref.model_id,
+                            enforce_legacy_provider=False,
+                        )
+                    )
+            for model in [] if route_refs else routes:
                 if controlled_v2:
                     model_routes.append(
                         self._controlled_model_route(
                             descriptor=descriptor,
+                            deployment_id=descriptor.model_policy.deployment_id,
                             model=model,
+                            enforce_legacy_provider=True,
                         )
                     )
                     continue
@@ -93,8 +116,7 @@ class SharedBudgetSnapshotBuilder:
             policy_payload = descriptor.model_policy.to_payload()
             if controlled_v2:
                 resolved_policy = resolve_model_deployment(
-                    self._settings.model,
-                    descriptor.model_policy.deployment_id,
+                    self._settings.model, descriptor.model_policy.deployment_id
                 )
                 # Agent 与 deployment 的 fallback 顺序都进入 durable policy；恢复时
                 # 只能取两者交集，不能读取 reload 后配置补齐或扩大候选。
@@ -154,15 +176,20 @@ class SharedBudgetSnapshotBuilder:
             snapshot=snapshot,
         )
 
-    def _controlled_model_route(self, *, descriptor: Any, model: str) -> dict[str, Any]:
+    def _controlled_model_route(
+        self,
+        *,
+        descriptor: AgentDescriptor,
+        deployment_id: str,
+        model: str,
+        enforce_legacy_provider: bool,
+    ) -> dict[str, Any]:
         """把受控 deployment/catalog 投影为完整耐久恢复路由。"""
 
-        deployment_id = descriptor.model_policy.deployment_id
         resolved = resolve_model_deployment(self._settings.model, deployment_id)
         if (
-            descriptor.model_policy.provider != resolved.provider_kind
-            or model not in resolved.allowed_models
-        ):
+            enforce_legacy_provider and descriptor.model_policy.provider != resolved.provider_kind
+        ) or model not in resolved.allowed_models:
             raise ValueError("shared budget controlled route is not allowed")
         deployment = self._settings.model.deployments[deployment_id]
         catalog = resolved.model_catalogs[model]
@@ -180,6 +207,10 @@ class SharedBudgetSnapshotBuilder:
                 * catalog.input_token_price_usd
                 + Decimal(deployment.max_output_tokens) * catalog.output_token_price_usd
             )
+        soft_token_limit = self._model_config.route_max_tokens_per_call.get(
+            model,
+            self._model_config.max_tokens_per_call,
+        )
         return {
             "usage_kind": "model",
             "deployment_id": deployment_id,
@@ -233,13 +264,18 @@ class SharedBudgetSnapshotBuilder:
                 "backoff_initial_ms": deployment.backoff_initial_ms,
                 "backoff_max_ms": deployment.backoff_max_ms,
             },
+            "cross_provider_failover_http_statuses": list(
+                deployment.cross_provider_failover_http_statuses
+            ),
             "bulkhead_policy": {
                 "scope": "process_deployment",
                 "max_in_flight": deployment.max_in_flight,
                 "queue_timeout_ms": deployment.queue_timeout_ms,
             },
-            # 旧投影仍消费该字段；v2 恢复使用精确静态上界字段。
-            "soft_max_tokens_per_call": route_token_ceiling,
+            # soft threshold 是运行策略而非静态公式；缺省时以静态上界表示不额外缩权。
+            "soft_max_tokens_per_call": (
+                route_token_ceiling if soft_token_limit is None else soft_token_limit
+            ),
         }
 
     def _legacy_model_route(self, *, provider: str, model: str) -> dict[str, Any]:

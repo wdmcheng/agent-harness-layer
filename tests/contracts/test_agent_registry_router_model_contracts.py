@@ -171,6 +171,7 @@ async def test_agent_list_route_uses_injected_registry_seam(tmp_path: Path) -> N
                 "allowed_models": ["fake-basic"],
                 "default_model": "fake-basic",
                 "fallback_models": [],
+                "fallback_routes": [],
             },
             "budget": {
                 "max_tokens_per_run": 8192,
