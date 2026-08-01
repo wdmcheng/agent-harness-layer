@@ -156,7 +156,7 @@ def should_skip_feedback_prompt(prompt: str) -> bool:
     fixed_agent_dispatch = (
         re.search(
             rf"\A[ \t]*你是[^{clause_ends}]*"
-            rf"(?:code-reviewer|evolution-runner)(?=\s|[{clause_ends}]|$)",
+            rf"(?:code-reviewer|evolution-runner)(?=\s|\(|（|[{clause_ends}]|$)",
             normalized,
         )
         is not None
