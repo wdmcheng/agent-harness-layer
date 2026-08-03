@@ -84,6 +84,8 @@ At minimum, `config.yaml` declares:
 
 This declarative registration is a real ergonomic layer: you do not wire every Agent into FastAPI routes or runtime composition. `AgentRegistry.load_from_directory()` validates configuration, schemas, and executor together. It does not bypass runtime, policy, or storage.
 
+When an Agent needs a business structured result from a model, `output_schema` must point to a strict object schema backed by `HarnessDTO`/Pydantic `BaseModel`. Registry recursively closes additional fields and derives stable `schema_ref/version/digest`; loose dictionaries, remote/recursive `$ref`, and unsupported keywords fail the whole load atomically. The executor calls `complete_structured()` through a bound model execution and consumes provider-neutral `ModelResponse.structured_output.value` while canonical `ModelResponse.output_text` remains available. Repair is finite, bounded by deployment policy, and charged to budget/evidence. `model.structured_schema_unknown`, extra fields, exhausted retry/repair, replay conflict, and `needs_review` are explicit terminal states—not reasons to resend, switch to fake, execute a tool, or return an empty object.
+
 ### 5. Verify with CLI before adding HTTP integration
 
 ```bash

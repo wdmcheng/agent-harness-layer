@@ -9,6 +9,10 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.models.structured import (
+    OutputSchemaIdentity,
+    maximum_structured_validation_codes,
+)
 
 UsageKind = Literal["model", "embedding"]
 CostStatus = Literal["reported", "estimated", "unavailable"]
@@ -53,6 +57,126 @@ class UsageEvidenceContext(HarnessDTO):
     agent_id: str = Field(min_length=1)
     trace_id: str = Field(min_length=1)
     request_id: str | None = None
+
+
+class StructuredUsageValidationIssue(HarnessDTO):
+    """Structured usage 摘要允许持久化的唯一去敏验证问题。"""
+
+    code: str = Field(min_length=1)
+    path: str
+
+    @model_validator(mode="after")
+    def validate_issue(self) -> StructuredUsageValidationIssue:
+        """Code 使用冻结词汇，path 使用有界 RFC 6901 instance pointer。"""
+
+        if self.code not in maximum_structured_validation_codes():
+            raise ValueError("structured validation code is unsupported")
+        if len(self.path.encode("utf-8")) > 1024 or self.path and not self.path.startswith("/"):
+            raise ValueError("structured validation path is not a bounded JSON pointer")
+        for index, character in enumerate(self.path):
+            if character == "~" and (
+                index + 1 >= len(self.path) or self.path[index + 1] not in {"0", "1"}
+            ):
+                raise ValueError("structured validation path contains an invalid escape")
+        return self
+
+
+class StructuredUsageSummary(HarnessDTO):
+    """Started/final usage decision 中的 structured exact 终态联合体。"""
+
+    schema_version: Literal["structured-output-evidence-v1"]
+    schema_identity: OutputSchemaIdentity
+    status: Literal[
+        "started", "valid", "invalid", "extra_fields", "repair_exhausted", "failed", "needs_review"
+    ]
+    repair_limit: int = Field(ge=0, le=2, strict=True)
+    repair_count: int | None
+    provider_request_limit: int = Field(ge=1, strict=True)
+    provider_request_count: int | None
+    replay_identity: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    validation_issues: list[StructuredUsageValidationIssue]
+    error_code: str | None
+
+    @field_validator("repair_count", "provider_request_count", mode="before")
+    @classmethod
+    def validate_nullable_count(cls, value: object) -> object:
+        """Count 只接受 exact 非负整数或 null，禁止 bool/coercion。"""
+
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+        ):
+            raise ValueError("structured count must be a non-negative integer or null")
+        return value
+
+    @model_validator(mode="after")
+    def validate_terminal_union(self) -> StructuredUsageSummary:
+        """逐值锁定 started、确定终态和 needs-review 的 nullable 规则。"""
+
+        if self.repair_count is not None and self.repair_count > self.repair_limit:
+            raise ValueError("structured summary repair count exceeds limit")
+        if (
+            self.provider_request_count is not None
+            and self.provider_request_count > self.provider_request_limit
+        ):
+            raise ValueError("structured summary provider request count exceeds limit")
+        issue_keys = [(item.path, item.code) for item in self.validation_issues]
+        if issue_keys != sorted(set(issue_keys)):
+            raise ValueError("structured validation issues must be unique and sorted")
+        if self.status == "started":
+            if (
+                self.repair_count != 0
+                or self.provider_request_count != 0
+                or self.replay_identity is not None
+                or self.validation_issues
+                or self.error_code is not None
+            ):
+                raise ValueError("structured started summary contains terminal facts")
+            return self
+        if self.replay_identity is None:
+            raise ValueError("structured terminal summary requires replay identity")
+        if self.status != "needs_review" and (
+            self.repair_count is None or self.provider_request_count is None
+        ):
+            raise ValueError("determinate structured summary requires exact counts")
+        request_count = self.provider_request_count
+        repair_count = self.repair_count
+        if self.status == "valid":
+            if not request_count or self.validation_issues or self.error_code is not None:
+                raise ValueError("valid structured summary facts mismatch")
+        elif self.status in {"invalid", "extra_fields"}:
+            expected_error = (
+                "model.structured_invalid"
+                if self.status == "invalid"
+                else "model.structured_extra_fields"
+            )
+            if (
+                self.repair_limit != 0
+                or repair_count != 0
+                or not request_count
+                or not self.validation_issues
+                or self.error_code != expected_error
+            ):
+                raise ValueError("terminal structured schema failure facts mismatch")
+        elif self.status == "repair_exhausted":
+            if (
+                self.repair_limit < 1
+                or repair_count != self.repair_limit
+                or not request_count
+                or not self.validation_issues
+                or self.error_code != "model.structured_repair_exhausted"
+            ):
+                raise ValueError("structured repair exhaustion facts mismatch")
+        elif self.status == "needs_review":
+            if self.error_code != "model.provider_side_effect_unknown":
+                raise ValueError("structured needs-review facts mismatch")
+        elif self.error_code not in {
+            "model.provider_failed",
+            "model.provider_retry_exhausted",
+            "model.invocation_cancelled",
+            "model.input_too_large",
+        }:
+            raise ValueError("structured failed summary error code is unsupported")
+        return self
 
 
 class ModelUsageEvidence(HarnessDTO):
@@ -202,6 +326,8 @@ def embedding_usage_evidence(
 __all__ = [
     "CostStatus",
     "ModelUsageEvidence",
+    "StructuredUsageSummary",
+    "StructuredUsageValidationIssue",
     "UsageEvidenceContext",
     "UsageInvocationReplayError",
     "UsageKind",

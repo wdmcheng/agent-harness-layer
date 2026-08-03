@@ -13,6 +13,9 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agent_harness.storage._structured_usage_evidence_repository import (
+    StructuredUsageEvidenceRepositoryMixin,
+)
 from agent_harness.storage.event_capacity_repositories import (
     EventCapacityRepository,
     EvidenceOperationKind,
@@ -149,7 +152,10 @@ class UsageSettlementClaim:
     error_code: str | None
 
 
-class UsageEvidenceRepositoryMixin(UsageAttemptReviewRepositoryMixin):
+class UsageEvidenceRepositoryMixin(
+    StructuredUsageEvidenceRepositoryMixin,
+    UsageAttemptReviewRepositoryMixin,
+):
     """复用同一 UoW session 的 usage settlement 状态机。"""
 
     _session: AsyncSession

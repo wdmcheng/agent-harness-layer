@@ -2,6 +2,7 @@
 
 from agent_harness.adapters.models.fake import FakeModelProvider as FakeModelProvider
 from agent_harness.adapters.models.fake import FakeModelStreamScript as FakeModelStreamScript
+from agent_harness.adapters.models.fake import FakeStructuredScript as FakeStructuredScript
 from agent_harness.models._router_contracts import ModelRouteCandidate as ModelRouteCandidate
 from agent_harness.models._router_contracts import ModelRouteChainPlan as ModelRouteChainPlan
 from agent_harness.models._settlement_contracts import (
@@ -30,7 +31,23 @@ from agent_harness.models.providers import ModelStreamCloseResult as ModelStream
 from agent_harness.models.providers import ModelStreamDelta as ModelStreamDelta
 from agent_harness.models.providers import ModelStreamingProvider as ModelStreamingProvider
 from agent_harness.models.providers import ModelStreamUsage as ModelStreamUsage
+from agent_harness.models.providers import ModelStructuredProvider as ModelStructuredProvider
 from agent_harness.models.providers import PreparedModelStreamCall as PreparedModelStreamCall
+from agent_harness.models.providers import (
+    PreparedStructuredModelCall as PreparedStructuredModelCall,
+)
+from agent_harness.models.providers import (
+    StructuredModelAttemptEvidence as StructuredModelAttemptEvidence,
+)
+from agent_harness.models.providers import (
+    StructuredProviderCallError as StructuredProviderCallError,
+)
+from agent_harness.models.providers import (
+    StructuredProviderCandidate as StructuredProviderCandidate,
+)
+from agent_harness.models.providers import (
+    StructuredProviderPrepareError as StructuredProviderPrepareError,
+)
 from agent_harness.models.route_chain_identity import (
     ModelRouteApprovalGrantIdentity as ModelRouteApprovalGrantIdentity,
 )
@@ -56,7 +73,41 @@ from agent_harness.models.router import ModelRouteError as ModelRouteError
 from agent_harness.models.router import ModelRoutePlan as ModelRoutePlan
 from agent_harness.models.router import ModelRouter as ModelRouter
 from agent_harness.models.router import ModelRouterConfig as ModelRouterConfig
+from agent_harness.models.structured import OutputSchemaDefinition as OutputSchemaDefinition
+from agent_harness.models.structured import OutputSchemaIdentity as OutputSchemaIdentity
+from agent_harness.models.structured import (
+    StructuredOutputAttemptEvidence as StructuredOutputAttemptEvidence,
+)
+from agent_harness.models.structured import (
+    StructuredOutputNotStartedProof as StructuredOutputNotStartedProof,
+)
+from agent_harness.models.structured import (
+    StructuredOutputReplayIdentity as StructuredOutputReplayIdentity,
+)
+from agent_harness.models.structured import StructuredOutputRequest as StructuredOutputRequest
+from agent_harness.models.structured import StructuredOutputResult as StructuredOutputResult
+from agent_harness.models.structured import (
+    StructuredSchemaResolutionError as StructuredSchemaResolutionError,
+)
+from agent_harness.models.structured import StructuredValidationResult as StructuredValidationResult
+from agent_harness.models.structured import canonical_structured_json as canonical_structured_json
+from agent_harness.models.structured import compile_output_schema as compile_output_schema
+from agent_harness.models.structured import (
+    compile_output_schema_definition as compile_output_schema_definition,
+)
+from agent_harness.models.structured import structured_digest as structured_digest
+from agent_harness.models.structured import (
+    structured_operation_identity_digest as structured_operation_identity_digest,
+)
+from agent_harness.models.structured import structured_provider_prompt as structured_provider_prompt
+from agent_harness.models.structured import (
+    validate_structured_candidate as validate_structured_candidate,
+)
 from agent_harness.models.usage import ModelUsageEvidence as ModelUsageEvidence
+from agent_harness.models.usage import StructuredUsageSummary as StructuredUsageSummary
+from agent_harness.models.usage import (
+    StructuredUsageValidationIssue as StructuredUsageValidationIssue,
+)
 from agent_harness.models.usage import UsageEvidenceContext as UsageEvidenceContext
 from agent_harness.models.usage import UsageInvocationReplayError as UsageInvocationReplayError
 from agent_harness.models.usage import embedding_usage_evidence as embedding_usage_evidence
@@ -67,9 +118,16 @@ from agent_harness.models.usage_events import UsageEvidenceLifecycle as UsageEvi
 __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "FakeModelProvider",
     "FakeModelStreamScript",
+    "FakeStructuredScript",
     "BoundModelInvocationService",
     "ModelDecision",
     "ModelAttemptEvidence",
+    "ModelStructuredProvider",
+    "PreparedStructuredModelCall",
+    "StructuredModelAttemptEvidence",
+    "StructuredProviderCallError",
+    "StructuredProviderCandidate",
+    "StructuredProviderPrepareError",
     "ModelInvocationService",
     "ModelApprovalRequired",
     "ModelProviderInvocationError",
@@ -104,4 +162,22 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "model_usage_evidence",
     "stable_usage_call_id",
     "UsageEvidenceLifecycle",
+    "OutputSchemaDefinition",
+    "OutputSchemaIdentity",
+    "StructuredOutputAttemptEvidence",
+    "StructuredOutputNotStartedProof",
+    "StructuredOutputRequest",
+    "StructuredOutputReplayIdentity",
+    "StructuredOutputResult",
+    "StructuredSchemaResolutionError",
+    "StructuredValidationResult",
+    "StructuredUsageSummary",
+    "StructuredUsageValidationIssue",
+    "canonical_structured_json",
+    "compile_output_schema",
+    "compile_output_schema_definition",
+    "structured_digest",
+    "structured_provider_prompt",
+    "structured_operation_identity_digest",
+    "validate_structured_candidate",
 ]

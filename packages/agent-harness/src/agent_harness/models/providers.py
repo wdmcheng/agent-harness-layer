@@ -5,13 +5,19 @@ from __future__ import annotations
 import math
 from collections.abc import AsyncIterator
 from decimal import Decimal
-from typing import TYPE_CHECKING, Literal, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast, runtime_checkable
 
 from pydantic import AliasChoices, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 from agent_harness.config.schemas import ModelRouteRef
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.models.streaming import MAX_STREAM_COLLECTOR_UTF8_BYTES, bounded_utf8_size
+from agent_harness.models.structured import (
+    OutputSchemaDefinition,
+    OutputSchemaIdentity,
+    StructuredOutputAttemptEvidence,
+    StructuredOutputResult,
+)
 
 if TYPE_CHECKING:
     from agent_harness.models.router import ModelRoutePlan
@@ -160,7 +166,200 @@ class ModelAttemptEvidence(HarnessDTO):
         return self.model_dump(mode="json")
 
 
-def _empty_attempts() -> list[ModelAttemptEvidence]:
+class StructuredModelAttemptEvidence(ModelAttemptEvidence):
+    """保留 text attempt 基字段并增加 exact structured 判别详情。"""
+
+    structured_output: StructuredOutputAttemptEvidence
+
+    @model_validator(mode="after")
+    def validate_structured_attempt(self) -> StructuredModelAttemptEvidence:
+        """发送、验证、proof 与 cleanup 事实必须组成唯一局部联合体。"""
+
+        detail = self.structured_output
+        proof = detail.not_started_proof
+        if self.side_effect_state == "not_started":
+            if proof is None or (
+                proof.kind == "client_prepare_not_started"
+                and detail.cleanup_status != "not_applicable"
+            ):
+                raise ValueError("not-started attempt proof/cleanup facts mismatch")
+            if proof.attempt != self.attempt:
+                raise ValueError("not-started proof/global attempt mismatch")
+            if (
+                self.completion_observed not in {False, None}
+                or detail.validation_codes is not None
+                or any(
+                    value not in {0, None}
+                    for value in (
+                        self.input_tokens,
+                        self.output_tokens,
+                        self.cost_usd,
+                        self.budget_charge_tokens,
+                        self.budget_charge_cost_usd,
+                    )
+                )
+            ):
+                raise ValueError("not-started structured attempt contains send facts")
+        elif proof is not None or detail.cleanup_status == "not_applicable":
+            raise ValueError("sent or unknown attempt cannot carry a not-started proof")
+        if detail.validation_codes is not None:
+            if (
+                self.side_effect_state != "started"
+                or self.outcome != "completed"
+                or self.completion_observed is not True
+                or self.input_tokens is None
+                or self.output_tokens is None
+            ):
+                raise ValueError("validated structured attempt requires completed metered output")
+        return self
+
+
+class StructuredProviderCandidate(HarnessDTO):
+    """Adapter 单次 structured request 返回的唯一候选与计量真相源。"""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, frozen=True)
+
+    schema_version: Literal["structured-provider-candidate-v1"] = "structured-provider-candidate-v1"
+    schema_identity: OutputSchemaIdentity
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    candidate: str | dict[str, Any]
+    attempts: list[ModelAttemptEvidence]
+
+    @field_validator("candidate", mode="before")
+    @classmethod
+    def validate_candidate_shape(cls, value: object) -> object:
+        """只接受原始 JSON 字符串或普通 JSON object，不字符串化 SDK 对象。"""
+
+        if isinstance(value, str):
+            return value
+        if not isinstance(value, dict):
+            raise ValueError("structured candidate must be a JSON string or object")
+        # canonical serializer 在核心模块执行递归 JSON-compatible 检查。
+        from agent_harness.models.structured import canonical_structured_json
+
+        candidate = cast(dict[str, Any], value)
+        canonical_structured_json(candidate)
+        return candidate
+
+    @model_validator(mode="after")
+    def validate_single_attempt(self) -> StructuredProviderCandidate:
+        """每个 adapter send 只能贡献一个从 1 开始的 local attempt。"""
+
+        if len(self.attempts) != 1 or self.attempts[0].attempt != 1:
+            raise ValueError("structured candidate requires exactly one local attempt")
+        attempt = self.attempts[0]
+        if (
+            attempt.side_effect_state != "started"
+            or attempt.outcome != "completed"
+            or attempt.completion_observed is not True
+            or attempt.error_code is not None
+        ):
+            raise ValueError("structured candidate requires one completed send attempt")
+        return self
+
+    @staticmethod
+    def validated_snapshot(value: object) -> StructuredProviderCandidate | None:
+        """重建核心candidate快照；duck object、子类或后置篡改统一拒绝。"""
+
+        if type(value) is not StructuredProviderCandidate:
+            return None
+        try:
+            payload = StructuredProviderCandidate.model_dump(value, mode="python")
+            snapshot = StructuredProviderCandidate.model_validate(payload)
+        except (AttributeError, TypeError, ValueError):
+            return None
+        return snapshot.model_copy(deep=True)
+
+
+class StructuredProviderPrepareError(RuntimeError):
+    """Prepare 尚未返回 handle 且已证明未 send 的 provider-neutral 错误。"""
+
+    def __init__(self, *, retryable: object) -> None:
+        if not isinstance(retryable, bool):
+            raise TypeError("structured provider prepare retryable must be a boolean")
+        super().__init__("structured provider prepare failed")
+        self.retryable = retryable
+
+    def validated_retryable(self) -> bool | None:
+        """读取精确核心错误的布尔快照；缺失、错型或子类一律不可重试。"""
+
+        if type(self) is not StructuredProviderPrepareError:
+            return None
+        try:
+            raw_retryable = cast(object, object.__getattribute__(self, "retryable"))
+        except AttributeError:
+            return None
+        return raw_retryable if type(raw_retryable) is bool else None
+
+
+class StructuredProviderCallError(RuntimeError):
+    """Send 已开始后的封闭 provider 失败，不携带 raw SDK 异常。"""
+
+    def __init__(self, *, code: str, attempts: list[ModelAttemptEvidence]) -> None:
+        if code not in {"model.provider_failed", "model.provider_side_effect_unknown"}:
+            raise ValueError("structured provider call error code is unsupported")
+        if len(attempts) != 1 or attempts[0].attempt != 1:
+            raise ValueError("structured provider call error requires one local attempt")
+        attempt = attempts[0]
+        self._validate_attempt(code=code, attempt=attempt)
+        super().__init__(code)
+        self.code = code
+        # Adapter持有的原列表和DTO都不再与错误对象共享；执行器仍会在消费前
+        # 独立重验，防止恶意实现直接替换公开属性绕过构造期快照。
+        self.attempts: tuple[ModelAttemptEvidence, ...] = (attempt.model_copy(deep=True),)
+
+    @staticmethod
+    def _validate_attempt(*, code: str, attempt: ModelAttemptEvidence) -> None:
+        """验证稳定错误码与唯一attempt组成的封闭联合体。"""
+
+        if code not in {"model.provider_failed", "model.provider_side_effect_unknown"}:
+            raise ValueError("structured provider call error code is unsupported")
+        if code == "model.provider_failed" and (
+            attempt.side_effect_state != "started"
+            or attempt.outcome != "failed"
+            or attempt.completion_observed is not True
+            or attempt.error_code != code
+        ):
+            raise ValueError("structured provider failure requires one definite failed attempt")
+        if code == "model.provider_side_effect_unknown" and (
+            attempt.side_effect_state != "unknown"
+            or attempt.outcome != "unknown"
+            or attempt.completion_observed is True
+            or attempt.error_code != code
+        ):
+            raise ValueError("unknown structured call error requires one unresolved attempt")
+
+    def validated_attempt(self) -> tuple[str, ModelAttemptEvidence] | None:
+        """返回错误码与attempt的重验证快照；任何后置篡改都按unknown处理。"""
+
+        if type(self) is not StructuredProviderCallError:
+            return None
+        try:
+            raw_code = cast(object, object.__getattribute__(self, "code"))
+            raw_attempts = cast(object, object.__getattribute__(self, "attempts"))
+        except AttributeError:
+            return None
+        if type(raw_code) is not str:
+            return None
+        if type(raw_attempts) is not tuple:
+            return None
+        checked_attempts = cast(tuple[object, ...], raw_attempts)
+        if len(checked_attempts) != 1:
+            return None
+        raw_attempt = checked_attempts[0]
+        if type(raw_attempt) is not ModelAttemptEvidence:
+            return None
+        try:
+            payload = ModelAttemptEvidence.model_dump(raw_attempt, mode="python")
+            snapshot = ModelAttemptEvidence.model_validate(payload)
+            StructuredProviderCallError._validate_attempt(code=raw_code, attempt=snapshot)
+        except (AttributeError, TypeError, ValueError):
+            return None
+        return raw_code, snapshot.model_copy(deep=True)
+
+
+def _empty_attempts() -> list[ModelAttemptEvidence | StructuredModelAttemptEvidence]:
     """为每个 provider response 创建独立 attempt 证据列表。"""
 
     return []
@@ -177,7 +376,10 @@ class ModelResponse(HarnessDTO):
     latency_ms: int = 0
     cost_usd: float | None = None
     cost_status: Literal["reported", "estimated", "unavailable"] = "unavailable"
-    attempts: list[ModelAttemptEvidence] = Field(default_factory=_empty_attempts)
+    attempts: list[StructuredModelAttemptEvidence | ModelAttemptEvidence] = Field(
+        default_factory=_empty_attempts
+    )
+    structured_output: StructuredOutputResult | None = None
 
     @field_validator("token_usage", mode="before")
     @classmethod
@@ -218,6 +420,20 @@ class ModelResponse(HarnessDTO):
         ):
             raise ValueError("model cost must be finite and non-negative")
         return value
+
+    def to_payload(self) -> dict[str, Any]:
+        """Structured response 保留 attempt 嵌套联合体中的显式 null。"""
+
+        payload = super().to_payload()
+        if self.structured_output is not None:
+            payload["structured_output"] = self.structured_output.model_dump(mode="json")
+            payload["attempts"] = [
+                item.model_dump(mode="json", exclude_none=False)
+                if isinstance(item, StructuredModelAttemptEvidence)
+                else item.to_payload()
+                for item in self.attempts
+            ]
+        return payload
 
 
 class ModelStreamDelta(HarnessDTO):
@@ -343,6 +559,42 @@ class PreparedModelCall(Protocol):
 
     async def aclose(self) -> None:
         """释放本次调用 permit；client 由进程级 factory 统一管理。"""
+        ...
+
+
+@runtime_checkable
+class PreparedStructuredModelCall(Protocol):
+    """已 prepare、未发送的单次 structured provider handle。"""
+
+    async def send_structured(
+        self,
+        *,
+        provider_prompt: str,
+        repair_ordinal: int,
+        transport_ordinal: int,
+    ) -> StructuredProviderCandidate:
+        """恰好执行一次 provider request，并返回唯一 local attempt。"""
+        ...
+
+    async def aclose(self) -> None:
+        """释放本次 handle；不得发送、retry 或 repair。"""
+        ...
+
+
+@runtime_checkable
+class ModelStructuredProvider(Protocol):
+    """与 text/stream 正交的 provider-neutral structured 能力。"""
+
+    provider_id: str
+
+    async def prepare_structured(
+        self,
+        request: ModelRequest,
+        *,
+        plan: ModelRoutePlan,
+        schema: OutputSchemaDefinition,
+    ) -> PreparedStructuredModelCall:
+        """取得 fresh handle，但不得产生 provider request。"""
         ...
 
 

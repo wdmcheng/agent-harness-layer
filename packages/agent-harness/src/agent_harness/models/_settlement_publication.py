@@ -9,6 +9,7 @@ from agent_harness.events import EventBus
 from agent_harness.models._invocation_evidence import ModelInvocationEvidenceMixin
 from agent_harness.models._settlement_contracts import ModelProviderInvocationError
 from agent_harness.models.providers import ModelResponse
+from agent_harness.models.structured import StructuredOutputReplayIdentity
 from agent_harness.models.usage import ModelUsageEvidence
 from agent_harness.models.usage_events import UsageEvidenceLifecycle
 from agent_harness.observability.facade import TelemetryFacade
@@ -32,6 +33,7 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
         error_code: str | None,
         ownership: BudgetOperationOwnership | None,
         response: ModelResponse | None,
+        structured_replay: StructuredOutputReplayIdentity | None = None,
     ) -> None:
         """原子持久化最终 usage 结果并结算共享预算，提交后才发布最终事件。
 
@@ -48,6 +50,7 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
                 error_code=error_code,
                 ownership=ownership,
                 response=response,
+                structured_replay=structured_replay,
             )
             await uow.commit()
         await self._publish_final(
@@ -67,6 +70,7 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
         error_code: str | None,
         ownership: BudgetOperationOwnership | None,
         response: ModelResponse | None,
+        structured_replay: StructuredOutputReplayIdentity | None = None,
     ) -> None:
         """在调用方提供的事务中原子保存 usage 结果与共享预算，不提交或发布事件。
 
@@ -126,20 +130,42 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
                 else {}
             ),
             **({"response": self._durable_response(response)} if response is not None else {}),
+            **(
+                {"structured_replay": structured_replay.model_dump(mode="json")}
+                if structured_replay is not None
+                else {}
+            ),
         }
-        await uow.evidence_outbox.persist_result(
+        persisted = await uow.evidence_outbox.persist_result(
             tenant_id=evidence.tenant_id,
             usage_call_id=usage_call_id,
             result=result,
             error_code=error_code,
         )
+        if structured_replay is not None:
+            from agent_harness.models._settlement_validation import (
+                validate_durable_model_settlement,
+            )
+
+            if persisted.result_json is None:
+                raise RuntimeError("structured settlement persistence lost its result")
+            validate_durable_model_settlement(
+                persisted.result_json,
+                state="result_persisted",
+                error_code=error_code,
+            )
         if ownership is None:
             return
         input_tokens = evidence.input_tokens
         output_tokens = evidence.output_tokens
         actual_tokens: int | None
         actual_cost: Decimal | None
-        if provider_called and response is not None and response.attempts:
+        if structured_replay is not None and structured_replay.final_status == "needs_review":
+            # Structured needs-review不论provider request是否已知，都代表至少一个
+            # 结算维度不可确认；以null actual让direct/allocation/owner保留预约并围栏。
+            actual_tokens = None
+            actual_cost = None
+        elif provider_called and response is not None and response.attempts:
             started_attempts = [
                 attempt
                 for attempt in response.attempts

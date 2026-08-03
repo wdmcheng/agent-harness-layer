@@ -7,6 +7,21 @@ from typing import Literal
 from agent_harness.contracts.dto import HarnessDTO
 
 
+class DevAssistantToolResult(HarnessDTO):
+    """只覆盖 read/write/shell 已完成载荷的严格 provider-neutral 形状。"""
+
+    path: str | None = None
+    content: str | None = None
+    bytes: int | None = None
+    artifact_ref: str | None = None
+    exit_code: int | None = None
+    stdout: str | None = None
+    stderr: str | None = None
+    stdout_ref: str | None = None
+    stderr_ref: str | None = None
+    duration_ms: int | None = None
+
+
 class DevAssistantInput(HarnessDTO):
     """只表达一次 file/shell 动作，复杂 workflow 不在本示例范围。"""
 
@@ -21,7 +36,7 @@ class DevAssistantOutput(HarnessDTO):
 
     status: str
     tool_name: str
-    result: dict[str, object] | None = None
+    result: DevAssistantToolResult | None = None
     source_ref: str
     artifact_ref: str | None = None
     policy_decision: str | None = None

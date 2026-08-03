@@ -1,5 +1,20 @@
 # 变更记录
 
+## [v1.24] - 2026-08-02
+### Provider-neutral Structured Output 契约
+
+- 新增 P1 `SCOPE-034`、`TASK-016`、`REQ-028` 与 AC-096 至 AC-103，把 Phase 19 从计划意图收敛为稳定 schema identity、provider-neutral structured result、有限 repair、共享预算、耐久 evidence 与 exact replay 的可验收行为。
+- Agent Registry 是输出 schema 的授权真相源；descriptor 只公开 `schema_ref/version/digest`，provider-native/Pydantic AI 类型不得进入核心 DTO、公开 API 或持久化证据。结构化成功仍保留与 canonical JSON 一致的 `ModelResponse.output_text`。
+- 冻结adapter到核心validator的唯一`StructuredProviderCandidate` exact DTO与prepared protocol签名；核心显式拥有repair×transport双层循环，每对ordinal使用fresh prepared call，send只做一次外部request且禁止隐藏retry；candidate删除重复顶层计量，sole local attempt是唯一usage/cost/latency来源，prepare/call错误使用核心公开的vendor-neutral异常，原始值不耐久、不进入repair prompt或日志，SDK/裸对象/`ModelResponse`旁路关闭失败。
+- 明确额外字段、unknown schema、capability unsupported、预算不足、repair exhausted、replay conflict 和 unknown/needs-review 的 fail-closed 语义；Phase 19 不做 structured streaming、跨 provider structured fallback、tool call/执行、fake 隐式后备或 Phase 21 重构。
+- 冻结 structured route 边界：Agent 只要显式声明任意非空 `fallback_routes` 就保持 Phase 18.2 route-chain identity，即使请求缩权后只有一个候选也在副作用前拒绝，不把显式 chain 降级成 legacy 单 route。
+- Structured preflight唯一映射新增`model.structured_policy_invalid`；deployment capability或provider protocol缺失都统一为`model.structured_capability_unsupported`，底层`model.capability_unsupported`不得逸出公开structured seam。
+- 结构化not-started proof只由核心在prepared send前构造；只有显式retryable prepare错误能推进下一transport ordinal，一旦到达send或收到HTTP response就计为provider request并停止structured retry，endpoint classifier继续只服务既有text路径。Send前/后取消、deadline与prepared close失败的failed/needs-review优先级已逐边界冻结。
+- 全量Registry严格加载的兼容迁移同时覆盖Dev Assistant宽松工具结果和RAG Assistant宽松组裁字典；RAG收紧为封闭联合，`no_source`只接受精确`{}`且不伪造零计数或assembly记录，`completed`只接受映射Context Assembly既有六个计数的严格DTO；不放宽strict compiler、不改写耐久组裁schema或示例业务语义。
+- 冻结 strict schema compiler 的位置感知关键字集合并拒绝 `format`/条件/unevaluated 等本阶段未支持语义；validation issue只消费validator顶层迭代结果、不遍历组合器context，避免同一值产生不同repair prompt和replay evidence。
+- 本条只记录需求与验收基线；生产实现、测试、fresh review 和 ready-to-archive 状态必须分别取得证据，不能由本文或 OpenSpec PASS 冒充。
+- Phase 19最终契约为14 Requirements/74 Scenarios，身份`7754ef26…`与实现身份`de39eb09…`均分别由fresh Reviewer 1/2/3完成Stage 1/2 PASS、0 findings，44/44 tasks；AC-096至AC-103已按生产、测试、eval与验收矩阵证据闭合。OpenSpec于2026-08-04授权事务中把12条新增、2条修改同步到六份主规格，并归档至`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`；归档日期采用CLI实际生成值。acceptance旧CI evidence与live外部前置仍分别保持`BLOCKED`和零调用`hosted-unverified`，归档不代表commit、push、发布、部署或真实provider验证。
+
 ## [v1.23] - 2026-07-31
 ### 受控多 deployment fallback 实现
 
@@ -121,7 +136,7 @@
 ### Phase 13.9 归档
 
 - 将 `sse-event-streaming` 的三个 delta specs 精确同步到 `canonical-events-artifacts`、`service-app-shell` 与新增的 `sse-event-streaming` 主规格，保留既有主规格内容。
-- `sse-event-streaming` 已以 17/17 tasks 归档到 `openspec/changes/archive/2026-07-19-sse-event-streaming/`；当前无 active change，不代表 push、发布或部署。
+- `sse-event-streaming` 已以 17/17 tasks 归档到 `openspec/changes/archive/2026-07-19-sse-event-streaming/`；该归档快照中无 active change，不代表 push、发布或部署。
 
 ## [v1.9] - 2026-07-19
 ### Phase 13.9 状态同步

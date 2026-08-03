@@ -6,6 +6,9 @@ from copy import deepcopy
 from types import SimpleNamespace
 from typing import Any, cast
 
+from tests.contracts.provider_neutral_structured_output_test_support import (
+    fixture_output_schema_identity,
+)
 from tests.contracts.test_controlled_real_model_config_contracts import (
     PROFILES,
     real_model_override,
@@ -38,6 +41,7 @@ def _registry(*, provider: str = "openai-compatible") -> AgentRegistry:
                 description="仅用于离线快照合同",
                 input_schema_ref="fixture.Input",
                 output_schema_ref="fixture.Output",
+                output_schema_identity=fixture_output_schema_identity(),
                 config_ref="fixture/config.yaml",
                 tool_policy=AgentToolPolicy(allowed_tools=[]),
                 model_policy=AgentModelPolicy(

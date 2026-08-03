@@ -16,6 +16,10 @@ from agent_harness.models._settlement_evidence_validation import (
 )
 from agent_harness.models._settlement_publication import SettlementPublicationMixin
 from agent_harness.models.providers import ModelResponse
+from agent_harness.models.structured import (
+    StructuredOutputReplayIdentity,
+    canonical_structured_json,
+)
 from agent_harness.models.usage import (
     ModelUsageEvidence,
     UsageInvocationReplayError,
@@ -135,6 +139,57 @@ class SettlementValidationMixin(SettlementPublicationMixin):
             started=started,
             state=state,
         )
+        raw_structured_summary = evidence.decision.get("structured_output")
+        if raw_structured_summary is not None:
+            if not isinstance(raw_structured_summary, dict):
+                raise UsageInvocationReplayError(state)
+            try:
+                structured_replay = StructuredOutputReplayIdentity.model_validate(
+                    result.get("structured_replay")
+                )
+            except Exception:
+                raise UsageInvocationReplayError(state) from None
+            summary = cast(dict[str, object], raw_structured_summary)
+            if (
+                summary.get("replay_identity") != structured_replay.digest
+                or summary.get("schema_identity") != structured_replay.schema_identity.to_payload()
+                or summary.get("status") != structured_replay.final_status
+                or summary.get("repair_limit") != structured_replay.repair_limit
+                or summary.get("repair_count") != structured_replay.repair_count
+                or summary.get("provider_request_count") != structured_replay.provider_request_count
+            ):
+                raise UsageInvocationReplayError(state)
+            raw_attempts = evidence.decision.get("attempts")
+            if not isinstance(raw_attempts, list):
+                raise UsageInvocationReplayError(state)
+            for raw_attempt_value in cast(list[object], raw_attempts):
+                if not isinstance(raw_attempt_value, dict):
+                    raise UsageInvocationReplayError(state)
+                raw_attempt = cast(dict[str, object], raw_attempt_value)
+                detail_value = raw_attempt.get("structured_output")
+                if not isinstance(detail_value, dict):
+                    raise UsageInvocationReplayError(state)
+                detail = cast(dict[str, object], detail_value)
+                if detail.get("repair_ordinal") == 0 and (
+                    detail.get("prompt_digest") != structured_replay.prompt_digest
+                ):
+                    raise UsageInvocationReplayError(state)
+                proof_value = detail.get("not_started_proof")
+                proof = (
+                    cast(dict[str, object], proof_value) if isinstance(proof_value, dict) else None
+                )
+                if proof_value is not None and (
+                    proof is None
+                    or proof.get("usage_call_id") != structured_replay.usage_call_id
+                    or proof.get("operation_identity_digest")
+                    != structured_replay.operation_identity_digest
+                    or proof.get("route_digest") != structured_replay.route_digest
+                    or proof.get("schema_identity")
+                    != structured_replay.schema_identity.to_payload()
+                ):
+                    raise UsageInvocationReplayError(state)
+        elif "structured_replay" in result:
+            raise UsageInvocationReplayError(state)
 
         if error_code in ModelProviderInvocationError.stable_codes:
             # 稳定错误身份先于任何 payload 解释；失败记录绝不能用伪造 response
@@ -184,6 +239,12 @@ class SettlementValidationMixin(SettlementPublicationMixin):
                 ):
                     raise UsageInvocationReplayError(state)
             evidence_provider_called = evidence.decision.get("provider_called")
+            raw_structured = evidence.decision.get("structured_output")
+            structured = (
+                cast(dict[str, object], raw_structured)
+                if isinstance(raw_structured, dict)
+                else None
+            )
             if (
                 failure.get("error_code") != error_code
                 or not isinstance(provider_called, bool)
@@ -191,8 +252,19 @@ class SettlementValidationMixin(SettlementPublicationMixin):
                 or not isinstance(attempt_count, int)
                 or attempt_count < 0
                 or (
-                    error_code != "model.route_chain_exhausted"
+                    structured is None
+                    and error_code != "model.route_chain_exhausted"
                     and provider_called != (attempt_count > 0)
+                )
+                or (
+                    structured is not None
+                    and not (
+                        isinstance(structured.get("provider_request_count"), int)
+                        and provider_called == (cast(int, structured["provider_request_count"]) > 0)
+                        or structured.get("status") == "needs_review"
+                        and structured.get("provider_request_count") is None
+                        and provider_called is True
+                    )
                 )
                 or (
                     latency_ms is not None
@@ -251,12 +323,50 @@ class SettlementValidationMixin(SettlementPublicationMixin):
                 raise UsageInvocationReplayError(state)
             if (outcome == "rejected") != (response.decision.action == "policy_required"):
                 raise UsageInvocationReplayError(state)
+            SettlementValidationMixin._validate_structured_response(
+                response=response,
+                evidence=evidence,
+                state=state,
+            )
         return ValidatedSettlementResult(
             evidence=evidence,
             outcome=outcome,
             response=response,
             failure=None,
         )
+
+    @staticmethod
+    def _validate_structured_response(
+        *,
+        response: ModelResponse,
+        evidence: ModelUsageEvidence,
+        state: str,
+    ) -> None:
+        """绑定 valid result、canonical text、summary 与 attempt ordinals。"""
+
+        raw_summary = evidence.decision.get("structured_output")
+        if raw_summary is None:
+            if response.structured_output is not None:
+                raise UsageInvocationReplayError(state)
+            return
+        if not isinstance(raw_summary, dict) or response.structured_output is None:
+            raise UsageInvocationReplayError(state)
+        summary = cast(dict[str, object], raw_summary)
+        result = response.structured_output
+        raw_attempts = evidence.decision.get("attempts")
+        response_attempts = [item.model_dump(mode="json") for item in response.attempts]
+        if (
+            summary.get("status") != "valid"
+            or summary.get("schema_identity") != result.schema_identity.to_payload()
+            or summary.get("repair_count") != result.repair_count
+            or summary.get("provider_request_count") != result.provider_request_count
+            or summary.get("replay_identity") != result.replay_identity
+            or summary.get("error_code") is not None
+            or response.output_text != canonical_structured_json(result.value)
+            or not isinstance(raw_attempts, list)
+            or response_attempts != raw_attempts
+        ):
+            raise UsageInvocationReplayError(state)
 
     @staticmethod
     def _replayed_response(

@@ -163,6 +163,7 @@ async def _build_service(
     launch_error: bool = False,
     child_status: RunStatus = RunStatus.COMPLETED,
     source_cost_limit: float | None = 10.0,
+    root_token_limit: int = 100,
     target_token_limit: int = 100,
     target_cost_limit: float | None = 10.0,
     usage_input_tokens: int | None = 3,
@@ -219,7 +220,7 @@ async def _build_service(
                     "price_source_version": "catalog-v1",
                     "input_token_price_usd": str(usage_token_price),
                     "output_token_price_usd": str(usage_token_price),
-                    "soft_max_tokens_per_call": 100,
+                    "soft_max_tokens_per_call": target_token_limit,
                 },
                 {
                     "usage_kind": "embedding",
@@ -256,7 +257,7 @@ async def _build_service(
             LedgerCreate(
                 tenant_id="tenant-a",
                 budget_owner_run_id=root.id,
-                token_limit=100,
+                token_limit=root_token_limit,
                 cost_limit=(None if source_cost_limit is None else Decimal(str(source_cost_limit))),
                 registry_version="registry-v1",
                 config_version="config-v1",
@@ -267,7 +268,7 @@ async def _build_service(
                         "agent_id": "agent-source",
                         "root_run_id": root.id,
                         "delegation_targets": list(frozen_targets),
-                        "max_tokens_per_run": 100,
+                        "max_tokens_per_run": root_token_limit,
                         "max_cost_usd_per_run": source_cost_limit,
                         "cost_enabled": source_cost_limit is not None,
                     },
@@ -284,7 +285,7 @@ async def _build_service(
                                 "fallback_models": [],
                             },
                             "target_budget": {
-                                "max_tokens_per_run": 100,
+                                "max_tokens_per_run": root_token_limit,
                                 "max_cost_usd_per_run": source_cost_limit,
                             },
                             "routes": [
@@ -296,7 +297,7 @@ async def _build_service(
                                     "price_source_version": "catalog-v1",
                                     "input_token_price_usd": str(usage_token_price),
                                     "output_token_price_usd": str(usage_token_price),
-                                    "soft_max_tokens_per_call": 100,
+                                    "soft_max_tokens_per_call": root_token_limit,
                                 },
                                 {
                                     "usage_kind": "embedding",

@@ -20,6 +20,10 @@ from agent_harness.models._settlement_contracts import (
 )
 from agent_harness.models.providers import ModelRequest
 from agent_harness.models.router import ModelRoutePlan, ModelRouter
+from agent_harness.models.structured import (
+    StructuredOutputReplayIdentity,
+    StructuredOutputRequest,
+)
 from agent_harness.models.usage import (
     ModelUsageEvidence,
     UsageEvidenceContext,
@@ -254,6 +258,8 @@ class _ModelSettlementMixin(
         request: ModelRequest,
         plan: ModelRoutePlan,
         stream: bool = False,
+        structured_replay_seed: StructuredOutputReplayIdentity | None = None,
+        structured_output_request: StructuredOutputRequest | None = None,
     ) -> SettlementStart:
         """在同一工作单元中冻结预算身份、预留额度和 usage outbox，再允许副作用。
 
@@ -287,6 +293,11 @@ class _ModelSettlementMixin(
                             run_id=evidence.run_id,
                         )
                         raise BudgetReservationRejected(reason="intent_unbounded")
+                    semantic_request = self._semantic_request(request)
+                    if structured_output_request is not None:
+                        semantic_request["structured_output"] = (
+                            structured_output_request.to_payload()
+                        )
                     identity = self._shared_budget.operation_identity(
                         tenant_id=evidence.tenant_id,
                         ownership_kind=resolved.kind,
@@ -295,7 +306,7 @@ class _ModelSettlementMixin(
                         delegation_claim_id=resolved.delegation_id,
                         usage_kind="model",
                         operation_slot=usage_call_id,
-                        semantic_request=self._semantic_request(request),
+                        semantic_request=semantic_request,
                         tree_snapshot_id=ledger.snapshot_id,
                         agent_sub_snapshot_id=f"{ledger.snapshot_id}:{evidence.agent_id}",
                         provider=plan.provider,
@@ -384,6 +395,12 @@ class _ModelSettlementMixin(
                 operation_kind=EvidenceOperationKind.MODEL_USAGE,
                 started_evidence=evidence.to_payload(),
             )
+            if structured_replay_seed is not None:
+                await uow.evidence_outbox.bind_structured_started_replay_seed(
+                    tenant_id=evidence.tenant_id,
+                    usage_call_id=usage_call_id,
+                    replay_seed=structured_replay_seed.model_dump(mode="json"),
+                )
             if stream:
                 await uow.evidence_outbox.claim_stream(
                     tenant_id=evidence.tenant_id,

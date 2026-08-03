@@ -68,6 +68,10 @@ from agent_harness.evals.runner import EvalRunResult as EvalRunResult
 from agent_harness.evals.score_sink import ScoreSink as ScoreSink
 from agent_harness.evals.score_sink import ScoreSinkResult as ScoreSinkResult
 from agent_harness.evals.service import EvalService as EvalService
+from agent_harness.evals.structured_output import (
+    StructuredOutputEvalScore as StructuredOutputEvalScore,
+)
+from agent_harness.evals.structured_output import score_structured_output as score_structured_output
 
 __all__ = [
     "EvalCaseFactory",
@@ -105,6 +109,8 @@ __all__ = [
     "ReviewDatasetAdapter",
     "RecordedApprovedCaseEvaluator",
     "EvalRunner",
+    "StructuredOutputEvalScore",
+    "score_structured_output",
     "EvalRunResult",
     "ApprovedCaseExecutor",
     "ScoreSink",

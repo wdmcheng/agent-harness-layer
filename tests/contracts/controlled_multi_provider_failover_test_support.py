@@ -16,6 +16,9 @@ from tests.contracts.controlled_multi_provider_failover_settings_test_support im
     downstream_chain_policy,
     three_deployment_override,
 )
+from tests.contracts.provider_neutral_structured_output_test_support import (
+    fixture_output_schema_identity,
+)
 from tests.contracts.test_model_usage_invocation_contracts import usage_run
 
 from agent_harness.events import EventBus, LocalJsonlEventSink
@@ -385,7 +388,8 @@ async def bound_failover_invocation(
     policy_engine: Any | None = None,
     provider_override: Any | None = None,
     soft_token_limits: dict[str, int] | None = None,
-    first_capabilities: list[Literal["text_completion", "text_stream"]] | None = None,
+    first_capabilities: list[Literal["text_completion", "text_stream", "structured_output"]]
+    | None = None,
     first_max_output_tokens: int | None = None,
     max_attempts_by_deployment: dict[str, int] | None = None,
     total_timeout_ms_by_deployment: dict[str, int] | None = None,
@@ -437,6 +441,7 @@ async def bound_failover_invocation(
                 description="离线多候选公共 seam",
                 input_schema_ref="fixture.Input",
                 output_schema_ref="fixture.Output",
+                output_schema_identity=fixture_output_schema_identity(),
                 config_ref="fixture/config.yaml",
                 tool_policy=AgentToolPolicy(allowed_tools=[]),
                 model_policy=policy,

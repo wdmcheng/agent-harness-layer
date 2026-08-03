@@ -8,6 +8,10 @@ from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Any, cast
 
+from tests.contracts.provider_neutral_structured_output_test_support import (
+    fixture_output_schema_identity,
+)
+
 from agent_harness.registry import (
     AgentBudget,
     AgentDescriptor,
@@ -35,6 +39,10 @@ def descriptor(agent_id: str = "examples.basic") -> AgentDescriptor:
         description="Offline fake model smoke agent.",
         input_schema_ref="agents.examples.basic.schemas.Input",
         output_schema_ref="agents.examples.basic.schemas.Output",
+        output_schema_identity=fixture_output_schema_identity(
+            schema_ref="agents.examples.basic.schemas.Output",
+            version="0.1.0",
+        ),
         config_ref="agents/examples/basic/config.yaml",
         tool_policy=AgentToolPolicy(allowed_tools=[]),
         model_policy=AgentModelPolicy(

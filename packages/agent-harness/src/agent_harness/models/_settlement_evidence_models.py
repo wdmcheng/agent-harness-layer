@@ -10,7 +10,9 @@ from urllib.parse import urlsplit
 from pydantic import field_validator, model_validator
 
 from agent_harness.contracts.dto import HarnessDTO
-from agent_harness.models.providers import ModelAttemptEvidence
+from agent_harness.models.providers import (
+    ModelAttemptEvidence,
+)
 
 ATTEMPT_FIELDS = {
     "attempt",
@@ -46,6 +48,9 @@ _CHAIN_ATTEMPT_EXTRA_FIELDS = {
     "classifier_version",
 }
 CHAINATTEMPT_FIELDS = ATTEMPT_FIELDS | _CHAIN_ATTEMPT_EXTRA_FIELDS
+STRUCTURED_ATTEMPT_FIELDS = ATTEMPT_FIELDS | {
+    "structured_output",
+}
 BUDGET_CHARGE_FIELDS = {
     "charged_tokens",
     "charged_cost_usd",
@@ -54,7 +59,7 @@ BUDGET_CHARGE_FIELDS = {
 }
 
 
-class _RetryEvidence(HarnessDTO):
+class RetrySettlementEvidence(HarnessDTO):
     """冻结 route 内允许恢复解释的封闭 retry 参数。"""
 
     retryable_http_statuses: list[int]
@@ -97,7 +102,7 @@ class _RetryEvidence(HarnessDTO):
         return statuses
 
     @model_validator(mode="after")
-    def validate_policy(self) -> _RetryEvidence:
+    def validate_policy(self) -> RetrySettlementEvidence:
         """等待与 backoff 不能自相矛盾。"""
 
         if self.max_attempts < 1 or self.backoff_max_ms < self.backoff_initial_ms:
@@ -105,7 +110,7 @@ class _RetryEvidence(HarnessDTO):
         return self
 
 
-class _BulkheadEvidence(HarnessDTO):
+class BulkheadSettlementEvidence(HarnessDTO):
     """冻结 route 内允许恢复解释的封闭 bulkhead 参数。"""
 
     scope: Literal["process_deployment"]
@@ -161,8 +166,8 @@ class SettlementRouteEvidence(HarnessDTO):
     connect_timeout_ms: int
     read_timeout_ms: int
     total_timeout_ms: int
-    retry_policy: _RetryEvidence
-    bulkhead_policy: _BulkheadEvidence
+    retry_policy: RetrySettlementEvidence
+    bulkhead_policy: BulkheadSettlementEvidence
 
     @field_validator(
         "deployment_id",

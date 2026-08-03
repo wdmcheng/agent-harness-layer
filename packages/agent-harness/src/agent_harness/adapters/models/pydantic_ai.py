@@ -28,13 +28,18 @@ from agent_harness.adapters.models._pydantic_ai_streaming import (
     PydanticStreamLifecycle,
     StreamEventContext,
 )
+from agent_harness.adapters.models._pydantic_ai_structured import (
+    PreparedPydanticStructuredCall,
+)
 from agent_harness.models.providers import (
     ModelAttemptEvidence,
     ModelDecision,
     ModelRequest,
     ModelResponse,
+    StructuredProviderPrepareError,
 )
 from agent_harness.models.router import ModelRoutePlan
+from agent_harness.models.structured import OutputSchemaDefinition
 
 if TYPE_CHECKING:
     from pydantic_ai import Agent as _SDKAgent
@@ -55,6 +60,7 @@ class _PydanticAgent(Protocol):
         prompt: str,
         *,
         model_settings: object,
+        retries: int | None = None,
     ) -> _AgentRunResult:
         """执行单 user prompt、无 history/tools 的非流式调用。"""
         ...
@@ -231,6 +237,31 @@ class PydanticAIModelProvider:
         finally:
             if not registered:
                 await self._stream_lifecycle.end_prepare(prepare_task)
+
+    async def prepare_structured(
+        self,
+        request: ModelRequest,
+        *,
+        plan: ModelRoutePlan,
+        schema: OutputSchemaDefinition,
+    ) -> PreparedPydanticStructuredCall:
+        """复用受控 permit/client prepare，并把 adapter 私有错误封闭在边界内。"""
+
+        try:
+            prepared = await self.prepare(request, plan=plan)
+        except ModelProviderError as exc:
+            retryable = exc.side_effect_state == "not_started" and exc.completion_observed is False
+            raise StructuredProviderPrepareError(retryable=retryable) from None
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            raise StructuredProviderPrepareError(retryable=False) from None
+        return PreparedPydanticStructuredCall(
+            prepared=prepared,
+            schema=schema,
+            token_usage_reader=_provider_token_usage,
+            cost_estimator=_estimated_cost,
+        )
 
     async def execute_prepared(
         self,

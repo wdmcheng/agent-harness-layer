@@ -25,7 +25,7 @@ from agent_harness.runtime import (
     ApprovalGrant,
 )
 from agents.examples._shared import publish_example_trace
-from agents.examples.rag_assistant.schemas import RagInput, RagOutput
+from agents.examples.rag_assistant.schemas import RagAssemblyTruncation, RagInput, RagOutput
 
 
 class RagAssistantExecutor:
@@ -119,6 +119,7 @@ class RagAssistantExecutor:
             ),
             operation_key="examples.rag_assistant:model-answer",
         )
+        truncation = RagAssemblyTruncation.model_validate(assembly.truncation_summary)
         trace = await publish_example_trace(
             context=context,
             request=request,
@@ -129,7 +130,7 @@ class RagAssistantExecutor:
                 "citations": [item.citation for item in response.results],
                 "source_refs": [item.source_ref for item in response.results],
                 "assembly_id": assembly.id,
-                "assembly_truncation": assembly.truncation_summary,
+                "assembly_truncation": truncation.to_payload(),
                 "model": {
                     "provider": model_response.provider,
                     "model": model_response.model,
@@ -144,7 +145,7 @@ class RagAssistantExecutor:
             source_refs=[item.source_ref for item in response.results],
             retrieval_provider=response.provider,
             assembly_id=assembly.id,
-            assembly_truncation=assembly.truncation_summary,
+            assembly_truncation=truncation,
             model_provider=model_response.provider,
             trace_ref=str(trace["trace_ref"]),
         )

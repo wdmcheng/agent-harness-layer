@@ -15,6 +15,9 @@ from tests.contracts.controlled_real_model_runtime_composition_test_support impo
     FrozenSnapshotExecutor,
     controlled_route,
 )
+from tests.contracts.provider_neutral_structured_output_test_support import (
+    fixture_output_schema_identity,
+)
 from tests.contracts.test_controlled_real_model_config_contracts import (
     PROFILES,
     real_model_override,
@@ -322,6 +325,7 @@ async def test_full_invocation_uses_v2_snapshot_policy_budget_audit_and_old_path
                 description="只使用离线 provider double",
                 input_schema_ref="fixture.Input",
                 output_schema_ref="fixture.Output",
+                output_schema_identity=fixture_output_schema_identity(),
                 config_ref="fixture/config.yaml",
                 tool_policy=AgentToolPolicy(allowed_tools=[]),
                 model_policy=agent_policy,

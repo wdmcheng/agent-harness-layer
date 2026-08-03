@@ -34,12 +34,12 @@
 
 ## Model 与 embedding
 
-- 公开 seam：`ModelProvider`、`ModelRequest`、`ModelResponse`、`ModelRouter`、`ModelInvocationService`；embedding 使用 `EmbeddingProvider` 与 cache protocol。
-- 操作：在 `agent_harness/adapters/models/` 实现 provider；在 composition root 绑定；保持 fake provider 可用于确定性测试；为 usage/cost/latency 和重放补合同证据。
-- 禁止：业务 agent import Pydantic AI 或 provider SDK；把 provider object 放进 DTO；在调用前跳过 identity、budget、policy 或 approval；用虚构的零成本替代 unavailable。
+- 公开 seam：`ModelProvider`、`ModelStructuredProvider`、`ModelRequest`、`ModelResponse`、`StructuredOutputResult`、`ModelRouter`、`ModelInvocationService`；embedding 使用 `EmbeddingProvider` 与 cache protocol。
+- 操作：在 `agent_harness/adapters/models/` 实现 provider；在 composition root 绑定；保持 fake provider 只用于显式 local/test route；为 usage/cost/latency 和重放补合同证据。业务 Agent 需要结构化结果时，在 `config.yaml` 绑定严格 `output_schema`，再从 bound execution 调用 `complete_structured(..., operation_key=..., repair_limit=0..2)`；调用方只能缩小 repair 上限，不能传入另一份 schema。
+- 禁止：业务 agent import Pydantic AI 或 provider SDK；把 provider/Pydantic object 放进 DTO；在调用前跳过 identity、budget、policy 或 approval；用虚构的零成本替代 unavailable；在 adapter 内 repair/retry、把无效候选原文写入 evidence、把 structured 调用退回普通文本/fake，或把结构化 JSON 解释为工具调用。
 - 验证：`make test`、`make smoke-local`，涉及真实跨进程持久化再跑 `make smoke-service`。
-- 证据：`tests/contracts/test_agent_registry_router_model_contracts.py`、`tests/contracts/test_model_usage_invocation_contracts.py`、`tests/contracts/test_model_usage_runtime_composition_contracts.py`。
-- 排障：route 失败先查 profile 与 model policy；重复 usage 检查稳定 call id、outbox 和 settlement；provider 失败只保留结构化脱敏错误，不记录 raw response。
+- 证据：`tests/contracts/test_agent_registry_router_model_contracts.py`、`tests/contracts/test_model_usage_invocation_contracts.py`、`tests/contracts/test_model_usage_runtime_composition_contracts.py`、`tests/contracts/test_provider_neutral_structured_public_seam_contracts.py`。
+- 排障：route 失败先查 profile、model policy、deployment capability 与 Agent `output_schema_identity`；重复 usage 检查稳定 call id、operation/replay identity、outbox 和 settlement；`model.structured_schema_unknown`先修 Registry 全量加载，`needs_review`保留 reservation 并人工核对，不重发 provider。Provider 失败只保留结构化脱敏错误，不记录 raw response/无效候选。
 
 ## Retrieval
 

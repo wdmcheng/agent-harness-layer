@@ -65,6 +65,25 @@ REQUIRED_PRODUCER_GATES = {
     ),
     "AC-084": frozenset({"test-aggregate"}),
     "AC-089": frozenset({"test-aggregate"}),
+    "AC-096": frozenset({"test-aggregate"}),
+    "AC-097": frozenset({"test-aggregate"}),
+    "AC-098": frozenset({"test-aggregate"}),
+    "AC-099": frozenset({"test-aggregate"}),
+    "AC-100": frozenset({"test-aggregate"}),
+    "AC-101": frozenset({"test-aggregate"}),
+    "AC-102": frozenset({"test-aggregate", "eval"}),
+    "AC-103": frozenset(
+        {
+            "quality-aggregate",
+            "test-aggregate",
+            "eval",
+            "smoke-local",
+            "smoke-service",
+            "build",
+            "license",
+            "acceptance-validate",
+        }
+    ),
 }
 REQUIRED_TEST_MAPPINGS = {
     "AC-077": frozenset(
@@ -282,6 +301,66 @@ REQUIRED_TEST_MAPPINGS = {
             "test_local_and_service_profiles_load_typed_settings",
             "templates/service-app/tests/test_app_surface.py::"
             "test_api_docs_can_be_disabled_without_reading_assets",
+        }
+    ),
+    "AC-096": frozenset(
+        {
+            "tests/contracts/test_agent_registry_schema_contracts.py::test_registry_exposes_compiled_definition_matching_public_descriptor_identity",
+            "tests/contracts/test_agent_registry_schema_contracts.py::test_migrated_example_output_schemas_are_closed_and_reject_mixed_variants",
+        }
+    ),
+    "AC-097": frozenset(
+        {
+            "tests/contracts/test_provider_neutral_structured_public_seam_contracts.py::test_bound_public_seam_repairs_once_and_persists_provider_neutral_result",
+            "tests/contracts/test_provider_neutral_structured_adapter_contracts.py::test_adapter_returns_one_candidate_and_disables_sdk_retries",
+        }
+    ),
+    "AC-098": frozenset(
+        {
+            "tests/contracts/test_provider_neutral_structured_schema_contracts.py::test_core_validator_rejects_extra_fields_and_never_returns_raw_candidate",
+            "tests/contracts/test_provider_neutral_structured_failure_contracts.py::test_unknown_bound_schema_fails_before_usage_claim_or_provider_handle",
+            "tests/contracts/test_provider_neutral_structured_cancellation_contracts.py::test_candidate_schema_identity_drift_maps_to_schema_invalid_and_exhausts_repair",
+        }
+    ),
+    "AC-099": frozenset(
+        {
+            "tests/contracts/test_provider_neutral_structured_transport_contracts.py::test_missing_structured_protocol_fails_before_usage_claim",
+            "tests/contracts/test_provider_neutral_structured_config_contracts.py::test_controlled_deployment_without_structured_capability_uses_stable_error",
+            "tests/contracts/test_provider_neutral_structured_failure_contracts.py::test_any_explicit_fallback_route_is_rejected_before_claim_even_with_one_candidate",
+            "tests/contracts/test_provider_neutral_structured_failure_contracts.py::test_repair_policy_overreach_fails_before_claim_or_provider_handle",
+            "tests/contracts/test_provider_neutral_structured_budget_contracts.py::test_insufficient_direct_budget_rejects_before_provider_send",
+        }
+    ),
+    "AC-100": frozenset(
+        {
+            "tests/contracts/test_provider_neutral_structured_budget_contracts.py::test_direct_structured_reserves_all_repair_requests_then_replaces_with_actual",
+            "tests/contracts/test_provider_neutral_structured_price_identity_contracts.py::test_cost_disabled_structured_route_keeps_catalog_identity_and_completes",
+            "tests/contracts/test_provider_neutral_structured_price_identity_contracts.py::test_incomplete_price_identity_is_mapped_at_public_structured_seam",
+            "tests/contracts/test_provider_neutral_structured_mark_recovery_contracts.py::test_shared_budget_mark_commit_ack_unknown_keeps_reservation_and_needs_review",
+            "tests/contracts/test_provider_neutral_structured_mark_recovery_contracts.py::test_allocation_mark_commit_ack_unknown_fences_parent_budget",
+            "tests/contracts/test_provider_neutral_structured_transport_contracts.py::test_retryable_prepare_advances_transport_before_single_send",
+            "tests/contracts/test_provider_neutral_structured_transport_contracts.py::test_retryable_prepare_exhaustion_is_bounded_and_never_sends",
+            "tests/contracts/test_provider_neutral_structured_failure_contracts.py::test_repair_exhaustion_counts_every_request_and_never_crosses_provider",
+        }
+    ),
+    "AC-101": frozenset(
+        {
+            "tests/contracts/test_provider_neutral_structured_failure_contracts.py::test_sqlite_durable_structured_value_tamper_is_rejected_without_resend",
+            "tests/contracts/test_provider_neutral_structured_cancellation_contracts.py::test_durable_started_after_crash_never_resends_or_fabricates_result",
+            "tests/contracts/test_provider_neutral_structured_postgresql_contracts.py::test_postgresql_structured_success_repair_exact_replay_and_tamper_fence",
+        }
+    ),
+    "AC-102": frozenset(
+        {
+            "tests/contracts/test_provider_neutral_structured_public_seam_contracts.py::test_bound_public_seam_repairs_once_and_persists_provider_neutral_result",
+            "tests/contracts/test_provider_neutral_structured_cancellation_contracts.py::test_candidate_provider_drift_and_missing_usage_are_needs_review",
+            "tests/contracts/test_provider_neutral_structured_eval_contracts.py::test_structured_eval_scores_only_valid_public_seam_result",
+        }
+    ),
+    "AC-103": frozenset(
+        {
+            "tests/contracts/test_provider_neutral_structured_failure_contracts.py::test_any_explicit_fallback_route_is_rejected_before_claim_even_with_one_candidate",
+            "tests/contracts/test_provider_neutral_structured_adapter_contracts.py::test_adapter_rejects_sdk_or_pydantic_output_without_stringifying_it",
         }
     ),
 }

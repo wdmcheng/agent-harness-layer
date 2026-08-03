@@ -5,11 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from agent_harness.adapters.models.pydantic_ai import (
-    ControlledOpenAIClientFactory,
-    PydanticAIModelProvider,
-)
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
 from agent_harness.config import HarnessSettings
@@ -26,10 +23,11 @@ from agent_harness.models import (
     ModelProvider,
     ModelRouter,
     ModelRouterConfig,
+    StructuredSchemaResolutionError,
 )
 from agent_harness.observability import TelemetryFacade
 from agent_harness.policy import PolicyEngine
-from agent_harness.registry import AgentRegistry
+from agent_harness.registry import AgentRegistry, RegistryLoadError
 from agent_harness.retrieval import (
     LocalSQLiteBM25RetrievalProvider,
     PostgreSQLRetrievalProvider,
@@ -38,6 +36,9 @@ from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.storage import SQLAlchemyStorage
 from agent_harness.tools import ToolRegistry, WorkspacePolicy
 from agent_harness.tools.cli_runtime import builtin_tools
+
+if TYPE_CHECKING:
+    from agent_harness.adapters.models.pydantic_ai import ControlledOpenAIClientFactory
 
 
 class ToolRegistryFactory:
@@ -162,11 +163,34 @@ def build_agent_execution_services(
         deployment.provider_kind == "openai-compatible"
         for deployment in settings.model.deployments.values()
     ):
+        # fake/local CLI 是高频离线路径，不应仅因 composition 模块加载就承担
+        # 真实 provider SDK 的启动成本。只有配置确实选择该 provider 时才导入
+        # adapter；公开 DTO、路由和关闭语义保持不变。
+        from agent_harness.adapters.models.pydantic_ai import (
+            ControlledOpenAIClientFactory,
+            PydanticAIModelProvider,
+        )
+
         client_factory = ControlledOpenAIClientFactory(model_settings=settings.model)
         providers["openai-compatible"] = PydanticAIModelProvider(
             provider_id="openai-compatible",
             client_factory=client_factory,
         )
+
+    def resolve_output_schema(agent_id: str):
+        """把 Registry 诊断翻译为模型核心唯一允许的 schema preflight 身份。"""
+
+        try:
+            return registry.resolve_output_schema(agent_id)
+        except RegistryLoadError as exc:
+            codes = {detail.code for detail in exc.error_details}
+            code = (
+                "model.structured_schema_conflict"
+                if "registry.output_schema_conflict" in codes
+                else "model.structured_schema_unknown"
+            )
+            raise StructuredSchemaResolutionError(code) from exc
+
     model_invocation = ModelInvocationService(
         router=ModelRouter(
             config=model_router_config,
@@ -180,6 +204,7 @@ def build_agent_execution_services(
         agent_policy_resolver=lambda agent_id: registry.get(agent_id).model_policy,
         policy_engine=policy,
         stream_timing_observer=stream_timing_observer,
+        output_schema_resolver=resolve_output_schema,
     )
     embedding_invocation = EmbeddingInvocationService(
         provider=LocalEmbeddingProvider(cache=StorageEmbeddingCache(storage)),

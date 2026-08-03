@@ -7,6 +7,10 @@ import json
 from decimal import Decimal
 from typing import Any, cast
 
+from tests.contracts.provider_neutral_structured_output_test_support import (
+    fixture_output_schema_identity,
+)
+
 from agent_harness.contracts import GuardrailDecisionStatus
 from agent_harness.delegation.models import (
     DelegationRequest,
@@ -43,6 +47,10 @@ def _descriptor(
         description="delegation contract agent",
         input_schema_ref="schemas/input.json",
         output_schema_ref="schemas/output.json",
+        output_schema_identity=fixture_output_schema_identity(
+            schema_ref="schemas/output.json",
+            version="1",
+        ),
         config_ref=f"agents/{agent_id}/config.yaml",
         tool_policy=AgentToolPolicy(allowed_tools=["agent.delegate"]),
         model_policy=AgentModelPolicy(

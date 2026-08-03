@@ -93,6 +93,17 @@ class ModelProviderInvocationError(RuntimeError):
             "model.bulkhead_saturated",
             "model.route_chain_exhausted",
             "model.policy_denied",
+            "model.structured_invalid",
+            "model.structured_extra_fields",
+            "model.structured_repair_exhausted",
+            "model.structured_policy_invalid",
+            "model.structured_schema_unknown",
+            "model.structured_schema_conflict",
+            "model.structured_route_not_allowed",
+            "model.structured_capability_unsupported",
+            "model.structured_replay_conflict",
+            "model.input_too_large",
+            "budget.reservation_rejected",
         }
     )
 
@@ -112,7 +123,11 @@ class ModelProviderInvocationError(RuntimeError):
             raise ValueError("attempt_count must be non-negative")
         if latency_ms is not None and latency_ms < 0:
             raise ValueError("latency_ms must be non-negative")
-        if code != "model.route_chain_exhausted" and provider_called and attempt_count == 0:
+        if (
+            code not in {"model.route_chain_exhausted", "model.provider_side_effect_unknown"}
+            and provider_called
+            and attempt_count == 0
+        ):
             raise ValueError("provider_called requires at least one durable attempt")
         if failure_domain not in {"provider", "runtime"}:
             raise ValueError("failure_domain must be provider or runtime")

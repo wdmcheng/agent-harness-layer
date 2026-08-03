@@ -22,7 +22,11 @@ from agent_harness.tools import (
     hash_tool_arguments,
 )
 from agents.examples._shared import publish_example_trace
-from agents.examples.dev_assistant.schemas import DevAssistantInput, DevAssistantOutput
+from agents.examples.dev_assistant.schemas import (
+    DevAssistantInput,
+    DevAssistantOutput,
+    DevAssistantToolResult,
+)
 
 _ALLOWED_TOOLS = (
     "file.read_file",
@@ -203,7 +207,9 @@ async def _completed_result(
     output = DevAssistantOutput(
         status=result.status,
         tool_name=result.tool_name,
-        result=result.result,
+        result=(
+            None if result.result is None else DevAssistantToolResult.model_validate(result.result)
+        ),
         source_ref=result.source_ref,
         artifact_ref=result.artifact_ref,
         policy_decision=policy_decision,

@@ -4,16 +4,20 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
 
 from agent_harness.contracts import ErrorDetail
 from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.models.structured import OutputSchemaDefinition, compile_output_schema
 from agent_harness.registry._loader import (
     RegistryLoadError as RegistryLoadError,
 )
 from agent_harness.registry._loader import agent_import_context as _agent_import_context
+from agent_harness.registry._loader import (
+    build_descriptor as _build_descriptor,
+)
 from agent_harness.registry._loader import (
     load_descriptor as _load_descriptor,
 )
@@ -27,6 +31,9 @@ from agent_harness.registry.descriptor import (
     AgentDescriptor,
 )
 from agent_harness.runtime.executor import AgentExecutor
+
+if TYPE_CHECKING:
+    from agent_harness.registry._loader import AgentConfigRecord
 
 # 异常仍以 registry 公开 facade 为身份，保持拆分前的诊断与序列化契约。
 RegistryLoadError.__module__ = __name__
@@ -61,6 +68,7 @@ class AgentRegistry:
         descriptors: Sequence[AgentDescriptor],
         *,
         executors: Mapping[str, AgentExecutor] | None = None,
+        output_schemas: Mapping[str, OutputSchemaDefinition] | None = None,
     ) -> None:
         """以已验证的 descriptor 和 executor 构建只读索引。
 
@@ -70,44 +78,45 @@ class AgentRegistry:
 
         self._descriptors = {descriptor.agent_id: descriptor for descriptor in descriptors}
         self._executors = dict(executors or {})
+        self._output_schemas = dict(output_schemas or {})
 
     @classmethod
     def load_from_directory(cls, root: Path) -> AgentRegistry:
         """从受控目录加载所有 agent config，并拒绝部分可用的脏 registry。"""
 
-        descriptors: list[AgentDescriptor] = []
+        descriptor_configs: list[tuple[AgentConfigRecord, Path]] = []
         executor_refs: list[tuple[str, str, Path]] = []
         schema_refs: list[tuple[str, str, str, Path]] = []
         seen: dict[str, Path] = {}
         for config_path in sorted(root.rglob("config.yaml")):
-            descriptor, executor_ref = _load_descriptor(config_path, root=root)
-            first_seen = seen.get(descriptor.agent_id)
+            config, executor_ref = _load_descriptor(config_path, root=root)
+            first_seen = seen.get(config.agent_id)
             if first_seen is not None:
                 raise RegistryLoadError(
                     [
                         ErrorDetail(
                             code="registry.duplicate_agent_id",
-                            message=f"duplicate agent_id: {descriptor.agent_id}",
+                            message=f"duplicate agent_id: {config.agent_id}",
                             field_path="agent_id",
                             hint=f"检查 {first_seen} 和 {config_path}",
                         )
                     ]
                 )
-            seen[descriptor.agent_id] = config_path
-            descriptors.append(descriptor)
-            executor_refs.append((descriptor.agent_id, executor_ref, config_path))
+            seen[config.agent_id] = config_path
+            descriptor_configs.append((config, config_path))
+            executor_refs.append((config.agent_id, executor_ref, config_path))
             schema_refs.extend(
                 [
                     (
-                        descriptor.agent_id,
+                        config.agent_id,
                         "input_schema",
-                        descriptor.input_schema_ref,
+                        config.input_schema,
                         config_path,
                     ),
                     (
-                        descriptor.agent_id,
+                        config.agent_id,
                         "output_schema",
-                        descriptor.output_schema_ref,
+                        config.output_schema,
                         config_path,
                     ),
                 ]
@@ -127,14 +136,47 @@ class AgentRegistry:
             )
             for agent_id, field_path, reference, config_path in schema_refs
         ]
+        output_schemas: dict[str, OutputSchemaDefinition] = {}
         with _agent_import_context(root):
             for agent_id, field_path, (module_ref, attribute) in resolved_schemas:
-                _load_schema(agent_id, module_ref, attribute, field_path=field_path)
+                schema_model = _load_schema(agent_id, module_ref, attribute, field_path=field_path)
+                if field_path == "output_schema":
+                    config = next(
+                        item for item, _path in descriptor_configs if item.agent_id == agent_id
+                    )
+                    try:
+                        output_schemas[agent_id] = compile_output_schema(
+                            schema_model,
+                            schema_ref=config.output_schema,
+                            version=config.version,
+                        )
+                    except ValueError as exc:
+                        raise RegistryLoadError(
+                            [
+                                ErrorDetail(
+                                    code="registry.invalid_schema",
+                                    message=str(exc),
+                                    field_path="output_schema",
+                                    hint=f"修正 agent schema reference：{module_ref}",
+                                )
+                            ]
+                        ) from exc
+            # Descriptor 的 route/capability/schema identity 投影仍属于全量静态预校验；
+            # 必须在导入任一 executor 前全部成功，避免无效 sibling 产生模块副作用。
+            descriptors = [
+                _build_descriptor(
+                    config,
+                    config_path=config_path,
+                    root=root,
+                    output_schema_identity=output_schemas[config.agent_id].identity,
+                )
+                for config, config_path in descriptor_configs
+            ]
             executors = {
                 agent_id: _load_executor(agent_id, module_path, attribute)
                 for agent_id, (module_path, attribute) in resolved_targets
             }
-        return cls(descriptors, executors=executors)
+        return cls(descriptors, executors=executors, output_schemas=output_schemas)
 
     def list_agents(self) -> list[AgentDescriptor]:
         """按稳定 agent_id 排序返回 descriptor，避免文件系统枚举影响 API 输出。"""
@@ -173,6 +215,34 @@ class AgentRegistry:
                     )
                 ]
             ) from exc
+
+    def resolve_output_schema(self, agent_id: str) -> OutputSchemaDefinition:
+        """返回与 public descriptor identity 逐值一致的严格 output schema。"""
+
+        descriptor = self.get(agent_id)
+        try:
+            schema = self._output_schemas[agent_id]
+        except KeyError as exc:
+            raise RegistryLoadError(
+                [
+                    ErrorDetail(
+                        code="registry.output_schema_not_found",
+                        message=f"output schema not found: {agent_id}",
+                        field_path="output_schema",
+                    )
+                ]
+            ) from exc
+        if schema.identity != descriptor.output_schema_identity:
+            raise RegistryLoadError(
+                [
+                    ErrorDetail(
+                        code="registry.output_schema_conflict",
+                        message=f"output schema identity conflict: {agent_id}",
+                        field_path="output_schema_identity",
+                    )
+                ]
+            )
+        return schema
 
     def check_delegation(self, source_agent_id: str, target_agent_id: str) -> DelegationDecision:
         """根据已加载 descriptor 判断 source 到 target 的静态 delegation 边。

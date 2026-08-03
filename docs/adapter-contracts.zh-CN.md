@@ -41,6 +41,8 @@
 
 `ModelProvider`/`EmbeddingProvider` 屏蔽 vendor API；当前 Pydantic AI 和 OpenAI-compatible embedding 实现在 `adapters/models/`。MCP Python SDK 位于 `adapters/mcp/python_sdk.py`，对外保持 `MCPClient`/tool DTO。业务 agent、template API、eval runner 不直接 import 这些 SDK。
 
+非流式结构化输出使用独立的 `ModelStructuredProvider.prepare_structured()` / `PreparedStructuredModelCall.send_structured()` protocol。Adapter 每次 send 只返回一个 `StructuredProviderCandidate` 和一个本地 attempt；不得在 adapter 内做 schema repair、把 SDK/Pydantic 对象字符串化、启用 SDK retry、执行工具或退回普通文本/fake。核心 `BoundModelInvocationService.complete_structured()` 负责严格 schema oracle、有限 repair、transport×repair 联合 reservation、cleanup、durable replay 与 `needs_review` 围栏。成功结果只通过 `StructuredOutputResult` 和 canonical `ModelResponse.output_text` 越界；schema identity、attempt、usage、cost 与 replay identity 必须共同进入耐久 evidence。当前不支持 structured streaming、显式 route-chain structured fallback 或 tool call。
+
 ### Queue 与 runtime
 
 `RunQueue` 定义 enqueue/receipt/ack/claim 合同；service profile 的 Redis Streams 实现在 `adapters/queue/redis.py`。DBOS 封装在 `adapters/runtime/dbos.py`。稳定 message refs、owner/lease/fencing 和 PostgreSQL checkpoint 是恢复依据，内存对象不是。
@@ -64,6 +66,7 @@ make test
 关键合同测试：
 
 - model/provider：`tests/contracts/test_model_usage_invocation_contracts.py`
+- structured model/provider：`tests/contracts/test_provider_neutral_structured_public_seam_contracts.py`、`tests/contracts/test_provider_neutral_structured_transport_contracts.py`、`tests/contracts/test_provider_neutral_structured_adapter_contracts.py`
 - retrieval：`tests/contracts/test_retrieval_rag_contracts.py`
 - tools/MCP：`tests/contracts/test_tool_registry_public_seam_contracts.py`
 - observability：`tests/contracts/test_observability_local_first_fanout_contracts.py`

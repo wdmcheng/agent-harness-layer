@@ -19,6 +19,7 @@ from agent_harness.models.providers import (
     ModelRequest,
     ModelResponse,
 )
+from agent_harness.models.structured import StructuredOutputReplayIdentity
 from agent_harness.models.usage import CostStatus, ModelUsageEvidence, UsageEvidenceContext
 from agent_harness.storage.model_route_chain_state import ModelRouteChainState
 
@@ -234,6 +235,7 @@ class ChainRuntimeBase:
             error_code: str | None,
             ownership: BudgetOperationOwnership | None,
             response: ModelResponse | None,
+            structured_replay: StructuredOutputReplayIdentity | None = None,
         ) -> None: ...
 
         async def _persist_final_in_uow(
@@ -246,6 +248,7 @@ class ChainRuntimeBase:
             error_code: str | None,
             ownership: BudgetOperationOwnership | None,
             response: ModelResponse | None,
+            structured_replay: StructuredOutputReplayIdentity | None = None,
         ) -> None: ...
 
         def _streaming_runtime(self) -> StreamingRuntime: ...

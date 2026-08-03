@@ -8,6 +8,9 @@ from decimal import Decimal
 from typing import Any, cast
 
 import pytest
+from tests.contracts.provider_neutral_structured_output_test_support import (
+    fixture_output_schema_identity,
+)
 from tests.contracts.test_controlled_real_model_config_contracts import (
     PROFILES,
     real_model_override,
@@ -232,6 +235,7 @@ def _snapshot(*, max_tokens: int, max_cost: Decimal) -> tuple[ModelRouter, dict[
                 description="仅用于冻结路由合同",
                 input_schema_ref="fixture.Input",
                 output_schema_ref="fixture.Output",
+                output_schema_identity=fixture_output_schema_identity(),
                 config_ref="fixture/config.yaml",
                 tool_policy=AgentToolPolicy(allowed_tools=[]),
                 model_policy=policy,

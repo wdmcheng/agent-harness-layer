@@ -11,6 +11,13 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal, cast
 
+try:
+    from scripts.live_model_schema_identity import live_text_output_schema_identity
+except ModuleNotFoundError:  # 直接执行脚本时，`scripts/` 本身是 import root。
+    from live_model_schema_identity import (  # type: ignore[no-redef]
+        live_text_output_schema_identity,
+    )
+
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
 from agent_harness.config import SettingsLoadError, load_settings
@@ -206,6 +213,10 @@ async def run(
                     description="只在显式授权后执行一次受控非流式文本请求",
                     input_schema_ref="live_smoke.Input",
                     output_schema_ref="live_smoke.Output",
+                    output_schema_identity=live_text_output_schema_identity(
+                        schema_ref="live_smoke.Output",
+                        version="v1",
+                    ),
                     config_ref="live-smoke:memory",
                     tool_policy=AgentToolPolicy(allowed_tools=[]),
                     model_policy=policy,

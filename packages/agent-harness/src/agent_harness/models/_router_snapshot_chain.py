@@ -403,6 +403,7 @@ class RouterSnapshotChainPlanningMixin(RouterCurrentPlanningMixin):
             per_attempt_token_bound=per_attempt_tokens,
             per_attempt_cost_bound=per_attempt_cost,
             max_attempts=frozen.max_attempts,
+            max_structured_repair_attempts=frozen.max_structured_repair_attempts,
             reserved_token_bound=per_attempt_tokens * frozen.max_attempts,
             reserved_cost_bound=reserved_cost,
             input_token_price_usd=frozen.input_token_price_usd,

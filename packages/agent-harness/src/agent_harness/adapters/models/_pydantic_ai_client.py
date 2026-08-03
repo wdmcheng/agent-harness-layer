@@ -28,9 +28,15 @@ from agent_harness.models.router import ModelRoutePlan
 
 
 class _PydanticAgent(Protocol):
-    """client lease 只依赖 async Agent.run 的最小表面。"""
+    """Client lease 只依赖禁用 SDK retry 的普通 async Agent.run 表面。"""
 
-    async def run(self, prompt: str, *, model_settings: object) -> Any: ...
+    async def run(
+        self,
+        prompt: str,
+        *,
+        model_settings: object,
+        retries: int | None = None,
+    ) -> Any: ...
 
 
 AgentFactory = Callable[[ModelRoutePlan], Any]

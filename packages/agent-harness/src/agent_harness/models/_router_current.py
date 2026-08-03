@@ -54,7 +54,7 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
         provider = self._providers.get(resolved.provider_kind)
         if provider is None or provider.provider_id != resolved.provider_kind:
             raise ModelRouteError("model.route_not_allowed", "bound provider identity mismatch")
-        if request.capability not in {"text_completion", "text_stream"}:
+        if request.capability not in {"text_completion", "text_stream", "structured_output"}:
             raise ModelRouteError("model.capability_unsupported", "capability is not supported")
         deployment = model_settings.deployments[deployment_id]
         if request.capability not in deployment.capabilities:
@@ -78,7 +78,7 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
             raise ModelRouteError("model.route_not_allowed", "prompt exceeds deployment byte cap")
         fallback_models = (
             []
-            if request.model is not None
+            if request.model is not None or request.capability == "structured_output"
             else [
                 model
                 for model in agent_policy.fallback_models
@@ -187,6 +187,7 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
                 output_token_cap=request.max_output_tokens,
                 per_attempt_token_bound=per_attempt_tokens,
                 max_attempts=1,
+                max_structured_repair_attempts=deployment.max_structured_repair_attempts,
                 reserved_token_bound=per_attempt_tokens,
                 connect_timeout_ms=deployment.connect_timeout_ms,
                 read_timeout_ms=deployment.read_timeout_ms,
@@ -283,6 +284,7 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
             per_attempt_token_bound=per_attempt_tokens,
             per_attempt_cost_bound=per_attempt_cost,
             max_attempts=deployment.max_attempts,
+            max_structured_repair_attempts=deployment.max_structured_repair_attempts,
             reserved_token_bound=per_attempt_tokens * deployment.max_attempts,
             reserved_cost_bound=reserved_cost,
             input_token_price_usd=catalog.input_token_price_usd,
@@ -414,10 +416,10 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
     ) -> ModelRoutePlan:
         active = config or self.config
         provider_id = request.provider or active.default_provider
-        if request.capability not in {"text_completion", "text_stream"}:
+        if request.capability not in {"text_completion", "text_stream", "structured_output"}:
             raise ModelRouteError(
                 "model.capability_unsupported",
-                "legacy route only supports text completion or streaming",
+                "legacy route capability is not supported",
             )
         if provider_id not in self._providers:
             raise KeyError(f"model provider is not configured: {provider_id}")

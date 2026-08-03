@@ -5,17 +5,23 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
 from agent_harness.models.providers import (
+    ModelAttemptEvidence,
     ModelDecision,
     ModelRequest,
     ModelResponse,
     ModelStreamCloseResult,
     ModelStreamDelta,
     ModelStreamUsage,
+    StructuredProviderCandidate,
 )
 from agent_harness.models.router import ModelRoutePlan
+from agent_harness.models.structured import (
+    OutputSchemaDefinition,
+    canonical_structured_json,
+)
 
 
 @dataclass(frozen=True)
@@ -40,17 +46,41 @@ class FakeModelStreamScript:
             raise ValueError("fake stream failure ordinal must precede an existing fragment")
 
 
+@dataclass(frozen=True)
+class FakeStructuredScript:
+    """离线 structured candidates 的显式有限脚本，不作为真实 provider 后备。"""
+
+    candidates: tuple[str | dict[str, Any], ...]
+
+    def __post_init__(self) -> None:
+        """脚本必须至少覆盖一次 send，并保持普通 JSON-compatible 值。"""
+
+        if not self.candidates:
+            raise ValueError("fake structured script requires at least one candidate")
+        for candidate in self.candidates:
+            if isinstance(candidate, dict):
+                canonical_structured_json(candidate)
+
+
 class FakeModelProvider:
     """测试和 local smoke 默认使用的确定性 provider。"""
 
     provider_id = "fake"
 
-    def __init__(self, *, stream_script: FakeModelStreamScript | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        stream_script: FakeModelStreamScript | None = None,
+        structured_script: FakeStructuredScript | None = None,
+    ) -> None:
         """可选脚本只改变离线 stream；默认 complete/local smoke 语义保持不变。"""
 
         self.stream_script = stream_script
         self.stream_pull_count = 0
         self.stream_close_count = 0
+        self.structured_script = structured_script
+        self.structured_send_count = 0
+        self.structured_close_count = 0
 
     async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
         """返回确定性文本，供 local smoke 和 contract tests 不依赖外部 provider。"""
@@ -82,6 +112,22 @@ class FakeModelProvider:
             # 既有测试/本地扩展可能在子类中覆盖 __init__ 而未调用 super；
             # 新增脚本能力保持可选，不能把这类历史 fake provider 变成启动失败。
             script=getattr(self, "stream_script", None),
+        )
+
+    async def prepare_structured(
+        self,
+        request: ModelRequest,
+        *,
+        plan: object,
+        schema: OutputSchemaDefinition,
+    ) -> _FakePreparedStructuredCall:
+        """创建一次性离线 handle；prepare 本身不推进脚本或计数。"""
+
+        return _FakePreparedStructuredCall(
+            provider=self,
+            request=request,
+            plan=cast(ModelRoutePlan, plan),
+            schema=schema,
         )
 
     async def aclose(self) -> None:
@@ -176,4 +222,128 @@ class _FakePreparedStream:
         return ModelStreamCloseResult(state="stopped", usage=usage)
 
 
-__all__ = ["FakeModelProvider", "FakeModelStreamScript"]
+class _FakePreparedStructuredCall:
+    """Fake structured 的一次性 prepared handle。"""
+
+    def __init__(
+        self,
+        *,
+        provider: FakeModelProvider,
+        request: ModelRequest,
+        plan: ModelRoutePlan,
+        schema: OutputSchemaDefinition,
+    ) -> None:
+        self._provider = provider
+        self._request = request
+        self._plan = plan
+        self._schema = schema
+        self._sent = False
+        self._closed = False
+
+    @staticmethod
+    def _default_value(schema: dict[str, Any]) -> object:
+        """仅为 local smoke 构造最小确定值；核心 validator 仍是最终 oracle。"""
+
+        if "const" in schema:
+            return schema["const"]
+        enum = schema.get("enum")
+        if isinstance(enum, list) and enum:
+            return cast(list[object], enum)[0]
+        schema_type = schema.get("type")
+        if schema_type == "object":
+            properties = schema.get("properties", {})
+            required = schema.get("required", [])
+            if not isinstance(properties, dict) or not isinstance(required, list):
+                return {}
+            typed_properties = cast(dict[str, object], properties)
+            typed_required = cast(list[object], required)
+            return {
+                str(name): _FakePreparedStructuredCall._default_value(
+                    cast(dict[str, Any], typed_properties[str(name)])
+                )
+                for name in typed_required
+                if str(name) in typed_properties and isinstance(typed_properties[str(name)], dict)
+            }
+        if schema_type == "array":
+            return []
+        if schema_type == "string":
+            return "fake"
+        if schema_type == "integer":
+            return 0
+        if schema_type == "number":
+            return 0.0
+        if schema_type == "boolean":
+            return False
+        any_of = schema.get("anyOf")
+        if isinstance(any_of, list) and any_of:
+            first = cast(list[object], any_of)[0]
+            if isinstance(first, dict):
+                return _FakePreparedStructuredCall._default_value(cast(dict[str, Any], first))
+        return None
+
+    async def send_structured(
+        self,
+        *,
+        provider_prompt: str,
+        repair_ordinal: int,
+        transport_ordinal: int,
+    ) -> StructuredProviderCandidate:
+        """每次 handle 恰好贡献一个 local attempt，不在 fake 内 repair/retry。"""
+
+        del repair_ordinal, transport_ordinal
+        if self._sent or self._closed:
+            raise RuntimeError("fake structured handle can only send once")
+        self._sent = True
+        index = self._provider.structured_send_count
+        self._provider.structured_send_count += 1
+        script = getattr(self._provider, "structured_script", None)
+        if script is not None:
+            candidate = script.candidates[min(index, len(script.candidates) - 1)]
+        else:
+            candidate = cast(dict[str, Any], self._default_value(self._schema.schema_definition))
+        output_text = (
+            candidate if isinstance(candidate, str) else canonical_structured_json(candidate)
+        )
+        input_tokens = len(provider_prompt.encode("utf-8"))
+        output_tokens = min(
+            self._plan.output_token_cap,
+            len(output_text.encode("utf-8")),
+        )
+        cost_usd = (
+            None
+            if self._plan.input_token_price_usd is None or self._plan.output_token_price_usd is None
+            else float(
+                self._plan.input_token_price_usd * input_tokens
+                + self._plan.output_token_price_usd * output_tokens
+            )
+        )
+        return StructuredProviderCandidate(
+            schema_identity=self._schema.identity,
+            provider=self._provider.provider_id,
+            model=self._plan.model,
+            candidate=candidate,
+            attempts=[
+                ModelAttemptEvidence(
+                    attempt=1,
+                    side_effect_state="started",
+                    outcome="completed",
+                    completion_observed=True,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cost_usd=cost_usd,
+                    cost_status="estimated" if cost_usd is not None else "unavailable",
+                    latency_ms=0,
+                )
+            ],
+        )
+
+    async def aclose(self) -> None:
+        """计数并拒绝重复 cleanup，帮助合同发现核心生命周期错误。"""
+
+        if self._closed:
+            raise RuntimeError("fake structured handle was closed more than once")
+        self._closed = True
+        self._provider.structured_close_count += 1
+
+
+__all__ = ["FakeModelProvider", "FakeModelStreamScript", "FakeStructuredScript"]

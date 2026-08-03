@@ -226,6 +226,7 @@ class SharedBudgetSnapshotBuilder:
             "completion_classifier_version": deployment.completion_classifier_version,
             "credential_ref": resolved.credential_ref,
             "capabilities": list(deployment.capabilities),
+            "max_structured_repair_attempts": deployment.max_structured_repair_attempts,
             "model_catalog_ref": deployment.model_catalog_refs[model],
             "model_catalog_version": catalog.version,
             "model_catalog_digest": catalog.digest,

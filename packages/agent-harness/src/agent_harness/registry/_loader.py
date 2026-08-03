@@ -19,6 +19,7 @@ from yaml import YAMLError
 from agent_harness.config.schemas import ModelRouteRef
 from agent_harness.contracts import ErrorDetail, HarnessError
 from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.models.structured import OutputSchemaIdentity
 from agent_harness.registry.descriptor import (
     AgentBudget,
     AgentDescriptor,
@@ -50,7 +51,7 @@ class _AgentBudgetConfig(HarnessDTO):
     max_cost_usd_per_run: float | None
 
 
-class _AgentConfig(HarnessDTO):
+class AgentConfigRecord(HarnessDTO):
     """从单个 agent YAML 解析的内部完整配置，包含公开描述符和本地导入坐标。"""
 
     agent_id: str
@@ -67,8 +68,8 @@ class _AgentConfig(HarnessDTO):
     delegation_edges: list[str] = Field(default_factory=list)
 
 
-def load_descriptor(config_path: Path, *, root: Path) -> tuple[AgentDescriptor, str]:
-    """读取并校验 agent YAML，返回脱敏公开描述符与私有 executor 引用。
+def load_descriptor(config_path: Path, *, root: Path) -> tuple[AgentConfigRecord, str]:
+    """读取并校验 agent YAML，返回已验证配置与私有 executor 引用。
 
     描述符只承载 API/CLI 可以安全显示的字段；executor 引用在返回前单独校验，但不被
     放进公开 DTO，防止本地模块结构或可调用对象进入外部边界。
@@ -76,19 +77,31 @@ def load_descriptor(config_path: Path, *, root: Path) -> tuple[AgentDescriptor, 
 
     raw = _read_yaml_mapping(config_path)
     try:
-        config = _AgentConfig.model_validate(raw)
+        config = AgentConfigRecord.model_validate(raw)
     except ValidationError as exc:
         raise RegistryLoadError(_validation_errors(exc, config_path)) from exc
-    # public descriptor 只能带相对 config_ref 和摘要字段，不能把本机路径或
-    # provider/client/callable 暴露给 API 和 CLI 调用方。
+    _validate_executor_reference(config.executor, config_path)
+    return config, config.executor
+
+
+def build_descriptor(
+    config: AgentConfigRecord,
+    *,
+    config_path: Path,
+    root: Path,
+    output_schema_identity: OutputSchemaIdentity,
+) -> AgentDescriptor:
+    """在 output schema 已严格编译后构造唯一 public descriptor。"""
+
     try:
-        descriptor = AgentDescriptor(
+        return AgentDescriptor(
             agent_id=config.agent_id,
             version=config.version,
             name=config.name,
             description=config.description,
             input_schema_ref=config.input_schema,
             output_schema_ref=config.output_schema,
+            output_schema_identity=output_schema_identity,
             config_ref=config_path.relative_to(root).as_posix(),
             tool_policy=AgentToolPolicy(allowed_tools=config.tool_allowlist),
             model_policy=AgentModelPolicy(
@@ -108,8 +121,6 @@ def load_descriptor(config_path: Path, *, root: Path) -> tuple[AgentDescriptor, 
         )
     except ValidationError as exc:
         raise RegistryLoadError(_validation_errors(exc, config_path)) from exc
-    _validate_executor_reference(config.executor, config_path)
-    return descriptor, config.executor
 
 
 def _validate_executor_reference(reference: str, config_path: Path) -> None:
@@ -357,6 +368,7 @@ def _validation_errors(exc: ValidationError, config_path: Path) -> list[ErrorDet
 __all__ = [
     "RegistryLoadError",
     "agent_import_context",
+    "build_descriptor",
     "load_descriptor",
     "load_executor",
     "load_schema",

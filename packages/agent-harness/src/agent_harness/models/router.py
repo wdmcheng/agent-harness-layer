@@ -21,9 +21,12 @@ from agent_harness.models.providers import (
     ModelRequest,
     ModelResponse,
     ModelStreamingProvider,
+    ModelStructuredProvider,
     PreparedModelCall,
     PreparedModelStreamCall,
+    PreparedStructuredModelCall,
 )
+from agent_harness.models.structured import OutputSchemaDefinition
 
 
 class ModelRouter(RouterSnapshotPlanningMixin):
@@ -152,6 +155,63 @@ class ModelRouter(RouterSnapshotPlanningMixin):
             )
         return self._plan_legacy_fake(request, config=config)
 
+    def plan_structured(
+        self,
+        request: ModelRequest,
+        *,
+        agent_policy: AgentModelPolicyLike | None = None,
+    ) -> ModelRoutePlan:
+        """冻结 legacy 单 route structured plan，显式 chain 不得被降级。"""
+
+        if request.capability != "structured_output":
+            raise ModelRouteError(
+                "model.structured_capability_unsupported",
+                "structured planning requires structured_output capability",
+            )
+        if agent_policy is not None and agent_policy.fallback_routes:
+            raise ModelRouteError(
+                "model.structured_route_not_allowed",
+                "structured output does not support explicit route chains",
+            )
+        try:
+            plan = self.plan(request, agent_policy=agent_policy)
+        except ModelRouteError as exc:
+            if exc.code == "model.capability_unsupported":
+                raise ModelRouteError(
+                    "model.structured_capability_unsupported",
+                    "structured deployment capability is unavailable",
+                ) from None
+            raise
+        self.validate_structured_route(request, plan=plan)
+        return plan
+
+    def validate_structured_route(self, request: ModelRequest, *, plan: ModelRoutePlan) -> None:
+        """在 usage claim/client 前统一证明 capability 与 provider protocol。"""
+
+        if request.capability != "structured_output" or plan.capability != "structured_output":
+            raise ModelRouteError(
+                "model.structured_capability_unsupported",
+                "structured route capability mismatch",
+            )
+        provider = self._providers.get(plan.provider)
+        if provider is None or not isinstance(provider, ModelStructuredProvider):
+            raise ModelRouteError(
+                "model.structured_capability_unsupported",
+                "bound provider does not implement structured output",
+            )
+
+    def structured_repair_limit(self, plan: ModelRoutePlan) -> int:
+        """返回 plan 已冻结的 repair 上限；legacy route 使用安全默认 1。"""
+
+        return plan.max_structured_repair_attempts if self._model_settings is not None else 1
+
+    def structured_prompt_byte_limit(self, plan: ModelRoutePlan) -> int | None:
+        """受控 deployment 返回完整 prompt cap；legacy route 没有隐含无限配置。"""
+
+        if self._model_settings is None:
+            return None
+        return self._model_settings.deployments[plan.deployment_id].max_prompt_utf8_bytes
+
     def plan_chain(
         self,
         request: ModelRequest,
@@ -254,6 +314,25 @@ class ModelRouter(RouterSnapshotPlanningMixin):
         provider = self._providers.get(plan.provider)
         assert isinstance(provider, ModelStreamingProvider)
         return await provider.prepare_stream(request, plan=plan)
+
+    async def prepare_structured(
+        self,
+        request: ModelRequest,
+        *,
+        plan: ModelRoutePlan,
+        schema: OutputSchemaDefinition,
+    ) -> PreparedStructuredModelCall:
+        """取得 fresh structured handle；不支持时不得回退到 text complete。"""
+
+        if self._closed:
+            raise RuntimeError("model router is closed")
+        provider = self._providers.get(plan.provider)
+        if provider is None or not isinstance(provider, ModelStructuredProvider):
+            raise ModelRouteError(
+                "model.structured_capability_unsupported",
+                "bound provider does not implement structured output",
+            )
+        return await provider.prepare_structured(request, plan=plan, schema=schema)
 
 
 class _DirectPreparedCall:

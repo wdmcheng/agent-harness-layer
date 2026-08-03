@@ -7,6 +7,7 @@ import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 
+from scripts.live_model_schema_identity import live_text_output_schema_identity
 from scripts.live_model_stream_contract import (
     AUTHORIZED_ENV,
     STREAM_OPT_IN_ENV,
@@ -162,6 +163,10 @@ async def _run_authorized(
                             description="只在双重授权后执行一次受控普通文本流",
                             input_schema_ref="live_stream_smoke.Input",
                             output_schema_ref="live_stream_smoke.Output",
+                            output_schema_identity=live_text_output_schema_identity(
+                                schema_ref="live_stream_smoke.Output",
+                                version="v1",
+                            ),
                             config_ref="live-stream-smoke:memory",
                             tool_policy=AgentToolPolicy(allowed_tools=[]),
                             model_policy=policy,

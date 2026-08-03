@@ -119,6 +119,7 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 | SCOPE-031 | 受控真实文本模型运行入口 | P0 | 在部署允许列表、Agent 冻结策略和单次请求意图的交集内调用真实模型；密钥、endpoint、预算、重试、并发和证据均由类型化配置与运行时边界控制 |
 | SCOPE-032 | 受控真实模型增量文本流 | P0 | 在 SCOPE-031 的冻结 route、预算和 provider 生命周期上生产 provider-neutral 文本增量，经既有 CanonicalEvent / SSE / CLI 传输；断线、取消、部分计量、背压和恢复不得触发重复 provider 副作用 |
 | SCOPE-033 | 受控跨 deployment/provider fallback | P1 | 以有序 `(deployment_id, model_id)` route chain 表达多个真实 provider 候选；只在前一候选可证明未开始时切换，unknown 或已观察输出时停止，且每个候选独立受凭据、endpoint、能力、预算和证据边界约束 |
+| SCOPE-034 | Provider-neutral Structured Output | P1 | 以稳定、可版本化的 schema identity 请求非流式结构化结果；provider adapter 只返回统一 DTO，有限 repair 的全部调用计入预算与耐久证据，未知或冲突结果 fail closed |
 
 ### 2.2 不在本版本范围
 
@@ -158,6 +159,7 @@ Agent Harness Layer 是一个面向企业级后端服务型 agent 应用的 Pyth
 | TASK-013 | 开发者配置受控真实模型部署且不把凭据写入版本库或运行证据 | Agent 应用开发者 | P0 |
 | TASK-014 | 开发者通过既有事件入口消费真实模型增量文本，并在断线后只续读已持久化片段 | Agent 应用开发者 | P0 |
 | TASK-015 | 开发者配置多个受控真实模型 deployment 的有序 fallback，并能解释每次候选切换、预算占用和最终调用事实 | Agent 应用开发者 | P1 |
+| TASK-016 | 开发者以 Agent 已注册的版本化输出 schema 取得可验证结构化结果，并能解释 repair、预算、重放和 needs-review 终态 | Agent 应用开发者 | P1 |
 
 ## 4. 用户流程
 
@@ -337,7 +339,7 @@ main 分支合并 Conventional Commits，或维护者手动触发 release workfl
 - 首个实现范围只覆盖非流式真实文本模型；增量文本流由紧随其后的 P0 Phase 18.1 `controlled-model-streaming` 独立交付，不能混入首个入口，也不能无限期留在未排序的“以后”。Provider-neutral structured output、模型驱动工具循环和多 provider 运行治理继续分别使用后续窄 change。
 
 **完成状态：**
-受控真实非流式文本模型入口和 provider-neutral 增量文本流均已完成离线实现。跨 deployment/provider fallback 已在 active `controlled-multi-provider-failover` change 中接入 typed route refs、冻结链、逐 attempt lifecycle/proof、shared-budget state、审批续跑、completion/streaming 围栏、迁移和 live artifact validator；默认 live failover preflight 实测为零调用 `hosted-unverified/authorization_missing`。真实双 deployment 成功仍未建立，不得把离线 double 或 hosted-unverified 写成外部 PASS。
+受控真实非流式文本模型入口、provider-neutral 增量文本流与跨 deployment/provider fallback 均已完成生产实现、主规格同步和归档。Phase 18.2 的 live failover 当时只完成零调用 `hosted-unverified/authorization_missing` 预检，未建立双真实 deployment 成功；该外部未验证状态不影响已归档的离线生产交付，也不得被后续离线 double 冒充为外部 PASS。当前 active 增量是 Phase 19 `provider-neutral-structured-output`，不能用 Phase 18.2 历史交付冒充结构化输出已实现。
 
 ### FLOW-007: 通过既有事件入口消费受控真实模型增量文本
 
@@ -394,7 +396,7 @@ Phase 18 与 Phase 18.1 已归档；维护者在 typed profile 中声明各 depl
 - reload 只影响新 root run；恢复中的 run 必须使用原冻结 route chain，不能采用新加入、重排或替换凭据的候选。
 
 **完成状态：**
-已完成 active change 范围内的 provider-neutral runtime、SQLite 持久化、审批、completion/streaming、composition、live validator 与 CI 接线；聚焦公共 seam 合同已通过。当前仍处于实现收口阶段，尚未完成最终全量门禁、PostgreSQL 证据和 fresh `1+2` 实现审查，也没有发起双真实 provider 请求；因此还不是 `ready-to-archive`。
+`controlled-multi-provider-failover` 已完成 provider-neutral runtime、SQLite/PostgreSQL 持久化、审批、completion/streaming、composition、live validator、CI、最终全量门禁与 fresh `1+2` 实现审查，主规格已同步并归档。双真实 provider 请求当时未获所需隔离前置，保持零调用 `hosted-unverified`；该历史外部状态不等于 Phase 19 结构化输出交付。Phase 19当前契约候选为14 Requirements/74 Scenarios，已补齐cost关闭仍保留catalog identity，以及durable mark commit ack未知不得按零请求退款的唯一语义。身份`52412a56…`的Reviewer 1确认Stage 1 PASS，但Stage 2以预算合同测试636有效行并混合四个故障域的1 MEDIUM阻断；测试现按direct budget、price identity、mark recovery、delegated allocation拆为211/171/300/136行，相关10项合同通过，验收矩阵与策略节点同步迁移。该职责拆分属于实质验收映射变化，旧契约票及此前重型证据仅保留历史诊断价值；新契约仍须从Reviewer 1重新取得同身份三票，再重跑重型门禁并冻结实现。acceptance仍因旧CI evidence identity保持BLOCKED，真实provider保持零调用`hosted-unverified`；当前仍为43/44，三张最终实现票通过前不勾AC-096至AC-103、不写`ready-to-archive`。
 
 ## 5. 功能需求
 
@@ -1517,6 +1519,43 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - [x] AC-093: Given streaming route chain, when 首个 delta尚未观察、当前候选全部attempt lifecycle均已原子关闭为`not_started_proven`并与完整有序proof逐值匹配, then 可以按同一冻结链原子切换；任何started identity尚未关闭时，即使send尚未发生或数据库尚无delta，恢复也只进入needs-review而不重发/切换。一旦观察或提交任一delta，或发送后只得到含糊timeout/response，取消、deadline、reader断线、恢复和重连均不会触发跨provider fallback，committed prefix与未决usage/cost保留。只有显式取消/deadline的关闭结果逐值证明`stopped + complete usage`且不存在任何durable delta intent/发布不确定性时，当前attempt才以actual usage收敛为`cancelled/invocation_cancelled`；该终态selected为空、不发布completed且后继provider调用为零，不完整或unknown关闭结果仍为needs-review。
 - [x] AC-094: Given 多 deployment 使用不同 endpoint、credential、provider kind、catalog 或 Bulkhead, when composition、调用、关闭和 reload, then 每个候选只取得自己的 lazy client/permit/secret，SDK 对象不越界；旧 run 只恢复原 route chain，全部真实候选失败也不静默切 fake，默认 fake/local 回归零网络。
 - [ ] AC-095: Given 用户另行授权、两个不同受信 `deployment_id`、两个隔离真实 `credential_ref` 和两个不同受信 endpoint 均可用（`provider_kind` 可以相同）, when opt-in live smoke 以两条 `max_attempts=1` route让首选产生可证明 not-started 的受控失败, then 次选恰好完成一次文本调用，artifact只能以连续唯一ordinal `[1,2]`、`selected_ordinal=2`、两个全局attempt、首项单proof、次项唯一completed和逐值一致的去敏 route-chain/usage/cost evidence记 PASS；candidate/top-level count、token/cost组合及durable evidence任一不一致都关闭失败。缺任一前置时保持零调用 `hosted-unverified`，前置完整后的外部故障记 `external-blocked`，均不伪造 PASS。
+
+### REQ-028: Provider-neutral Structured Output
+
+**优先级：** P1
+**关联任务：** TASK-002, TASK-004, TASK-008, TASK-009, TASK-016
+**关联流程：** FLOW-006
+
+**用途：**
+在 Phase 18.2 已冻结的非流式 provider/invocation/result、共享预算与恢复 seam 上，为业务 Agent 提供不依赖厂商或 Pydantic AI 类型的结构化结果。Agent 注册的输出 schema 是授权上限和重放身份的一部分；调用方不能以内联任意 schema 扩权。
+
+**行为：**
+- Registry 在全量加载 Agent 时把 `output_schema` 解析为 provider-neutral `schema_ref + version + SHA-256 digest + canonical JSON Schema`。版本绑定 Agent descriptor 版本，digest 绑定严格 canonical schema；任一引用、版本或 digest 漂移都会形成新的身份，旧 run 只按耐久身份恢复。
+- 可信 `BoundModelInvocationService.complete_structured(...)` 从当前绑定的 `agent_id` 取得已注册 schema，形成 `capability=structured_output` 的非流式请求。公共请求、Agent descriptor、`ModelResponse`、usage/evidence 和持久化结果只使用核心 DTO 与 JSON-compatible 值；Pydantic AI、OpenAI 或其他 provider-native 类型只能存在于 adapter 内。
+- 每次结构化模型调用在 claim、reservation、client 和 provider 副作用前复用既有 `model.invoke` Policy/HITL。DENY 必须零调用关闭；REQUIRE_APPROVAL 只能形成耐久 waiting，并以可逐字节复算的 exact arguments/continuation 绑定原请求、schema identity、effective repair、usage 与 operation identity。批准恢复只能从 approval record 与 checkpoint 的一致耐久状态继续，校验 active grant/lease 后仅跳过一次 soft gate，并重新执行所有 hard route、capability、prompt、余额和联合 reservation 检查。
+- `ModelResponse.output_text` 继续存在。结构化成功时它保存与结构化值一致的 canonical JSON 文本，同时新增判别式 structured result，至少包含 schema identity、`valid` 状态、JSON value、repair 次数、provider request 次数和可复算的 replay identity；纯文本调用继续返回原有文本且 structured result 为 null。
+- Adapter 对每次结构化 provider request 只提交普通 prompt 和 provider-neutral schema，不产生或执行工具。首个无效结果可在同一冻结 provider/route 上按显式上限发起有限 repair；repair prompt 不携带 secret、原始异常或未界定历史，所有实际请求的 usage、latency、cost 与 attempt 进入同一结算和耐久 evidence。
+
+**规则：**
+- MUST schema reference、version、digest 与 canonical JSON Schema exact 一致；unknown schema、引用冲突、digest 漂移、非法 JSON Schema、缺字段、类型错误和额外字段都必须 fail closed，不能由示例 Pydantic model、provider 返回类型或请求内任意 schema 覆盖 Registry 真相源。
+- MUST `structured_output` capability 同时由 typed deployment、冻结 route 和 provider protocol 显式支持。未声明能力或 provider 未实现结构化 seam 时，由structured协调器在usage claim、reservation、client和provider副作用前统一以稳定`model.structured_capability_unsupported`结束，底层通用`model.capability_unsupported`不得逸出公开structured seam；repair不是非bool`0..2`或超过Agent/deployment上限时同样零调用并唯一使用`model.structured_policy_invalid`。不得把 text completion、fake 或后继 provider 当隐式后备。
+- MUST repair 上限是 `0..2` 的严格整数，并同时受 deployment、请求和 Agent 单次 hard budget 的最小值约束。冻结 reservation 按 `provider_request_limit = transport_attempt_limit * (1 + repair_limit)` 覆盖每次最大 token/cost；核心显式拥有repair×transport双层循环、单一绝对deadline、backoff、retry分类和次数推进，每个transport ordinal建立fresh prepared call，prepared send只执行一次外部request且SDK/client/adapter不得隐藏retry或repair。每个结构化生成轮次最多使用既有冻结transport attempt上限，任何controller attempt都消耗总上限。只有核心vendor-neutral `StructuredProviderPrepareError(retryable=true)`允许在send前生成`client_prepare_not_started` proof并推进下一transport ordinal；非retryable/未知prepare异常或取消不重试。一旦到达send，candidate、封闭call error、HTTP response、timeout、取消或未知异常都计为provider request并停止transport retry，structured不消费endpoint classifier。实际每次请求都以provider-neutral structured attempt记录连续global attempt、repair/transport ordinal、schema/prompt identity、稳定repair trigger codes、独立usage/cost、nullable可复算not-started proof及`not_applicable|completed|failed|unknown` cleanup status。每个已返回prepared call恰好close一次；未返回prepared才可cleanup not-applicable，send前取消且cleanup completed可failed actual-zero，send前cleanup failed/unknown保留零request proof但以provider failed停止；send后cancel/deadline/未知或cleanup failed/unknown立即needs-review并保留reservation，不发布valid、retry或repair。文本attempt形状和既有text classifier/retry不变。耗尽以稳定 `model.structured_repair_exhausted` 或既有transport错误结束，已消费预算不得退款为零。
+- MUST structured 成功、schema invalid、unknown schema、额外字段、capability unsupported、预算不足、repair exhausted、replay identity conflict、确定 transport/provider/cancel failure、provider result unknown 和 needs-review 都有稳定错误/状态、schema/replay identity、调用事实与去敏 evidence。已建立 claim 后若失败可证明为确定终态，必须以 `failed` 与既有 `model.provider_failed|model.provider_retry_exhausted|model.invocation_cancelled` 之一耐久化；无法证明结果、usage或provider/repair request计数才进入 `needs_review`，未知计数以显式null保存，不能伪造0或正数。已耐久 success/failure 只允许 exact replay；同一 operation key 携带不同 schema identity、repair policy 或语义请求必须拒绝且不重调 provider。
+- MUST adapter 只通过provider-neutral `StructuredProviderCandidate` exact DTO向核心返回未验证候选：固定版本/schema identity/provider/model、字符串或递归JSON object candidate，以及恰好一个`attempt=1`的provider-local attempt；candidate不得重复携带顶层token/cost/latency，sole attempt是本次请求计量唯一来源。SDK/Pydantic对象、裸tuple/object或`ModelResponse`不得作为候选旁路。Structured prepare/send失败只使用核心公开的`StructuredProviderPrepareError`与`StructuredProviderCallError`，adapter私有异常不得进入核心协议或doubles。该DTO不耐久化，原始candidate不进入repair prompt/异常/evidence/log；进入结算前由核心 JSON Schema validator 再校验一次。任何 provider 声称成功但 value/schema identity 不一致的结果按 invalid 或 unknown 关闭，不能把 provider-native validation 当唯一证据。额外字段一律拒绝，JSON object schema 默认不因 Pydantic 的宽松 extra 策略而放行。
+- MUST structured approval 使用版本化、封闭字段的 canonical JSON preimage 与 continuation；grant arguments hash必须同时绑定原`usage_call_id`、`operation_identity_digest`、bound request、schema identity和effective repair。Approval metadata、checkpoint continuation、grant hash及当前bound request/schema/repair必须逐值和逐digest一致。缺字段、额外字段、类型漂移，或usage/operation/request/schema/repair/grant/lease的单项及组合篡改，包括同步改写record/checkpoint两份continuation，都在claim、reservation、client和provider前关闭失败；调用方operation key、当前policy决策或普通text approval identity不得替代耐久continuation。
+- MUST strict schema compiler只接受冻结的Draft 2020-12结构、校验与annotation关键字集合，并在schema对象位置拒绝其他关键字；`format`、`contains`、条件schema与unevaluated系列当前一律拒绝，不依赖可漂移的默认format checker。核心只投影`Draft202012Validator.iter_errors()`直接返回的错误，不递归消费`ValidationError.context`；组合器、叶子错误、路径、排序和终态因此只有一种解释。
+- MUST 保持 text-only、非流式 completion、既有 route-chain 顺序和 `ModelResponse.output_text` 行为。Phase 19 不做 structured streaming、跨 provider structured fallback、tool call/工具循环、工具执行、fake 隐式后备或 Phase 21 重构；Agent 只要显式声明 `fallback_routes` 即进入既有 route-chain 模式，即使请求缩权后只剩一个候选，structured 调用也必须在 provider 副作用前以 `model.structured_route_not_allowed` 拒绝。不得把单项显式 chain 降级成 legacy 单 route。
+- MUST 默认 CI、contract、integration、eval 与 smoke 使用至少两个具有不同 provider id 的显式 doubles/fakes，从公开 bound seam 确定性覆盖 success、invalid、repair、exhaustion、replay/recovery、identity conflict、unsupported、budget 和 unknown/needs-review；不读取真实凭据、不发起真实 provider 请求。全量Registry严格加载所必需的既有示例兼容迁移只限Dev Assistant的工具结果和RAG Assistant的封闭组裁联合：`no_source`精确对应`{}`，`completed`精确对应六字段组裁摘要；它们不定义核心DTO，不伪造零计数或assembly记录，不改写工具或Context Assembly语义。
+
+**验收标准：**
+- [x] AC-096: Given 一个已注册输出 schema, when Registry 全量加载 Agent, then descriptor 暴露稳定 `schema_ref/version/digest`，内部 catalog 保存严格 canonical JSON Schema；相同 schema 重载身份不变，schema 或版本变化身份改变，未知/非法/额外字段宽松 schema 在启动或解析边界 fail closed；Dev Assistant严格工具结果与RAG Assistant的`no_source + {}` / `completed + 严格六字段`封闭联合通过同一catalog，既有离线流程和输出语义不退化。
+- [x] AC-097: Given 支持 `structured_output` 且未声明 `fallback_routes` 的 legacy 单 route 与确定性 provider double, when 从 `BoundModelInvocationService.complete_structured` 成功调用, then 调用先经过一次`model.invoke` Policy/HITL并返回 provider-neutral `valid` structured result、canonical `output_text`、逐次 usage/cost/attempt 和稳定 replay identity，公共 DTO 与耐久 payload 不含 SDK/Pydantic AI 类型。
+- [x] AC-098: Given 缺字段、类型错误、额外字段、未知 schema 或 provider 返回冲突 identity, when 核心验证结果, then 分别以稳定 schema/identity 失败关闭且 provider 调用次数符合前置边界；无效 value 不进入成功 response、eval 或业务输出。
+- [x] AC-099: Given Policy DENY、Policy REQUIRE_APPROVAL、deployment/provider 未声明结构化能力、Agent 显式声明任意非空 `fallback_routes`、结构化预算 reservation 不足或 repair policy 越权, when 调用结构化 seam, then DENY以`model.policy_denied`零claim/零调用关闭，REQUIRE_APPROVAL只形成绑定原request/schema/repair/usage/operation的durable waiting，其余分别在 usage claim/reservation/client/send 前以`model.structured_capability_unsupported`、`model.structured_route_not_allowed`、`budget.reservation_rejected`、`model.structured_policy_invalid`唯一终态结束；单项显式 chain 也不得降级为 legacy route，不调用后继 provider、不切 fake、不改变 text-only 路由顺序。
+- [x] AC-100: Given 首次结果 schema invalid 且 repair 上限允许, when 同一 provider 按有界 repair 运行, then success 或 exhausted 的 provider attempt 数不超过 `transport_attempt_limit * (1 + repair_limit)`，结构化生成轮次不超过`1 + repair_limit`，每次实际request的token/cost/latency/原因均进入attempt、usage、shared budget与durable evidence；超出次数、token或cost上界fail closed。
+- [x] AC-101: Given 已耐久 structured success、failure、started/unknown 或 structured approval waiting 窗口, when exact replay、语义冲突 replay、active grant恢复，或request/schema/repair/grant/lease及record/checkpoint任一单项或组合篡改, then exact结果只补投不重调provider，合法grant恢复原usage/operation且重算hard bounds，identity或approval绑定冲突在provider前稳定拒绝，无法证明结果的started状态进入unknown/needs-review并保留reservation，不伪造成功或零费用。
+- [x] AC-102: Given text-only/non-stream/route-chain 回归和两个不同 provider id 的结构化 doubles, when 运行聚焦合同、集成与 eval, then 结构化 success/failure/repair/replay/recovery、Policy/HITL和负路径从同一公开 bound seam 确定性通过，既有 `ModelResponse.output_text`、普通文本调用、streaming 与 Phase 18.2 route-chain 行为不退化。
+- [x] AC-103: Given Phase 19 最终 manifest 与维护文档, when 对照范围审查, then 生产实现、测试、eval 与文档分别列账，且没有 structured streaming、跨 provider structured fallback、tool call/执行、示例反向定义 SDK 核心类型、fake 隐式后备或 Phase 21 重构；只有全部门禁与同一冻结身份实现审查通过后才勾选，不以契约、测试或示例 PASS 冒充生产交付。
 
 ### AI 能力规格
 

@@ -36,6 +36,7 @@ from agent_harness.models.providers import (
 )
 from agent_harness.models.router import ModelRoutePlan, ModelRouter
 from agent_harness.models.streaming import StreamLimitExceeded, StreamSafetyError
+from agent_harness.models.structured import StructuredOutputReplayIdentity
 from agent_harness.models.usage import (
     CostStatus,
     ModelUsageEvidence,
@@ -50,7 +51,6 @@ from agent_harness.storage.evidence_repositories import UsageSettlementClaim
 from agent_harness.storage.shared_budget import BudgetOperationOwnership
 
 if TYPE_CHECKING:
-    from agent_harness.events import CanonicalEvent
     from agent_harness.registry.descriptor import AgentModelPolicy
 
 
@@ -161,6 +161,7 @@ class ModelInvocationStreamingMixin:
             error_code: str | None,
             ownership: BudgetOperationOwnership | None,
             response: ModelResponse | None,
+            structured_replay: StructuredOutputReplayIdentity | None = None,
         ) -> None: ...
 
         async def _finalize(
@@ -172,6 +173,7 @@ class ModelInvocationStreamingMixin:
             error_code: str | None,
             ownership: BudgetOperationOwnership | None,
             response: ModelResponse | None,
+            structured_replay: StructuredOutputReplayIdentity | None = None,
         ) -> None: ...
 
         async def _publish_final(
@@ -200,11 +202,6 @@ class ModelInvocationStreamingMixin:
             safe_decision=self._safe_decision,
             route_evidence=self._route_evidence,
         )
-
-    async def _publish_persisted_stream(self, intent: CanonicalEvent) -> CanonicalEvent:
-        """保留恢复调用 seam，实际事件发布职责委托给独立模块。"""
-
-        return await publish_persisted_stream(self._streaming_runtime(), intent)
 
     async def _stream(
         self,

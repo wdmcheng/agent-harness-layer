@@ -73,6 +73,7 @@ def test_template_openapi_exposes_agent_list_contract(tmp_path: Path) -> None:
         "description",
         "input_schema_ref",
         "output_schema_ref",
+        "output_schema_identity",
         "config_ref",
         "tool_policy",
         "model_policy",
@@ -100,11 +101,25 @@ def test_template_openapi_exposes_agent_list_contract(tmp_path: Path) -> None:
 async def test_agent_list_route_uses_injected_registry_seam(tmp_path: Path) -> None:
     """验证列表路由通过注入 registry 获取 descriptor，而非耦合文件系统加载。"""
 
+    from agent_harness.contracts.dto import HarnessDTO
+    from agent_harness.models import compile_output_schema
     from agent_harness.registry import (
         AgentBudget,
         AgentDescriptor,
         AgentModelPolicy,
         AgentToolPolicy,
+    )
+
+    class Output(HarnessDTO):
+        """与 basic 示例同形的本地 schema，确保 fixture identity 可机械复算。"""
+
+        result: str | None = None
+        resumed: bool | None = None
+
+    output_schema = compile_output_schema(
+        Output,
+        schema_ref="agents.examples.basic.schemas.Output",
+        version="0.1.0",
     )
 
     class SpyRegistry:
@@ -127,6 +142,7 @@ async def test_agent_list_route_uses_injected_registry_seam(tmp_path: Path) -> N
                     description="Offline fake model smoke agent.",
                     input_schema_ref="agents.examples.basic.schemas.Input",
                     output_schema_ref="agents.examples.basic.schemas.Output",
+                    output_schema_identity=output_schema.identity,
                     config_ref="agents/examples/basic/config.yaml",
                     tool_policy=AgentToolPolicy(allowed_tools=[]),
                     model_policy=AgentModelPolicy(
@@ -163,6 +179,7 @@ async def test_agent_list_route_uses_injected_registry_seam(tmp_path: Path) -> N
             "description": "Offline fake model smoke agent.",
             "input_schema_ref": "agents.examples.basic.schemas.Input",
             "output_schema_ref": "agents.examples.basic.schemas.Output",
+            "output_schema_identity": output_schema.identity.to_payload(),
             "config_ref": "agents/examples/basic/config.yaml",
             "tool_policy": {"allowed_tools": []},
             "model_policy": {

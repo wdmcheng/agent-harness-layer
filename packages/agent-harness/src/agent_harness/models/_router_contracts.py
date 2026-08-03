@@ -127,6 +127,9 @@ class ModelRoutePlan(HarnessDTO):
     per_attempt_token_bound: int = 0
     per_attempt_cost_bound: Decimal | None = None
     max_attempts: int = 1
+    max_structured_repair_attempts: int = Field(default=0, ge=0, le=2, strict=True)
+    repair_limit: int = Field(default=0, ge=0, le=2, strict=True)
+    provider_request_limit: int = Field(default=1, ge=1, strict=True)
     reserved_token_bound: int = 0
     reserved_cost_bound: Decimal | None = None
     input_token_price_usd: Decimal | None = None
@@ -262,6 +265,7 @@ class FrozenModelRouteSnapshot(HarnessDTO):
     completion_classifier_version: str | None = None
     credential_ref: str
     capabilities: tuple[str, ...]
+    max_structured_repair_attempts: int = Field(default=0, ge=0, le=2, strict=True)
     model_catalog_ref: str
     model_catalog_version: str
     model_catalog_digest: str

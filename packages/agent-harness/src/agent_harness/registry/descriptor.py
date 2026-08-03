@@ -6,6 +6,7 @@ from pydantic import Field, model_validator
 
 from agent_harness.config.schemas import ModelRouteRef
 from agent_harness.contracts.dto import HarnessDTO
+from agent_harness.models.structured import OutputSchemaIdentity
 
 
 class AgentToolPolicy(HarnessDTO):
@@ -73,6 +74,7 @@ class AgentDescriptor(HarnessDTO):
     description: str
     input_schema_ref: str
     output_schema_ref: str
+    output_schema_identity: OutputSchemaIdentity
     config_ref: str
     tool_policy: AgentToolPolicy
     model_policy: AgentModelPolicy

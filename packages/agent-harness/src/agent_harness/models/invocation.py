@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from collections.abc import Callable
@@ -20,9 +21,15 @@ from agent_harness.models._invocation_settlement import (
     ModelProviderInvocationError,
 )
 from agent_harness.models._invocation_streaming import ModelInvocationStreamingMixin
+from agent_harness.models._invocation_structured import ModelInvocationStructuredMixin
+from agent_harness.models._streaming_events import publish_persisted_stream
 from agent_harness.models.providers import ModelRequest, ModelResponse
 from agent_harness.models.route_chain_identity import model_route_operation_identity_digest
 from agent_harness.models.router import ModelRouter, ModelRouterConfig
+from agent_harness.models.structured import (
+    OutputSchemaDefinition,
+    structured_operation_identity_digest,
+)
 from agent_harness.models.usage import (
     UsageEvidenceContext,
     stable_usage_call_id,
@@ -138,6 +145,32 @@ class BoundModelInvocationService:
             actor=self._identity,
         )
 
+    async def complete_structured(
+        self,
+        request: ModelRequest,
+        *,
+        operation_key: str,
+        repair_limit: int = 0,
+    ) -> ModelResponse:
+        """使用 bound Agent 的已注册 schema 执行非流式 structured 调用。"""
+
+        usage_call_id = stable_usage_call_id(context=self._context, operation_key=operation_key)
+        return await self._service.complete_structured(
+            request,
+            context=self._context,
+            usage_call_id=usage_call_id,
+            operation_identity_digest=structured_operation_identity_digest(
+                tenant_id=self._context.tenant_id,
+                run_id=self._context.run_id,
+                agent_id=self._context.agent_id,
+                request_id=self._context.request_id,
+                trace_id=self._context.trace_id,
+                operation_key=operation_key,
+            ),
+            repair_limit=repair_limit,
+            actor=self._identity,
+        )
+
     async def complete_approved(
         self,
         request: ModelRequest,
@@ -157,6 +190,25 @@ class BoundModelInvocationService:
             context=self._context,
             usage_call_id=usage_call_id,
             route_operation_identity_digest=operation_identity_digest,
+            actor=self._identity,
+            grant=grant,
+        )
+
+    async def complete_structured_approved(
+        self,
+        request: ModelRequest,
+        *,
+        operation_key: str,
+        repair_limit: int = 0,
+        grant: _ApprovedModelGrant,
+    ) -> ModelResponse:
+        """从耐久continuation恢复structured身份，只绕过一次soft gate。"""
+
+        del operation_key  # structured批准恢复严禁从调用方槽位重新派生身份。
+        return await self._service.complete_structured_with_approval(
+            request,
+            context=self._context,
+            repair_limit=repair_limit,
             actor=self._identity,
             grant=grant,
         )
@@ -211,7 +263,11 @@ class BoundModelInvocationService:
         )
 
 
-class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecutionMixin):
+class ModelInvocationService(
+    ModelInvocationStructuredMixin,
+    ModelInvocationStreamingMixin,
+    ModelInvocationExecutionMixin,
+):
     """在 provider 副作用前建立 settlement，并只补投 evidence。"""
 
     async def approved_invocation_identity(
@@ -240,6 +296,7 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
         policy_engine: PolicyEngine | None = None,
         stream_output_guardrail: Callable[[str], bool] | None = None,
         stream_timing_observer: Callable[[str], None] | None = None,
+        output_schema_resolver: Callable[[str], OutputSchemaDefinition] | None = None,
     ) -> None:
         """保存路由、持久化、事件和可选共享预算协作者。"""
 
@@ -256,10 +313,16 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
         # 只暴露阶段名，供受控 live smoke 采集 monotonic 时延；不得传递文本、
         # provider DTO 或异常对象。
         self._stream_timing_observer = stream_timing_observer
+        self._output_schema_resolver = output_schema_resolver
+        # 不响应取消的provider cleanup不能阻塞公开调用；组合根显式持有这些
+        # 已围栏task，完成后由callback回收，避免静默orphan和未观察异常。
+        self._structured_cleanup_tasks: set[asyncio.Future[None]] = set()
 
     async def aclose(self) -> None:
         """由组合根关闭 provider-neutral 路由链，不暴露 vendor client。"""
 
+        for task in tuple(self._structured_cleanup_tasks):
+            task.cancel()
         await self._router.aclose()
 
     def bind_execution(
@@ -444,7 +507,7 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
         )
 
     async def recover_pending(self, *, run_id: str) -> int:
-        """只补投已有确定性结果；started/未知结果继续阻止 terminal。"""
+        """补投确定结果，并把带冻结 seed 的 structured started 提升为 needs-review。"""
 
         async with self._storage.uow() as uow:
             pending_rows = await uow.evidence_outbox.pending(run_id=run_id)
@@ -471,12 +534,23 @@ class ModelInvocationService(ModelInvocationStreamingMixin, ModelInvocationExecu
                 for item in pending_rows
             ]
         recovered = 0
+        for state, operation_kind, result, usage_call_id, _error_code in pending:
+            if (
+                state == "started"
+                and operation_kind == EvidenceOperationKind.MODEL_USAGE.value
+                and isinstance(result, dict)
+                and await self._recover_structured_started(
+                    usage_call_id=str(usage_call_id),
+                    durable_started=result,
+                )
+            ):
+                recovered += 1
         for _sequence, result in stream_pending:
             raw_intent = result.get("event") if isinstance(result, dict) else None
             if not isinstance(raw_intent, dict):
                 raise RuntimeError("stream recovery is missing its durable event intent")
             intent = CanonicalEvent.model_validate(raw_intent)
-            await self._publish_persisted_stream(intent)
+            await publish_persisted_stream(self._streaming_runtime(), intent)
             recovered += 1
         for state, operation_kind, result, usage_call_id, error_code in pending:
             if (

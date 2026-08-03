@@ -7,6 +7,9 @@ from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
+from tests.contracts.provider_neutral_structured_output_test_support import (
+    fixture_output_schema_identity,
+)
 from tests.contracts.test_controlled_real_model_config_contracts import PROFILES
 
 from agent_harness.approvals import ApprovalService
@@ -196,6 +199,7 @@ async def policy_flow(
                 description="只使用离线 fake provider 验证审批续跑",
                 input_schema_ref="fixture.Input",
                 output_schema_ref="fixture.Output",
+                output_schema_identity=fixture_output_schema_identity(),
                 config_ref="fixture/config.yaml",
                 tool_policy=AgentToolPolicy(allowed_tools=[]),
                 model_policy=AgentModelPolicy(

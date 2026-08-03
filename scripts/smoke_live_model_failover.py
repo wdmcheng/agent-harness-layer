@@ -22,6 +22,7 @@ try:
     from scripts.live_model_failover_evidence import (
         load_durable_failover_evidence,
     )
+    from scripts.live_model_schema_identity import live_text_output_schema_identity
     from scripts.smoke_live_model import LiveSmokeExecutor
 except ModuleNotFoundError:  # 直接执行脚本时，`scripts/` 本身是 import root。
     from live_model_failover_contract import (  # type: ignore[no-redef]
@@ -35,6 +36,9 @@ except ModuleNotFoundError:  # 直接执行脚本时，`scripts/` 本身是 impo
     )
     from live_model_failover_evidence import (
         load_durable_failover_evidence,
+    )
+    from live_model_schema_identity import (  # type: ignore[no-redef]
+        live_text_output_schema_identity,
     )
     from smoke_live_model import LiveSmokeExecutor  # type: ignore[no-redef]
 
@@ -230,6 +234,10 @@ async def run_authorized(
                     description="只在完整授权前置下验证受信未开始切换",
                     input_schema_ref="live_failover.Input",
                     output_schema_ref="live_failover.Output",
+                    output_schema_identity=live_text_output_schema_identity(
+                        schema_ref="live_failover.Output",
+                        version="v1",
+                    ),
                     config_ref="live-failover:memory",
                     tool_policy=AgentToolPolicy(allowed_tools=[]),
                     model_policy=agent_policy,

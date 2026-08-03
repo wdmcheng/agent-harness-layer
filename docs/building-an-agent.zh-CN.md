@@ -84,6 +84,8 @@ uv run agent-harness scaffold agent support.triage
 
 这里的声明式注册就是实际便捷层：不需要在 FastAPI route 或 runtime composition 中为每个 Agent 手工接线，`AgentRegistry.load_from_directory()` 会统一校验配置、schema 和 executor。它不会跳过 runtime、policy 或 storage。
 
+若 Agent 需要模型返回业务结构化结果，`output_schema` 必须指向 `HarnessDTO`/Pydantic `BaseModel` 的严格 object schema。Registry 会递归关闭额外字段并生成稳定 `schema_ref/version/digest`；宽松字典、remote/递归 `$ref` 或不支持关键字会让全量加载原子失败。Executor 从 bound model execution 调用 `complete_structured()`，成功时读取 provider-neutral `ModelResponse.structured_output.value`，同时保留 canonical `ModelResponse.output_text`。Repair 只能在 deployment 上限内有限执行并计入预算/evidence；`model.structured_schema_unknown`、额外字段、retry/repair 耗尽、replay conflict 或 `needs_review` 都是显式终态，不能重发、切 fake、执行工具或把失败当空对象。
+
 ### 5. 先从 CLI 验证，再决定是否需要 HTTP
 
 ```bash

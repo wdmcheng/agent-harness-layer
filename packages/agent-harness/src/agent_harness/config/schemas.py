@@ -200,9 +200,11 @@ class ModelDeploymentSettings(HarnessDTO):
     max_output_tokens: int = Field(default=8192, ge=1)
     max_per_attempt_token_bound: int | None = Field(default=None, ge=1)
     max_per_attempt_cost_bound: Decimal | None = None
-    capabilities: list[Literal["text_completion", "text_stream"]] = Field(
-        default_factory=lambda: ["text_completion"]
+    capabilities: list[Literal["text_completion", "text_stream", "structured_output"]] = Field(
+        default_factory=lambda: ["text_completion"],
+        min_length=1,
     )
+    max_structured_repair_attempts: int = Field(default=1, ge=0, le=2, strict=True)
     allow_local_http: bool = False
 
     @field_validator("retryable_http_statuses")
@@ -232,6 +234,8 @@ class ModelDeploymentSettings(HarnessDTO):
 
         if len(self.allowed_models) != len(set(self.allowed_models)):
             raise ValueError("allowed_models must be unique")
+        if len(self.capabilities) != len(set(self.capabilities)):
+            raise ValueError("capabilities must be unique")
         allowed = set(self.allowed_models)
         if self.default_model not in allowed or not set(self.fallback_models) <= allowed:
             raise ValueError("default and fallback models must be within allowed_models")

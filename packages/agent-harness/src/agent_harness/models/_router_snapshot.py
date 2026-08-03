@@ -59,7 +59,7 @@ class RouterSnapshotPlanningMixin(RouterSnapshotChainPlanningMixin):
             raise ModelRouteError("model.route_not_allowed", "request cannot change deployment")
         if request.provider is not None and request.provider != policy.provider:
             raise ModelRouteError("model.route_not_allowed", "provider assertion mismatch")
-        if request.capability not in {"text_completion", "text_stream"}:
+        if request.capability not in {"text_completion", "text_stream", "structured_output"}:
             raise ModelRouteError("model.capability_unsupported", "capability is not supported")
         selected_model = request.model or policy.default_model
         if selected_model not in policy.allowed_models:
@@ -74,7 +74,7 @@ class RouterSnapshotPlanningMixin(RouterSnapshotChainPlanningMixin):
         )
         fallback_models = (
             []
-            if request.model is not None
+            if request.model is not None or request.capability == "structured_output"
             else [
                 model
                 for model in policy.fallback_models

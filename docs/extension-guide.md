@@ -34,12 +34,12 @@ The direct local CLI commands below assume that you completed [service-app first
 
 ## Model and embedding
 
-- Public seam: `ModelProvider`, `ModelRequest`, `ModelResponse`, `ModelRouter`, `ModelInvocationService`; embeddings use `EmbeddingProvider` and a cache protocol.
-- Action: implement providers in `agent_harness/adapters/models/`, bind them in the composition root, retain a fake provider for deterministic tests, and cover usage/cost/latency and replay contracts.
-- Forbidden: vendor SDK imports in business Agents; provider objects in DTOs; skipping identity, budget, policy, or approval before invocation; inventing zero cost when cost is unavailable.
+- Public seam: `ModelProvider`, `ModelStructuredProvider`, `ModelRequest`, `ModelResponse`, `StructuredOutputResult`, `ModelRouter`, and `ModelInvocationService`; embeddings use `EmbeddingProvider` and a cache protocol.
+- Action: implement providers in `agent_harness/adapters/models/`, bind them in the composition root, keep fake providers limited to explicit local/test routes, and cover usage/cost/latency and replay contracts. For structured results, bind a strict `output_schema` in the Agent `config.yaml`, then call `complete_structured(..., operation_key=..., repair_limit=0..2)` from a bound execution. Callers may narrow the repair limit but cannot submit a different schema.
+- Forbidden: vendor SDK imports in business Agents; provider/Pydantic objects in DTOs; skipping identity, budget, policy, or approval before invocation; inventing zero cost when cost is unavailable; adapter-owned repair/retry; raw invalid candidates in evidence; text/fake fallback; or interpreting structured JSON as a tool call.
 - Validate: `make test`, `make smoke-local`; run `make smoke-service` only for real cross-process persistence.
-- Evidence: `tests/contracts/test_agent_registry_router_model_contracts.py`, `tests/contracts/test_model_usage_invocation_contracts.py`, `tests/contracts/test_model_usage_runtime_composition_contracts.py`.
-- Troubleshoot: inspect profile/model policy for routing failures. For duplicate usage, inspect stable call ID, outbox, and settlement. Retain only structured redacted provider errors, never raw responses.
+- Evidence: `tests/contracts/test_agent_registry_router_model_contracts.py`, `tests/contracts/test_model_usage_invocation_contracts.py`, `tests/contracts/test_model_usage_runtime_composition_contracts.py`, `tests/contracts/test_provider_neutral_structured_public_seam_contracts.py`.
+- Troubleshoot: inspect profile, model policy, deployment capability, and Agent `output_schema_identity` for routing failures. For duplicate usage, inspect the stable call ID, operation/replay identity, outbox, and settlement. Fix Registry loading for `model.structured_schema_unknown`; keep reservations fenced and review `needs_review` instead of resending. Retain only redacted stable errors, never raw responses or invalid candidates.
 
 ## Retrieval
 

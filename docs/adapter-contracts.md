@@ -41,6 +41,8 @@ Exports and protocols under `packages/agent-harness/src/agent_harness/` define t
 
 `ModelProvider`/`EmbeddingProvider` isolate vendor APIs. Current Pydantic AI and OpenAI-compatible embedding implementations live in `adapters/models/`. The MCP Python SDK lives in `adapters/mcp/python_sdk.py` and exposes only `MCPClient`/tool DTOs. Business Agents, template APIs, and eval runners do not import those SDKs directly.
 
+Non-streaming structured output uses the separate `ModelStructuredProvider.prepare_structured()` / `PreparedStructuredModelCall.send_structured()` protocols. Each adapter send returns exactly one `StructuredProviderCandidate` and one local attempt. Adapters must not perform schema repair, stringify SDK/Pydantic objects, enable SDK retries, execute tools, or fall back to text/fake. Core `BoundModelInvocationService.complete_structured()` owns the strict schema oracle, bounded repair, joint transport×repair reservation, cleanup, durable replay, and `needs_review` fencing. Only `StructuredOutputResult` plus canonical `ModelResponse.output_text` crosses the success boundary; schema identity, attempts, usage, cost, and replay identity remain jointly durable. Structured streaming, explicit route-chain structured fallback, and tool calls are not supported.
+
 ### Queue and runtime
 
 `RunQueue` defines enqueue/receipt/ack/claim contracts. The service profile implements Redis Streams in `adapters/queue/redis.py`; DBOS is wrapped in `adapters/runtime/dbos.py`. Recovery relies on stable message refs, owner/lease/fencing, and PostgreSQL checkpoints—not in-memory objects.
@@ -64,6 +66,7 @@ make test
 Key contract tests:
 
 - model/provider: `tests/contracts/test_model_usage_invocation_contracts.py`
+- structured model/provider: `tests/contracts/test_provider_neutral_structured_public_seam_contracts.py`, `tests/contracts/test_provider_neutral_structured_transport_contracts.py`, `tests/contracts/test_provider_neutral_structured_adapter_contracts.py`
 - retrieval: `tests/contracts/test_retrieval_rag_contracts.py`
 - tools/MCP: `tests/contracts/test_tool_registry_public_seam_contracts.py`
 - observability: `tests/contracts/test_observability_local_first_fanout_contracts.py`

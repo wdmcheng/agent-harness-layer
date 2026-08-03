@@ -50,6 +50,7 @@ def test_all_python_dependency_declarations_use_reviewed_compatible_ranges() -> 
         "dbos>=2.26.0,<3",
         "greenlet>=3.3.0,<4",
         "httpx>=0.28.1,<0.29",
+        "jsonschema>=4.26.0,<4.27",
         "mcp>=1.28.1,<2",
         "openai>=2.44.0,<3",
         "pydantic>=2.13.4,<3",
