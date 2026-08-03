@@ -12,7 +12,7 @@
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；RUN-006 仍是 committed CanonicalEvent transport。Phase 18.1 的 `MOD-004` 已归档；Phase 18.2 的 `MOD-003` 已按当前实现同步 route-chain/config/evidence/error/smoke 字段级事实，不新增 endpoint。
 - OpenSpec: 仓库存在`openspec/`；Phase 1-19均已同步主规格并归档，当前无active change。`provider-neutral-structured-output`的44/44 tasks与14 Requirements/74 Scenarios已按12条新增、2条修改同步到六份主规格，并归档到`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`。契约身份`7754ef26…`与实现冻结身份`de39eb09…`均分别取得fresh Reviewer 1/2/3 Stage 1/2 PASS、0 findings；归档只投影已审delta并更新生命周期状态。
-- Git / 代码状态: Phase 19启动基线为干净的`develop@8bac0345e50a6000872e43b2b20fd13e5c0f38f7`；归档后当前单一worktree为107路径，按生产48、测试28、eval 2、维护文档13、OpenSpec 16分账。实现冻结身份`de39eb09…`下PostgreSQL 1/1、`make quality`、最终串行`make test`的`2102 passed, 270 skipped`、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff均闭合；`make acceptance-validate-check`因REQ-001 evidence身份不匹配保持`BLOCKED`，三个live入口保持零调用`hosted-unverified`。未创建/amend commit，未push、release、deploy或调用真实provider。
+- Git / 代码状态: Phase 19启动基线为干净的`develop@8bac0345e50a6000872e43b2b20fd13e5c0f38f7`；107路径交付按生产48、测试28、eval 2、维护文档13、OpenSpec 16分账，并由本地提交`0aa6608`交付。实现冻结身份`de39eb09…`下PostgreSQL 1/1、`make quality`、最终串行`make test`的`2102 passed, 270 skipped`、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff均闭合；`make acceptance-validate-check`因REQ-001 evidence身份不匹配保持`BLOCKED`，三个live入口保持零调用`hosted-unverified`。提交状态由独立非amend文档提交收口，未push、release、deploy或调用真实provider。
 - 长期计划: `docs/plans/architecture-evolution-plan.md` 记录跨 session 的冻结基线、进度、发现、决策和 handoff；`docs/plans/architecture-evolution-change-matrix.md` 记录阶段依赖、共享接口、验收与文件所有权。上下文压缩或更换 Agent 后必须先以磁盘文件和当前 Git/OpenSpec 状态重新校准。
 - 计划模式: 迭代模式。Phase 1-16 保持历史冻结；新增 Phase 17-21 采用窄 change 演进，不进行全仓一次性重构。
 
@@ -26,7 +26,7 @@
 | 当前 OpenSpec change | 无 | `openspec list --json`显示`changes: []`；Phase 19归档路径为`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`。 |
 | Phase 16 本地验证 | PASS | 2026-07-24 后续修正中，固定 uv `0.11.29` 与本机 uv `0.11.31` 都通过 lock check、frozen release sync、无隔离 build、release dry-run 与 17 项范围/identity 合同，两版 wheel/sdist 和 preview artifact checksum 完全一致；本机 `0.11.31` 下 quality PASS、审查修复后全量 pytest `1306 passed, 223 skipped`。207 项 lock identity SHA-256 保持 `bb9046c25267f611007c6b74ee74c3ff8e55f885b3f92d091aed0642c5adef58`。 |
 | 当前阻塞项 | 无生产实现阻塞；验收CI证据与真实provider前置如实未闭合 | 真实provider授权/credential前置缺失不是离线实现阻塞；completion、stream与failover零调用预检均为`hosted-unverified/authorization_missing/provider_called=false/attempt_count=0`。acceptance direct validator因旧CI evidence身份拒绝当前dirty diff，真实状态为`BLOCKED`而非PASS。 |
-| 当前建议下一步 | 等待用户决定是否创建Phase 19本地交付commit | 本轮仅获授权同步与归档，未commit/amend、push、release、deploy或调用真实provider；Phase 20仍需另行授权并创建窄change。 |
+| 当前建议下一步 | 等待用户决定是否授权Phase 20窄change | Phase 19已本地提交；未push、release、deploy或调用真实provider。Phase 20仍需另行授权并重新校准当前无active change的基线。 |
 
 ## 剩余工作
 
@@ -1150,7 +1150,7 @@ Phase 1 Monorepo / quality spine
 
 **Codex 执行时间估计**：16-28 小时。
 
-**归档状态**：`provider-neutral-structured-output`已同步并归档。14 Requirements/74 Scenarios契约身份`7754ef26…`与实现冻结身份`de39eb0980f50ebae62e57f1781473a809dfd16931d3554868546802d5d1f6f6`均分别取得fresh Reviewer 1/2/3 Stage 1/2 PASS、0 findings；44/44 tasks。公开seam RED→GREEN、Policy/HITL、schema/Registry、有限repair×transport、预算/usage/evidence/replay/recovery及兼容边界均闭合。最终同身份PostgreSQL 1/1、`make quality`、串行`make test`的`2102 passed, 270 skipped`、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff通过；acceptance仍因REQ-001 evidence身份不匹配为`BLOCKED`，live completion/stream/failover保持零调用`hosted-unverified`。12条新增、2条修改已同步到六份主规格，change归档至`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`；当前无active change，Git未commit/amend/push。
+**归档状态**：`provider-neutral-structured-output`已同步并归档。14 Requirements/74 Scenarios契约身份`7754ef26…`与实现冻结身份`de39eb0980f50ebae62e57f1781473a809dfd16931d3554868546802d5d1f6f6`均分别取得fresh Reviewer 1/2/3 Stage 1/2 PASS、0 findings；44/44 tasks。公开seam RED→GREEN、Policy/HITL、schema/Registry、有限repair×transport、预算/usage/evidence/replay/recovery及兼容边界均闭合。最终同身份PostgreSQL 1/1、`make quality`、串行`make test`的`2102 passed, 270 skipped`、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff通过；acceptance仍因REQ-001 evidence身份不匹配为`BLOCKED`，live completion/stream/failover保持零调用`hosted-unverified`。12条新增、2条修改已同步到六份主规格，change归档至`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`，本地交付提交为`0aa6608`；当前无active change，未push。
 
 ---
 

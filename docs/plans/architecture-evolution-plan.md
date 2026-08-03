@@ -4,7 +4,7 @@
 >
 > 首次冻结：2026-07-27
 >
-> 当前状态：Phase 19 `provider-neutral-structured-output`已同步主规格并归档，当前无active change。14 Requirements/74 Scenarios契约身份`7754ef26…`与实现冻结身份`de39eb09…`均分别取得fresh Reviewer 1/2/3 Stage 1/2 PASS、0 findings；44/44 tasks。归档事务把12条新增、2条修改同步到六份主规格，归档路径为`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`；当前107路径按生产48、测试28、eval 2、维护文档13、OpenSpec 16分账。acceptance保持`BLOCKED`，三项live保持零调用`hosted-unverified`；未commit/amend、push、发布、部署或调用真实provider。
+> 当前状态：Phase 19 `provider-neutral-structured-output`已同步主规格、归档并由本地提交`0aa6608`交付，当前无active change。14 Requirements/74 Scenarios契约身份`7754ef26…`与实现冻结身份`de39eb09…`均分别取得fresh Reviewer 1/2/3 Stage 1/2 PASS、0 findings；44/44 tasks。107路径按生产48、测试28、eval 2、维护文档13、OpenSpec 16分账；acceptance保持`BLOCKED`，三项live保持零调用`hosted-unverified`。提交状态由独立非amend文档提交收口；未push、发布、部署或调用真实provider。
 >
 > 配套矩阵：[`architecture-evolution-change-matrix.md`](architecture-evolution-change-matrix.md)
 
@@ -28,17 +28,17 @@
 |---|---|
 | 快照日期 | 2026-08-04 |
 | 分支 | `develop` |
-| 当前 HEAD | `develop@8bac0345e50a6000872e43b2b20fd13e5c0f38f7` |
-| 基线工作树 | Phase 19启动检查为clean；同步归档后当前107个changed paths按生产48、测试28、eval 2、维护文档13、OpenSpec 16分账。新增的6个OpenSpec路径是五份已更新主规格与一份新增主规格，原10个change artifact按CLI原样进入archive；未覆盖用户无关改动，也不能以changed-file数量冒充生产交付 |
-| 当前 Git 事务 | 用户只授权OpenSpec同步与归档；不创建/amend commit。Phase 19仍在当前单一worktree保存未提交交付，未push、发布或部署 |
+| 当前 HEAD | Phase 19交付提交为`0aa6608da97ce9b1c41b45b27c2e37a2f26ef75e`；当前分支顶端包含其后的纯状态收口提交，精确值以`git rev-parse HEAD`读取，避免在该提交内固化自引用哈希 |
+| 基线工作树 | Phase 19启动检查为clean；归档后的107路径按生产48、测试28、eval 2、维护文档13、OpenSpec 16分账，并由`0aa6608`交付。新增的6个OpenSpec路径是五份已更新主规格与一份新增主规格，原10个change artifact按CLI原样进入archive；未覆盖用户无关改动，也不能以changed-file数量冒充生产交付 |
+| 当前 Git 事务 | 用户已授权本地提交；主交付提交为`0aa6608`，提交状态由独立非amend文档提交收口。未push、发布或部署 |
 | OpenSpec | 当前无active change；`provider-neutral-structured-output`的44/44 tasks已把12条新增、2条修改同步到六份主规格，并归档到`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/` |
 | Phase 19契约准入审查身份 | 当前14 Requirements/74 Scenarios。身份`7754ef26b11fcba87f98f7d38a8fc869ec97c53edec057e2d4995850973c21a7`的fresh Reviewer 1/2/3均在同一内容上Stage 1/2 PASS、0 findings；旧契约身份只保留诊断历史 |
 | Phase 19实现审查身份 | `phase19-freeze-v1`候选`de39eb0980f50ebae62e57f1781473a809dfd16931d3554868546802d5d1f6f6`；fresh Reviewer 1/2/3首末复算一致，均Stage 1/2 PASS、0 findings。审查后仅状态记录漂移按用户裁决豁免，不改变已审实现内容 |
 | 已完成历史 | Phase 1-19 已归档；归档事实以 Git、`openspec list --json` 和归档目录为准 |
-| 当前阶段 | Phase 19已同步并归档；等待用户决定是否创建本地交付commit，Phase 20尚未授权 |
+| 当前阶段 | Phase 19已同步、归档并本地提交；Phase 20尚未授权 |
 | 后两项预定生产行为 change | Phase 20仍未授权；Phase 21必须等待前序范围另行校准 |
 | 当前阻塞 | 无OpenSpec归档阻塞。`make acceptance-validate-check`因REQ-001 evidence commit/diff身份不匹配保持`BLOCKED`；真实provider授权前置缺失，completion/stream/failover均为零调用`hosted-unverified`。二者未伪造PASS，也不回滚已完成的本地同步归档 |
-| 明确未做 | 未运行真实provider，未commit/amend、push、发布或部署；未做structured streaming、structured fallback、tool call/执行或Phase 21重构 |
+| 明确未做 | 未运行真实provider，未push、发布或部署；未做structured streaming、structured fallback、tool call/执行或Phase 21重构 |
 
 `DEV-PLAN.md` 顶部保留 Phase 18.2本地提交与归档历史，并已同步Phase 19归档事实；后续 Agent 仍须按恢复顺序重新核对当前磁盘、Git 与 OpenSpec。
 
@@ -860,6 +860,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 - [x] 最终冻结后按Reviewer 1→Reviewer 2/3取得同一身份的实现Stage1/2 PASS、0 findings，tasks全勾且只到ready-to-archive。
 - [x] 2026-08-03：D-236后的`phase19-freeze-v1`实现候选`de39eb09…`由fresh Reviewer 1先Stage 1/2 PASS0；同一身份完成PostgreSQL 1/1、quality 803 files、最终串行全量`2102 passed / 270 skipped`、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff后，fresh Reviewer 2/3再独立Stage 1/2 PASS0。Reviewer 2另以113项代表性合同全部通过补证。早期临时cache/高负载、`UV_OFFLINE=1`及首轮service smoke失败均独立记录，未包装成PASS；acceptance保持BLOCKED，live保持零调用hosted-unverified。审查后只按用户裁决回写AC/task/review/ready状态，44/44，未sync/archive或创建Git事务。
 - [x] 2026-08-04：用户显式授权“合并并归档”。OpenSpec CLI将14条delta按12条新增、2条修改同步到`agent-registry-model-context`、`controlled-multi-provider-failover`、`model-usage-evidence`、`provider-neutral-structured-output`、`shared-parent-budget-ledger`、`typed-config`六份主规格，并原样归档到`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`；CLI日期按实际输出保留。归档后`openspec list --json`为空，未创建commit或启动Phase 20。
+- [x] 2026-08-04：用户随后授权本地提交。107路径Phase 19生产、测试、eval、文档与OpenSpec归档事务由`0aa6608 feat: 完成 provider-neutral structured output`原子交付；因禁止amend，提交后Handoff与唯一下一动作的纯状态漂移由独立文档提交收口，不改变生产、测试、契约、归档或审查内容。未push、发布、部署或启动Phase 20。
 - [x] 创建、审查、实现并归档 provider-neutral structured output change。
 
 ### Phase 20
@@ -1221,6 +1222,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | D-236 | 2026-08-03 | Structured协调器继续复用通用`_plan()`以保持共享预算、snapshot与route-chain安全顺序，但捕获`ModelRouteError`时必须把`model.capability_unsupported`归一化为唯一`model.structured_capability_unsupported`；其他路由/预算错误逐字保留 | 调用`router.plan_structured()`会绕过invocation层的durable snapshot规划，而让通用错误逸出又违反冻结API身份。公开边界窄映射同时保留原顺序、零副作用和text/stream兼容，并由controlled deployment与protocol缺失两个独立节点共同锁定 |
 | D-237 | 2026-08-03 | 最终实现票绑定`phase19-freeze-v1`候选`de39eb09…`的101路径生产/测试/契约内容；三票PASS0后只允许AC/task计数、review marker、`ready-to-archive`、唯一下一动作和handoff等状态记录漂移，不重启实现review | 用户明确裁决纯状态漂移可豁免；这些字段不改变schema、公共API、生产行为、安全/evidence语义、owner或验收节点。任何其他实质变更仍使旧票失效并从Reviewer 1重启 |
 | D-238 | 2026-08-04 | 用户授权后使用OpenSpec CLI默认同步路径完成Phase 19合并归档；12条新增、2条修改投影到六份主规格，归档目录采用CLI实际生成的`2026-08-03-provider-neutral-structured-output`，不另建手工副本或重命名 | 同步与归档是已审delta的生命周期投影，不改变已审生产代码、测试节点或行为契约；主规格、archive、active list和living plan必须在同一事务收口，commit仍需单独授权 |
+| D-239 | 2026-08-04 | 用户明确授权Phase 19本地提交；107路径生产、测试、eval、文档与归档事务形成`0aa6608`主交付提交。提交后状态回写不amend主提交，而以独立文档提交记录交付哈希、clean状态和下一动作 | 保持“提交”与“amend”授权边界，避免维护文档继续声称未提交；状态回写不改变已审实现与契约，当前精确HEAD由Git读取，不在自引用提交正文中伪造哈希 |
 | D-170 | 2026-08-02 | 每次结构化provider输入固定为`structured-provider-prompt-v1`完整canonical JSON字符串；`max_prompt_utf8_bytes`约束该完整字符串，planning按cap加catalog envelope冻结每attempt上界并对初始及所有repair ordinal做零调用可构造性检查 | 只约束业务prompt会让schema与repair指令落在预算外，既无法证明token/cost reservation充分，也会让repair时才出现的超长输入跨过provider副作用边界 |
 | D-171 | 2026-08-02 | Validation issue从`jsonschema.ValidationError.absolute_path`按RFC6901、required/extra集合差与封闭keyword映射确定；混合错误按折叠前事实选终态，limit0只允许invalid/extra，只有limit至少1且全部repair耗尽才使用exhausted | 解析provider/raw validator消息既不稳定又可能泄漏值；同一失败若能落入两个终态会破坏durable replay、恢复和验收的确定性 |
 | D-172 | 2026-08-02 | Strict schema compiler按schema对象位置使用封闭allowlist，当前拒绝`format`、条件/contains/unevaluated系列；核心只投影`Draft202012Validator.iter_errors()`直接错误且不递归`ValidationError.context` | 默认format只是annotation且FormatChecker集合可漂移，组合器context又允许顶层、叶子或双计三种投影；若不冻结会改变validation codes、repair prompt、evidence和replay identity |
@@ -1726,10 +1728,10 @@ OpenSpec 16路径：归档快照`openspec/changes/archive/2026-08-03-provider-ne
 
 ## 16. 下一动作
 
-当前`develop@8bac0345e50a6000872e43b2b20fd13e5c0f38f7`已包含Phase 18.2主规格同步、归档移动、生产实现与状态回写的本地交付提交；Phase 18、Phase 18.1、Phase 18.2与Phase 19均已同步并归档。当前无active change，工作树107个changed paths按生产48、测试28、eval 2、维护文档13、OpenSpec 16分账；Phase 19未创建commit。
+Phase 19的107路径生产、测试、eval、维护文档与OpenSpec归档事务已由本地提交`0aa6608da97ce9b1c41b45b27c2e37a2f26ef75e`交付；Phase 18、Phase 18.1、Phase 18.2与Phase 19均已同步并归档，当前无active change。提交后的Handoff与唯一下一动作由独立非amend文档提交收口，当前精确HEAD以Git读取。
 
 D-159冻结身份`a1fa3fa2…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings。D-160只清理tasks历史并补齐旧Agent列表输出合同，用户明确不追加review；提交态交付manifest为140/140。全量、eval、smoke、build、license、quality、PostgreSQL、strict与diff均通过；acceptance direct validator诚实拒绝旧CI evidence，live保持零调用`hosted-unverified`。
 
 当前契约为14 Requirements/74 Scenarios，身份`7754ef26…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings。最终实现冻结身份`de39eb09…`的fresh Reviewer 1/2/3也均首末身份一致、Stage 1/2 PASS、0 findings。该身份下PostgreSQL1/1、quality、最终串行全量2102/270、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff均闭合；早期全量与service smoke失败按实际环境/失败域保留，不改写为PASS。acceptance保持`BLOCKED`，三个live入口保持零调用`hosted-unverified`。44/44 tasks已随12条新增、2条修改同步到六份主规格并归档。
 
-本批次唯一下一动作：等待用户决定是否创建Phase 19本地交付commit。当前不commit/amend、push、发布、部署或调用真实provider；Phase 20仍未授权，若启动必须另建窄change并重新校准当前无active change的基线。
+本批次唯一下一动作：等待用户决定是否授权Phase 20窄change。当前不push、发布、部署或调用真实provider；若启动Phase 20，必须重新校准当前无active change的基线并先完成新的OpenSpec契约门禁。

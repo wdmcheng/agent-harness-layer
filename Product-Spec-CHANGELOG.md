@@ -13,7 +13,7 @@
 - 全量Registry严格加载的兼容迁移同时覆盖Dev Assistant宽松工具结果和RAG Assistant宽松组裁字典；RAG收紧为封闭联合，`no_source`只接受精确`{}`且不伪造零计数或assembly记录，`completed`只接受映射Context Assembly既有六个计数的严格DTO；不放宽strict compiler、不改写耐久组裁schema或示例业务语义。
 - 冻结 strict schema compiler 的位置感知关键字集合并拒绝 `format`/条件/unevaluated 等本阶段未支持语义；validation issue只消费validator顶层迭代结果、不遍历组合器context，避免同一值产生不同repair prompt和replay evidence。
 - 本条只记录需求与验收基线；生产实现、测试、fresh review 和 ready-to-archive 状态必须分别取得证据，不能由本文或 OpenSpec PASS 冒充。
-- Phase 19最终契约为14 Requirements/74 Scenarios，身份`7754ef26…`与实现身份`de39eb09…`均分别由fresh Reviewer 1/2/3完成Stage 1/2 PASS、0 findings，44/44 tasks；AC-096至AC-103已按生产、测试、eval与验收矩阵证据闭合。OpenSpec于2026-08-04授权事务中把12条新增、2条修改同步到六份主规格，并归档至`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`；归档日期采用CLI实际生成值。acceptance旧CI evidence与live外部前置仍分别保持`BLOCKED`和零调用`hosted-unverified`，归档不代表commit、push、发布、部署或真实provider验证。
+- Phase 19最终契约为14 Requirements/74 Scenarios，身份`7754ef26…`与实现身份`de39eb09…`均分别由fresh Reviewer 1/2/3完成Stage 1/2 PASS、0 findings，44/44 tasks；AC-096至AC-103已按生产、测试、eval与验收矩阵证据闭合。OpenSpec于2026-08-04授权事务中把12条新增、2条修改同步到六份主规格，并归档至`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`；归档日期采用CLI实际生成值。归档事务随后由本地提交`0aa6608`交付；acceptance旧CI evidence与live外部前置仍分别保持`BLOCKED`和零调用`hosted-unverified`，未push、发布、部署或完成真实provider验证。
 
 ## [v1.23] - 2026-07-31
 ### 受控多 deployment fallback 实现
