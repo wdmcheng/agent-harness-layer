@@ -11,7 +11,7 @@
 - Design Brief: 未提供。P0 不做产品化前端 UI，本计划按后端脚手架、架构图和既有 Spec 降级规划。
 - 设计稿 / 架构图: 已读取 `docs/architecture/pydantic-ai-agent-architecture.drawio`，按 5 层运行中轴、Agent Loop / HITL / 流式回边、Eval Gate、Observability、信任边界和未来拆分边界组织开发顺序。
 - API Contract: `API-Contract.md` 已补入。由于 P0 不做产品化前端 UI，契约按入口 / 调用方映射 CLI、OpenAPI 调用方、service-app、worker 和未来 Access/API gateway；RUN-006 仍是 committed CanonicalEvent transport。Phase 18.1 的 `MOD-004` 已归档；Phase 18.2 的 `MOD-003` 已按当前实现同步 route-chain/config/evidence/error/smoke 字段级事实，不新增 endpoint。
-- OpenSpec: 仓库存在`openspec/`；Phase 1-19均已同步主规格并归档，当前无active change。`provider-neutral-structured-output`的44/44 tasks与14 Requirements/74 Scenarios已按12条新增、2条修改同步到六份主规格，并归档到`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`。契约身份`7754ef26…`与实现冻结身份`de39eb09…`均分别取得fresh Reviewer 1/2/3 Stage 1/2 PASS、0 findings；归档只投影已审delta并更新生命周期状态。
+- OpenSpec: 仓库存在`openspec/`；Phase 1-19均已同步主规格并归档。当前有`provider-neutral-tool-call-contract`、`policy-gated-tool-loop`、`durable-tool-loop-resume`三个Phase 20 active change，均只完成开发前proposal/specs/design/tasks，尚未实现、sync或archive。审查轮次、冻结身份与finding闭合状态以living plan当前快照为准，旧票不得跨实质diff复用。
 - Git / 代码状态: Phase 19启动基线为干净的`develop@8bac0345e50a6000872e43b2b20fd13e5c0f38f7`；107路径交付按生产48、测试28、eval 2、维护文档13、OpenSpec 16分账，并由本地提交`0aa6608`交付。实现冻结身份`de39eb09…`下PostgreSQL 1/1、`make quality`、最终串行`make test`的`2102 passed, 270 skipped`、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff均闭合；`make acceptance-validate-check`因REQ-001 evidence身份不匹配保持`BLOCKED`，三个live入口保持零调用`hosted-unverified`。提交状态由独立非amend文档提交收口，未push、release、deploy或调用真实provider。
 - 长期计划: `docs/plans/architecture-evolution-plan.md` 记录跨 session 的冻结基线、进度、发现、决策和 handoff；`docs/plans/architecture-evolution-change-matrix.md` 记录阶段依赖、共享接口、验收与文件所有权。上下文压缩或更换 Agent 后必须先以磁盘文件和当前 Git/OpenSpec 状态重新校准。
 - 计划模式: 迭代模式。Phase 1-16 保持历史冻结；新增 Phase 17-21 采用窄 change 演进，不进行全仓一次性重构。
@@ -21,23 +21,21 @@
 | 项目 | 状态 | 证据 / 下一步 |
 |------|------|---------------|
 | 总体状态 | Phase 19 已归档 | 契约身份`7754ef26…`与实现身份`de39eb09…`均由fresh Reviewer 1/2/3完成Stage 1/2 PASS、0 findings；44/44 tasks，六份主规格已同步，归档事务已完成。 |
-| 当前 Phase | 等待下一阶段授权 | Phase 19已归档；Phase 20尚未创建或授权。 |
-| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, Phase 18, Phase 18.1, Phase 18.2 | Phase 18本地提交为 `ff0c49b`，Phase 18.1本地提交为 `395c805`；Phase 18.2生产实现与归档事务已包含在当前本地HEAD。 |
-| 当前 OpenSpec change | 无 | `openspec list --json`显示`changes: []`；Phase 19归档路径为`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`。 |
+| 当前 Phase | Phase 20 契约冻结 | 用户已授权开发前契约工作；20A/20B/20C 尚未实现。 |
+| 已完成 Phase | Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 12.5, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, Phase 18, Phase 18.1, Phase 18.2, Phase 19 | Phase 18本地提交为 `ff0c49b`，Phase 18.1本地提交为 `395c805`；Phase 18.2已在前序本地HEAD交付，Phase 19生产与归档事务由`0aa6608`交付。 |
+| 当前 OpenSpec change | Phase 20 三项 active | 20A/20B/20C artifacts complete且未来任务保持0/11、0/13、0/18；当前只允许继续契约门禁，三个change分别及联合review全部PASS前不能进入实现。 |
 | Phase 16 本地验证 | PASS | 2026-07-24 后续修正中，固定 uv `0.11.29` 与本机 uv `0.11.31` 都通过 lock check、frozen release sync、无隔离 build、release dry-run 与 17 项范围/identity 合同，两版 wheel/sdist 和 preview artifact checksum 完全一致；本机 `0.11.31` 下 quality PASS、审查修复后全量 pytest `1306 passed, 223 skipped`。207 项 lock identity SHA-256 保持 `bb9046c25267f611007c6b74ee74c3ff8e55f885b3f92d091aed0642c5adef58`。 |
 | 当前阻塞项 | 无生产实现阻塞；验收CI证据与真实provider前置如实未闭合 | 真实provider授权/credential前置缺失不是离线实现阻塞；completion、stream与failover零调用预检均为`hosted-unverified/authorization_missing/provider_called=false/attempt_count=0`。acceptance direct validator因旧CI evidence身份拒绝当前dirty diff，真实状态为`BLOCKED`而非PASS。 |
-| 当前建议下一步 | 等待用户决定是否授权Phase 20窄change | Phase 19已本地提交；未push、release、deploy或调用真实provider。Phase 20仍需另行授权并重新校准当前无active change的基线。 |
+| 当前建议下一步 | 复验并重新严格审查 Phase 20 关联 OpenSpec change 集合 | 冻结新契约身份后先Reviewer 1，PASS后才并行Reviewer 2/3；未push、release、deploy或调用真实provider/工具，不进入生产实现。 |
 
 ## 剩余工作
 
 ### 当前架构演进工作
 
-- 完成 Product Spec v1.20：固定架构治理、长期 handoff、配置优先级、secret 边界、完整模型 deployment surface、非流式真实模型基线与增量文本流验收；不把规划写成已实现能力。
-- 建立 `docs/engineering-principles*`：定义五层两翼允许依赖、设计原则、模式适用/不适用信号、组合根生命周期与可执行架构约束。
-- 建立 `CONTRIBUTING*`：把人与 Agent 共用的代码、测试、文档、Git、安全和最小充分验证规则集中到稳定入口。
-- 建立 `docs/plans/architecture-evolution-plan.md` 与 change matrix：冻结基线、阶段 DAG、共享接口、文件所有权、并行等级、Codex 时间估计和下一动作；每个 session 结束必须刷新 handoff。
-- Phase 17 文档基线完成后，不直接改 `runtime/services.py`。先以独立窄 change 处置重复 `AC-070`，不夹带模型行为；随后创建 `controlled-real-model-runtime`，冻结 public config/route/error/evidence 契约和 red tests，进入 Phase 18 实现；其完成并归档后才创建 `controlled-model-streaming`。
-- 本轮没有新增 HTTP endpoint。Phase 18.1 已在 `API-Contract.md` MOD-004 冻结 bound façade、delta payload/identity/capacity/settlement；Phase 18.2 已归档契约与 MOD-003 的 route-chain/config/evidence 字段级增量已实现。任何后续修订若改变上述字段，必须先创建或更新对应 active 契约并重新 review。
+- 完成 Phase 20 三项关联 change 的开发前契约门禁：每项 strict，先由 fresh Reviewer 1 完成逐change与联合Stage 1/2，PASS后再由两个fresh reviewer对同一身份并行复审；任何finding使全部票失效。
+- 本次契约冻结只允许更新 Product/API/DEV/CHANGELOG、三个active change与living plan状态并创建一个范围化本地提交；不修改生产代码或测试，不sync/archive，不调用真实provider/工具。
+- 后续另行授权实现时严格按`provider-neutral-tool-call-contract` → `policy-gated-tool-loop` → `durable-tool-loop-resume`串行推进；前项实现、审查、同步和归档未闭合前不得启动后项实现。
+- Phase 20C归档后才以当前CodeGraph/源码/测试重冻结Phase 21热点基线；不得借工具循环change夹带typed services、storage ports或state-kernel重构。
 
 ### 历史基线与后续 Phase
 
@@ -1150,7 +1148,7 @@ Phase 1 Monorepo / quality spine
 
 **Codex 执行时间估计**：16-28 小时。
 
-**归档状态**：`provider-neutral-structured-output`已同步并归档。14 Requirements/74 Scenarios契约身份`7754ef26…`与实现冻结身份`de39eb0980f50ebae62e57f1781473a809dfd16931d3554868546802d5d1f6f6`均分别取得fresh Reviewer 1/2/3 Stage 1/2 PASS、0 findings；44/44 tasks。公开seam RED→GREEN、Policy/HITL、schema/Registry、有限repair×transport、预算/usage/evidence/replay/recovery及兼容边界均闭合。最终同身份PostgreSQL 1/1、`make quality`、串行`make test`的`2102 passed, 270 skipped`、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff通过；acceptance仍因REQ-001 evidence身份不匹配为`BLOCKED`，live completion/stream/failover保持零调用`hosted-unverified`。12条新增、2条修改已同步到六份主规格，change归档至`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`，本地交付提交为`0aa6608`；当前无active change，未push。
+**归档状态**：`provider-neutral-structured-output`已同步并归档。14 Requirements/74 Scenarios契约身份`7754ef26…`与实现冻结身份`de39eb0980f50ebae62e57f1781473a809dfd16931d3554868546802d5d1f6f6`均分别取得fresh Reviewer 1/2/3 Stage 1/2 PASS、0 findings；44/44 tasks。公开seam RED→GREEN、Policy/HITL、schema/Registry、有限repair×transport、预算/usage/evidence/replay/recovery及兼容边界均闭合。最终同身份PostgreSQL 1/1、`make quality`、串行`make test`的`2102 passed, 270 skipped`、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff通过；acceptance仍因REQ-001 evidence身份不匹配为`BLOCKED`，live completion/stream/failover保持零调用`hosted-unverified`。12条新增、2条修改已同步到六份主规格，change归档至`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/`，本地交付提交为`0aa6608`；“无active change”只描述Phase 19归档完成时的历史快照，当前已存在Phase 20三项active change，未push。
 
 ---
 
@@ -1159,19 +1157,22 @@ Phase 1 Monorepo / quality spine
 **目标**：让模型可以提出结构化工具决策，但所有执行仍经过 Harness 的 `ToolRegistry`、PolicyEngine、workspace、HITL、artifact、audit 和 durable continuation，不把 provider-native tool runtime 作为旁路。
 
 **交付内容**：
-- 单独 OpenSpec change 固定 `模型决策 → ToolRegistry → Policy/HITL → 工具结果 → ContextAssembler → 模型续跑` 状态机、最大步数/预算、checkpoint/resume、幂等、tool result trust marker 和 terminal 行为。
+- 三个串行、关联的 OpenSpec change 依次固定：20A provider-neutral tool intent 与零执行解析；20B `模型决策 → ToolRegistry → Policy/HITL → 工具结果 → ContextAssembler → 模型续跑`；20C loop/turn/tool-call identity、checkpoint/resume、exact replay、unknown 与 terminal fencing。三个 change 共享 DTO、CanonicalEvent、预算、恢复验收和文件所有权，分别 strict/review 后仍须联合审查。
+- 20A 公开 exact `ToolCatalogSelection`，由 bound tool-intent seam 区分缺省完整 catalog、显式空 catalog 与唯一保序子集；它不扩展 `ModelRequest`，非法选择在模型副作用前拒绝。
+- 20B 扩展 Agent Registry exact config：任一 route 支持 `tool_intent` 时必须显式声明无默认值的 `model_tool_loop` 五项 hard maxima，并投影为只读 descriptor summary；`ModelToolLoopLimitOverrides` 只逐项缩小，absolute deadline 只由受信启动时间推导。Tool-intent loop 的成功终态只允许 `final_text`，结构化业务结果继续走独立 MOD-005 seam。
 - 模型只产生受限 command/selection；registry 解析、schema、allowlist 和 policy 决定是否执行，provider SDK 的工具对象不越过 adapter。
 - approval waiting、deny、timeout、重复结果、crash recovery 和 tool output injection 均有 red contract 与 durable evidence。
+- 20C 必须交付 `0018_model_tool_loop_state`：新增 `model_tool_loops` 与单行 `model_tool_loop_schema_marker`，扩展 `tool_invocations` 的 loop/turn/tool-call identity、lease/fence/not-started proof，扩展 `context_assemblies` 的 nullable loop/turn/tool-call identity；SQLite 与 PostgreSQL 共用 repository/UoW contract，并覆盖 upgrade、legacy compatibility、旧 binary 拒绝和 evidence 后永久 downgrade 拒绝。以上均为计划交付，当前尚未实现。
 
-**关键文件候选**：`tools/`、`policy/`、`approvals/`、`runtime/continuation.py`、`runtime/_run_continuation.py`、`context/`、models/structured output seam、storage/evidence 和示例 Agent；共享 lifecycle 文件由单一 owner 接力。
+**关键文件候选**：20A 独占 `models/tool_intent.py` 的选择/意图 DTO、provider catalog 投影与 provider/tool adapter contracts；20B 独占 Agent config loader/descriptor/scaffold 的 `model_tool_loop`、`runtime/model_tool_loop.py`、Policy/approval/context/event编排；20C 独占 `storage/migrations/versions/0018_model_tool_loop_state.py`、loop ORM/model/repository、`tool_invocations` 与 `context_assemblies` 映射及 SQLite/PostgreSQL migration tests。共享 `runtime/continuation.py`、`runtime/_run_continuation.py`、tools/approval/evidence lifecycle 文件由同一 worktree 的单一 owner 按20A→20B→20C串行接力，具体 owner 以各change design/tasks为准。
 
-**验收标准**：未知/越权工具零副作用；危险动作只能等待审批；恢复不重复调用；最大步数和 shared budget 生效；所有 tool output 以 untrusted source 进入 ContextAssembler；fake 与至少一个 opt-in real model 的决策路径可验证。
+**验收标准**：REQ-029 / AC-104～AC-111 逐项闭合。未知/越权工具零副作用；危险动作只能等待审批；恢复不重复调用；turn/token/cost/tool-output/wall-clock 与 shared budget 生效；所有 tool output 以 untrusted source 进入 ContextAssembler。默认 fake/tool stub 零网络；真实模型与真实外部工具的联合 smoke 只有另行授权后才可执行，不能作为离线交付前置。
 
 **依赖与并行**：强依赖 Phase 19。工具 schema 与 eval 设计可由 sub-agent 并行研究；runtime/approval/storage 实现同一 worktree 串行。
 
 **Codex 执行时间估计**：28-45 小时。
 
-**当前状态**：未开始。
+**当前状态**：开发前契约修约与联合审查中，生产实现未开始。20A/20B/20C未来任务分别为0/11、0/13、0/18；checkbox未完成。
 
 ---
 
@@ -1215,9 +1216,11 @@ Phase 1 Monorepo / quality spine
 | `approvals` | Phase 7 / Phase 12 / 13.6A | HITL approval required / approve / deny 记录；Phase 12 增加不进入 public DTO/OpenAPI 的 private resolution lease/state，Phase 13.6A 回填并收紧 canonical trace。 |
 | `audit_logs` | Phase 7 / 13.6A | policy decision、approval、tool、eval dataset 写入审计；Phase 13.6A 对 run-scoped payload 回填并校验 canonical trace。 |
 | `guardrail_checks` | Phase 7 | input/tool/retrieval guardrail 检查摘要、decision、source_ref 和 artifact_ref；Phase 4 先以 CanonicalEvent/local evidence 表达。 |
-| `context_assemblies` | Phase 6 | context input refs、token budget、trust summary、truncation summary 和 output_ref。 |
+| `context_assemblies` | Phase 6 / Phase 20C 计划 | 既有 context input refs、token budget、trust summary、truncation summary 和 output_ref；20C 计划由 `0018_model_tool_loop_state` 增加 nullable loop/turn/tool-call identity，当前未实现。 |
 | `workspaces` | Phase 8 | per-run 或 per-agent workspace 根路径和 policy 引用。 |
-| `tool_invocations` | Phase 8 / Phase 12 / 13.6A | tool name、args_ref、result_ref、status、duration；Phase 12 增加 nullable unique `approval_id`、arguments hash、execution state/result ref，作为 approved continuation 的持久化单次执行 claim；Phase 13.6A 对 run-scoped invocation 回填并校验 canonical trace。 |
+| `tool_invocations` | Phase 8 / Phase 12 / 13.6A / Phase 20C 计划 | tool name、args_ref、result_ref、status、duration；Phase 12 增加 nullable unique `approval_id`、arguments hash、execution state/result ref，作为 approved continuation 的持久化单次执行 claim；Phase 13.6A 对 run-scoped invocation 回填并校验 canonical trace；20C 计划由 `0018_model_tool_loop_state` 增加 loop/turn/tool-call identity、execution lease digest/fence/expiry、nullable handler-started 时间与 not-started proof，当前未实现。 |
+| `model_tool_loops` | Phase 20C 计划 | `0018_model_tool_loop_state` 新增 loop 协调状态、冻结边界、累计 usage、当前 model/tool/approval/context refs 与终态；SQLite/PostgreSQL 共用 repository/UoW，当前未实现。 |
+| `model_tool_loop_schema_marker` | Phase 20C 计划 | `0018_model_tool_loop_state` 新增单行 `model-tool-loop-v1` marker 与单调 `evidence_seen`；首条 v1 evidence 同 UoW 置 true，之后永久围栏 downgrade，当前未实现。 |
 | `retrieval_documents` | Phase 9 | RAG 示例和 local/service retrieval 的文档 metadata。 |
 | `retrieval_chunks` | Phase 9 | chunk 文本 ref、BM25/vector metadata、citation ref。 |
 | `eval_cases` | Phase 11 / 13.6A | draft / approved eval case；具有 run 归属的记录由 Phase 13.6A 对齐 canonical trace，人工非 run draft 保持独立。 |
@@ -1266,6 +1269,7 @@ Phase 1 Monorepo / quality spine
 | REQ-026 受控真实模型增量文本流 | Phase 18.1；Phase 18.2 只在首 delta 前且可证明 not-started 时扩展 route chain，首 delta 后继续禁止 failover |
 | REQ-027 受控跨 deployment/provider fallback | Phase 18.2；Phase 19 从其归档 HEAD 扩展 structured output，structured/tool-call failover 仍分别留给后续契约 |
 | REQ-028 Provider-neutral Structured Output | Phase 19；稳定 schema identity、bound structured result、核心验证、有限 repair、联合预算、耐久 evidence/replay/recovery 与显式 fail-closed 终态 |
+| REQ-029 受控模型工具循环与耐久恢复 | Phase 20A、20B、20C；provider-neutral tool intent、Registry/Policy/HITL 执行链、untrusted result 回注、全局边界、checkpoint/resume、exact replay 与 unknown/terminal fencing |
 
 ## 开发规则
 

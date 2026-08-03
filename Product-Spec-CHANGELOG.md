@@ -1,5 +1,19 @@
 # 变更记录
 
+## [v1.25] - 2026-08-04
+### 受控模型工具循环契约
+
+- 新增 `REQ-029` 与 AC-104 至 AC-111，把 Phase 20 从后置意图收敛为 provider-neutral 工具意图、Registry/Policy/HITL 受控循环、不可信工具结果回注、全局边界和耐久恢复的可验收行为。
+- 模型最终文本、结构化业务结果与工具意图使用显式判别联合；adapter 只归一化候选，不持有 Registry、Policy、审批或 handler 执行权限。Agent 工具授权与 Registry 实际注册能力取交集，未知、版本不匹配和参数非法在任何工具副作用前关闭失败。
+- 工具启用模型轮固定使用 `single-user-text-with-tool-catalog/v1`；Registry canonical schema 的 provider catalog bytes、字节上限与摘要进入可信输入、预算预约、route/snapshot/operation、approval 和 usage evidence。既有 no-tools shape 不得携带工具，shape/catalog 漂移与超限均在 provider 前零调用拒绝。
+- 首个真实 `tool_intent` deployment 固定为 singleton capability、单 route、单 attempt，不与 text/stream/structured capability、fallback、response classifier 或 structured repair 混用；tool-intent protocol 的合法结果只含最终文本或工具意图。
+- Agent 只要可路由到 `tool_intent` 就必须显式声明无默认值的 exact `model_tool_loop` 五项 hard maxima，并由只读 descriptor 投影给 loop；公开 `ToolCatalogSelection` 与 `ModelToolLoopLimitOverrides` 作为 bound seam 独立 exact DTO，只允许保序缩小 catalog 和逐项缩小上限，不扩展 `ModelRequest`。
+- 工具执行固定经过 Registry 解析、防御性重验、Policy、必要时 HITL、耐久认领与结果守卫；原始工具输出不得直接进入下一轮模型请求，只能作为 `untrusted` fragment 进入既有 `ContextAssembler`、截断和追踪链路。
+- 工具意图模型轮继续复用既有`model.invoke` Policy/HITL：require-approval只等待并恢复原模型调用，不能授权工具执行；批准恢复后provider至多调用一次，工具approval/claim/handler仍保持零副作用。
+- 冻结 loop、turn 与 `tool_call_id` 身份、回合/token/成本/输出/deadline/shared-budget 上限，以及 exact-result、trusted-not-started、needs-review 三类恢复语义；未知执行状态禁止猜测成功或自动重调。
+- Phase 20 拆为串行且关联的 `provider-neutral-tool-call-contract`、`policy-gated-tool-loop`、`durable-tool-loop-resume` 三个 OpenSpec change。三者分别 strict/review 后仍须联合审查；20A、20B、20C 的实现与归档必须依次推进，不能以契约同时起草为并行实施授权。
+- 本条只记录开发前产品与验收基线；当前未实现、未同步主规格、未归档，也未授权真实 provider 或真实外部工具调用。
+
 ## [v1.24] - 2026-08-02
 ### Provider-neutral Structured Output 契约
 

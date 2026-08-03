@@ -4,7 +4,7 @@
 >
 > 首次冻结：2026-07-27
 >
-> 当前状态：Phase 19 `provider-neutral-structured-output`已同步主规格、归档并由本地提交`0aa6608`交付，当前无active change。14 Requirements/74 Scenarios契约身份`7754ef26…`与实现冻结身份`de39eb09…`均分别取得fresh Reviewer 1/2/3 Stage 1/2 PASS、0 findings；44/44 tasks。107路径按生产48、测试28、eval 2、维护文档13、OpenSpec 16分账；acceptance保持`BLOCKED`，三项live保持零调用`hosted-unverified`。提交状态由独立非amend文档提交收口；未push、发布、部署或调用真实provider。
+> 当前状态：Phase 20开发前契约已获授权，三个串行关联change均为active/complete。34文件身份`d34bfef3…`先由Round 12 fresh Reviewer 1通过，再由fresh Reviewer 2/3并行独立复审；三人首末身份一致，均Stage 1/2 PASS、0 HIGH/0 MEDIUM/0 LOW。Strict 38/38、文档合同35 passed/1 skipped、diff check通过；本批次仅以一个范围化本地提交交付契约与状态记录。未进入实现、同步或归档；未push、发布、部署或调用真实provider/工具。
 >
 > 配套矩阵：[`architecture-evolution-change-matrix.md`](architecture-evolution-change-matrix.md)
 
@@ -28,17 +28,17 @@
 |---|---|
 | 快照日期 | 2026-08-04 |
 | 分支 | `develop` |
-| 当前 HEAD | Phase 19交付提交为`0aa6608da97ce9b1c41b45b27c2e37a2f26ef75e`；当前分支顶端包含其后的纯状态收口提交，精确值以`git rev-parse HEAD`读取，避免在该提交内固化自引用哈希 |
-| 基线工作树 | Phase 19启动检查为clean；归档后的107路径按生产48、测试28、eval 2、维护文档13、OpenSpec 16分账，并由`0aa6608`交付。新增的6个OpenSpec路径是五份已更新主规格与一份新增主规格，原10个change artifact按CLI原样进入archive；未覆盖用户无关改动，也不能以changed-file数量冒充生产交付 |
-| 当前 Git 事务 | 用户已授权本地提交；主交付提交为`0aa6608`，提交状态由独立非amend文档提交收口。未push、发布或部署 |
-| OpenSpec | 当前无active change；`provider-neutral-structured-output`的44/44 tasks已把12条新增、2条修改同步到六份主规格，并归档到`openspec/changes/archive/2026-08-03-provider-neutral-structured-output/` |
+| 契约冻结基线 HEAD | `2f7691ba5f715b4ff42cd33ab0ea850de4936b97`；Phase 20 契约事务开始时工作树 clean，本批次交付提交的最终哈希以 Git 当前 HEAD 读取，不在自引用提交正文中固化 |
+| 基线工作树 | 起点 clean；本批次只交付 Product/API/DEV/CHANGELOG、两份 living plan 与三个新 active change；不得把契约文件数冒充实现交付 |
+| 当前 Git 事务 | 用户授权的一个 Phase 20 开发前契约本地提交与本状态记录原子交付；未push、发布或部署 |
+| OpenSpec | 三个 active change 均已生成 proposal/specs/design/tasks 且 artifact status complete：`provider-neutral-tool-call-contract` → `policy-gated-tool-loop` → `durable-tool-loop-resume`；逐 change strict 和全量 strict 38/38 通过。fresh Reviewer 1先PASS，fresh Reviewer 2/3再并行PASS，三票均Stage 1/2、0 findings；未sync或archive |
 | Phase 19契约准入审查身份 | 当前14 Requirements/74 Scenarios。身份`7754ef26b11fcba87f98f7d38a8fc869ec97c53edec057e2d4995850973c21a7`的fresh Reviewer 1/2/3均在同一内容上Stage 1/2 PASS、0 findings；旧契约身份只保留诊断历史 |
 | Phase 19实现审查身份 | `phase19-freeze-v1`候选`de39eb0980f50ebae62e57f1781473a809dfd16931d3554868546802d5d1f6f6`；fresh Reviewer 1/2/3首末复算一致，均Stage 1/2 PASS、0 findings。审查后仅状态记录漂移按用户裁决豁免，不改变已审实现内容 |
 | 已完成历史 | Phase 1-19 已归档；归档事实以 Git、`openspec list --json` 和归档目录为准 |
-| 当前阶段 | Phase 19已同步、归档并本地提交；Phase 20尚未授权 |
-| 后两项预定生产行为 change | Phase 20仍未授权；Phase 21必须等待前序范围另行校准 |
+| 当前阶段 | Phase 20 开发前契约已冻结并完成`1+2`独立审查；本批次以范围化本地提交收口，生产实现为0 |
+| 后两项预定生产行为 change | 20B/20C 只完成契约初稿，不构成并行实现授权；实现仍须 20A → 20B → 20C 串行，Phase 21等待20C归档后重基线 |
 | 当前阻塞 | 无OpenSpec归档阻塞。`make acceptance-validate-check`因REQ-001 evidence commit/diff身份不匹配保持`BLOCKED`；真实provider授权前置缺失，completion/stream/failover均为零调用`hosted-unverified`。二者未伪造PASS，也不回滚已完成的本地同步归档 |
-| 明确未做 | 未运行真实provider，未push、发布或部署；未做structured streaming、structured fallback、tool call/执行或Phase 21重构 |
+| 明确未做 | 未修改生产代码或测试、未执行工具循环、未运行真实provider/工具、未sync/archive、未push、发布或部署；未做structured streaming/fallback或Phase 21重构 |
 
 `DEV-PLAN.md` 顶部保留 Phase 18.2本地提交与归档历史，并已同步Phase 19归档事实；后续 Agent 仍须按恢复顺序重新核对当前磁盘、Git 与 OpenSpec。
 
@@ -865,7 +865,23 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 
 ### Phase 20
 
-- [ ] 完成三项关联 change 的联合契约与所有权矩阵。
+- [x] 2026-08-04：以 `develop@2f7691ba5f715b4ff42cd33ab0ea850de4936b97` 重校准 Git/OpenSpec/源码接缝；解决 `DEV-PLAN.md` 单一 change 与 living plan 20A/20B/20C 的冲突，更新 Product/API/DEV/CHANGELOG，并创建三项串行关联 change 的 proposal/specs/design/tasks。逐 change strict 与全量 strict 38/38 通过；当前尚无 review PASS。
+- [x] 2026-08-04：首轮契约身份`f3446d32…`由fresh Reviewer 1首末复算一致；Stage 1以20C状态枚举、0018迁移强制性、downgrade证据保留和trusted-not-started耐久证明4项HIGH，以及20A身份/catalog tasks、20B事件名、20C工具费用和living plan状态4项MEDIUM阻断，Stage 2与Reviewer 2/3未启动。当前按唯一`claimed→executing` lease/fence/proof边界修约，旧身份与票失效。
+- [x] 2026-08-04：8项finding已逐项修约：20C统一`waiting_approval`，强制0018及不可回退schema marker，冻结`claimed→executing` lease/fence/proof/permit边界；20A/20B tasks与catalog/event对齐，移除未定义工具费用，并校准active状态和0/18 tasks。逐change strict、all strict 38/38、文档合同35 passed/1 skipped与diff check均通过，新33文件契约身份为`e6bcbf4a733f61c2fdcf29785bb4e3d1129571bfce880d0912bb459a428a173a`。
+- [x] 2026-08-04：Round 2身份`e6bcbf4a…`的fresh Reviewer 1首末一致；Stage 2 PASS，但Stage 1以20B task误列AC-109/漏AC-108、20C task漏AC-109的同一项MEDIUM阻断，Reviewer 2/3未启动。两处任务追踪现分别校准为20B AC-106～108、20C AC-108～111；strict 38/38、文档合同35/1和diff通过，新身份`875a8884f967eb38459f0d749ce136f2b49648478851922a084a08fd1028a3e8`，旧票失效。
+- [x] 2026-08-04：Round 3身份`875a8884…`的fresh Reviewer 1首末一致；Stage 1以DEV顶部仍停在首轮修约状态的1 MEDIUM、Stage 2以MOD-006和两份拟同步delta用20A/20B/20C等阶段标签控制长期语义的1 MEDIUM阻断。DEV现只记录三项active/任务计数/门禁规则并引用living plan当前票；长期正文改用`provider-neutral-tool-intent`、`policy-gated-tool-loop`、`durable-tool-loop-resume`等稳定capability。Strict 38/38、文档合同35/1与diff通过，新身份`cc17a433395f9d775ae0e5d0a5f692406e30cf56252548515ac3b51b264445fc`，旧票失效。
+- [x] 2026-08-04：Round 4身份`cc17a433…`的fresh Reviewer 1首末一致；Stage 2 PASS，但Stage 1以DEV当前进度的已完成清单漏Phase19、剩余工作仍列历史已完成事项的1 MEDIUM阻断。DEV现将Phase19纳入已完成阶段，并把当前架构演进工作收敛为三项契约`1+2`、本次范围、后续20A→20B→20C串行及Phase21重基线。Strict 38/38、文档合同35/1与diff通过，新身份`7dd333b5dc2afafd3fa8fa073563aed49719a95a41c27039e86d0a0b4ef68b9d`，旧票失效。
+- [x] 2026-08-04：Round 5身份`7dd333b5…`的fresh Reviewer 1首末一致；Stage 2 PASS，但Stage 1证明Round 4只替换前四条、仍把两条已完成Phase17/18事项留在“当前架构演进工作”，以1 MEDIUM阻断。两条历史残留现已删除，历史基线继续由下一节承载；strict 38/38、文档合同35/1与diff通过，新身份`e65d6980b54d61cba63e83e758dca10e348ae06a8c370b6ebda12dbe36900884`，旧票失效。
+- [x] 2026-08-04：Round 6身份`e65d6980…`的fresh Reviewer 1首末一致；Stage 1以20A一边复用既有`model.invoke` Policy/HITL、一边无条件禁止approval resume的1 HIGH阻断，未进入Stage 2。Proposal/design/spec现只禁止工具执行approval，明确模型调用require-approval复用原checkpoint/grant/continuation且provider至多一次、工具副作用为零；新增两场景和task 1.4。Strict 38/38、文档合同35/1与diff通过，新契约为39 Requirements/102 Scenarios/40 tasks，身份`3ada3fd2010ac14c46c0214950de3b9b468416470aa836b0296c23922be353ca`，旧票失效。
+- [x] 2026-08-04：Round 7身份`3ada3fd2…`的fresh Reviewer 1首末一致；Stage 1以20A缺少工具启用request shape、canonical schema bytes及可信预算/证据绑定的1 HIGH，并以DEV漏列20C强制0018、loop/marker表和两表扩展owner的1 MEDIUM阻断，未进入Stage 2。当前以D-244冻结`single-user-text-with-tool-catalog/v1`、`model-catalog/v2`、provider catalog exact bytes/golden vector、静态/动态预算公式、私有snapshot与approval/replay identity；DEV同步0018、SQLite/PostgreSQL owner和数据库规划。Strict 38/38、文档合同35/1与diff通过，新契约为42 Requirements/112 Scenarios/41 tasks，34文件身份`2e587da444d70fdfeb0051d4b885ad0c80398a166fe3d919a5005e5c7013833c`，全部旧票失效。
+- [x] 2026-08-04：Round 8身份`2e587da4…`的fresh Reviewer 1首末一致，确认Round 7两项闭合；Stage 1仍以typed-config主规格只允许三种capability且所有真实catalog固定v1/no-tools的1 HIGH、20A误把配置`tool_allowlist`称为`allowed_tools`的1 MEDIUM阻断，未进入Stage 2。当前以D-245对typed-config与model-usage既有封闭Requirement做完整MODIFIED，冻结singleton `tool_intent`、单route/attempt、v1/v2 catalog判别联合及capability-specific预算；Agent配置与descriptor投影命名逐值对齐。Strict 38/38、文档合同35/1与diff通过，新契约为44 Requirements/139 Scenarios/41 tasks，34文件身份`e34becd8427977c61f5d7631edb6b6e365668bf64b781ccceb8f198aaa9bfef1`，全部旧票失效。
+- [x] 2026-08-04：Round 9身份`e34becd8…`的fresh Reviewer 1首末一致；Stage 1以loop hard bounds没有权威Agent配置/schema/default/owner的1 HIGH、20A“request选择catalog子集”没有公开输入DTO和20B/API允许`final_structured`结束tool-intent loop的2 MEDIUM阻断，未进入Stage 2。当前以D-246完整MODIFIED Agent Registry requirement，冻结required-iff-tool-intent且无默认值的exact `model_tool_loop`五项maxima、只读descriptor投影和根预算交叉约束；20A/20B分别新增独立exact `ToolCatalogSelection`/`ModelToolLoopLimitOverrides`，保持`ModelRequest`不变；tool-intent loop只允许`final_text`成功终止。Strict 38/38、文档合同35/1与diff通过，新契约为46 Requirements/157 Scenarios/42 tasks，34文件身份`145ee7dd79b86c7cd9eca6da6e3df1064f36801089578ab83a786ac21671d9f4`，全部旧票失效。
+- [x] 2026-08-04：Round 10 fresh Reviewer 1对身份`145ee7dd…`初末复算均为34文件且摘要一致，逐16/68/11、13/41/13、17/48/18及联合依赖/owner/验收审查后，Stage 1/2均PASS、0 HIGH/0 MEDIUM/0 LOW；Round 9三项3/3闭合。该票只允许同一身份fresh Reviewer 2/3并行复审，不代表实现、sync/archive或提交完成。
+- [x] 2026-08-04：同一`145ee7dd…`身份的并行Reviewer 2以20B `final_structured`拒绝缺显式red task、20C旧binary拒绝缺Scenario/task、Handoff“尚未review”与Reviewer1 PASS冲突及拟同步spec使用`20A`阶段标签共4 MEDIUM判FAIL；fresh Reviewer 3独立以旧binary拒绝缺Scenario/task的1 HIGH判FAIL，全部票失效。修约同时发现API 5.29早期`route`规则仍把所有真实调用固定no-tools且使用无catalog公式，与MOD-006冲突；D-247一次性改为capability判别route字段/shape/预算公式，补20B任务、20C SQLite/PostgreSQL旧0017 binary零改写拒绝场景/任务，移除长期阶段标签并校准Handoff。Strict 38/38、文档合同35/1与diff通过，新契约为46 Requirements/158 Scenarios/42 tasks，34文件身份`3ed48bc7d0abf0ebccbfe563865f6786fa13d1760345263b4f7fcf7109cd138f`，全部旧票失效。
+- [x] 2026-08-04：Round 11 fresh Reviewer 1对`3ed48bc7…`初末34文件身份一致；确认20B/20C及上一轮findings已闭合，但Stage 1以API MOD-006静态ceiling使用请求`output_token_cap`、API 5.29 cost文字又把静态/动态输出项反向映射，与20A typed-config/model-usage的`max_output_tokens`/`output_token_cap`分工冲突的1 HIGH阻断，未进入Stage 2。D-248现把token/cost公式统一为静态只用deployment `max_output_tokens`、动态只用request `output_token_cap`；strict 38/38、文档合同35/1与diff通过，新34文件身份`d34bfef3e02766ba0a673f24cb6e633b05684f7ed7e83969b291361ac0fa4691`，旧票失效。
+- [x] 2026-08-04：Round 12 fresh Reviewer 1对`d34bfef3…`初末复算均为34文件且摘要一致，独立核对20A `16/68/11`、20B `13/41/13`、20C `17/49/18`及三change联合依赖、上游主规格、实现接缝和安全边界后，Stage 1/2均PASS、0 HIGH/0 MEDIUM/0 LOW。该票只允许在同一身份并行启动fresh Reviewer 2/3，不代表实现、sync/archive或提交完成。
+- [x] 2026-08-04：同一`d34bfef3…`身份的fresh Reviewer 2/3已按用户要求并行独立审查；两者初末均为34文件且摘要一致，各自完成逐change、联合依赖、上游主规格、实现接缝、安全与测试设计核对，均Stage 1/2 PASS、0 HIGH/0 MEDIUM/0 LOW。至此`1+2`契约门禁闭合；三票不证明生产实现、sync或archive完成。
+- [ ] 完成 Reviewer 1 先审、Reviewer 2/3 对同一契约身份并行复审的联合 Stage 1/2 门禁；任一 finding 都使全部票失效并从 Reviewer 1 重启。
 - [ ] 按工具意图 → Policy/HITL loop → durable resume 顺序实现和归档。
 
 ### Phase 21
@@ -878,6 +894,13 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 
 | 日期 | 发现 | 对计划的影响 |
 |---|---|---|
+| 2026-08-04 | `DEV-PLAN.md` 曾把 Phase 20 写成单一纵向 change，但 living plan 与 change matrix 已明确 20A/20B/20C 共享契约、串行实施；当前源码同时缺少 Registry 只读解析、普通工具调用稳定 `tool_call_id` 和循环耐久状态 | 以三项关联 change 同批冻结契约、分别 strict 并做联合审查；实施仍严格串行。20C 明确新增 `0018_model_tool_loop_state`，不把进程内状态或既有 approval id 伪装成普通循环幂等身份 |
+| 2026-08-04 | 既有真实文本模型目录只允许`single-user-text-no-tools/v1`，其可信输入公式只计算业务prompt与envelope；直接把工具schema交给provider会同时破坏route准入、预算预约和恢复身份 | 20A新增独立tool-enabled request shape与model-catalog v2；canonical provider catalog actual/max bytes必须进入静态ceiling、动态reservation、私有snapshot、approval和公开evidence identity，no-tools混用与恢复漂移均零调用拒绝 |
+| 2026-08-04 | 只新增tool-enabled Requirement不能解除typed-config和model-usage主规格对capability与catalog的封闭限制；同时Agent配置`tool_allowlist`与descriptor`tool_policy.allowed_tools`是投影关系，不是两个可互换的配置字段 | 对两个既有封闭Requirement使用完整MODIFIED delta；首个tool-intent deployment收窄为singleton/单route/attempt。配置字段与descriptor投影逐值区分并以未知顶层字段负例锁定，不做隐式别名或迁移 |
+| 2026-08-04 | “request只能缩小catalog/loop上限”若没有独立公开DTO，会与既有`ModelRequest(extra=forbid)`冲突；只写runtime冻结五项上限又会让配置来源、默认值和owner悬空。全局判别联合允许`final_structured`也不等于tool-intent capability可接受该终态 | 20A/20B使用两个独立exact bound-seam DTO，明确缺省、null、空catalog和保序缩权语义；Agent exact `model_tool_loop`成为唯一maxima真相源且required-iff-capability；tool-intent loop只接受`final_text`成功，结构化结果保持独立seam |
+| 2026-08-04 | MOD-006新增tool-enabled shape仍不足以覆盖API 5.29对所有真实route固定no-tools的早期字段规则；同时上游“旧binary拒绝”和cross-capability失败若只停留在API/design而没有Scenario/task，归档后不会形成长期可验收门禁 | API route字段与预算公式按capability判别并追加tool request identity；20B任务显式验收`final_structured`结算/失败/零工具调用；20C Scenario/task在SQLite/PostgreSQL运行冻结旧0017 catalog/binary对0018的零改写启动拒绝 |
+| 2026-08-04 | Round 12 fresh Reviewer 1在`d34bfef3…`上复算provider catalog golden、静态/动态预算公式、旧0017 binary拒绝、配置投影与三change依赖，未再发现主规格冲突或遗漏 | 保持34文件契约身份冻结；只推进到同一身份的fresh Reviewer 2/3并行复审，任一finding或契约实质改动都使Round 12票失效并从Reviewer 1重启 |
+| 2026-08-04 | fresh Reviewer 2/3在同一冻结身份上并行复核后均未发现新冲突；两者独立复算46 Requirements/158 Scenarios/42 tasks、catalog golden、0018旧binary拒绝与静态/动态预算分层一致 | Phase 20开发前契约门禁完成；后续任何行为、schema、owner、验收或任务实质修改仍须产生新身份并重新执行完整`1+2`，当前票不能授权实现或生命周期操作 |
 | 2026-08-04 | OpenSpec CLI在上海时区2026-08-04执行归档时生成`2026-08-03-...`目录，且同步器给五份既有主规格追加了多余EOF空行 | 保留CLI真实归档名，不手工伪造本地日期；用`git diff --check`精确识别并只清理格式副作用，契约正文与归档快照不改写 |
 | 2026-08-02 | 全量输出schema盘点显示，除已知Dev Assistant外，RAG Assistant的`assembly_truncation: dict[str, int]`也生成schema-valued `additionalProperties`；其producer实际固定为Context Assembly的六个计数 | 不放宽strict compiler；增加示例内严格`RagAssemblyTruncation`与RAG流/全量Registry回归owner，仅映射已有六字段，不改动Context Assembly耐久schema或RAG业务语义 |
 | 2026-08-02 | RAG的本地`no_source`分支不创建Context Assembly，并依赖`assembly_truncation={}`表达“没有发生组裁”；把全部状态强制成六字段DTO会伪造六个零计数或破坏既有输出 | 使用`no_source + {}` / `completed + 六字段`封闭联合，并在输出DTO边界冻结status、assembly/model、citations/source refs与变体的跨字段不变量 |
@@ -1223,6 +1246,17 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | D-237 | 2026-08-03 | 最终实现票绑定`phase19-freeze-v1`候选`de39eb09…`的101路径生产/测试/契约内容；三票PASS0后只允许AC/task计数、review marker、`ready-to-archive`、唯一下一动作和handoff等状态记录漂移，不重启实现review | 用户明确裁决纯状态漂移可豁免；这些字段不改变schema、公共API、生产行为、安全/evidence语义、owner或验收节点。任何其他实质变更仍使旧票失效并从Reviewer 1重启 |
 | D-238 | 2026-08-04 | 用户授权后使用OpenSpec CLI默认同步路径完成Phase 19合并归档；12条新增、2条修改投影到六份主规格，归档目录采用CLI实际生成的`2026-08-03-provider-neutral-structured-output`，不另建手工副本或重命名 | 同步与归档是已审delta的生命周期投影，不改变已审生产代码、测试节点或行为契约；主规格、archive、active list和living plan必须在同一事务收口，commit仍需单独授权 |
 | D-239 | 2026-08-04 | 用户明确授权Phase 19本地提交；107路径生产、测试、eval、文档与归档事务形成`0aa6608`主交付提交。提交后状态回写不amend主提交，而以独立文档提交记录交付哈希、clean状态和下一动作 | 保持“提交”与“amend”授权边界，避免维护文档继续声称未提交；状态回写不改变已审实现与契约，当前精确HEAD由Git读取，不在自引用提交正文中伪造哈希 |
+| D-240 | 2026-08-04 | Phase 20 采用 20A/20B/20C 三个串行关联 change，而不是 `DEV-PLAN.md` 旧述的单一巨型 change；三者允许同批起草和联合审查，但实现、同步与归档必须按依赖逐项推进 | tool intent、Policy/HITL loop、durable identity/replay 共享 DTO、事件、预算、恢复验收与 owner；三项契约同时可见能检查冲突，串行实施能避免共享 seam 的多 owner 竞争 |
+| D-241 | 2026-08-04 | Phase 20 契约票绑定 Product/API/DEV/CHANGELOG 与三个 active change 的内容身份；living plan/matrix 的 review verdict、提交哈希和下一动作属于状态记录，可在三票后更新而不改变契约身份 | Reviewer 必须同时读取状态文档核对真相，但复算契约身份只覆盖行为与任务契约。任何对该身份集合的实质修改仍使全部票失效；状态记录不得借豁免改变 schema、行为、owner、验收或依赖 |
+| D-242 | 2026-08-04 | Tool handler可信未开始只允许`claimed`状态：首次claim保存lease digest/fence/expiry；旧lease过期后owner UoW以CAS原子保存`tool-handler-not-started-v1`、换租并递增fence。只有matching lease/fence确认提交`claimed→executing`后才铸造一次性执行许可；`executing`绝不接管 | 缺行、空时间戳或caller flag不能证明外部副作用未开始。该两阶段边界让旧owner在handler前被fence，同时把transition commit-ack未知保守收敛为按真实durable state处理或needs-review，关闭重复handler窗口 |
+| D-243 | 2026-08-04 | `provider-neutral-tool-intent`保留既有`model.invoke` Policy/HITL waiting与approved continuation，但该授权只恢复原模型调用；它不创建、解析或恢复工具执行approval，也不授权ToolRegistry handler | 模型调用授权与工具执行授权是两个不同安全边界。前者是主规格既有route/provider门禁，20A必须兼容；后者属于`policy-gated-tool-loop`，20A保持零工具副作用。Approved model continuation复用原usage/operation/request/route/catalog/turn identity且provider至多一次 |
+| D-244 | 2026-08-04 | `tool_intent`唯一使用`single-user-text-with-tool-catalog/v1`与`model-catalog/v2`；核心生成`provider-tool-catalog-v1` canonical bytes，以actual/max bytes计算动态/静态预算，并用`tool-intent-request-identity-v1`绑定route、私有snapshot、operation、approval、usage与replay | 工具schema是真实provider输入，不能藏在no-tools shape或prompt预算之外。私有snapshot保存完整canonical catalog以支持reload后的exact recovery，公开evidence只保存digest与长度；任何shape、schema bytes、上限或预算身份漂移都在provider前零调用关闭 |
+| D-245 | 2026-08-04 | typed-config与model-usage对既有封闭Requirement做完整MODIFIED：真实tool-intent deployment只声明singleton capability、单route、`max_attempts=1`、空fallback/classifier、repair 0，并只引用model-catalog/v2；text/stream/structured继续引用v1/no-tools。Agent配置仍叫`tool_allowlist`，只读descriptor投影才叫`tool_policy.allowed_tools` | 单个model catalog ref无法同时承载两种request shape，首个change也不应夹带route-chain/retry/structured repair。完整判别联合解除主规格冲突，精确配置→descriptor投影则避免无意新增字段、兼容别名或两套授权真相源 |
+| D-246 | 2026-08-04 | Agent任一route支持`tool_intent`时，exact `model_tool_loop`五项maxima必须显式存在、无默认值并由Registry先于executor/client校验后投影只读descriptor；20A/20B公开缩权分别使用独立exact `ToolCatalogSelection`与`ModelToolLoopLimitOverrides`，不扩展`ModelRequest`。Tool-intent protocol只有`final_text`可成功结束loop，`final_structured`一律按跨capability协议违规结算并拒绝 | 配置给出可审计唯一上限，调用只缩权且不能自报deadline；缺省完整catalog与显式空catalog不再混淆。全局DTO union与capability-specific admissibility分层，避免把独立structured-output seam误接入工具循环 |
+| D-247 | 2026-08-04 | API 5.29 `decision.route`必须按capability判别：text/stream/structured仍用no-tools/v1和原公式，tool-intent用with-tool-catalog/v1、追加catalog/request digests与actual/max bytes，并把catalog bytes纳入静态/动态token/cost；20C用冻结旧0017 migration catalog/binary面对0018的SQLite/PostgreSQL启动拒绝场景证明旧binary fail-closed | 后置MOD-006不能与早期通用route字段规则相互矛盾；只有把shape、字段和公式写入同一长期route合同，evidence才能逐值复算。旧binary拒绝不能只靠当前runner实现推断，必须成为可同步Requirement和red task |
+| D-248 | 2026-08-04 | Tool-enabled预算的静态deployment ceiling固定使用`max_prompt_utf8_bytes + max_tool_catalog_utf8_bytes + input_envelope_token_bound + max_output_tokens`及对应`max_output_tokens*output_price`；动态route reservation固定使用实际prompt/catalog bytes、`output_token_cap`及对应`output_token_cap*output_price` | 静态上界不能依赖请求级变量，动态预约也不能使用deployment maximum替代实际请求cap；token与cost必须用同一静态/动态分层才能唯一复算route、snapshot、operation和usage evidence |
+| D-249 | 2026-08-04 | Round 12 fresh Reviewer 1对34文件身份`d34bfef3…`的Stage 1/2 PASS、0 findings只解锁同一身份的fresh Reviewer 2/3并行独立审查；不解锁实现、sync、archive或提交 | 用户要求的`1+2`是串行门禁：第一票先PASS，再让两票并行。任一后续finding或契约实质漂移都必须废止全部票并从新的Reviewer 1重启 |
+| D-250 | 2026-08-04 | `d34bfef3…`已按Reviewer 1先行、Reviewer 2/3并行的顺序取得三份独立Stage 1/2 PASS、0 findings；该结果只解锁用户已授权的一个范围化本地契约提交，20A实现、sync与archive仍需各自后续授权和门禁 | 区分契约冻结、生产实现与生命周期状态，避免把审查PASS或本地提交误报为工具循环已交付；后续实施仍严格按20A→20B→20C串行并在每个change内执行red-first验证 |
 | D-170 | 2026-08-02 | 每次结构化provider输入固定为`structured-provider-prompt-v1`完整canonical JSON字符串；`max_prompt_utf8_bytes`约束该完整字符串，planning按cap加catalog envelope冻结每attempt上界并对初始及所有repair ordinal做零调用可构造性检查 | 只约束业务prompt会让schema与repair指令落在预算外，既无法证明token/cost reservation充分，也会让repair时才出现的超长输入跨过provider副作用边界 |
 | D-171 | 2026-08-02 | Validation issue从`jsonschema.ValidationError.absolute_path`按RFC6901、required/extra集合差与封闭keyword映射确定；混合错误按折叠前事实选终态，limit0只允许invalid/extra，只有limit至少1且全部repair耗尽才使用exhausted | 解析provider/raw validator消息既不稳定又可能泄漏值；同一失败若能落入两个终态会破坏durable replay、恢复和验收的确定性 |
 | D-172 | 2026-08-02 | Strict schema compiler按schema对象位置使用封闭allowlist，当前拒绝`format`、条件/contains/unevaluated系列；核心只投影`Draft202012Validator.iter_errors()`直接错误且不递归`ValidationError.context` | 默认format只是annotation且FormatChecker集合可漂移，组合器context又允许顶层、叶子或双计三种投影；若不冻结会改变validation codes、repair prompt、evidence和replay identity |
@@ -1728,10 +1762,10 @@ OpenSpec 16路径：归档快照`openspec/changes/archive/2026-08-03-provider-ne
 
 ## 16. 下一动作
 
-Phase 19的107路径生产、测试、eval、维护文档与OpenSpec归档事务已由本地提交`0aa6608da97ce9b1c41b45b27c2e37a2f26ef75e`交付；Phase 18、Phase 18.1、Phase 18.2与Phase 19均已同步并归档，当前无active change。提交后的Handoff与唯一下一动作由独立非amend文档提交收口，当前精确HEAD以Git读取。
+Phase 19的107路径生产、测试、eval、维护文档与OpenSpec归档事务已由本地提交`0aa6608da97ce9b1c41b45b27c2e37a2f26ef75e`交付；Phase 18、Phase 18.1、Phase 18.2与Phase 19均已同步并归档。当前已创建 Phase 20 三个 active change，均只含开发前契约，当前精确HEAD仍为`2f7691ba5f715b4ff42cd33ab0ea850de4936b97`且工作树为本批次dirty。
 
 D-159冻结身份`a1fa3fa2…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings。D-160只清理tasks历史并补齐旧Agent列表输出合同，用户明确不追加review；提交态交付manifest为140/140。全量、eval、smoke、build、license、quality、PostgreSQL、strict与diff均通过；acceptance direct validator诚实拒绝旧CI evidence，live保持零调用`hosted-unverified`。
 
 当前契约为14 Requirements/74 Scenarios，身份`7754ef26…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings。最终实现冻结身份`de39eb09…`的fresh Reviewer 1/2/3也均首末身份一致、Stage 1/2 PASS、0 findings。该身份下PostgreSQL1/1、quality、最终串行全量2102/270、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff均闭合；早期全量与service smoke失败按实际环境/失败域保留，不改写为PASS。acceptance保持`BLOCKED`，三个live入口保持零调用`hosted-unverified`。44/44 tasks已随12条新增、2条修改同步到六份主规格并归档。
 
-本批次唯一下一动作：等待用户决定是否授权Phase 20窄change。当前不push、发布、部署或调用真实provider；若启动Phase 20，必须重新校准当前无active change的基线并先完成新的OpenSpec契约门禁。
+本批次契约冻结、`1+2`独立审查与范围化本地提交完成后，唯一下一动作是等待用户明确授权，再从`provider-neutral-tool-call-contract`开始20A实现；不得跳过20A并行实施20B/20C，也不自动sync/archive、push、发布、部署或调用真实provider/工具。

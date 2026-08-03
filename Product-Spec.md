@@ -339,7 +339,7 @@ main 分支合并 Conventional Commits，或维护者手动触发 release workfl
 - 首个实现范围只覆盖非流式真实文本模型；增量文本流由紧随其后的 P0 Phase 18.1 `controlled-model-streaming` 独立交付，不能混入首个入口，也不能无限期留在未排序的“以后”。Provider-neutral structured output、模型驱动工具循环和多 provider 运行治理继续分别使用后续窄 change。
 
 **完成状态：**
-受控真实非流式文本模型入口、provider-neutral 增量文本流与跨 deployment/provider fallback 均已完成生产实现、主规格同步和归档。Phase 18.2 的 live failover 当时只完成零调用 `hosted-unverified/authorization_missing` 预检，未建立双真实 deployment 成功；该外部未验证状态不影响已归档的离线生产交付，也不得被后续离线 double 冒充为外部 PASS。当前 active 增量是 Phase 19 `provider-neutral-structured-output`，不能用 Phase 18.2 历史交付冒充结构化输出已实现。
+受控真实非流式文本模型入口、provider-neutral 增量文本流、跨 deployment/provider fallback 与 structured output 均已完成生产实现、主规格同步和归档。Phase 18.2 的 live failover 当时只完成零调用 `hosted-unverified/authorization_missing` 预检，未建立双真实 deployment 成功；该外部未验证状态不影响已归档的离线生产交付，也不得被后续离线 double 冒充为外部 PASS。当前增量是 Phase 20 开发前的关联 OpenSpec 契约冻结；模型工具循环尚未实现。
 
 ### FLOW-007: 通过既有事件入口消费受控真实模型增量文本
 
@@ -396,7 +396,7 @@ Phase 18 与 Phase 18.1 已归档；维护者在 typed profile 中声明各 depl
 - reload 只影响新 root run；恢复中的 run 必须使用原冻结 route chain，不能采用新加入、重排或替换凭据的候选。
 
 **完成状态：**
-`controlled-multi-provider-failover` 已完成 provider-neutral runtime、SQLite/PostgreSQL 持久化、审批、completion/streaming、composition、live validator、CI、最终全量门禁与 fresh `1+2` 实现审查，主规格已同步并归档。双真实 provider 请求当时未获所需隔离前置，保持零调用 `hosted-unverified`；该历史外部状态不等于 Phase 19 结构化输出交付。Phase 19当前契约候选为14 Requirements/74 Scenarios，已补齐cost关闭仍保留catalog identity，以及durable mark commit ack未知不得按零请求退款的唯一语义。身份`52412a56…`的Reviewer 1确认Stage 1 PASS，但Stage 2以预算合同测试636有效行并混合四个故障域的1 MEDIUM阻断；测试现按direct budget、price identity、mark recovery、delegated allocation拆为211/171/300/136行，相关10项合同通过，验收矩阵与策略节点同步迁移。该职责拆分属于实质验收映射变化，旧契约票及此前重型证据仅保留历史诊断价值；新契约仍须从Reviewer 1重新取得同身份三票，再重跑重型门禁并冻结实现。acceptance仍因旧CI evidence identity保持BLOCKED，真实provider保持零调用`hosted-unverified`；当前仍为43/44，三张最终实现票通过前不勾AC-096至AC-103、不写`ready-to-archive`。
+`controlled-multi-provider-failover` 与 `provider-neutral-structured-output` 均已完成生产实现、主规格同步、归档和本地提交。Phase 19 的14 Requirements/74 Scenarios、44/44 tasks、契约与实现 fresh `1+2` 审查及离线/服务门禁均已闭合；真实 completion/stream/failover 仍因隔离前置缺失保持零调用 `hosted-unverified`，acceptance 因既有 REQ-001 evidence identity 不匹配保持 `BLOCKED`。当前只授权 Phase 20 开发前契约冻结，尚未实现模型工具循环，也未授权真实 provider 或真实外部工具联合调用。
 
 ## 5. 功能需求
 
@@ -1556,6 +1556,48 @@ P0 先交付可运行脚手架，不强制微服务化；但必须从第一版�
 - [x] AC-101: Given 已耐久 structured success、failure、started/unknown 或 structured approval waiting 窗口, when exact replay、语义冲突 replay、active grant恢复，或request/schema/repair/grant/lease及record/checkpoint任一单项或组合篡改, then exact结果只补投不重调provider，合法grant恢复原usage/operation且重算hard bounds，identity或approval绑定冲突在provider前稳定拒绝，无法证明结果的started状态进入unknown/needs-review并保留reservation，不伪造成功或零费用。
 - [x] AC-102: Given text-only/non-stream/route-chain 回归和两个不同 provider id 的结构化 doubles, when 运行聚焦合同、集成与 eval, then 结构化 success/failure/repair/replay/recovery、Policy/HITL和负路径从同一公开 bound seam 确定性通过，既有 `ModelResponse.output_text`、普通文本调用、streaming 与 Phase 18.2 route-chain 行为不退化。
 - [x] AC-103: Given Phase 19 最终 manifest 与维护文档, when 对照范围审查, then 生产实现、测试、eval 与文档分别列账，且没有 structured streaming、跨 provider structured fallback、tool call/执行、示例反向定义 SDK 核心类型、fake 隐式后备或 Phase 21 重构；只有全部门禁与同一冻结身份实现审查通过后才勾选，不以契约、测试或示例 PASS 冒充生产交付。
+
+### REQ-029: 受控模型工具循环与耐久恢复
+
+**优先级：** P1
+**关联任务：** TASK-003, TASK-004, TASK-006, TASK-008, TASK-009, TASK-016
+**关联流程：** FLOW-003, FLOW-006
+
+**用途：**
+让模型可以提出结构化工具意图，但不能取得工具实现或执行权限。Harness 必须在每轮模型输出后重新经过 `ToolRegistry`、PolicyEngine、HITL、audit、ContextAssembler、共享预算和耐久恢复边界，避免 provider-native tool runtime、工具输出注入、崩溃重放或无界循环形成旁路。
+
+**行为：**
+- 模型公共单轮输出使用 provider-neutral 判别联合；全局类型包含最终文本、最终结构化业务结果或一个工具意图三种互斥结果，但 capability 必须进一步收窄：工具意图协议只能产生最终文本或工具意图，结构化业务结果只能由独立 `structured_output` 协议产生。工具意图只携带工具名称、JSON arguments 和冻结 schema 身份；SDK tool-call、callable、handler、client 或 provider 原始对象不得越过 adapter。
+- Registry 以 Agent 冻结的工具 allowlist 和 schema catalog 解析工具意图。无副作用解析先完成名称、来源、schema、arguments、Agent 授权和 catalog identity 校验；只有解析成功后才允许进入 policy、approval 或执行。
+- 工具意图模型轮使用独立 `single-user-text-with-tool-catalog/v1` 请求形态。公开调用以独立 `ToolCatalogSelection` 选择绑定 Agent catalog 的保序子集，不扩展 `ModelRequest`：未提供选择表示使用完整 catalog，空列表表示本轮不向 provider 提供工具，非空列表必须唯一且保持 descriptor 顺序；未知、重复或重排均在预约和 provider 前以 `model.tool_catalog_conflict` 拒绝。核心把选定工具的 canonical schema 投影为唯一 provider tool catalog bytes，并把其字节数、上限与摘要计入可信输入、route、预算、approval、snapshot、operation 和 usage evidence；既有 `single-user-text-no-tools/v1` 不得偷偷携带工具定义。
+- 工具循环顺序固定为 `模型输出 → tool intent → ToolRegistry resolve → policy/audit → optional approval/checkpoint → tool execution → output guard → ContextAssembler → 下一模型轮`。任何普通、审批恢复或崩溃恢复路径都不得跳步。
+- 工具结果默认是不可信输入。进入下一模型轮前必须脱敏、截断或 artifact 化，保留 `source_ref`、`trust_level`、token estimate、truncation、artifact ref 和注入检查摘要；不得覆盖 system、developer 或 policy 指令。
+- loop、turn、model call 和 tool call 使用受信上下文派生的稳定身份。每轮模型 usage、工具 execution claim、approval/checkpoint、Context Assembly、CanonicalEvent 和 terminal evidence 都绑定同一 loop identity；调用方和 provider 不能自报或改写这些身份。
+- Agent 配置在可路由到 `tool_intent` 时必须声明 exact `model_tool_loop`：`max_turns`、`max_total_tokens`、nullable `max_total_cost_usd`、`max_tool_output_bytes`、`max_duration_seconds` 全部必填且无隐式默认；不能路由到该 capability 时该对象必须缺失。正整数、有限非负成本、根预算交叉约束和公开 descriptor 摘要由 Registry 在导入 executor/client 前校验。循环以受信启动时间和 `max_duration_seconds` 推导 absolute deadline；独立 `ModelToolLoopLimitOverrides` 只能逐字段缩小这些 Agent maxima。每轮使用同一 root execution-tree shared budget；审批、resume、config reload 或进程重启不能提高、重置或重新解释上界。
+- exact replay 只返回既有耐久结果，不再次调用模型或工具。执行结果或提交确认未知时进入 `needs_review` 并保留预算、容量和执行 claim 围栏；不得把 unknown 改写成 failed、零成本或可重试。
+
+**规则：**
+- MUST provider adapter 只能把厂商输出归一化为候选工具意图；不得注册或调用 executable tool callback，不得执行 provider-native tool runtime，也不得让 provider 决定 ToolRegistry、policy、approval 或 loop identity。
+- MUST 工具意图和 REQ-028 结构化业务输出使用不同的判别类型、schema identity 与错误语义；不能根据任意 JSON 字段或文本外观推断“这是工具调用”。
+- MUST 未知、未授权、schema 无效、来源或 catalog identity 漂移的工具意图在 policy、execution claim、handler、MCP、shell、file、network 和其他工具副作用前关闭失败；允许写脱敏 validation/audit evidence。
+- MUST `deny` 为零工具副作用；`require_approval` 只能建立耐久 waiting checkpoint。批准恢复必须逐值绑定原 loop/turn/tool call、arguments、schema、action/resource、tenant/identity/run/agent 和 active grant/lease，并重新执行当前 hard bounds。
+- MUST 每个实际工具调用在 handler 前建立持久化唯一 claim。completed exact replay 返回原 result ref；executing 或提交确认未知不得自动重放；非幂等工具不能靠通用 retry 假装安全。
+- MUST 每个模型轮和工具调用在 CanonicalEvent 容量、usage/shared-budget reservation 与必要 evidence outbox 预留成功后才产生外部副作用。未决 model/tool/context evidence 阻止 run terminal。
+- MUST 工具启用 route 只能使用 `single-user-text-with-tool-catalog/v1`；provider request 中的工具 schema 必须来自 Registry canonical definition，且 `len(prompt UTF-8 bytes) + len(provider tool catalog canonical UTF-8 bytes) + input_envelope_token_bound` 逐值进入可信输入上界。Shape 不匹配、catalog 超出冻结字节上限、预算不足或恢复时 catalog bytes/digest 漂移均在 provider 前零调用拒绝。
+- MUST 真实 `tool_intent` deployment 只声明该单一 capability，使用单 route、单 attempt 且不声明 fallback model/route、response classifier 或 structured repair；该 provider protocol 只允许最终文本或工具意图，最终结构化业务结果继续由独立 `structured_output` capability 产生。
+- MUST `ToolCatalogSelection` 与 `ModelToolLoopLimitOverrides` 是 bound seam 的独立 exact DTO，不得塞入 `ModelRequest` 或以任意字典替代；选择只可缩小绑定 catalog，覆盖值只可缩小 `model_tool_loop`，null 表示继承对应 Agent maximum，任何扩大、未知字段、bool、NaN/Infinity 或非法组合均在 claim、reservation、client、provider 和工具副作用前拒绝。
+- MUST 默认 CI、contract、eval 和 smoke 使用显式 fake model/tool doubles，保持零真实 provider、MCP、shell、文件写入或外部网络；真实模型加真实外部工具的联合 smoke 需要另行授权。
+- MUST Phase 20 不引入 structured streaming、tool-call streaming、跨 provider structured fallback、动态插件 marketplace、后台调度器、第二套状态机框架或 Phase 21 架构重构。
+
+**验收标准：**
+- [ ] AC-104: Given 支持工具意图的受控 model route、Agent 工具 catalog 与公开 `ToolCatalogSelection`, when 未提供选择、选择空列表或选择非空保序子集, then 核心分别使用完整 catalog、空 catalog 或该子集，以 `single-user-text-with-tool-catalog/v1` canonical schema bytes 完成可信输入预约；未知、重复、重排或越权选择在 provider 前以 `model.tool_catalog_conflict` 零调用拒绝。Provider 提出一个 tool call 时 adapter 只返回 provider-neutral 候选，核心生成稳定 `ToolIntent` 并逐值绑定 tool schema；route/snapshot/operation/approval/usage evidence 使用同一 request shape、catalog digest/bytes 与输入上界，tool-intent 协议只接受最终文本或工具意图，SDK 类型、handler 和 provider-native execution count 均为零。
+- [ ] AC-105: Given 未知、未 allowlist、schema/arguments/source/catalog identity 无效或被篡改的工具意图, when 进入 Registry resolve, then 在 policy、claim 和 handler 前以稳定错误关闭，所有 file/shell/MCP/network/tool 副作用计数为零，并留下脱敏 validation/audit evidence。
+- [ ] AC-106: Given Registry 已解析的工具意图, when policy 返回 allow、deny 或 require_approval, then allow 才能进入执行 claim，deny 零副作用，require_approval 只进入耐久 waiting；matching approval 恢复原调用一次，伪造、过期、跨 run 或字段漂移的 grant 在 handler 前 fail closed。
+- [ ] AC-107: Given 工具成功、确定失败、大输出、含 secret 或包含指令型文本, when 结果进入下一模型轮, then output guard 和 ContextAssembler 保留来源、untrusted、token、截断、artifact 和注入摘要，且下一轮上下文不能覆盖高优先级指令或泄漏原始 secret。
+- [ ] AC-108: Given Agent 可路由到 `tool_intent`, when Registry 加载配置, then exact `model_tool_loop` 的五项显式上限必须完整、类型和范围合法且不超过根 token/cost 预算，并投影为不含 secret 的只读 descriptor 摘要；缺失、额外字段、隐式默认、在不支持工具意图的 Agent 上提供该对象或越过根预算均在 executor/client 导入前拒绝。Given 合法循环接近任一上限, when `ModelToolLoopLimitOverrides` 缺失、为 null 继承或进一步缩小后再请求模型或工具, then runtime 以受信启动时间推导并冻结 absolute deadline，在副作用前确定停止；审批、reload、resume 和 crash recovery 均不能重置或提高余额。
+- [ ] AC-109: Given loop 在 model call、tool claim、handler、result、Context Assembly 或 approval/checkpoint 任一边界崩溃, when 恢复同一 loop, then 已耐久完成的步骤 exact replay，未开始的步骤只在受信 proof 下继续，模型和工具调用次数均不重复，loop/turn/tool-call/usage/event identity 逐值一致。
+- [ ] AC-110: Given provider、tool handler、result persistence、event publication 或 commit acknowledgement 结果未知, when runtime 尝试恢复或结束 run, then 对应状态进入 `needs_review`，保留 claim、预算和 event 容量围栏，不自动 retry、不发布伪造 completed/final usage/terminal，也不把未知影响记为零。
+- [ ] AC-111: Given Phase 20 三个串行 change 的最终 manifest, when 运行 fake/tool stub、contract、integration、checkpoint/resume、service smoke 与 fresh review, then 20A 只交付工具意图、20B 才交付策略工具循环、20C 才交付耐久恢复；三者分别 strict/review 且联合审查通过，没有新增 HTTP route、真实外部调用、Phase 21 重构或未声明旁路。
 
 ### AI 能力规格
 
