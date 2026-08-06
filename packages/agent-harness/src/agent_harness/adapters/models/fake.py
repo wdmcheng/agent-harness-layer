@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from agent_harness.models.providers import (
     ModelAttemptEvidence,
@@ -22,6 +22,9 @@ from agent_harness.models.structured import (
     OutputSchemaDefinition,
     canonical_structured_json,
 )
+
+if TYPE_CHECKING:
+    from agent_harness.models.tool_intent import ProviderToolIntentCandidate
 
 
 @dataclass(frozen=True)
@@ -62,6 +65,24 @@ class FakeStructuredScript:
                 canonical_structured_json(candidate)
 
 
+@dataclass(frozen=True)
+class FakeToolIntentScript:
+    """离线 final/tool 结果的显式有限脚本，不注册任何 executable callback。"""
+
+    results: tuple[ModelResponse | ProviderToolIntentCandidate, ...]
+
+    def __post_init__(self) -> None:
+        """只接受 exact provider-neutral DTO，避免测试脚本夹带 SDK 或 callable。"""
+
+        from agent_harness.models.tool_intent import ProviderToolIntentCandidate
+
+        if not self.results or any(
+            type(result) not in {ModelResponse, ProviderToolIntentCandidate}
+            for result in self.results
+        ):
+            raise ValueError("fake tool-intent script requires exact provider-neutral results")
+
+
 class FakeModelProvider:
     """测试和 local smoke 默认使用的确定性 provider。"""
 
@@ -72,6 +93,7 @@ class FakeModelProvider:
         *,
         stream_script: FakeModelStreamScript | None = None,
         structured_script: FakeStructuredScript | None = None,
+        tool_intent_script: FakeToolIntentScript | None = None,
     ) -> None:
         """可选脚本只改变离线 stream；默认 complete/local smoke 语义保持不变。"""
 
@@ -81,6 +103,17 @@ class FakeModelProvider:
         self.structured_script = structured_script
         self.structured_send_count = 0
         self.structured_close_count = 0
+        self.tool_intent_script = tool_intent_script
+        self.tool_intent_prepare_count = 0
+        self.tool_intent_send_count = 0
+        self.tool_intent_close_count = 0
+        self.provider_native_tool_execution_count = 0
+
+    @property
+    def tool_intent_observation_supported(self) -> bool:
+        """只有显式脚本存在时才宣告离线 proposal observation capability。"""
+
+        return self.tool_intent_script is not None
 
     async def complete(self, request: ModelRequest, *, plan: object) -> ModelResponse:
         """返回确定性文本，供 local smoke 和 contract tests 不依赖外部 provider。"""
@@ -129,6 +162,30 @@ class FakeModelProvider:
             plan=cast(ModelRoutePlan, plan),
             schema=schema,
         )
+
+    async def prepare_tool_intent(
+        self,
+        request: ModelRequest,
+        *,
+        plan: ModelRoutePlan,
+        tool_catalog_json: bytes,
+    ) -> _FakePreparedToolIntentCall:
+        """只接受 route 冻结的 exact catalog bytes；prepare 不消费脚本。"""
+
+        if (
+            request.capability != "tool_intent"
+            or plan.capability != "tool_intent"
+            or plan.provider != self.provider_id
+            or plan.model != request.model
+            or plan.provider_tool_catalog_json is None
+            or tool_catalog_json != plan.provider_tool_catalog_json.encode("utf-8")
+        ):
+            raise ValueError("fake tool-intent request does not match frozen route")
+        script = self.tool_intent_script
+        if script is None:
+            raise ValueError("fake tool-intent requires an explicit script")
+        self.tool_intent_prepare_count += 1
+        return _FakePreparedToolIntentCall(provider=self, script=script)
 
     async def aclose(self) -> None:
         """Fake 不持有外部资源；保留统一的 provider 生命周期协议。"""
@@ -346,4 +403,37 @@ class _FakePreparedStructuredCall:
         self._provider.structured_close_count += 1
 
 
-__all__ = ["FakeModelProvider", "FakeModelStreamScript", "FakeStructuredScript"]
+class _FakePreparedToolIntentCall:
+    """Fake tool-intent 的一次性 handle；只观察脚本 DTO，不接触工具执行层。"""
+
+    def __init__(self, *, provider: FakeModelProvider, script: FakeToolIntentScript) -> None:
+        self._provider = provider
+        self._script = script
+        self._sent = False
+        self._closed = False
+
+    async def send_tool_intent(self) -> ModelResponse | ProviderToolIntentCandidate:
+        """每个 handle 恰好返回一个显式结果，不 retry、不执行 provider-native tool。"""
+
+        if self._sent or self._closed:
+            raise RuntimeError("fake tool-intent handle can only send once")
+        self._sent = True
+        index = self._provider.tool_intent_send_count
+        self._provider.tool_intent_send_count += 1
+        return self._script.results[min(index, len(self._script.results) - 1)]
+
+    async def aclose(self) -> None:
+        """计数并拒绝重复 cleanup，暴露核心生命周期漂移。"""
+
+        if self._closed:
+            raise RuntimeError("fake tool-intent handle was closed more than once")
+        self._closed = True
+        self._provider.tool_intent_close_count += 1
+
+
+__all__ = [
+    "FakeModelProvider",
+    "FakeModelStreamScript",
+    "FakeStructuredScript",
+    "FakeToolIntentScript",
+]

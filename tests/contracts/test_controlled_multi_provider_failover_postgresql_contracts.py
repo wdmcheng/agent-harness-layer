@@ -202,9 +202,7 @@ async def test_postgresql_0017_empty_upgrade_and_null_only_downgrade() -> None:
 
     async with isolated_database("controlled_multi_provider_route_chain_migration") as dsn:
         await asyncio.to_thread(run_migrations, dsn)
-        assert await asyncio.to_thread(get_current_revision, dsn) == (
-            "0017_model_route_chain_state"
-        )
+        assert await asyncio.to_thread(get_current_revision, dsn) == ("0018_model_tool_loop_state")
         await asyncio.to_thread(
             command.downgrade,
             alembic_config(dsn),
@@ -542,7 +540,7 @@ async def test_postgresql_allocation_route_chain_started_replay_and_proof_fence(
                     "0016_shared_parent_budget_ledger",
                 )
             assert await asyncio.to_thread(get_current_revision, dsn) == (
-                "0017_model_route_chain_state"
+                "0018_model_tool_loop_state"
             )
         finally:
             await storage.dispose()

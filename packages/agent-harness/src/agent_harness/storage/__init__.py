@@ -76,6 +76,24 @@ from agent_harness.storage.migrations.runner import get_current_revision as get_
 from agent_harness.storage.migrations.runner import get_head_revision as get_head_revision
 from agent_harness.storage.migrations.runner import require_migration_head as require_migration_head
 from agent_harness.storage.migrations.runner import run_migrations as run_migrations
+from agent_harness.storage.model_tool_loop_repositories import (
+    ModelToolLoopCreate as ModelToolLoopCreate,
+)
+from agent_harness.storage.model_tool_loop_repositories import (
+    ModelToolLoopCumulativeUsage as ModelToolLoopCumulativeUsage,
+)
+from agent_harness.storage.model_tool_loop_repositories import (
+    ModelToolLoopFrozenBounds as ModelToolLoopFrozenBounds,
+)
+from agent_harness.storage.model_tool_loop_repositories import (
+    ModelToolLoopRecord as ModelToolLoopRecord,
+)
+from agent_harness.storage.model_tool_loop_repositories import (
+    ModelToolLoopState as ModelToolLoopState,
+)
+from agent_harness.storage.model_tool_loop_repositories import (
+    ModelToolLoopStorageConflict as ModelToolLoopStorageConflict,
+)
 from agent_harness.storage.repositories import (
     ApiKeyCreate as ApiKeyCreate,
 )
@@ -135,10 +153,19 @@ from agent_harness.storage.retrieval_repositories import (
 )
 from agent_harness.storage.settings import storage_dsn_from_settings as storage_dsn_from_settings
 from agent_harness.storage.tool_repositories import (
+    ModelToolInvocationClaimCreate as ModelToolInvocationClaimCreate,
+)
+from agent_harness.storage.tool_repositories import (
+    ToolHandlerNotStartedProof as ToolHandlerNotStartedProof,
+)
+from agent_harness.storage.tool_repositories import (
     ToolInvocationCreate as ToolInvocationCreate,
 )
 from agent_harness.storage.tool_repositories import (
     ToolInvocationRecord as ToolInvocationRecord,
+)
+from agent_harness.storage.tool_repositories import (
+    ToolInvocationReplayConflict as ToolInvocationReplayConflict,
 )
 from agent_harness.storage.tool_repositories import WorkspaceCreate as WorkspaceCreate
 from agent_harness.storage.tool_repositories import WorkspaceRecord as WorkspaceRecord
@@ -174,12 +201,21 @@ _REPOSITORY_DTO_EXPORTS = [
     "ExperimentStorageNotFound",
     "HarnessAcceptanceCreate",
     "HarnessAcceptanceRecord",
+    "ModelToolLoopCumulativeUsage",
+    "ModelToolLoopCreate",
+    "ModelToolLoopFrozenBounds",
+    "ModelToolLoopRecord",
+    "ModelToolLoopState",
+    "ModelToolLoopStorageConflict",
     "RetrievalChunkCreate",
     "RetrievalChunkRecord",
     "RetrievalDocumentCreate",
     "RetrievalDocumentRecord",
     "ToolInvocationCreate",
     "ToolInvocationRecord",
+    "ModelToolInvocationClaimCreate",
+    "ToolHandlerNotStartedProof",
+    "ToolInvocationReplayConflict",
     "WorkspaceCreate",
     "WorkspaceRecord",
 ]

@@ -8,6 +8,35 @@ from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
 
+MAX_BUDGET_INTEGER = (1 << 63) - 1
+
+
+def checked_budget_add(*values: int) -> int:
+    """在 signed BIGINT 域内执行预算加法，拒绝 bool、负数与溢出。"""
+
+    total = 0
+    for value in values:
+        if type(value) is not int or not 0 <= value <= MAX_BUDGET_INTEGER:
+            raise ValueError("budget integer is outside signed BIGINT")
+        if total > MAX_BUDGET_INTEGER - value:
+            raise ValueError("budget integer addition overflow")
+        total += value
+    return total
+
+
+def checked_budget_mul(first: int, second: int) -> int:
+    """在 signed BIGINT 域内执行预算乘法，避免持久化前由 Python 无限整数掩盖溢出。"""
+
+    if (
+        type(first) is not int
+        or type(second) is not int
+        or not 0 <= first <= MAX_BUDGET_INTEGER
+        or not 0 <= second <= MAX_BUDGET_INTEGER
+        or (second and first > MAX_BUDGET_INTEGER // second)
+    ):
+        raise ValueError("budget integer multiplication overflow")
+    return first * second
+
 
 def canonical_decimal(value: object) -> str | None:
     """生成无 exponent、无无意义尾零且不含负零的价格字符串。"""
@@ -24,10 +53,11 @@ def canonical_decimal(value: object) -> str | None:
 
 
 def model_catalog_digest(ref: str, entry: Mapping[str, object]) -> str:
-    """按 `model-catalog/v1` 的冻结 JSON 形状计算 SHA-256。"""
+    """按request shape判别的`model-catalog/v1|v2`冻结形状计算SHA-256。"""
 
+    tool_enabled = entry.get("request_shape_ref") == "single-user-text-with-tool-catalog"
     payload: dict[str, Any] = {
-        "schema_version": "model-catalog/v1",
+        "schema_version": "model-catalog/v2" if tool_enabled else "model-catalog/v1",
         "model_catalog_ref": ref,
         "model_catalog_version": entry.get("version"),
         "provider_kind": entry.get("provider_kind"),
@@ -43,6 +73,8 @@ def model_catalog_digest(ref: str, entry: Mapping[str, object]) -> str:
         "price_source_ref": entry.get("price_source_ref"),
         "price_source_version": entry.get("price_source_version"),
     }
+    if tool_enabled:
+        payload["max_tool_catalog_utf8_bytes"] = entry.get("max_tool_catalog_utf8_bytes")
     encoded = json.dumps(
         payload,
         ensure_ascii=False,
@@ -53,4 +85,10 @@ def model_catalog_digest(ref: str, entry: Mapping[str, object]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-__all__ = ["canonical_decimal", "model_catalog_digest"]
+__all__ = [
+    "MAX_BUDGET_INTEGER",
+    "canonical_decimal",
+    "checked_budget_add",
+    "checked_budget_mul",
+    "model_catalog_digest",
+]

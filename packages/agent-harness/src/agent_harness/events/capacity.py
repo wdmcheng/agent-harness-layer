@@ -280,7 +280,7 @@ def validate_usage_capacity_outbox(
     if not isinstance(started_payload, Mapping):
         raise RuntimeError("usage settlement is missing its durable started identity")
     # 局部 import 避免 events -> models -> events 的模块环。
-    from agent_harness.models.usage import ModelUsageEvidence
+    from agent_harness.models.usage import ModelUsageEvidence, usage_event_correlation
 
     started = ModelUsageEvidence.model_validate(started_payload)
     expected_usage_kind = "model" if binding.operation_kind == "model_usage" else "embedding"
@@ -293,8 +293,11 @@ def validate_usage_capacity_outbox(
         or started.trace_id != event.trace_id
     ):
         raise ValueError("usage event scope does not match its durable settlement")
-    correlation = {"usage_call_id": binding.usage_call_id}
     if binding.phase == "started":
+        correlation = usage_event_correlation(
+            started,
+            usage_call_id=binding.usage_call_id,
+        )
         expected_payload = {
             "correlation": correlation,
             "usage": {
@@ -314,6 +317,10 @@ def validate_usage_capacity_outbox(
     if not isinstance(final_payload, Mapping) or not isinstance(outcome, str) or not outcome:
         raise RuntimeError("usage settlement is missing its durable final result")
     final = ModelUsageEvidence.model_validate(final_payload)
+    correlation = usage_event_correlation(
+        final,
+        usage_call_id=binding.usage_call_id,
+    )
     expected_payload = {
         "correlation": correlation,
         "usage": final.to_payload(),

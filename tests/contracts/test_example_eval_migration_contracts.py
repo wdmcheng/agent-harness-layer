@@ -286,6 +286,5 @@ async def test_0008_downgrade_only_allows_empty_disposable_data(tmp_path: Path) 
             "0007_eval_gate_trace_loop",
         )
     assert (
-        await asyncio.to_thread(get_current_revision, _dsn(db_path))
-        == "0017_model_route_chain_state"
+        await asyncio.to_thread(get_current_revision, _dsn(db_path)) == "0018_model_tool_loop_state"
     )

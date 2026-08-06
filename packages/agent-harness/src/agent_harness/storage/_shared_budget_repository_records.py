@@ -155,7 +155,13 @@ def _snapshot_route_valid(
                 or not capabilities
                 or any(not _non_empty_string(item) for item in cast(list[object], capabilities))
                 or any(
-                    item not in {"text_completion", "text_stream"}
+                    item
+                    not in {
+                        "text_completion",
+                        "text_stream",
+                        "structured_output",
+                        "tool_intent",
+                    }
                     for item in cast(list[object], capabilities)
                 )
                 or not isinstance(retry_policy, dict)
@@ -176,7 +182,26 @@ def _snapshot_route_valid(
             max_prompt = cast(int, typed.get("max_prompt_utf8_bytes"))
             envelope = cast(int, typed.get("input_envelope_token_bound"))
             max_output = cast(int, typed.get("max_output_tokens"))
-            if typed.get("max_per_attempt_token_bound") != max_prompt + envelope + max_output:
+            catalog_cap = typed.get("max_tool_catalog_utf8_bytes")
+            tool_enabled = cast(list[object], capabilities) == ["tool_intent"]
+            if tool_enabled:
+                if (
+                    isinstance(catalog_cap, bool)
+                    or not isinstance(catalog_cap, int)
+                    or catalog_cap < 0
+                    or typed.get("request_shape_ref") != "single-user-text-with-tool-catalog"
+                ):
+                    return False
+            elif (
+                catalog_cap is not None
+                or typed.get("request_shape_ref") != "single-user-text-no-tools"
+            ):
+                return False
+            catalog_bound = cast(int, catalog_cap) if tool_enabled else 0
+            if (
+                typed.get("max_per_attempt_token_bound")
+                != max_prompt + catalog_bound + envelope + max_output
+            ):
                 return False
             retry_statuses = retry.get("retryable_http_statuses")
             failover_statuses = typed.get("cross_provider_failover_http_statuses")
@@ -228,7 +253,7 @@ def _snapshot_route_valid(
                     input_price is None
                     or output_price is None
                     or maximum_cost
-                    != Decimal(max_prompt + envelope) * input_price
+                    != Decimal(max_prompt + catalog_bound + envelope) * input_price
                     + Decimal(max_output) * output_price
                 ):
                     return False

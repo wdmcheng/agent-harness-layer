@@ -124,6 +124,7 @@ class ApprovalGrant(HarnessDTO):
     lease_id: str
     tenant_id: str
     identity_id: str
+    session_id: str
     agent_id: str
     run_id: str
     action: str

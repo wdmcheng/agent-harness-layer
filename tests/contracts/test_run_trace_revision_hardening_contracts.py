@@ -18,14 +18,14 @@ def test_trace_event_hardening_is_the_unique_linear_head() -> None:
     """已发布 0013/0014 不改写；后续迁移只能追加线性后继。"""
 
     script = ScriptDirectory.from_config(alembic_config("sqlite+aiosqlite:///:memory:"))
-    assert script.get_heads() == ["0017_model_route_chain_state"]
+    assert script.get_heads() == ["0018_model_tool_loop_state"]
     hardening = script.get_revision(REVISION_0013A)
     delegation = script.get_revision("0015_agent_delegation")
     assert hardening is not None
     assert hardening.down_revision == REVISION_0013
     assert delegation is not None
     assert delegation.down_revision == "0014_run_evidence_outbox"
-    assert get_head_revision() == "0017_model_route_chain_state"
+    assert get_head_revision() == "0018_model_tool_loop_state"
 
 
 @pytest.mark.parametrize(

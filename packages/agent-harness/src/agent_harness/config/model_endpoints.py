@@ -12,7 +12,7 @@ from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 from pydantic import SecretStr
 
-from agent_harness.config.model_catalog import model_catalog_digest
+from agent_harness.config.model_catalog import checked_budget_add, model_catalog_digest
 from agent_harness.config.schemas import ModelCatalogEntrySettings, ModelSettings
 
 DEFAULT_ENDPOINT_CATALOG: dict[tuple[str, str], str] = {
@@ -154,7 +154,16 @@ def resolve_model_deployment(model: ModelSettings, deployment_id: str) -> Resolv
     if deployment.provider_kind == "fake":
         bound = deployment.max_per_attempt_token_bound
         if bound is None:
-            bound = deployment.max_prompt_utf8_bytes + deployment.max_output_tokens
+            try:
+                bound = checked_budget_add(
+                    deployment.max_prompt_utf8_bytes,
+                    deployment.max_output_tokens,
+                )
+            except ValueError:
+                raise ModelConfigurationError(
+                    "model.deployments.max_per_attempt_token_bound",
+                    "token ceiling overflow",
+                ) from None
         return ResolvedModelDeployment(
             deployment_id=deployment_id,
             provider_kind="fake",
@@ -264,6 +273,12 @@ def resolve_model_deployment(model: ModelSettings, deployment_id: str) -> Resolv
             or entry.model != allowed_model
         ):
             raise ModelConfigurationError("model.model_catalogs", "model catalog identity mismatch")
+        tool_enabled = deployment.capabilities == ["tool_intent"]
+        if tool_enabled != (entry.request_shape_ref == "single-user-text-with-tool-catalog"):
+            raise ModelConfigurationError(
+                "model.model_catalogs.request_shape_ref",
+                "model catalog request shape does not match deployment capability",
+            )
         payload = entry.model_dump(mode="python", exclude={"digest"})
         if model_catalog_digest(ref, payload) != entry.digest:
             raise ModelConfigurationError(
@@ -271,11 +286,19 @@ def resolve_model_deployment(model: ModelSettings, deployment_id: str) -> Resolv
             )
         catalogs[allowed_model] = entry
     selected = catalogs[deployment.default_model]
-    token_ceiling = (
-        deployment.max_prompt_utf8_bytes
-        + selected.input_envelope_token_bound
-        + deployment.max_output_tokens
-    )
+    selected_catalog_max = selected.max_tool_catalog_utf8_bytes or 0
+    try:
+        token_ceiling = checked_budget_add(
+            deployment.max_prompt_utf8_bytes,
+            selected_catalog_max,
+            selected.input_envelope_token_bound,
+            deployment.max_output_tokens,
+        )
+    except ValueError:
+        raise ModelConfigurationError(
+            "model.deployments.max_per_attempt_token_bound",
+            "token ceiling overflow",
+        ) from None
     if deployment.max_per_attempt_token_bound != token_ceiling:
         raise ModelConfigurationError(
             "model.deployments.max_per_attempt_token_bound", "token ceiling mismatch"
@@ -285,7 +308,11 @@ def resolve_model_deployment(model: ModelSettings, deployment_id: str) -> Resolv
         assert selected.input_token_price_usd is not None
         assert selected.output_token_price_usd is not None
         cost_ceiling = (
-            Decimal(deployment.max_prompt_utf8_bytes + selected.input_envelope_token_bound)
+            Decimal(
+                deployment.max_prompt_utf8_bytes
+                + selected_catalog_max
+                + selected.input_envelope_token_bound
+            )
             * selected.input_token_price_usd
             + Decimal(deployment.max_output_tokens) * selected.output_token_price_usd
         )
@@ -300,11 +327,19 @@ def resolve_model_deployment(model: ModelSettings, deployment_id: str) -> Resolv
     # deployment 的 ceiling 由默认 route 精确锚定；fallback 可以更小，但不能借另一份
     # catalog 放大输入/成本上界，也不能在同一 deployment 内切换 cost 语义。
     for model_id, candidate in catalogs.items():
-        candidate_token_ceiling = (
-            deployment.max_prompt_utf8_bytes
-            + candidate.input_envelope_token_bound
-            + deployment.max_output_tokens
-        )
+        candidate_catalog_max = candidate.max_tool_catalog_utf8_bytes or 0
+        try:
+            candidate_token_ceiling = checked_budget_add(
+                deployment.max_prompt_utf8_bytes,
+                candidate_catalog_max,
+                candidate.input_envelope_token_bound,
+                deployment.max_output_tokens,
+            )
+        except ValueError:
+            raise ModelConfigurationError(
+                "model.deployments.max_per_attempt_token_bound",
+                "candidate token ceiling overflow",
+            ) from None
         if candidate_token_ceiling > token_ceiling:
             raise ModelConfigurationError(
                 "model.deployments.max_per_attempt_token_bound",
@@ -320,7 +355,11 @@ def resolve_model_deployment(model: ModelSettings, deployment_id: str) -> Resolv
         assert candidate.input_token_price_usd is not None
         assert candidate.output_token_price_usd is not None
         candidate_cost_ceiling = (
-            Decimal(deployment.max_prompt_utf8_bytes + candidate.input_envelope_token_bound)
+            Decimal(
+                deployment.max_prompt_utf8_bytes
+                + candidate_catalog_max
+                + candidate.input_envelope_token_bound
+            )
             * candidate.input_token_price_usd
             + Decimal(deployment.max_output_tokens) * candidate.output_token_price_usd
         )

@@ -230,6 +230,13 @@ orchestrator、policy audit、shared budget reservation、usage evidence 和 pro
 同一 deployment 可声明有序的多个 fallback models；router 只在 provider 副作用前按冻结
 预算选择，真实失败后不自动重放。非默认 secret 目录必须通过 `--secret-root` 显式限定。
 
+完整的 profile 合并、Agent 策略、catalog digest、配置检查和授权 live smoke 步骤见
+service template 的
+[受控真实文本 deployment 指南](templates/service-app/README.zh-CN.md#受控真实文本-deployment)。
+只有 model catalog identity 字段参与 `model_catalog_digest`；修改 base URL、allowed origin、
+endpoint policy 或 credential 不需要更新 catalog digest。runtime 会从这些 endpoint-bound
+字段单独派生 endpoint policy digest。
+
 显式跨 deployment fallback 使用 Agent `fallback_routes` 冻结候选链。每个候选独立绑定
 endpoint、credential、catalog、Bulkhead 和预算；只有耐久的 `client_not_started` 或受
 endpoint policy约束的 `trusted_business_not_started` proof 才能推进。任一 unknown、未受信

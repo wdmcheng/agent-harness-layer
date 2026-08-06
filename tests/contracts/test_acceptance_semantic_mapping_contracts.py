@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,24 @@ from tests.contracts.acceptance_matrix_test_support import (
     run_matrix_validator,
     write_gate_result,
 )
+
+
+def _acceptance_policy_mapping(name: str) -> dict[str, set[str]]:
+    """从策略源码读取稳定常量，不执行其脚本级依赖。"""
+
+    tree = ast.parse((ROOT / "scripts/acceptance_matrix_policy.py").read_text(encoding="utf-8"))
+    assignment = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == name for target in node.targets)
+    )
+    assert isinstance(assignment.value, ast.Dict)
+    return {
+        ast.literal_eval(key): set(ast.literal_eval(value.args[0]))
+        for key, value in zip(assignment.value.keys, assignment.value.values, strict=True)
+        if key is not None and isinstance(value, ast.Call) and value.args
+    }
 
 
 @pytest.mark.parametrize(
@@ -209,6 +228,102 @@ def test_ac012_and_ac068_map_sqlite_and_postgresql_behavior_separately() -> None
         assert "`test-aggregate`<br>`smoke-service`" in row
         assert ".artifacts/ci/test-aggregate/result.json" in row
         assert ".artifacts/ci/smoke-service/result.json" in row
+
+
+def test_model_tool_intent_and_loop_acceptance_policy_freezes_exact_required_evidence() -> None:
+    """工具意图/循环验收必须锁定实际producer与公共节点，不能只靠矩阵文本。"""
+
+    expected_tests = {
+        "AC-104": {
+            "tests/contracts/test_provider_neutral_tool_catalog_contracts.py::test_provider_catalog_matches_frozen_golden_vector_byte_for_byte",
+            "tests/contracts/test_tool_intent_usage_settlement_contracts.py::test_tool_intent_success_and_exact_replay_settle_usage_once",
+            "tests/contracts/test_tool_intent_model_catalog_config_contracts.py::test_tool_intent_route_binds_actual_catalog_bytes_and_dynamic_budget",
+        },
+        "AC-105": {
+            "tests/contracts/test_tool_registry_intent_resolution_contracts.py::test_resolve_intent_fails_closed_without_execution_side_effects",
+            "tests/contracts/test_tool_registry_intent_resolution_contracts.py::test_call_revalidates_resolved_intent_before_policy_or_handler",
+            "tests/contracts/test_tool_registry_intent_resolution_contracts.py::test_call_approved_revalidates_before_claim_or_handler",
+            "tests/contracts/test_tool_intent_policy_approval_contracts.py::test_synchronized_tool_recovery_tamper_fails_before_provider",
+            "tests/contracts/test_policy_gated_model_tool_loop_policy_contracts.py::test_initial_loop_registry_drift_writes_redacted_validation_before_side_effects",
+            "tests/contracts/test_policy_gated_model_tool_loop_approved_resume_recovery_contracts.py::test_approval_resume_registry_drift_writes_validation_before_tool_effects",
+        },
+        "AC-106": {
+            "tests/contracts/test_policy_gated_model_tool_loop_policy_contracts.py::test_real_policy_three_states_preserve_evidence_and_zero_execution",
+            "tests/contracts/test_policy_gated_model_tool_loop_approval_public_seam_contracts.py::test_waiting_snapshot_resumes_through_call_approved_exactly_once",
+            "tests/contracts/test_policy_gated_model_tool_loop_sqlite_resume_contracts.py::test_sqlite_reload_resumes_exact_snapshot_and_executes_tool_at_most_once",
+        },
+        "AC-107": {
+            "tests/contracts/test_policy_gated_model_tool_loop_result_guard_contracts.py::test_sensitive_success_is_redacted_before_context_reinjection",
+            "tests/contracts/test_policy_gated_model_tool_loop_result_guard_contracts.py::test_truncated_success_reinjects_only_the_artifact_reference",
+            "tests/contracts/test_policy_gated_model_tool_loop_event_contracts.py::test_full_loop_emits_linear_correlated_content_free_events",
+        },
+        "AC-108": {
+            "tests/contracts/test_policy_gated_tool_loop_registry_config_contracts.py::test_invalid_loop_shape_or_root_budget_fails_before_executor_import",
+            "tests/contracts/test_policy_gated_tool_loop_registry_config_contracts.py::test_model_tool_loop_is_required_iff_route_supports_tool_intent",
+            "tests/contracts/test_policy_gated_model_tool_loop_limits_contracts.py::test_limit_overrides_accept_null_inheritance_and_individual_shrinking",
+            "tests/contracts/test_policy_gated_model_tool_loop_approval_public_seam_contracts.py::test_approval_resume_reuses_original_deadline_and_balance_before_handler",
+        },
+        "AC-109": {
+            "tests/contracts/test_model_tool_exact_result_context_replay_contracts.py::test_completed_result_replays_same_untrusted_context_without_handler",
+            "tests/contracts/test_model_tool_handler_not_started_takeover_contracts.py::test_only_one_worker_can_take_over_expired_claim_and_old_fence_stops",
+            "tests/contracts/test_model_tool_turn_usage_replay_contracts.py::test_loop_turn_usage_exact_replay_is_single_settlement_with_bound_identity",
+            "tests/contracts/test_model_tool_approval_recovery_freshness_contracts.py::test_active_fresh_grant_resolves_but_stale_lease_is_expired",
+            "tests/contracts/test_policy_gated_model_tool_loop_event_recovery_contracts.py::test_public_run_recovery_republishes_exact_event_and_completes_unique_loop",
+            "tests/contracts/test_policy_gated_model_tool_loop_event_fencing_contracts.py::test_tool_claim_and_event_reservation_share_first_owner_commit",
+            "tests/contracts/test_policy_gated_model_tool_loop_approved_event_atomicity_contracts.py::test_approved_model_claim_and_events_share_first_owner_commit",
+            "tests/contracts/test_policy_gated_model_tool_loop_approved_event_atomicity_contracts.py::test_sqlite_concurrent_approved_calls_prepare_only_the_actual_owner",
+            "tests/contracts/test_policy_gated_model_tool_loop_approved_event_atomicity_contracts.py::test_postgresql_concurrent_approved_calls_prepare_only_the_actual_owner",
+            "tests/contracts/test_policy_gated_model_tool_loop_approved_event_atomicity_contracts.py::test_sqlite_concurrent_unapproved_calls_wait_and_replay_exact_result",
+            "tests/contracts/test_policy_gated_model_tool_loop_approved_event_atomicity_contracts.py::test_postgresql_concurrent_unapproved_calls_wait_and_replay_exact_result",
+            "tests/contracts/test_policy_gated_model_tool_loop_approved_resume_recovery_contracts.py::test_sqlite_approved_exact_replay_recovers_pending_final_event",
+            "tests/contracts/test_model_tool_loop_postgresql_contracts.py::test_postgresql_approved_exact_replay_recovers_pending_final_event",
+        },
+        "AC-110": {
+            "tests/contracts/test_model_tool_execution_unknown_needs_review_contracts.py::test_executing_recovery_persists_claim_and_loop_needs_review",
+            "tests/contracts/test_model_tool_execution_unknown_needs_review_contracts.py::test_unknown_event_version_uses_same_needs_review_branch",
+            "tests/contracts/test_model_tool_loop_terminal_fencing_contracts.py::test_active_terminal_and_turn_competitors_have_one_winner",
+            "tests/contracts/test_model_tool_loop_shared_budget_recovery_contracts.py::test_unknown_tool_effect_fences_same_parent_ledger_without_releasing_model_impact",
+            "tests/contracts/test_policy_gated_model_tool_loop_event_recovery_contracts.py::test_public_run_recovery_fences_unknown_event_version_without_reexecution",
+            "tests/contracts/test_policy_gated_model_tool_loop_event_contracts.py::test_unapproved_handler_unknown_fences_public_loop",
+            "tests/contracts/test_policy_gated_model_tool_loop_approved_resume_recovery_contracts.py::test_approved_handler_unknown_fences_public_loop",
+            "tests/contracts/test_policy_gated_model_tool_loop_result_lifecycle_contracts.py::test_sqlite_handler_unknown_fences_normal_and_approved_public_entries",
+            "tests/contracts/test_policy_gated_model_tool_loop_result_lifecycle_contracts.py::test_postgresql_handler_unknown_fences_normal_and_approved_public_entries",
+            "tests/contracts/test_policy_gated_model_tool_loop_result_lifecycle_contracts.py::test_sqlite_result_guard_failure_fences_normal_and_approved_public_entries",
+            "tests/contracts/test_policy_gated_model_tool_loop_result_lifecycle_contracts.py::test_postgresql_result_guard_failure_fences_normal_and_approved_public_entries",
+            "tests/contracts/test_policy_gated_model_tool_loop_result_lifecycle_contracts.py::test_sqlite_result_artifact_failure_fences_normal_and_approved_public_entries",
+            "tests/contracts/test_policy_gated_model_tool_loop_result_lifecycle_contracts.py::test_postgresql_result_artifact_failure_fences_normal_and_approved_public_entries",
+            "tests/contracts/test_policy_gated_model_tool_loop_result_lifecycle_contracts.py::test_sqlite_result_commit_ack_unknown_replays_exact_terminal",
+            "tests/contracts/test_policy_gated_model_tool_loop_result_lifecycle_contracts.py::test_postgresql_result_commit_ack_unknown_replays_exact_terminal",
+            "tests/contracts/test_policy_gated_model_tool_loop_result_lifecycle_contracts.py::test_sqlite_result_commit_unknown_without_terminal_fences",
+            "tests/contracts/test_policy_gated_model_tool_loop_result_lifecycle_contracts.py::test_postgresql_result_commit_unknown_without_terminal_fences",
+        },
+        "AC-111": {
+            "tests/contracts/test_model_tool_loop_migration_contracts.py::test_0018_sqlite_upgrade_preserves_legacy_tool_and_context_rows",
+            "tests/contracts/test_model_tool_loop_marker_downgrade_contracts.py::test_tool_or_context_v1_evidence_commits_in_the_same_uow",
+            "tests/contracts/test_model_tool_loop_postgresql_contracts.py::test_postgresql_repository_concurrency_cancel_and_budget_fencing",
+            "tests/contracts/test_documentation_bilingual_contracts.py::test_deep_documentation_link_chain_is_bilingual",
+            "tests/contracts/test_controlled_real_model_offline_contracts.py::test_default_gates_ignore_provider_credentials_and_network",
+        },
+    }
+    expected_gates = {
+        "AC-104": {"test-aggregate"},
+        "AC-105": {"test-aggregate"},
+        "AC-106": {"test-aggregate"},
+        "AC-107": {"test-aggregate"},
+        "AC-108": {"test-aggregate"},
+        "AC-109": {"test-aggregate"},
+        "AC-110": {"test-aggregate"},
+        "AC-111": {"test-aggregate", "smoke-service"},
+    }
+
+    required_tests = _acceptance_policy_mapping("REQUIRED_TEST_MAPPINGS")
+    required_gates = _acceptance_policy_mapping("REQUIRED_PRODUCER_GATES")
+    assert {
+        identifier: required_tests[identifier] for identifier in expected_tests
+    } == expected_tests
+    assert {
+        identifier: required_gates[identifier] for identifier in expected_gates
+    } == expected_gates
 
 
 def test_ac006_maps_to_real_copied_template_dev_and_example_smoke() -> None:

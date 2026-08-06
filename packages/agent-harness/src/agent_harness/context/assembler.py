@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections import Counter
 from dataclasses import dataclass
+from typing import Any
 
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.storage.repositories import ContextAssemblyCreate, ContextAssemblyRepository
@@ -19,6 +22,8 @@ class ContextFragment(HarnessDTO):
     kind: str = "generic"
     priority: int = 100
     artifact_ref: str | None = None
+    truncation: dict[str, Any] | None = None
+    injection_summary: list[str] | None = None
 
 
 class ContextFragmentTrace(HarnessDTO):
@@ -96,6 +101,9 @@ class ContextAssembler:
         fragments: list[ContextFragment],
         token_budget: int,
         output_ref: str,
+        loop_id: str | None = None,
+        turn_ordinal: int | None = None,
+        tool_call_id: str | None = None,
     ) -> ContextAssemblyResult:
         """组装上下文并把输入引用、信任分布和裁剪摘要写入仓储。
 
@@ -133,6 +141,20 @@ class ContextAssembler:
             "used_tokens": used_tokens,
             "fragment_count": len(fragment_traces),
         }
+        assembled_text = "\n".join(fragment.content for fragment in retained)
+        input_identity_digest = _canonical_digest(
+            {
+                "schema_version": "context-assembly-input-v1",
+                "fragments": [fragment.to_payload() for fragment in fragments],
+                "token_budget": token_budget,
+            }
+        )
+        output_digest = context_assembly_output_digest(
+            assembled_text=assembled_text,
+            retained_fragments=retained,
+            fragment_traces=fragment_traces,
+            truncation_summary=truncation_summary,
+        )
         record = await self._repository.create(
             ContextAssemblyCreate(
                 tenant_id=tenant_id,
@@ -142,6 +164,11 @@ class ContextAssembler:
                 trust_summary=trust_summary,
                 truncation_summary=truncation_summary,
                 output_ref=output_ref,
+                loop_id=loop_id,
+                turn_ordinal=turn_ordinal,
+                tool_call_id=tool_call_id,
+                input_identity_digest=(None if loop_id is None else input_identity_digest),
+                output_digest=None if loop_id is None else output_digest,
             )
         )
         return ContextAssemblyResult(
@@ -151,11 +178,44 @@ class ContextAssembler:
             token_budget=record.token_budget,
             trust_summary=record.trust_summary,
             truncation_summary=record.truncation_summary,
-            assembled_text="\n".join(fragment.content for fragment in retained),
+            assembled_text=assembled_text,
             fallback_decision=_assembly_decision(fragment_traces),
             retained_fragments=retained,
             fragment_traces=fragment_traces,
         )
+
+
+def _canonical_digest(value: dict[str, Any]) -> str:
+    """以封闭JSON preimage计算Context输入/输出摘要，不持久化正文。"""
+
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def context_assembly_output_digest(
+    *,
+    assembled_text: str,
+    retained_fragments: list[ContextFragment],
+    fragment_traces: list[ContextFragmentTrace],
+    truncation_summary: dict[str, int],
+) -> str:
+    """重算耐久 Context Assembly artifact 的封闭输出身份。"""
+
+    return _canonical_digest(
+        {
+            "schema_version": "context-assembly-output-v1",
+            "assembled_text": assembled_text,
+            "retained_fragments": [fragment.to_payload() for fragment in retained_fragments],
+            "fragment_traces": [trace.to_payload() for trace in fragment_traces],
+            "truncation_summary": truncation_summary,
+        }
+    )
 
 
 def _apply_budget(working: list[_WorkingFragment], token_budget: int) -> None:

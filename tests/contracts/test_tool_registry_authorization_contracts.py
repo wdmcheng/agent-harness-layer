@@ -26,7 +26,7 @@ from tests.contracts.test_tool_registry_contracts import (
 async def test_tool_registry_preflight_errors_are_not_masked_by_approval(
     tmp_path: Path,
 ) -> None:
-    """Registry 最终 seam 必须先返回 disabled/allowlist_denied，再进入 approval。"""
+    """Policy 先作三态决策；显式 allow 后仍必须执行 Registry preflight。"""
 
     from pydantic import SecretStr
 
@@ -69,12 +69,12 @@ async def test_tool_registry_preflight_errors_are_not_masked_by_approval(
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
     audit = AuditService(storage=storage)
-    policy = PolicyEngine(provider=YamlPolicyProvider.default(), audit=audit)
-    registry = build_tool_registry(
+    approval_policy = PolicyEngine(provider=YamlPolicyProvider.default(), audit=audit)
+    approval_registry = build_tool_registry(
         settings=settings,
         workspace_policy=WorkspacePolicy(root=tmp_path),
         artifact_store=FileArtifactStore(tmp_path / "artifacts"),
-        policy=policy,
+        policy=approval_policy,
         audit=audit,
         requested_tool_name="mcp.demo.unsafe",
     )
@@ -84,7 +84,7 @@ async def test_tool_registry_preflight_errors_are_not_masked_by_approval(
     )
 
     try:
-        shell_result = await registry.call(
+        shell_approval = await approval_registry.call(
             ToolCallRequest(
                 tool_name="shell.execute",
                 arguments={"command": "cat sample.txt"},
@@ -92,7 +92,38 @@ async def test_tool_registry_preflight_errors_are_not_masked_by_approval(
             ),
             context=context,
         )
-        mcp_result = await registry.call(
+        mcp_approval = await approval_registry.call(
+            ToolCallRequest(
+                tool_name="mcp.demo.unsafe",
+                arguments={},
+                agent_id="examples.basic",
+            ),
+            context=context,
+        )
+        assert shell_approval.status == "requires_approval"
+        assert shell_approval.error is not None
+        assert shell_approval.error.code == ToolErrorCode.APPROVAL_REQUIRED
+        assert mcp_approval.status == "requires_approval"
+        assert mcp_approval.error is not None
+        assert mcp_approval.error.code == ToolErrorCode.APPROVAL_REQUIRED
+
+        allowed_registry = build_tool_registry(
+            settings=settings,
+            workspace_policy=WorkspacePolicy(root=tmp_path),
+            artifact_store=FileArtifactStore(tmp_path / "artifacts"),
+            policy=PolicyEngine(provider=YamlPolicyProvider(), audit=audit),
+            audit=audit,
+            requested_tool_name="mcp.demo.unsafe",
+        )
+        shell_result = await allowed_registry.call(
+            ToolCallRequest(
+                tool_name="shell.execute",
+                arguments={"command": "cat sample.txt"},
+                agent_id="examples.basic",
+            ),
+            context=context,
+        )
+        mcp_result = await allowed_registry.call(
             ToolCallRequest(
                 tool_name="mcp.demo.unsafe",
                 arguments={},

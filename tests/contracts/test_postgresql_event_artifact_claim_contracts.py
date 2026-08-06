@@ -163,7 +163,6 @@ async def test_postgresql_event_claim_is_atomic_before_artifact_and_fanout(
             {"run_id": run_b.id},
             {"trace_id": trace_b},
             {"record_scope": "run"},
-            {"terminal": True, "visibility": "public"},
             {"visibility": "public"},
         ):
             with pytest.raises(

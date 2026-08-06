@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from agent_harness.events import CanonicalEvent, CanonicalEventType, EventBus
-from agent_harness.models.usage import ModelUsageEvidence
+from agent_harness.models.usage import ModelUsageEvidence, usage_event_correlation
 
 
 class UsageEvidenceLifecycle:
@@ -40,16 +40,18 @@ class UsageEvidenceLifecycle:
             )
 
             stream_usage_event_id(usage_call_id, "started")
+        correlation = usage_event_correlation(evidence, usage_call_id=usage_call_id)
         self._event_bus = event_bus
         self._evidence = evidence
         self.usage_call_id = usage_call_id
         self._stream_identity = marker_present
+        self._correlation = correlation
 
     @property
-    def correlation(self) -> dict[str, str]:
+    def correlation(self) -> dict[str, Any]:
         """返回写入 CanonicalEvent payload 的最小调用关联对象。"""
 
-        return {"usage_call_id": self.usage_call_id}
+        return dict(self._correlation)
 
     async def publish_started(self) -> CanonicalEvent:
         """在 provider 副作用前发布 started；重试复用稳定 event id。"""

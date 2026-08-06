@@ -30,6 +30,8 @@ from agent_harness.storage.migrations.runner import (
     require_migration_head,
 )
 
+REVISION_0015 = "0015_agent_delegation"
+
 
 @pytest.mark.skipif(
     not os.environ.get("AGENT_HARNESS_TEST_POSTGRES_DSN"),
@@ -175,7 +177,6 @@ async def test_old_postgresql_0013_is_hardened_before_event_writes() -> None:
     from agent_harness.events import CanonicalEvent, CanonicalEventType, PostgreSQLEventSink
 
     async with postgres_database("agent_harness_trace_legacy") as (dsn, engine):
-        expected_head = get_head_revision()
         await asyncio.to_thread(run_migrations, dsn, REVISION_0013)
         await simulate_legacy_postgresql_0013(engine)
         await seed_legacy_postgresql_rows(engine)
@@ -239,8 +240,14 @@ async def test_old_postgresql_0013_is_hardened_before_event_writes() -> None:
             )
         assert await postgres_full_snapshot(engine) == after_stamp_downgrade
 
-        await asyncio.to_thread(run_migrations, dsn)
-        assert await asyncio.to_thread(require_migration_head, dsn) == expected_head
+        # 本测试的 downgrade 断言止于 0015；0016 起的 shared-budget/工具循环迁移
+        # 由各自合同覆盖，不能把这里的 active legacy fixture 偷渡成预算快照夹具。
+        await asyncio.to_thread(run_migrations, dsn, REVISION_0015)
+        async with engine.connect() as connection:
+            revision = (
+                await connection.execute(sa.text("select version_num from alembic_version"))
+            ).scalar_one()
+        assert revision == REVISION_0015
 
         storage = SQLAlchemyStorage.from_dsn(dsn)
         try:

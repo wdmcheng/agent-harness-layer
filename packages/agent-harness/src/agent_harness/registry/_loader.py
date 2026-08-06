@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import inspect
+import math
 import sys
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -13,7 +14,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from yaml import YAMLError
 
 from agent_harness.config.schemas import ModelRouteRef
@@ -24,6 +25,7 @@ from agent_harness.registry.descriptor import (
     AgentBudget,
     AgentDescriptor,
     AgentModelPolicy,
+    AgentModelToolLoop,
     AgentToolPolicy,
 )
 from agent_harness.runtime.executor import AgentExecutor
@@ -51,6 +53,30 @@ class _AgentBudgetConfig(HarnessDTO):
     max_cost_usd_per_run: float | None
 
 
+class _AgentModelToolLoopConfig(HarnessDTO):
+    """Agent YAML 中逐项显式声明的 tool-loop 硬上限。"""
+
+    max_turns: int = Field(ge=1, le=64, strict=True)
+    max_total_tokens: int = Field(ge=1, strict=True)
+    max_total_cost_usd: float | None
+    max_tool_output_bytes: int = Field(ge=1, le=1_048_576, strict=True)
+    max_duration_seconds: int = Field(ge=1, le=3_600, strict=True)
+
+    @field_validator("max_total_cost_usd", mode="before")
+    @classmethod
+    def validate_cost_maximum(cls, value: object) -> object:
+        """配置加载期在数值强转前拒绝bool、非有限或负成本上限。"""
+
+        if value is not None and (
+            isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not math.isfinite(value)
+            or value < 0
+        ):
+            raise ValueError("max_total_cost_usd must be finite and non-negative")
+        return value
+
+
 class AgentConfigRecord(HarnessDTO):
     """从单个 agent YAML 解析的内部完整配置，包含公开描述符和本地导入坐标。"""
 
@@ -63,9 +89,35 @@ class AgentConfigRecord(HarnessDTO):
     executor: str
     model: _AgentModelConfig
     budget: _AgentBudgetConfig
+    model_tool_loop: _AgentModelToolLoopConfig | None = None
     tool_allowlist: list[str] = Field(default_factory=list)
     eval_dataset: str | None = None
     delegation_edges: list[str] = Field(default_factory=list)
+
+    @field_validator("tool_allowlist")
+    @classmethod
+    def validate_tool_allowlist(cls, value: list[str]) -> list[str]:
+        """保留声明顺序，同时拒绝无法形成唯一目录身份的空名与重复项。"""
+
+        if any(not item for item in value) or len(value) != len(set(value)):
+            raise ValueError("tool_allowlist must contain unique non-empty names")
+        return value
+
+    @model_validator(mode="after")
+    def validate_tool_loop_budget_subset(self) -> AgentConfigRecord:
+        """循环上限只能缩小 Agent 根预算，不能另建更宽的预算来源。"""
+
+        loop = self.model_tool_loop
+        if loop is None:
+            return self
+        if loop.max_total_tokens > self.budget.max_tokens_per_run:
+            raise ValueError("model_tool_loop.max_total_tokens exceeds agent budget")
+        root_cost = self.budget.max_cost_usd_per_run
+        if root_cost is not None and (
+            loop.max_total_cost_usd is None or loop.max_total_cost_usd > root_cost
+        ):
+            raise ValueError("model_tool_loop.max_total_cost_usd exceeds agent budget")
+        return self
 
 
 def load_descriptor(config_path: Path, *, root: Path) -> tuple[AgentConfigRecord, str]:
@@ -115,6 +167,11 @@ def build_descriptor(
             budget=AgentBudget(
                 max_tokens_per_run=config.budget.max_tokens_per_run,
                 max_cost_usd_per_run=config.budget.max_cost_usd_per_run,
+            ),
+            model_tool_loop=(
+                None
+                if config.model_tool_loop is None
+                else AgentModelToolLoop.model_validate(config.model_tool_loop.model_dump())
             ),
             eval_dataset=config.eval_dataset,
             delegation_targets=config.delegation_edges,

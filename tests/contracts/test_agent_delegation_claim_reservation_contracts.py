@@ -70,7 +70,7 @@ def test_0015_migration_creates_delegation_evidence_tables(tmp_path: Path) -> No
         "delegation_budget_reservations",
         "delegation_aggregates",
     } <= tables
-    assert revision == ("0017_model_route_chain_state",)
+    assert revision == ("0018_model_tool_loop_state",)
 
 
 @pytest.mark.asyncio

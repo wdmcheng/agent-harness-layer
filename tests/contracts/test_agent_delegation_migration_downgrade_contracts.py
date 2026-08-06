@@ -63,7 +63,7 @@ def test_0015_downgrade_requires_exact_opt_in(tmp_path: Path, x_args: list[str])
         )
     with sqlite3.connect(path) as connection:
         assert connection.execute("select version_num from alembic_version").fetchone() == (
-            "0017_model_route_chain_state",
+            "0018_model_tool_loop_state",
         )
 
 
@@ -117,7 +117,7 @@ def test_0015_any_claim_blocks_exact_opt_in_downgrade(tmp_path: Path) -> None:
     with sqlite3.connect(path) as connection:
         assert connection.execute("select count(*) from agent_delegations").fetchone() == (1,)
         assert connection.execute("select version_num from alembic_version").fetchone() == (
-            "0017_model_route_chain_state",
+            "0018_model_tool_loop_state",
         )
 
 
@@ -159,5 +159,5 @@ def test_0015_run_relation_alone_blocks_exact_opt_in_downgrade(tmp_path: Path) -
             "select parent_run_id from agent_runs where id = ?", (child_run_id,)
         ).fetchone() == (parent_run_id,)
         assert connection.execute("select version_num from alembic_version").fetchone() == (
-            "0017_model_route_chain_state",
+            "0018_model_tool_loop_state",
         )

@@ -3,6 +3,7 @@
 from agent_harness.registry.descriptor import AgentBudget as AgentBudget
 from agent_harness.registry.descriptor import AgentDescriptor as AgentDescriptor
 from agent_harness.registry.descriptor import AgentModelPolicy as AgentModelPolicy
+from agent_harness.registry.descriptor import AgentModelToolLoop as AgentModelToolLoop
 from agent_harness.registry.descriptor import AgentToolPolicy as AgentToolPolicy
 from agent_harness.registry.registry import AgentRegistry as AgentRegistry
 from agent_harness.registry.registry import DelegationDecision as DelegationDecision
@@ -13,6 +14,7 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "AgentBudget",
     "AgentDescriptor",
     "AgentModelPolicy",
+    "AgentModelToolLoop",
     "AgentRegistry",
     "AgentToolPolicy",
     "DelegationDecision",

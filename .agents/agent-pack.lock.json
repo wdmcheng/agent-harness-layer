@@ -1,11 +1,9 @@
 {
-  "version": 1,
+  "version": 2,
   "installMode": "vendored",
-  "packPath": "/Volumes/develop/vibe-engineering/agent-pack",
   "packRemote": "git@github.com:wdmcheng/agent-pack.git",
-  "packCommit": "5cf9395",
+  "packCommit": "117dcd7",
   "projectEvolution": ".agents/evolution",
-  "updatedAt": "2026-08-01T16:47:36.187625+00:00",
   "files": {
     ".agents/EVOLUTION.md": {
       "type": "file",
@@ -472,8 +470,8 @@
     "AGENT-PACK.md": {
       "type": "file",
       "source": "README.md",
-      "sourceSha256": "290aa4dae0245f1af66d94fd2fb5b1708af21932da6a27ddf1dded0f91c1a9e1",
-      "installedSha256": "290aa4dae0245f1af66d94fd2fb5b1708af21932da6a27ddf1dded0f91c1a9e1"
+      "sourceSha256": "9d49362cf0e774b143335dbabefce67faffd993c821f65b56c6797a9806ddeec",
+      "installedSha256": "9d49362cf0e774b143335dbabefce67faffd993c821f65b56c6797a9806ddeec"
     },
     "AGENTS.md": {
       "type": "file",

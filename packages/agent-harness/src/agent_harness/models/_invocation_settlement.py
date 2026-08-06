@@ -24,6 +24,7 @@ from agent_harness.models.structured import (
     StructuredOutputReplayIdentity,
     StructuredOutputRequest,
 )
+from agent_harness.models.tool_intent import ToolIntentReplaySeed
 from agent_harness.models.usage import (
     ModelUsageEvidence,
     UsageEvidenceContext,
@@ -105,50 +106,6 @@ class _ModelSettlementMixin(
             persisted = seed.identity
             assert persisted.provider is not None
             assert persisted.model is not None
-            chain: ModelRouteChainPlan | None = None
-            if persisted.identity_schema_version == "budget-operation-v2":
-                snapshot = await uow.shared_budget.get_tree_snapshot(
-                    context.tenant_id, seed.ownership.budget_owner_run_id
-                )
-                if snapshot is None:
-                    raise BudgetReservationRejected(reason="snapshot_invalid")
-                chain = self._router.plan_chain_from_snapshot(
-                    request,
-                    snapshot=snapshot,
-                    agent_id=context.agent_id,
-                )
-                if chain.chain_id != persisted.route_chain_digest:
-                    raise BudgetReservationRejected(reason="snapshot_invalid")
-            expected = self._shared_budget.operation_identity(
-                tenant_id=context.tenant_id,
-                ownership_kind=seed.ownership.kind,
-                run_id=context.run_id,
-                agent_id=context.agent_id,
-                delegation_claim_id=seed.ownership.delegation_id,
-                usage_kind="model",
-                operation_slot=usage_call_id,
-                semantic_request=(
-                    self._semantic_request(request)
-                    if chain is None
-                    else self._semantic_chain_request(request, chain)
-                ),
-                tree_snapshot_id=persisted.tree_snapshot_id,
-                agent_sub_snapshot_id=persisted.agent_sub_snapshot_id,
-                provider=persisted.provider,
-                model=persisted.model,
-                price_source_ref=persisted.price_source_ref,
-                price_source_version=persisted.price_source_version,
-                cache_key_digest=persisted.cache_key_digest,
-                cost_enabled=persisted.cost_enabled,
-                trusted_token_bound=persisted.trusted_token_bound,
-                trusted_cost_bound=persisted.trusted_cost_bound,
-                route_chain_digest=persisted.route_chain_digest,
-                route_candidate_count=persisted.route_candidate_count,
-            )
-            uow.shared_budget.validate_usage_replay_identity(
-                seed=seed,
-                expected_identity=expected,
-            )
             if request.capability == "text_stream":
                 from agent_harness.storage.stream_evidence_repositories import (
                     stream_usage_event_id,
@@ -169,6 +126,68 @@ class _ModelSettlementMixin(
             )
             if usage is None:
                 raise UsageInvocationReplayError("missing_usage_settlement")
+            raw_tool_seed = (
+                usage.result_json.get("tool_intent_replay_seed")
+                if isinstance(usage.result_json, dict)
+                else None
+            )
+            try:
+                tool_seed = (
+                    ToolIntentReplaySeed.model_validate(raw_tool_seed)
+                    if raw_tool_seed is not None
+                    else None
+                )
+            except ValueError as exc:
+                raise BudgetOperationConflict from exc
+            if (request.capability == "tool_intent") != (tool_seed is not None):
+                raise BudgetOperationConflict
+            chain: ModelRouteChainPlan | None = None
+            if persisted.identity_schema_version == "budget-operation-v2":
+                snapshot = await uow.shared_budget.get_tree_snapshot(
+                    context.tenant_id, seed.ownership.budget_owner_run_id
+                )
+                if snapshot is None:
+                    raise BudgetReservationRejected(reason="snapshot_invalid")
+                chain = self._router.plan_chain_from_snapshot(
+                    request,
+                    snapshot=snapshot,
+                    agent_id=context.agent_id,
+                )
+                if chain.chain_id != persisted.route_chain_digest:
+                    raise BudgetReservationRejected(reason="snapshot_invalid")
+            semantic_request = (
+                self._semantic_request(request)
+                if chain is None
+                else self._semantic_chain_request(request, chain)
+            )
+            if tool_seed is not None:
+                semantic_request["tool_intent"] = tool_seed.to_payload()
+            expected = self._shared_budget.operation_identity(
+                tenant_id=context.tenant_id,
+                ownership_kind=seed.ownership.kind,
+                run_id=context.run_id,
+                agent_id=context.agent_id,
+                delegation_claim_id=seed.ownership.delegation_id,
+                usage_kind="model",
+                operation_slot=usage_call_id,
+                semantic_request=semantic_request,
+                tree_snapshot_id=persisted.tree_snapshot_id,
+                agent_sub_snapshot_id=persisted.agent_sub_snapshot_id,
+                provider=persisted.provider,
+                model=persisted.model,
+                price_source_ref=persisted.price_source_ref,
+                price_source_version=persisted.price_source_version,
+                cache_key_digest=persisted.cache_key_digest,
+                cost_enabled=persisted.cost_enabled,
+                trusted_token_bound=persisted.trusted_token_bound,
+                trusted_cost_bound=persisted.trusted_cost_bound,
+                route_chain_digest=persisted.route_chain_digest,
+                route_candidate_count=persisted.route_candidate_count,
+            )
+            uow.shared_budget.validate_usage_replay_identity(
+                seed=seed,
+                expected_identity=expected,
+            )
             uow.shared_budget.validate_usage_replay_settlement(
                 seed=seed,
                 usage_state=usage.state,
@@ -247,6 +266,13 @@ class _ModelSettlementMixin(
             or chain_safe_to_start
         ):
             # 首次事务尚未开始外部副作用时，仍走正常 frozen snapshot 路径恢复。
+            if tool_seed is not None:
+                return SettlementStart(
+                    usage=usage,
+                    ownership=seed.ownership,
+                    safe_to_start=True,
+                    tool_intent_replay_seed=tool_seed,
+                )
             return None
         return SettlementStart(usage=usage, ownership=seed.ownership)
 
@@ -260,6 +286,7 @@ class _ModelSettlementMixin(
         stream: bool = False,
         structured_replay_seed: StructuredOutputReplayIdentity | None = None,
         structured_output_request: StructuredOutputRequest | None = None,
+        tool_intent_replay_seed: ToolIntentReplaySeed | None = None,
     ) -> SettlementStart:
         """在同一工作单元中冻结预算身份、预留额度和 usage outbox，再允许副作用。
 
@@ -298,6 +325,8 @@ class _ModelSettlementMixin(
                         semantic_request["structured_output"] = (
                             structured_output_request.to_payload()
                         )
+                    if tool_intent_replay_seed is not None:
+                        semantic_request["tool_intent"] = tool_intent_replay_seed.to_payload()
                     identity = self._shared_budget.operation_identity(
                         tenant_id=evidence.tenant_id,
                         ownership_kind=resolved.kind,
@@ -400,6 +429,12 @@ class _ModelSettlementMixin(
                     tenant_id=evidence.tenant_id,
                     usage_call_id=usage_call_id,
                     replay_seed=structured_replay_seed.model_dump(mode="json"),
+                )
+            if tool_intent_replay_seed is not None and claim.state == "started":
+                await uow.evidence_outbox.bind_tool_intent_started_replay_seed(
+                    tenant_id=evidence.tenant_id,
+                    usage_call_id=usage_call_id,
+                    replay_seed=tool_intent_replay_seed.to_payload(),
                 )
             if stream:
                 await uow.evidence_outbox.claim_stream(

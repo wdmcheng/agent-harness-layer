@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal, cast
 
-from pydantic import Field, PrivateAttr
+from pydantic import ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.identity import IdentityContext
+from agent_harness.models.structured import assert_structured_json_value, structured_digest
 
 ToolHandler = Callable[..., Any]
 ToolPreflight = Callable[..., "ToolCallResult | None"]
@@ -96,8 +97,18 @@ class BuiltinTool(HarnessDTO):
     action: str
     resource: str
     input_schema: dict[str, Any] = Field(default_factory=lambda: {"type": "object"})
+    input_schema_ref: str | None = None
+    input_schema_version: str | None = None
     handler: ToolHandler
     preflight: ToolPreflight | None = None
+
+    @model_validator(mode="after")
+    def validate_schema_identity_pair(self) -> BuiltinTool:
+        """模型目录元数据必须全有或全无；人工调用可继续使用legacy schema。"""
+
+        if (self.input_schema_ref is None) != (self.input_schema_version is None):
+            raise ValueError("tool input schema ref/version must be both set or null")
+        return self
 
 
 class ToolDescriptor(HarnessDTO):
@@ -108,6 +119,62 @@ class ToolDescriptor(HarnessDTO):
     resource: str
     input_schema: dict[str, Any] = Field(default_factory=lambda: {"type": "object"})
     policy: dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolIntentResolutionError(RuntimeError):
+    """只读解析失败的稳定、去敏错误。"""
+
+    def __init__(
+        self,
+        code: Literal[
+            "tool.not_found",
+            "tool.allowlist_denied",
+            "tool.schema_validation_failed",
+            "model.tool_catalog_conflict",
+        ],
+    ) -> None:
+        self.code = code
+        super().__init__(code)
+
+
+class ResolvedToolIntent(HarnessDTO):
+    """Registry只读解析结果；只含数据绑定，不含handler、policy或client。"""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, frozen=True)
+
+    schema_version: Literal["resolved-tool-intent-v1"] = "resolved-tool-intent-v1"
+    loop_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    turn_ordinal: int = Field(gt=0, strict=True)
+    tool_call_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    tool_name: str = Field(min_length=1)
+    arguments: dict[str, Any]
+    arguments_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    tool_schema_ref: str = Field(min_length=1)
+    tool_schema_version: str = Field(min_length=1)
+    tool_schema_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    model_usage_call_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    catalog_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    action: str = Field(min_length=1)
+    resource: str = Field(min_length=1)
+
+    @field_validator("arguments", mode="before")
+    @classmethod
+    def validate_arguments(cls, value: object) -> object:
+        """解析结果仍只允许普通JSON object，避免后置SDK对象注入。"""
+
+        if not isinstance(value, dict):
+            raise ValueError("resolved tool arguments must be a JSON object")
+        arguments = cast(dict[object, object], value)
+        assert_structured_json_value(arguments)
+        return arguments
+
+    @model_validator(mode="after")
+    def validate_arguments_identity(self) -> ResolvedToolIntent:
+        """参数摘要必须可从解析结果逐值复算。"""
+
+        if structured_digest(self.arguments) != self.arguments_digest:
+            raise ValueError("resolved tool arguments digest mismatch")
+        return self
 
 
 class ToolExecutionError(RuntimeError):

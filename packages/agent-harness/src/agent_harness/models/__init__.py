@@ -3,6 +3,7 @@
 from agent_harness.adapters.models.fake import FakeModelProvider as FakeModelProvider
 from agent_harness.adapters.models.fake import FakeModelStreamScript as FakeModelStreamScript
 from agent_harness.adapters.models.fake import FakeStructuredScript as FakeStructuredScript
+from agent_harness.adapters.models.fake import FakeToolIntentScript as FakeToolIntentScript
 from agent_harness.models._router_contracts import ModelRouteCandidate as ModelRouteCandidate
 from agent_harness.models._router_contracts import ModelRouteChainPlan as ModelRouteChainPlan
 from agent_harness.models._settlement_contracts import (
@@ -32,7 +33,11 @@ from agent_harness.models.providers import ModelStreamDelta as ModelStreamDelta
 from agent_harness.models.providers import ModelStreamingProvider as ModelStreamingProvider
 from agent_harness.models.providers import ModelStreamUsage as ModelStreamUsage
 from agent_harness.models.providers import ModelStructuredProvider as ModelStructuredProvider
+from agent_harness.models.providers import ModelToolIntentProvider as ModelToolIntentProvider
 from agent_harness.models.providers import PreparedModelStreamCall as PreparedModelStreamCall
+from agent_harness.models.providers import (
+    PreparedModelToolIntentCall as PreparedModelToolIntentCall,
+)
 from agent_harness.models.providers import (
     PreparedStructuredModelCall as PreparedStructuredModelCall,
 )
@@ -103,6 +108,38 @@ from agent_harness.models.structured import structured_provider_prompt as struct
 from agent_harness.models.structured import (
     validate_structured_candidate as validate_structured_candidate,
 )
+from agent_harness.models.tool_catalog import ToolCatalog as ToolCatalog
+from agent_harness.models.tool_catalog import (
+    ToolCatalogConflictError as ToolCatalogConflictError,
+)
+from agent_harness.models.tool_catalog import ToolCatalogEntry as ToolCatalogEntry
+from agent_harness.models.tool_catalog import ToolCatalogSelection as ToolCatalogSelection
+from agent_harness.models.tool_catalog import (
+    ToolCatalogSourceDescriptor as ToolCatalogSourceDescriptor,
+)
+from agent_harness.models.tool_catalog import build_tool_catalog as build_tool_catalog
+from agent_harness.models.tool_catalog import (
+    provider_tool_catalog_bytes as provider_tool_catalog_bytes,
+)
+from agent_harness.models.tool_catalog import (
+    provider_tool_catalog_digest as provider_tool_catalog_digest,
+)
+from agent_harness.models.tool_intent import (
+    FinalStructuredTurnResult as FinalStructuredTurnResult,
+)
+from agent_harness.models.tool_intent import FinalTextTurnResult as FinalTextTurnResult
+from agent_harness.models.tool_intent import ModelTurnResult as ModelTurnResult
+from agent_harness.models.tool_intent import (
+    ProviderToolIntentCandidate as ProviderToolIntentCandidate,
+)
+from agent_harness.models.tool_intent import ToolIntent as ToolIntent
+from agent_harness.models.tool_intent import ToolIntentTurnResult as ToolIntentTurnResult
+from agent_harness.models.tool_intent import (
+    ToolIntentValidationError as ToolIntentValidationError,
+)
+from agent_harness.models.tool_intent import (
+    normalize_provider_tool_intent as normalize_provider_tool_intent,
+)
 from agent_harness.models.usage import ModelUsageEvidence as ModelUsageEvidence
 from agent_harness.models.usage import StructuredUsageSummary as StructuredUsageSummary
 from agent_harness.models.usage import (
@@ -119,6 +156,9 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "FakeModelProvider",
     "FakeModelStreamScript",
     "FakeStructuredScript",
+    "FakeToolIntentScript",
+    "FinalStructuredTurnResult",
+    "FinalTextTurnResult",
     "BoundModelInvocationService",
     "ModelDecision",
     "ModelAttemptEvidence",
@@ -140,7 +180,9 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "ModelStreamDelta",
     "ModelStreamingProvider",
     "ModelStreamUsage",
+    "ModelTurnResult",
     "PreparedModelStreamCall",
+    "ProviderToolIntentCandidate",
     "ModelRouter",
     "ModelRouterConfig",
     "ModelRoutePlan",
@@ -160,6 +202,7 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "validate_durable_model_settlement",
     "embedding_usage_evidence",
     "model_usage_evidence",
+    "normalize_provider_tool_intent",
     "stable_usage_call_id",
     "UsageEvidenceLifecycle",
     "OutputSchemaDefinition",
@@ -173,11 +216,22 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     "StructuredValidationResult",
     "StructuredUsageSummary",
     "StructuredUsageValidationIssue",
+    "ToolCatalog",
+    "ToolCatalogConflictError",
+    "ToolCatalogEntry",
+    "ToolCatalogSelection",
+    "ToolCatalogSourceDescriptor",
+    "ToolIntent",
+    "ToolIntentValidationError",
+    "ToolIntentTurnResult",
     "canonical_structured_json",
+    "build_tool_catalog",
     "compile_output_schema",
     "compile_output_schema_definition",
     "structured_digest",
     "structured_provider_prompt",
     "structured_operation_identity_digest",
+    "provider_tool_catalog_bytes",
+    "provider_tool_catalog_digest",
     "validate_structured_candidate",
 ]

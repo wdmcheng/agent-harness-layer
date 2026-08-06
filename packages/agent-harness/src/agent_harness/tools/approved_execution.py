@@ -2,28 +2,30 @@
 
 from __future__ import annotations
 
-import hashlib
 import inspect
-import json
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
 
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.audit import AuditService
-from agent_harness.runtime.executor import (
-    AgentExecutionLeaseLost,
-    AgentExecutionUncertain,
-    ApprovalGrant,
-)
+from agent_harness.runtime.executor import ApprovalGrant
 from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage import SQLAlchemyStorage, ToolInvocationCreate
 from agent_harness.storage.evidence_repositories import (
     EvidenceOperationKind,
     operation_event_capacity,
 )
+from agent_harness.tools.approval_identity import hash_tool_arguments
+from agent_harness.tools.approved_grant import (
+    ApprovedToolExecutionUncertain,
+    ApprovedToolGrantError,
+    ApprovedToolLeaseLost,
+    validate_approval_grant,
+)
 from agent_harness.tools.execution_support import (
+    ApprovedModelToolExecution,
     error_result,
     invoke_handler,
     redact_tool_result,
@@ -40,24 +42,13 @@ from agent_harness.tools.types import (
     ToolRuntimeContext,
 )
 
-
-class ApprovedToolGrantError(RuntimeError):
-    """ApprovalGrant 与待执行 tool request 不匹配。"""
-
-
-class ApprovedToolLeaseLost(ApprovedToolGrantError, AgentExecutionLeaseLost):
-    """持久化 lease 已被新所有者接管，旧 grant 必须停止执行。"""
-
-
-class ApprovedToolExecutionUncertain(AgentExecutionUncertain):
-    """持久化 executing claim 没有确定性 result artifact。"""
-
-
-def hash_tool_arguments(arguments: dict[str, object]) -> str:
-    """返回 checkpoint/grant 绑定使用的 canonical SHA-256。"""
-
-    serialized = json.dumps(arguments, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(serialized.encode()).hexdigest()
+if TYPE_CHECKING:
+    from agent_harness.events.model_tool_loop import (
+        ModelToolLoopEventProducer,
+        ModelToolLoopEventStep,
+    )
+    from agent_harness.models.tool_intent import ToolIntent
+    from agent_harness.tools.types import ResolvedToolIntent
 
 
 class ApprovedToolExecutor:
@@ -87,6 +78,16 @@ class ApprovedToolExecutor:
         self._inline_result_bytes = inline_result_bytes
         self._agent_tool_allowlist = agent_tool_allowlist
         self._enforce_agent_tool_allowlist = enforce_agent_tool_allowlist
+        self._model_execution = (
+            ApprovedModelToolExecution(
+                storage=storage,
+                artifact_store=artifact_store,
+                call_handler=self._call_handler,
+                record_audit=self._record_audit,
+            )
+            if storage is not None
+            else None
+        )
 
     async def execute(
         self,
@@ -94,6 +95,9 @@ class ApprovedToolExecutor:
         *,
         context: ToolRuntimeContext,
         grant: ApprovalGrant,
+        events: ModelToolLoopEventProducer | None = None,
+        intent: ToolIntent | None = None,
+        resolved: ResolvedToolIntent | None = None,
     ) -> ToolCallResult:
         """校验持久化 lease，并在唯一 claim 后至多执行一次 approved action。"""
 
@@ -115,6 +119,7 @@ class ApprovedToolExecutor:
         persisted = {
             "tenant_id": approval.tenant_id,
             "identity_id": str(approval.metadata.get("identity_id") or approval.requested_by),
+            "session_id": str(approval.metadata.get("session_id") or ""),
             "agent_id": approval.agent_id,
             "run_id": approval.run_id,
             "action": approval.action,
@@ -124,6 +129,7 @@ class ApprovedToolExecutor:
         grant_fields = {
             "tenant_id": grant.tenant_id,
             "identity_id": grant.identity_id,
+            "session_id": grant.session_id,
             "agent_id": grant.agent_id,
             "run_id": grant.run_id,
             "action": grant.action,
@@ -145,7 +151,18 @@ class ApprovedToolExecutor:
                 and existing.execution_state in {"completed", "failed"}
             ):
                 payload = self._artifact_store.read_json(existing.result_ref)
-                return ToolCallResult.model_validate(payload)
+                replayed = ToolCallResult.model_validate(payload)
+                if self._model_execution is None:  # pragma: no cover - storage已关闭失败
+                    raise RuntimeError("approved model tool execution requires storage")
+                await self._model_execution.replay_terminal_events(
+                    replayed,
+                    context=context,
+                    grant=grant,
+                    events=events,
+                    intent=intent,
+                    resolved=resolved,
+                )
+                return replayed
             if lease.state == "needs_review":
                 raise ApprovedToolExecutionUncertain(
                     f"approved tool execution needs review: {grant.approval_id}"
@@ -153,6 +170,19 @@ class ApprovedToolExecutor:
             raise ApprovedToolGrantError("approval grant lease is no longer executable")
 
         arguments_hash = hash_tool_arguments(request.arguments)
+        if intent is not None and resolved is not None:
+            if self._model_execution is None:  # pragma: no cover - storage已关闭失败
+                raise RuntimeError("approved model tool execution requires storage")
+            return await self._model_execution.execute(
+                request=request,
+                context=context,
+                grant=grant,
+                tool=tool,
+                existing=existing,
+                events=events,
+                intent=intent,
+                resolved=resolved,
+            )
         args_payload = {"arguments": request.arguments}
         args_artifact = self._artifact_store.reference_json(args_payload)
         created = False
@@ -216,6 +246,16 @@ class ApprovedToolExecutor:
         if materialized_args != args_artifact:
             raise RuntimeError("tool argument artifact does not match reserved content reference")
         approved_context = context.model_copy(deep=True).authorize_approved_call(grant.approval_id)
+        event_step: ModelToolLoopEventStep | None = None
+        if events is not None:
+            if intent is None or resolved is None:
+                raise ApprovedToolGrantError("approved tool event correlation is missing")
+            event_step = await events.begin_tool(
+                context=approved_context,
+                intent=intent,
+                resolved=resolved,
+                capacity_pre_reserved=True,
+            )
         result = await self._call_handler(request, context=approved_context, tool=tool)
         result_ref = self._artifact_store.write_json(result.to_payload()).ref
         execution_state = "completed" if result.status == "completed" else "failed"
@@ -226,14 +266,17 @@ class ApprovedToolExecutor:
                 execution_state=execution_state,
                 status=result.status,
             )
-            await uow.event_capacity.settle(
-                run_id=grant.run_id,
-                reserved_event_count=operation_event_capacity(
-                    EvidenceOperationKind.TOOL_INVOCATION
-                ),
-                consumed=0,
-            )
+            if events is None:
+                await uow.event_capacity.settle(
+                    run_id=grant.run_id,
+                    reserved_event_count=operation_event_capacity(
+                        EvidenceOperationKind.TOOL_INVOCATION
+                    ),
+                    consumed=0,
+                )
             await uow.commit()
+        if events is not None and event_step is not None:
+            await events.finish_tool(step=event_step, result=result)
         return result
 
     async def _call_handler(
@@ -242,6 +285,7 @@ class ApprovedToolExecutor:
         *,
         context: ToolRuntimeContext,
         tool: BuiltinTool,
+        propagate_unknown: bool = False,
     ) -> ToolCallResult:
         """校验输入并执行 handler，不重新进入已通过的 approval policy gate。"""
 
@@ -329,7 +373,9 @@ class ApprovedToolExecutor:
                 field_path=exc.field_path,
                 hint=exc.hint,
             )
-        except Exception as exc:  # noqa: BLE001 - persist deterministic redacted failure
+        except Exception as exc:  # noqa: BLE001 - legacy入口仍投影稳定脱敏失败
+            if propagate_unknown:
+                raise
             result = error_result(
                 request,
                 context,
@@ -376,34 +422,3 @@ class ApprovedToolExecutor:
         if not self._enforce_agent_tool_allowlist:
             return True
         return tool_name in self._agent_tool_allowlist
-
-
-def validate_approval_grant(
-    grant: ApprovalGrant,
-    request: ToolCallRequest,
-    context: ToolRuntimeContext,
-    tool: BuiltinTool,
-) -> None:
-    """校验 grant 是否绑定当前 identity、run、tool 和参数。"""
-
-    expected = {
-        "tenant_id": context.actor.tenant_id,
-        "identity_id": context.actor.user_id,
-        "agent_id": request.agent_id,
-        "run_id": request.run_id,
-        "action": tool.action,
-        "resource": tool.resource,
-        "arguments_hash": hash_tool_arguments(request.arguments),
-    }
-    actual = {
-        "tenant_id": grant.tenant_id,
-        "identity_id": grant.identity_id,
-        "agent_id": grant.agent_id,
-        "run_id": grant.run_id,
-        "action": grant.action,
-        "resource": grant.resource,
-        "arguments_hash": grant.arguments_hash,
-    }
-    mismatch = next((field for field, value in expected.items() if actual[field] != value), None)
-    if mismatch is not None:
-        raise ApprovedToolGrantError(f"approval grant mismatch: {mismatch}")

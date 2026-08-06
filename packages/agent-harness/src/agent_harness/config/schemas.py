@@ -7,6 +7,7 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field, SecretStr, field_validator, model_validator
 
+from agent_harness.config.model_catalog import MAX_BUDGET_INTEGER
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.identity import IdentityContext
 
@@ -132,11 +133,24 @@ class ModelCatalogEntrySettings(HarnessDTO):
     version: str = Field(min_length=1)
     provider_kind: Literal["openai-compatible"]
     model: str = Field(min_length=1)
-    request_shape_ref: Literal["single-user-text-no-tools"]
+    request_shape_ref: Literal[
+        "single-user-text-no-tools",
+        "single-user-text-with-tool-catalog",
+    ]
     request_shape_version: Literal["v1"]
     input_bound_strategy_ref: Literal["utf8-bytes-plus-envelope"]
     input_bound_strategy_version: Literal["v1"]
-    input_envelope_token_bound: int = Field(ge=0)
+    input_envelope_token_bound: int = Field(
+        ge=0,
+        le=MAX_BUDGET_INTEGER,
+        strict=True,
+    )
+    max_tool_catalog_utf8_bytes: int | None = Field(
+        default=None,
+        ge=0,
+        le=MAX_BUDGET_INTEGER,
+        strict=True,
+    )
     cost_enabled: bool
     input_token_price_usd: Decimal | None = None
     output_token_price_usd: Decimal | None = None
@@ -167,6 +181,11 @@ class ModelCatalogEntrySettings(HarnessDTO):
             raise ValueError("cost-enabled catalog requires prices and price source identity")
         if not self.cost_enabled and any(value is not None for value in values):
             raise ValueError("cost-disabled catalog requires null prices and source identity")
+        tool_enabled = self.request_shape_ref == "single-user-text-with-tool-catalog"
+        if tool_enabled and (self.version != "v2" or self.max_tool_catalog_utf8_bytes is None):
+            raise ValueError("tool-enabled model catalog requires v2 and catalog byte bound")
+        if not tool_enabled and self.max_tool_catalog_utf8_bytes is not None:
+            raise ValueError("no-tools model catalog cannot define a tool catalog byte bound")
         return self
 
 
@@ -196,11 +215,28 @@ class ModelDeploymentSettings(HarnessDTO):
     max_retry_wait_ms: int = Field(default=0, ge=0)
     max_in_flight: int = Field(default=1, ge=1)
     queue_timeout_ms: int = Field(default=1_000, ge=1)
-    max_prompt_utf8_bytes: int = Field(default=8192, ge=1)
-    max_output_tokens: int = Field(default=8192, ge=1)
-    max_per_attempt_token_bound: int | None = Field(default=None, ge=1)
+    max_prompt_utf8_bytes: int = Field(
+        default=8192,
+        ge=1,
+        le=MAX_BUDGET_INTEGER,
+        strict=True,
+    )
+    max_output_tokens: int = Field(
+        default=8192,
+        ge=1,
+        le=MAX_BUDGET_INTEGER,
+        strict=True,
+    )
+    max_per_attempt_token_bound: int | None = Field(
+        default=None,
+        ge=1,
+        le=MAX_BUDGET_INTEGER,
+        strict=True,
+    )
     max_per_attempt_cost_bound: Decimal | None = None
-    capabilities: list[Literal["text_completion", "text_stream", "structured_output"]] = Field(
+    capabilities: list[
+        Literal["text_completion", "text_stream", "structured_output", "tool_intent"]
+    ] = Field(
         default_factory=lambda: ["text_completion"],
         min_length=1,
     )
@@ -253,6 +289,19 @@ class ModelDeploymentSettings(HarnessDTO):
             not self.max_per_attempt_cost_bound.is_finite() or self.max_per_attempt_cost_bound < 0
         ):
             raise ValueError("max_per_attempt_cost_bound must be finite and non-negative")
+        if "tool_intent" in self.capabilities and (
+            self.capabilities != ["tool_intent"]
+            or self.fallback_models
+            or self.max_attempts != 1
+            or self.retryable_http_statuses
+            or self.cross_provider_failover_http_statuses
+            or self.completion_classifier_ref is not None
+            or self.completion_classifier_version is not None
+            or self.max_structured_repair_attempts != 0
+        ):
+            raise ValueError(
+                "tool-intent deployment must be singleton, single-attempt, and non-retrying"
+            )
         return self
 
 

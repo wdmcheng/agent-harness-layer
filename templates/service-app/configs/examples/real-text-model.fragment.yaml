@@ -1,9 +1,12 @@
 # 受控真实非流式文本 deployment 示例片段。
 #
 # 这是供维护者合并进受控 profile 的非敏感片段，不会被默认 local/service profile 加载。
-# 替换 model、origin 或 catalog 值后，必须按 model-catalog/v1 公式重算 digest；不要把
-# credential value 提交到本文件。示例关闭 response retry，因为普通兼容 endpoint 没有
-# 受信“completion 未开始”信号；需要重试时必须另行绑定已批准的 classifier policy。
+# 修改 model catalog 的 ref、version、provider、model、request shape、输入上界或价格字段后，
+# 必须按 model-catalog/v1 公式重算对应 digest；可直接复制的计算命令见 README 的“受控真实
+# 文本 deployment”。base_url、origin、endpoint policy 或 credential 变化不影响 model catalog
+# digest；runtime 会从这些字段单独计算 endpoint policy digest。不要把 credential value 提交
+# 到本文件。示例关闭 response retry，因为普通兼容 endpoint 没有受信“completion 未开始”
+# 信号；需要重试时必须另行绑定已批准的 classifier policy。
 model:
   default_deployment_id: real_primary
   credentials:

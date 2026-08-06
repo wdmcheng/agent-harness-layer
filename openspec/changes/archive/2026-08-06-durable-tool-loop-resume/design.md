@@ -71,7 +71,7 @@ Loop terminal前必须确认：所有 model usage settled、tool invocation非ex
 - Tests：migration upgrade/downgrade、SQLite/真实PostgreSQL并发与每个crash窗口、API/worker resume、event/terminal、旧row兼容、20A/20B及Phase18/19回归。
 - 文档：Product/API/DEV、storage/runtime/adapter guides、acceptance matrix与living plan。
 
-所有写入由同一 worktree/owner串行完成。实现前必须从20B归档HEAD重校准完整 owner manifest；清单外文件先修订契约并重审。
+所有写入由同一 worktree/owner 串行完成。实现前必须在当前 active-change 工作树上确认 20B 全部任务与聚焦验证已冻结，并据该内容重校准完整 owner manifest；清单外文件先修订契约并重审。不得以 sync/archive 制造中间基线或绕过最终联合实现审查。
 
 ## Testing Seams
 

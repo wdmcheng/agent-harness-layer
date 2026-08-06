@@ -13,6 +13,7 @@ from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.models.providers import (
     ModelAttemptEvidence,
 )
+from agent_harness.models.tool_catalog import ToolIntentRequestIdentity
 
 ATTEMPT_FIELDS = {
     "attempt",
@@ -135,7 +136,7 @@ class SettlementRouteEvidence(HarnessDTO):
     provider_kind: Literal["openai-compatible"]
     provider: Literal["openai-compatible"]
     model: str
-    capability: Literal["text_completion", "text_stream"]
+    capability: Literal["text_completion", "text_stream", "tool_intent"]
     endpoint_origin: str
     endpoint_policy_ref: str
     endpoint_policy_version: str
@@ -146,7 +147,9 @@ class SettlementRouteEvidence(HarnessDTO):
     model_catalog_ref: str
     model_catalog_version: str
     model_catalog_digest: str
-    request_shape_ref: Literal["single-user-text-no-tools"]
+    tool_request_identity: ToolIntentRequestIdentity | None = None
+    tool_request_identity_digest: str | None = None
+    request_shape_ref: Literal["single-user-text-no-tools", "single-user-text-with-tool-catalog"]
     request_shape_version: Literal["v1"]
     input_bound_strategy_ref: Literal["utf8-bytes-plus-envelope"]
     input_bound_strategy_version: Literal["v1"]
@@ -261,10 +264,35 @@ class SettlementRouteEvidence(HarnessDTO):
             raise ValueError("completion classifier identity is unsupported")
         if self.completion_classifier_ref is None and self.retry_policy.retryable_http_statuses:
             raise ValueError("response retries require a completion classifier")
+        tool_catalog_bytes = (
+            self.tool_request_identity.tool_catalog_utf8_bytes
+            if self.tool_request_identity is not None
+            else 0
+        )
         if self.trusted_input_token_bound != (
-            self.prompt_utf8_bytes + self.input_envelope_token_bound
+            self.prompt_utf8_bytes + tool_catalog_bytes + self.input_envelope_token_bound
         ):
             raise ValueError("trusted input bound formula mismatch")
+        if self.capability == "tool_intent":
+            if (
+                self.request_shape_ref != "single-user-text-with-tool-catalog"
+                or self.tool_request_identity is None
+                or self.tool_request_identity_digest != self.tool_request_identity.digest
+                or self.tool_request_identity.model_catalog_digest != self.model_catalog_digest
+                or self.trusted_input_token_bound
+                != self.tool_request_identity.trusted_input_token_bound
+                or self.output_token_cap != self.tool_request_identity.output_token_cap
+                or self.max_attempts != 1
+                or self.completion_classifier_ref is not None
+                or self.retry_policy.retryable_http_statuses
+            ):
+                raise ValueError("tool-intent route identity mismatch")
+        elif (
+            self.request_shape_ref != "single-user-text-no-tools"
+            or self.tool_request_identity is not None
+            or self.tool_request_identity_digest is not None
+        ):
+            raise ValueError("no-tools route cannot carry tool request identity")
         if self.output_token_cap < 1 or self.max_attempts < 1:
             raise ValueError("output and attempt bounds must be positive")
         if self.per_attempt_token_bound != (self.trusted_input_token_bound + self.output_token_cap):

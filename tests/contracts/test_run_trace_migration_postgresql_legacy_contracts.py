@@ -11,6 +11,10 @@ import sqlalchemy as sa
 
 from agent_harness.storage import run_migrations
 
+# 本文件验证 0013 trace hardening 与其后紧邻的 evidence/claim 兼容链；0016 起的
+# shared-budget 迁移有独立 PostgreSQL 合同，不能让“当前 head”漂移反向改变旧夹具语义。
+TRACE_COMPATIBILITY_REVISION = "0015_agent_delegation"
+
 
 @pytest.mark.skipif(
     not os.environ.get("AGENT_HARNESS_TEST_POSTGRES_DSN"),
@@ -75,7 +79,7 @@ async def test_0013_postgresql_rebuilds_and_replays_0011_canonical_event() -> No
             )
 
         await engine.dispose()
-        await asyncio.to_thread(run_migrations, dsn)
+        await asyncio.to_thread(run_migrations, dsn, TRACE_COMPATIBILITY_REVISION)
         engine = create_async_engine(dsn)
         async with engine.connect() as connection:
             envelope = (
@@ -238,7 +242,7 @@ async def test_0013_postgresql_backfill_and_direct_constraint_bypass() -> None:
                 )
             )
         await engine.dispose()
-        await asyncio.to_thread(run_migrations, dsn)
+        await asyncio.to_thread(run_migrations, dsn, TRACE_COMPATIBILITY_REVISION)
         engine = create_async_engine(dsn)
         async with engine.connect() as connection:
             projection = (

@@ -222,7 +222,7 @@ def test_living_plan_decision_identifiers_are_unique() -> None:
 def test_structured_execution_and_compatibility_owners_are_consistent() -> None:
     """执行循环与三个共享兼容owner必须在契约真相源中逐项一致。"""
 
-    change = ROOT / "openspec/changes/provider-neutral-structured-output"
+    change = ROOT / "openspec/changes/archive/2026-08-03-provider-neutral-structured-output"
     sources = {
         "proposal": (change / "proposal.md").read_text(encoding="utf-8"),
         "design": (change / "design.md").read_text(encoding="utf-8"),

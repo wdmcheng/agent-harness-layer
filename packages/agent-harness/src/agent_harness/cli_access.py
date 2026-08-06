@@ -24,6 +24,7 @@ from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator, RunStatus
 from agent_harness.runtime.services import (
     build_agent_execution_services,
+    build_registry_tool_catalog_descriptors,
     close_agent_execution_services,
 )
 from agent_harness.runtime.shared_budget import SharedBudgetRuntime
@@ -241,7 +242,18 @@ def resolve_approval(
     )
     audit = AuditService(storage=storage)
     policy = policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
-    registry = AgentRegistry.load_from_directory(agents_dir)
+    registry = AgentRegistry.load_from_directory(
+        agents_dir,
+        model_settings=settings.model,
+        tool_catalog_descriptors=build_registry_tool_catalog_descriptors(
+            settings=settings,
+            storage=storage,
+            policy=policy,
+            audit=audit,
+            artifact_store=artifact_store,
+            workspace_root=service_root,
+        ),
+    )
     executor_services = build_agent_execution_services(
         settings=settings,
         storage=storage,

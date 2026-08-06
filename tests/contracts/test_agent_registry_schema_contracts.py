@@ -21,6 +21,7 @@ def _write_agent(
     output_schema: str | None = None,
     schema_source: str,
     import_marker: Path | None = None,
+    tool_allowlist: tuple[str, ...] = (),
 ) -> None:
     """写入最小 agent 包及可控 schema/executor 源码。
 
@@ -34,6 +35,7 @@ def _write_agent(
         if import_marker is None
         else f"from pathlib import Path\nPath({str(import_marker)!r}).write_text('imported')\n"
     )
+    rendered_tool_allowlist = "[" + ", ".join(tool_allowlist) + "]"
     (package / "config.yaml").write_text(
         f"""agent_id: examples.{name}
 version: 0.1.0
@@ -49,7 +51,7 @@ model:
 budget:
   max_tokens_per_run: 128
   max_cost_usd_per_run: null
-tool_allowlist: []
+tool_allowlist: {rendered_tool_allowlist}
 delegation_edges: []
 """,
         encoding="utf-8",
@@ -79,6 +81,37 @@ class Input(HarnessDTO):
 class Output(HarnessDTO):
     ok: bool = True
 """
+
+
+def test_config_tool_allowlist_projects_to_descriptor_and_rejects_alias(
+    tmp_path: Path,
+) -> None:
+    """配置只接受tool_allowlist，descriptor按原顺序公开allowed_tools且无别名。"""
+
+    agents_root = tmp_path / "agents"
+    _write_agent(
+        agents_root,
+        "catalog",
+        input_schema="agents.catalog.schemas.Input",
+        schema_source=VALID_SCHEMAS,
+        tool_allowlist=("search", "read", "write"),
+    )
+
+    registry = AgentRegistry.load_from_directory(agents_root)
+    assert registry.get("examples.catalog").tool_policy.allowed_tools == [
+        "search",
+        "read",
+        "write",
+    ]
+
+    config_path = agents_root / "catalog" / "config.yaml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8") + "allowed_tools: [search]\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(RegistryLoadError) as failure:
+        AgentRegistry.load_from_directory(agents_root)
+    assert failure.value.error_details[0].field_path == "allowed_tools"
 
 
 @pytest.mark.parametrize(

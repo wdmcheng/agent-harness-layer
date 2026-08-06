@@ -179,3 +179,16 @@ sha256=6c3ef8f5d9444b1e70796996344af02033b29810b7fb6537b483e8ea230ff819
 #### Scenario: 类工具字段不改变调用级Policy终态
 - **WHEN** 相同bound request仅改变JSON候选是否含`tool`或`arguments`字段，而调用级Policy分别返回DENY或REQUIRE_APPROVAL
 - **THEN** DENY SHALL始终零claim、零reservation、零send，REQUIRE_APPROVAL SHALL始终进入同一exact durable waiting；内容字段不得增加、跳过或重排调用级Policy决策
+
+### Requirement: 工具意图与结构化业务输出使用不同判别合同
+Provider-neutral structured output SHALL 继续只表示 Agent 注册输出 schema 下的最终业务结果。工具意图 SHALL 使用独立 `ProviderToolIntentCandidate`、`ToolIntent`、capability、schema identity、错误码和 turn discriminator；系统 MUST NOT 用 structured result 的任意字段、schema 名称或 JSON 内容触发工具 resolve/执行，也 MUST NOT 把工具 intent 当业务成功结果发布。
+
+#### Scenario: 结构化结果包含工具形状仍是业务结果
+- **WHEN** Agent output schema 合法允许 `tool_name` 或 `arguments` 字段且 provider 返回匹配 value
+- **THEN** 结果继续是 `final_structured` 并按 MOD-005 验证
+- **AND** ToolRegistry 与所有 handler 调用计数为零
+
+#### Scenario: 工具候选不能进入业务 structured settlement
+- **WHEN** provider 返回 `ProviderToolIntentCandidate`
+- **THEN** 核心只能按 tool-intent capability 验证
+- **AND** 不生成 MOD-005 valid structured result 或业务 eval success

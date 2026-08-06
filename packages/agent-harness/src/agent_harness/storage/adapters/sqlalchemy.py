@@ -36,6 +36,10 @@ from agent_harness.storage.evidence_repositories import (
     EventCapacityRepository,
     EvidenceOutboxRepository,
 )
+from agent_harness.storage.model_tool_loop_marker import (
+    ModelToolLoopSchemaMarkerRepository,
+)
+from agent_harness.storage.model_tool_loop_repositories import ModelToolLoopRepository
 from agent_harness.storage.repositories import (
     ApiKeyRepository,
     ApprovalRepository,
@@ -104,6 +108,8 @@ class SQLAlchemyUnitOfWork:
         self.evidence_outbox = EvidenceOutboxRepository(self.session)
         self.delegations = DelegationRepository(self.session)
         self.shared_budget = SharedBudgetRepository(self.session)
+        self.model_tool_loop_marker = ModelToolLoopSchemaMarkerRepository(self.session)
+        self.model_tool_loops = ModelToolLoopRepository(self.session)
         return self
 
     async def __aexit__(

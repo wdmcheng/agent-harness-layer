@@ -43,7 +43,9 @@ def run_approval_smoke(
 ) -> dict[str, object]:
     """验证审批结果、ordered evidence 与 Redis ack 的恢复顺序。"""
 
-    env["SERVICE_APP_SMOKE_BOUNDARY"] = "checkpoint-approval"
+    # 这些固定边界只暴露控制流位置，不携带 run、approval、token 或响应内容；
+    # service smoke 失败时据此区分 API 提交、等待态与 Redis 故障注入抖动。
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "checkpoint-approval-submit"
     approval_submit = _submit(
         base_url,
         token,
@@ -57,8 +59,11 @@ def run_approval_smoke(
         request_id=f"approval-submit-{uuid4()}",
     )
     approval_run = cast(str, approval_submit["run_id"])
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "checkpoint-approval-waiting"
     _wait_run_status(base_url, token, approval_run, "waiting")
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "checkpoint-approval-id"
     approval_id = _approval_id(base_url, token, approval_run)
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "checkpoint-approval-outage"
     compose(env, "stop", "worker", "redis")
     approve_status, _ = _request(
         base_url,
@@ -70,6 +75,7 @@ def run_approval_smoke(
     if approve_status != 503:
         raise RuntimeError(f"approval enqueue outage must return 503, got {approve_status}")
     compose(env, "start", "redis")
+    env["SERVICE_APP_SMOKE_BOUNDARY"] = "checkpoint-approval-redis-ready"
     _wait_for(
         "Redis restart", lambda: compose(env, "exec", "-T", "redis", "redis-cli", "PING") == "PONG"
     )

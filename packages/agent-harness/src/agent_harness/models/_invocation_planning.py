@@ -9,6 +9,7 @@ from agent_harness.models._router_contracts import ModelRouteChainPlan
 from agent_harness.models._settlement_contracts import IdentityRuntime
 from agent_harness.models.providers import ModelRequest
 from agent_harness.models.router import ModelRoutePlan, ModelRouter
+from agent_harness.models.tool_catalog import ToolCatalog
 from agent_harness.models.usage import UsageEvidenceContext
 from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
 from agent_harness.storage.shared_budget import BudgetReservationRejected
@@ -31,6 +32,7 @@ class ModelInvocationPlanningMixin:
         request: ModelRequest,
         context: UsageEvidenceContext,
         approved: bool,
+        tool_catalog: ToolCatalog | None = None,
     ) -> ModelRoutePlan | ModelRouteChainPlan:
         """依据共享预算树快照或默认路由生成本次调用计划。
 
@@ -44,12 +46,21 @@ class ModelInvocationPlanningMixin:
             if self._router.has_controlled_settings:
                 assert self._agent_policy_resolver is not None
                 policy = self._agent_policy_resolver(context.agent_id)
-                plan = (
-                    self._router.plan_chain(request, agent_policy=policy)
-                    if policy.fallback_routes
-                    else self._router.plan(request, agent_policy=policy)
-                )
+                if tool_catalog is not None:
+                    plan = self._router.plan_tool_intent(
+                        request,
+                        tool_catalog=tool_catalog,
+                        agent_policy=policy,
+                    )
+                else:
+                    plan = (
+                        self._router.plan_chain(request, agent_policy=policy)
+                        if policy.fallback_routes
+                        else self._router.plan(request, agent_policy=policy)
+                    )
             else:
+                if tool_catalog is not None:
+                    raise BudgetReservationRejected(reason="snapshot_invalid")
                 plan = self._router.plan(request)
             if isinstance(plan, ModelRouteChainPlan):
                 return plan
@@ -100,19 +111,29 @@ class ModelInvocationPlanningMixin:
                 chain_mode = isinstance(raw_policy, dict) and bool(
                     cast(dict[str, object], raw_policy).get("fallback_routes")
                 )
-                plan = (
-                    self._router.plan_chain_from_snapshot(
+                if tool_catalog is not None:
+                    if chain_mode:
+                        raise BudgetReservationRejected(reason="snapshot_invalid")
+                    plan = self._router.plan_tool_intent_from_snapshot(
                         request,
+                        tool_catalog=tool_catalog,
                         snapshot=snapshot,
                         agent_id=context.agent_id,
                     )
-                    if chain_mode
-                    else self._router.plan_from_snapshot(
-                        request,
-                        snapshot=snapshot,
-                        agent_id=context.agent_id,
+                else:
+                    plan = (
+                        self._router.plan_chain_from_snapshot(
+                            request,
+                            snapshot=snapshot,
+                            agent_id=context.agent_id,
+                        )
+                        if chain_mode
+                        else self._router.plan_from_snapshot(
+                            request,
+                            snapshot=snapshot,
+                            agent_id=context.agent_id,
+                        )
                     )
-                )
                 if isinstance(plan, ModelRouteChainPlan):
                     return plan
                 return self._apply_durable_soft_approval(plan) if approved else plan

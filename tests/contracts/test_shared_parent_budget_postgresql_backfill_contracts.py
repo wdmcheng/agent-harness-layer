@@ -339,6 +339,4 @@ async def test_postgresql_0016_backfill_and_evidence_aware_downgrade(
                 migration_config(dsn, x_args=["allow_empty_evidence_downgrade=true"]),
                 "0015_agent_delegation",
             )
-        assert await asyncio.to_thread(get_current_revision, dsn) == (
-            "0017_model_route_chain_state"
-        )
+        assert await asyncio.to_thread(get_current_revision, dsn) == ("0018_model_tool_loop_state")

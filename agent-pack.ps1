@@ -2,6 +2,7 @@
 $ErrorActionPreference = "Stop"
 $projectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $lock = Join-Path $projectDir ".agents/agent-pack.lock.json"
+$binding = Join-Path $projectDir ".agents/agent-pack.local.json"
 
 function Read-PackDir {
   param([string] $LockPath)
@@ -15,9 +16,18 @@ function Read-PackDir {
   return ""
 }
 
-if ($args.Count -ge 3 -and $args[0] -eq "migrate" -and $args[1] -eq "--pack") { $packDir = $args[2] }
-else { $packDir = Read-PackDir $lock }
-if (-not $packDir) { Write-Error "Error: missing .agents/agent-pack.lock.json; cannot locate Agent Pack."; exit 1 }
+if ($args.Count -ge 3 -and $args[0] -in @("bind", "migrate") -and $args[1] -eq "--pack") { $packDir = $args[2] }
+elseif ($env:AGENT_PACK_DIR) { $packDir = $env:AGENT_PACK_DIR }
+else {
+  $packDir = Read-PackDir $binding
+  if (-not $packDir) { $packDir = Read-PackDir $lock }
+}
+if (-not $packDir) {
+  if (Test-Path -LiteralPath $lock) { Write-Error "Project is installed, but Agent Pack is not bound on this machine. Run X:\path\to\agent-pack\agent-pack.ps1 bind." }
+  else { Write-Error "Missing .agents/agent-pack.lock.json; run install first." }
+  exit 1
+}
+if (-not (Test-Path -LiteralPath (Join-Path $packDir "agent-pack.ps1"))) { Write-Error "Invalid local Agent Pack path: $packDir. Run bind again."; exit 1 }
 Set-Location $projectDir
 & (Join-Path $packDir "agent-pack.ps1") @args
 exit $LASTEXITCODE

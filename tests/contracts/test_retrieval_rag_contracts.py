@@ -65,7 +65,7 @@ def test_local_migration_creates_retrieval_tables(tmp_path: Path) -> None:
         revision = connection.execute("select version_num from alembic_version").fetchone()
 
     assert {"retrieval_documents", "retrieval_chunks"} <= tables
-    assert revision == ("0017_model_route_chain_state",)
+    assert revision == ("0018_model_tool_loop_state",)
 
 
 @pytest.mark.asyncio

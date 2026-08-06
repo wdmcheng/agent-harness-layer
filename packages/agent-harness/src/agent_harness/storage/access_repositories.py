@@ -95,15 +95,19 @@ class ApprovalRepository(
         run_id: str,
         *,
         tenant_id: str | None = None,
+        for_update: bool = False,
     ) -> list[ApprovalRecord]:
         """按 run 顺序读取 approvals；传入 tenant_id 时同时执行租户过滤。"""
 
         conditions = [ApprovalModel.run_id == run_id]
         if tenant_id is not None:
             conditions.append(ApprovalModel.tenant_id == tenant_id)
-        result = await self._session.scalars(
+        statement = (
             select(ApprovalModel).where(*conditions).order_by(ApprovalModel.created_at.asc())
         )
+        if for_update:
+            statement = statement.with_for_update()
+        result = await self._session.scalars(statement)
         return [approval_record(model) for model in result.all()]
 
     async def resolve(

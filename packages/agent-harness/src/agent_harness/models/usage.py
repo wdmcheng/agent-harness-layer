@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from hashlib import sha256
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pydantic import Field, field_validator, model_validator
 
@@ -265,6 +265,44 @@ class ModelUsageEvidence(HarnessDTO):
         return self.model_dump(mode="json")
 
 
+def usage_event_correlation(
+    evidence: ModelUsageEvidence,
+    *,
+    usage_call_id: str,
+) -> dict[str, Any]:
+    """重建usage CanonicalEvent的受信关联；tool-loop字段必须逐值可验证。"""
+
+    correlation: dict[str, Any] = {"usage_call_id": usage_call_id}
+    raw_loop = evidence.decision.get("model_tool_loop")
+    if raw_loop is None:
+        return correlation
+    expected_keys = {
+        "loop_id",
+        "turn_ordinal",
+        "tool_call_id",
+        "model_usage_call_id",
+        "catalog_digest",
+    }
+    if not isinstance(raw_loop, dict):
+        raise ValueError("model tool loop event correlation is invalid")
+    loop = cast(dict[str, Any], raw_loop)
+    if set(loop) != expected_keys:
+        raise ValueError("model tool loop event correlation is invalid")
+    if (
+        not isinstance(loop["loop_id"], str)
+        or not loop["loop_id"]
+        or type(loop["turn_ordinal"]) is not int
+        or loop["turn_ordinal"] < 1
+        or (loop["tool_call_id"] is not None and not isinstance(loop["tool_call_id"], str))
+        or loop["model_usage_call_id"] != usage_call_id
+        or not isinstance(loop["catalog_digest"], str)
+        or not loop["catalog_digest"]
+    ):
+        raise ValueError("model tool loop event correlation is invalid")
+    correlation.update(loop)
+    return correlation
+
+
 def model_usage_evidence(
     *,
     provider: str,
@@ -334,4 +372,5 @@ __all__ = [
     "embedding_usage_evidence",
     "model_usage_evidence",
     "stable_usage_call_id",
+    "usage_event_correlation",
 ]

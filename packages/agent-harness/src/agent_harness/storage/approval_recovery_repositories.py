@@ -30,6 +30,47 @@ class ApprovalRecoveryRepositoryMixin:
 
     _session: AsyncSession
 
+    async def model_loop_terminal_approval_ready(
+        self,
+        *,
+        approval_id: str,
+        run_id: str,
+        tenant_id: str,
+    ) -> bool:
+        """锁定审批并判断loop可否先于run terminal完成。
+
+        ApprovalService 刻意等 run terminal 发布后才把 public status 从 waiting 改为
+        approved。模型循环位于该流程内部，因此只允许已有 approve lease 且 resolution
+        已进入受控执行或 exact evidence 补投恢复的 waiting 记录；调用方还会逐值核验
+        已完成工具 claim、Context、usage 与两项 ordered evidence，普通 waiting、denied
+        或缺 lease 的记录仍一律阻断。
+        """
+
+        model = await self._session.scalar(
+            select(ApprovalModel)
+            .where(
+                ApprovalModel.id == approval_id,
+                ApprovalModel.run_id == run_id,
+                ApprovalModel.tenant_id == tenant_id,
+            )
+            .with_for_update()
+        )
+        if model is None:
+            return False
+        if model.status == "approved":
+            return True
+        return bool(
+            model.status == "waiting"
+            and model.resolution_lease_id
+            and model.resolution_request_id
+            and model.resolution_state
+            in {
+                "claimed",
+                "execution_owned",
+                "recovery_pending",
+            }
+        )
+
     async def mark_approved_evidence_complete(
         self,
         *,

@@ -4,20 +4,35 @@ set -euo pipefail
 
 project_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 lock="$project_dir/.agents/agent-pack.lock.json"
+binding="$project_dir/.agents/agent-pack.local.json"
 
 read_pack_dir() {
+  local path="$1"
   local code='import json, os, sys; p=sys.argv[1]; print(json.load(open(p, encoding="utf-8")).get("packPath","") if os.path.exists(p) else "")'
-  if command -v python3 >/dev/null 2>&1; then python3 -c "$code" "$lock"; return; fi
-  if command -v python >/dev/null 2>&1; then python -c "$code" "$lock"; return; fi
-  if command -v py >/dev/null 2>&1; then py -3 -c "$code" "$lock"; return; fi
+  if command -v python3 >/dev/null 2>&1; then python3 -c "$code" "$path"; return; fi
+  if command -v python >/dev/null 2>&1; then python -c "$code" "$path"; return; fi
+  if command -v py >/dev/null 2>&1; then py -3 -c "$code" "$path"; return; fi
 }
 
-if [ "${1:-}" = "migrate" ] && [ "${2:-}" = "--pack" ] && [ -n "${3:-}" ]; then
+if { [ "${1:-}" = "bind" ] || [ "${1:-}" = "migrate" ]; } && [ "${2:-}" = "--pack" ] && [ -n "${3:-}" ]; then
   pack_dir="$3"
 else
-  pack_dir="$(read_pack_dir)"
+  pack_dir="${AGENT_PACK_DIR:-}"
+  if [ -z "$pack_dir" ]; then pack_dir="$(read_pack_dir "$binding")"; fi
+  if [ -z "$pack_dir" ]; then pack_dir="$(read_pack_dir "$lock")"; fi
 fi
-if [ -z "$pack_dir" ]; then echo 'Error: missing .agents/agent-pack.lock.json; cannot locate Agent Pack.' >&2; exit 1; fi
+if [ -z "$pack_dir" ]; then
+  if [ -f "$lock" ]; then
+    echo '错误：项目已安装，但本机尚未绑定 Agent Pack。请运行 /path/to/agent-pack/agent-pack bind。' >&2
+  else
+    echo '错误：缺少 .agents/agent-pack.lock.json，请先 install。' >&2
+  fi
+  exit 1
+fi
+if [ ! -x "$pack_dir/agent-pack" ]; then
+  echo "错误：本机 Agent Pack 路径无效：$pack_dir。请重新执行 bind。" >&2
+  exit 1
+fi
 
 cd "$project_dir"
 exec "$pack_dir/agent-pack" "$@"

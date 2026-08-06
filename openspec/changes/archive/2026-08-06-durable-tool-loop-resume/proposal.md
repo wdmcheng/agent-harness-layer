@@ -45,4 +45,4 @@
 ## Impact
 
 - 预计影响 `runtime/{continuation,_run_continuation,orchestrator}`、`storage/` loop/tool/usage/outbox repositories、强制新增的 `0018_model_tool_loop_state` migration、`approvals/`、`tools/` claim、`models/` usage/budget/replay、`events/` terminal publication、worker recovery 和对应 SQLite/PostgreSQL contracts。
-- 20C 只能从 20B 已同步归档的 HEAD 串行实现；完成后才能冻结 Phase 21 characterization 基线。
+- 20C 只能在同一 active-change 工作树中等待 20B 全部任务与聚焦验证冻结，再消费其公开 runtime seam 串行实现；中间不 sync/archive。三项实现、最终门禁与实现级联合审查完成后共同停在 `ready-to-archive`，Phase 21 characterization 仍须等待后续获批的 Phase 20 归档完成。

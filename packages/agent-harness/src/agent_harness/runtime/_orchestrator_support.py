@@ -30,6 +30,7 @@ def policy_checkpoint_state(
         "resource": f"agent:{agent_id}:input",
         "arguments_hash": hashlib.sha256(b"{}").hexdigest(),
         "identity_id": identity.user_id,
+        "session_id": identity.session_id,
         "tenant_id": identity.tenant_id,
         "identity": identity.to_payload(),
         "request_id": request_id,

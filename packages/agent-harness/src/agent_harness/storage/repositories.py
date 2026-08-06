@@ -56,6 +56,8 @@ from agent_harness.storage.embedding_cache_repositories import (
 from agent_harness.storage.embedding_cache_repositories import (
     EmbeddingCacheRepository as EmbeddingCacheRepository,
 )
+from agent_harness.storage.model_tool_loop_marker import mark_model_tool_loop_evidence_seen
+from agent_harness.storage.model_tool_loop_repositories import require_model_tool_loop_active
 from agent_harness.storage.models import (
     CheckpointModel,
     ContextAssemblyModel,
@@ -131,12 +133,26 @@ class ContextAssemblyCreate(HarnessDTO):
     trust_summary: dict[str, Any] = Field(default_factory=dict)
     truncation_summary: dict[str, Any] = Field(default_factory=dict)
     output_ref: str
+    loop_id: str | None = None
+    turn_ordinal: int | None = None
+    tool_call_id: str | None = None
+    input_identity_digest: str | None = None
+    output_digest: str | None = None
 
 
 class ContextAssemblyRecord(ContextAssemblyCreate):
     """已持久化的 context assembly 摘要。"""
 
     id: str
+
+
+class ContextAssemblyReplayConflict(RuntimeError):
+    """相同loop-turn携带不同输入、输出或tool binding时的稳定失败。"""
+
+    code = "context.assembly_replay_conflict"
+
+    def __init__(self) -> None:
+        super().__init__(self.code)
 
 
 def _tenant_record(model: TenantModel) -> TenantRecord:
@@ -185,6 +201,11 @@ def _context_assembly_record(model: ContextAssemblyModel) -> ContextAssemblyReco
         trust_summary=model.trust_summary_json,
         truncation_summary=model.truncation_summary_json,
         output_ref=model.output_ref,
+        loop_id=model.loop_id,
+        turn_ordinal=model.turn_ordinal,
+        tool_call_id=model.tool_call_id,
+        input_identity_digest=model.input_identity_digest,
+        output_digest=model.output_digest,
     )
 
 
@@ -305,6 +326,22 @@ class ContextAssemblyRepository:
     async def create(self, data: ContextAssemblyCreate) -> ContextAssemblyRecord:
         """保存一次 ContextAssembler 的输入 refs、trust 和截断摘要。"""
 
+        if data.loop_id is not None:
+            await require_model_tool_loop_active(
+                self._session,
+                tenant_id=data.tenant_id,
+                loop_id=data.loop_id,
+            )
+            existing = await self.get_by_loop_turn(
+                tenant_id=data.tenant_id,
+                loop_id=data.loop_id,
+                turn_ordinal=data.turn_ordinal,
+            )
+            if existing is not None:
+                if not _context_assembly_matches(existing, data):
+                    raise ContextAssemblyReplayConflict
+                return existing
+            await mark_model_tool_loop_evidence_seen(self._session)
         model = ContextAssemblyModel(
             id=str(uuid4()),
             tenant_id=data.tenant_id,
@@ -314,6 +351,11 @@ class ContextAssemblyRepository:
             trust_summary_json=data.trust_summary,
             truncation_summary_json=data.truncation_summary,
             output_ref=data.output_ref,
+            loop_id=data.loop_id,
+            turn_ordinal=data.turn_ordinal,
+            tool_call_id=data.tool_call_id,
+            input_identity_digest=data.input_identity_digest,
+            output_digest=data.output_digest,
         )
         self._session.add(model)
         await self._session.flush()
@@ -323,6 +365,26 @@ class ContextAssemblyRepository:
         """按主键读取组装摘要；不存在时返回 ``None``，不把 ORM 行暴露给上层。"""
 
         model = await self._session.get(ContextAssemblyModel, assembly_id)
+        return None if model is None else _context_assembly_record(model)
+
+    async def get_by_loop_turn(
+        self,
+        *,
+        tenant_id: str,
+        loop_id: str,
+        turn_ordinal: int | None,
+        for_update: bool = False,
+    ) -> ContextAssemblyRecord | None:
+        """读取新循环唯一assembly；legacy NULL identity永不匹配。"""
+
+        statement = select(ContextAssemblyModel).where(
+            ContextAssemblyModel.tenant_id == tenant_id,
+            ContextAssemblyModel.loop_id == loop_id,
+            ContextAssemblyModel.turn_ordinal == turn_ordinal,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        model = await self._session.scalar(statement)
         return None if model is None else _context_assembly_record(model)
 
     async def update_output_ref(
@@ -336,6 +398,30 @@ class ContextAssemblyRepository:
         model = await self._session.get(ContextAssemblyModel, assembly_id)
         if model is None:
             raise LookupError(f"context assembly not found: {assembly_id}")
+        if model.output_ref != "pending://context-assembly-output":
+            if model.output_ref != output_ref:
+                raise ContextAssemblyReplayConflict
+            return _context_assembly_record(model)
         model.output_ref = output_ref
         await self._session.flush()
         return _context_assembly_record(model)
+
+
+def _context_assembly_matches(
+    existing: ContextAssemblyRecord,
+    data: ContextAssemblyCreate,
+) -> bool:
+    """重放时比较全部输入/输出摘要，但允许placeholder已提升为真实artifact ref。"""
+
+    return (
+        existing.run_id == data.run_id
+        and existing.input_refs == data.input_refs
+        and existing.token_budget == data.token_budget
+        and existing.trust_summary == data.trust_summary
+        and existing.truncation_summary == data.truncation_summary
+        and existing.loop_id == data.loop_id
+        and existing.turn_ordinal == data.turn_ordinal
+        and existing.tool_call_id == data.tool_call_id
+        and existing.input_identity_digest == data.input_identity_digest
+        and existing.output_digest == data.output_digest
+    )

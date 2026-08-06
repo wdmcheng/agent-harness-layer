@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from decimal import Decimal
 from typing import Literal, cast
 
+from agent_harness.config.model_catalog import checked_budget_add
 from agent_harness.config.model_endpoints import (
     ResolvedModelDeployment,
     resolve_model_deployment,
@@ -20,7 +21,9 @@ from agent_harness.models._router_contracts import (
     ModelRouterConfig,
 )
 from agent_harness.models._router_current_chain import RouterCurrentChainPlanningMixin
+from agent_harness.models._router_tool_bounds import build_tool_aware_route_bounds
 from agent_harness.models.providers import ModelDecision, ModelProvider, ModelRequest
+from agent_harness.models.tool_catalog import ToolCatalog
 
 
 class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
@@ -35,6 +38,7 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
         request: ModelRequest,
         *,
         agent_policy: AgentModelPolicyLike,
+        tool_catalog: ToolCatalog | None = None,
     ) -> ModelRoutePlan:
         model_settings = self._model_settings
         assert model_settings is not None
@@ -54,7 +58,22 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
         provider = self._providers.get(resolved.provider_kind)
         if provider is None or provider.provider_id != resolved.provider_kind:
             raise ModelRouteError("model.route_not_allowed", "bound provider identity mismatch")
-        if request.capability not in {"text_completion", "text_stream", "structured_output"}:
+        if request.capability == "tool_intent" and tool_catalog is None:
+            raise ModelRouteError(
+                "model.tool_catalog_conflict",
+                "tool-intent planning requires a frozen tool catalog",
+            )
+        if request.capability != "tool_intent" and tool_catalog is not None:
+            raise ModelRouteError(
+                "model.tool_catalog_conflict",
+                "no-tools planning cannot receive a tool catalog",
+            )
+        if request.capability not in {
+            "text_completion",
+            "text_stream",
+            "structured_output",
+            "tool_intent",
+        }:
             raise ModelRouteError("model.capability_unsupported", "capability is not supported")
         deployment = model_settings.deployments[deployment_id]
         if request.capability not in deployment.capabilities:
@@ -78,7 +97,8 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
             raise ModelRouteError("model.route_not_allowed", "prompt exceeds deployment byte cap")
         fallback_models = (
             []
-            if request.model is not None or request.capability == "structured_output"
+            if request.model is not None
+            or request.capability in {"structured_output", "tool_intent"}
             else [
                 model
                 for model in agent_policy.fallback_models
@@ -94,6 +114,7 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
                 deployment_id=deployment_id,
                 allowed=allowed,
                 resolved=resolved,
+                tool_catalog=tool_catalog,
             )
             for model in candidate_models
         }
@@ -154,6 +175,7 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
         deployment_id: str,
         allowed: tuple[str, ...],
         resolved: ResolvedModelDeployment,
+        tool_catalog: ToolCatalog | None = None,
         tolerate_input_bound: bool = False,
     ) -> ModelRoutePlan:
         """用单个候选的受信目录重算 immutable plan，不读取 request 外的 override。"""
@@ -165,7 +187,16 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
         assert selected_model is not None
         prompt_bytes = len(request.prompt.encode("utf-8"))
         if resolved.provider_kind == "fake":
-            per_attempt_tokens = prompt_bytes + request.max_output_tokens
+            try:
+                per_attempt_tokens = checked_budget_add(
+                    prompt_bytes,
+                    request.max_output_tokens,
+                )
+            except ValueError:
+                raise ModelRouteError(
+                    "budget.reservation_rejected",
+                    "dynamic token formula overflow",
+                ) from None
             if (
                 per_attempt_tokens > resolved.max_per_attempt_token_bound
                 and not tolerate_input_bound
@@ -202,52 +233,15 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
             )
 
         catalog = resolved.model_catalogs[selected_model]
-        static_token_ceiling = (
-            deployment.max_prompt_utf8_bytes
-            + catalog.input_envelope_token_bound
-            + deployment.max_output_tokens
+        bounds = build_tool_aware_route_bounds(
+            request=request,
+            prompt_bytes=prompt_bytes,
+            deployment=deployment,
+            catalog=catalog,
+            resolved=resolved,
+            tool_catalog=tool_catalog,
+            tolerate_input_bound=tolerate_input_bound,
         )
-        if static_token_ceiling > resolved.max_per_attempt_token_bound:
-            raise ModelRouteError(
-                "budget.reservation_rejected", "candidate token formula exceeds deployment"
-            )
-        trusted_input = prompt_bytes + catalog.input_envelope_token_bound
-        per_attempt_tokens = trusted_input + request.max_output_tokens
-        if per_attempt_tokens > static_token_ceiling and not tolerate_input_bound:
-            raise ModelRouteError(
-                "budget.reservation_rejected", "dynamic token bound exceeds static ceiling"
-            )
-        per_attempt_cost: Decimal | None = None
-        reserved_cost: Decimal | None = None
-        if catalog.cost_enabled:
-            if (
-                catalog.input_token_price_usd is None
-                or catalog.output_token_price_usd is None
-                or catalog.price_source_ref is None
-                or catalog.price_source_version is None
-                or resolved.max_per_attempt_cost_bound is None
-            ):
-                raise ModelRouteError(
-                    "budget.reservation_rejected", "candidate price identity is incomplete"
-                )
-            static_cost_ceiling = (
-                Decimal(deployment.max_prompt_utf8_bytes + catalog.input_envelope_token_bound)
-                * catalog.input_token_price_usd
-                + Decimal(deployment.max_output_tokens) * catalog.output_token_price_usd
-            )
-            if static_cost_ceiling > resolved.max_per_attempt_cost_bound:
-                raise ModelRouteError(
-                    "budget.reservation_rejected", "candidate cost formula exceeds deployment"
-                )
-            per_attempt_cost = (
-                Decimal(trusted_input) * catalog.input_token_price_usd
-                + Decimal(request.max_output_tokens) * catalog.output_token_price_usd
-            )
-            if per_attempt_cost > static_cost_ceiling:
-                raise ModelRouteError(
-                    "budget.reservation_rejected", "dynamic cost bound exceeds static ceiling"
-                )
-            reserved_cost = per_attempt_cost * deployment.max_attempts
         return ModelRoutePlan(
             deployment_id=deployment_id,
             provider_kind=resolved.provider_kind,
@@ -257,8 +251,8 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
             capability=request.capability,
             decision=ModelDecision(
                 action="call",
-                estimated_tokens=per_attempt_tokens,
-                estimated_cost_usd=per_attempt_cost,
+                estimated_tokens=bounds.per_attempt_tokens,
+                estimated_cost_usd=bounds.per_attempt_cost,
                 price_source_ref=catalog.price_source_ref,
                 price_source_version=catalog.price_source_version,
             ),
@@ -273,20 +267,25 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
             model_catalog_ref=deployment.model_catalog_refs[selected_model],
             model_catalog_version=catalog.version,
             model_catalog_digest=catalog.digest,
+            tool_request_identity=bounds.tool_request_identity,
+            tool_request_identity_digest=bounds.tool_request_identity_digest,
+            provider_tool_catalog_json=(
+                bounds.provider_catalog.decode("utf-8") if bounds.provider_catalog else None
+            ),
             request_shape_ref=catalog.request_shape_ref,
             request_shape_version=catalog.request_shape_version,
             input_bound_strategy_ref=catalog.input_bound_strategy_ref,
             input_bound_strategy_version=catalog.input_bound_strategy_version,
             input_envelope_token_bound=catalog.input_envelope_token_bound,
             prompt_utf8_bytes=prompt_bytes,
-            trusted_input_token_bound=trusted_input,
+            trusted_input_token_bound=bounds.trusted_input_tokens,
             output_token_cap=request.max_output_tokens,
-            per_attempt_token_bound=per_attempt_tokens,
-            per_attempt_cost_bound=per_attempt_cost,
+            per_attempt_token_bound=bounds.per_attempt_tokens,
+            per_attempt_cost_bound=bounds.per_attempt_cost,
             max_attempts=deployment.max_attempts,
             max_structured_repair_attempts=deployment.max_structured_repair_attempts,
-            reserved_token_bound=per_attempt_tokens * deployment.max_attempts,
-            reserved_cost_bound=reserved_cost,
+            reserved_token_bound=bounds.reserved_tokens,
+            reserved_cost_bound=bounds.reserved_cost,
             input_token_price_usd=catalog.input_token_price_usd,
             output_token_price_usd=catalog.output_token_price_usd,
             price_source_ref=catalog.price_source_ref,
@@ -309,8 +308,8 @@ class RouterCurrentPlanningMixin(RouterCurrentChainPlanningMixin):
                 queue_timeout_ms=deployment.queue_timeout_ms,
             ),
             snapshot_schema_version="budget-tree-v2",
-            trusted_token_bound=per_attempt_tokens * deployment.max_attempts,
-            trusted_cost_bound=reserved_cost,
+            trusted_token_bound=bounds.reserved_tokens,
+            trusted_cost_bound=bounds.reserved_cost,
         )
 
     @staticmethod

@@ -234,6 +234,7 @@ class ApprovalContinuationMixin:
             lease_id=lease.lease_id,
             tenant_id=approval.tenant_id,
             identity_id=str(approval.metadata.get("identity_id") or actor.user_id),
+            session_id=str(approval.metadata.get("session_id") or actor.session_id),
             agent_id=approval.agent_id,
             run_id=approval.run_id,
             action=approval.action,

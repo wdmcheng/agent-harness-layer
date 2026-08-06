@@ -115,6 +115,7 @@ async def test_chain_approval_checkpoint_corruption_fails_before_new_side_effect
             lease_id=lease.lease_id,
             tenant_id="tenant-a",
             identity_id=identity.user_id,
+            session_id=identity.session_id,
             agent_id="agent-a",
             run_id=fixture.run_id,
             action=approval_request.action,

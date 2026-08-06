@@ -35,6 +35,7 @@ from agent_harness.registry import AgentRegistry
 from agent_harness.runtime import RunOrchestrator, RunQueue
 from agent_harness.runtime.services import (
     build_agent_execution_services,
+    build_registry_tool_catalog_descriptors,
     close_agent_execution_services,
 )
 from agent_harness.runtime.shared_budget import SharedBudgetRuntime
@@ -173,7 +174,18 @@ def build_runtime_components(
         )
     elif settings.auth.required or settings.auth.provider == "api-key":
         auth_verifier = ApiKeyVerifier(storage=storage)
-    registry = AgentRegistry.load_from_directory(service_root / "agents")
+    registry = AgentRegistry.load_from_directory(
+        service_root / "agents",
+        model_settings=settings.model,
+        tool_catalog_descriptors=build_registry_tool_catalog_descriptors(
+            settings=settings,
+            storage=storage,
+            policy=policy_engine,
+            audit=audit,
+            artifact_store=artifact_store,
+            workspace_root=workspace_root or service_root,
+        ),
+    )
     executor_services = build_agent_execution_services(
         settings=settings,
         storage=storage,

@@ -72,7 +72,7 @@ def test_0012_adds_service_runtime_private_columns_and_terminal_index(
             row[1] for row in connection.execute("pragma index_list(canonical_events)").fetchall()
         }
 
-    assert revision == ("0017_model_route_chain_state",)
+    assert revision == ("0018_model_tool_loop_state",)
     assert {
         "execution_context_json",
         "queue_operation_id",

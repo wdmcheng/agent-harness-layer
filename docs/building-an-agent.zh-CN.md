@@ -86,6 +86,12 @@ uv run agent-harness scaffold agent support.triage
 
 若 Agent 需要模型返回业务结构化结果，`output_schema` 必须指向 `HarnessDTO`/Pydantic `BaseModel` 的严格 object schema。Registry 会递归关闭额外字段并生成稳定 `schema_ref/version/digest`；宽松字典、remote/递归 `$ref` 或不支持关键字会让全量加载原子失败。Executor 从 bound model execution 调用 `complete_structured()`，成功时读取 provider-neutral `ModelResponse.structured_output.value`，同时保留 canonical `ModelResponse.output_text`。Repair 只能在 deployment 上限内有限执行并计入预算/evidence；`model.structured_schema_unknown`、额外字段、retry/repair 耗尽、replay conflict 或 `needs_review` 都是显式终态，不能重发、切 fake、执行工具或把失败当空对象。
 
+若 Agent 需要模型提出工具意图，继续使用现有 `tool_allowlist`，不要新增旁路配置。Runtime 从该 allowlist 与同一个 `ToolRegistry` 构建 canonical catalog；调用 `complete_tool_intent(..., tool_selection=...)` 时，省略 selection 表示完整有序投影，显式空 selection 表示不给模型任何工具。返回的 exact `ModelTurnResult` 只会是 `final_text` 或 data-only `tool_intent`，这一步不会执行工具；Registry resolve、Policy/HITL 与执行前重验属于后续执行 seam。当前锁定的 Pydantic AI adapter 无法证明零执行观察时会 fail closed；本地合同测试只能使用显式有限脚本的 fake provider。
+
+若要让 Runtime 执行受控模型工具循环，支持工具意图的 Agent 还必须在 `config.yaml` 声明 exact `model_tool_loop`：`max_turns`、`max_total_tokens`、nullable `max_total_cost_usd`、`max_tool_output_bytes`、`max_duration_seconds` 全部必填且没有默认值。Executor 从 execution context 取得 run-bound `model_tool_loop` 服务，再调用 `run(request, operation_key=..., tool_selection=..., limits=...)`；`ModelToolLoopLimitOverrides` 只能缩小 Agent maxima。只有 Runtime 可以推进“模型回合 → Registry resolve → Policy/HITL → 守卫后的工具结果 → untrusted `ContextAssembler` 输入 → 下一模型回合”。危险动作继续返回既有 waiting approval，并通过同一 grant/lease 路径恢复；业务代码不得直接调用 `ToolRegistry.call()`、启用 provider-native 工具、重试失败回合或把原始工具输出复制进 prompt。Model、tool、context 与 approval evidence 复用既有 `CanonicalEvent` 流。该公共 seam 不新增 HTTP route。
+
+耐久恢复要求数据库已升级到 `0018_model_tool_loop_state`。同一 `loop_id` 的 model turn、tool claim、approval、Context Assembly、usage 与 terminal 由持久化 identity、lease/fence 和版本 CAS 串行推进：已有确定结果 exact replay，只有带 `tool-handler-not-started-v1` 可信证明的过期 `claimed` 才能换租接管；`executing`、未知提交结果、摘要漂移或未知事件版本一律进入 `needs_review`，不得自动重试。首条 v1 evidence 会在同一 UoW 单调提升 `model-tool-loop-v1` marker；marker 已提升或扫描发现 evidence 时禁止降级。旧 `0017` binary/catalog 面对 `0018` 必须在 repository、worker、model 或 tool 副作用前拒绝。运维人员不得清零 marker、删除 evidence 后强行降级、重置 deadline/预算，或把 `needs_review` 人工改写为成功。
+
 ### 5. 先从 CLI 验证，再决定是否需要 HTTP
 
 ```bash

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 
 from tests.contracts.test_agent_registry_model_context_contracts import (
     ROOT as ROOT,
@@ -207,9 +209,46 @@ async def test_agent_run_route_rejects_unknown_agent_before_runtime(tmp_path: Pa
 
 
 def test_cli_run_rejects_unknown_agent_before_runtime(tmp_path: Path) -> None:
-    """验证 CLI 与 HTTP 使用相同的未知 agent 边界，且不产生 run 输出。"""
+    """验证 CLI 未知 agent 在本地恢复前拒绝，且不改动任何运行时证据。"""
 
     db_path = tmp_path / "run.db"
+    events_path = tmp_path / "events.jsonl"
+    artifact_root = tmp_path / "artifacts"
+    pending_root = artifact_root / ".pending-artifact-claims"
+    pending_root.mkdir(parents=True)
+    event_prefix = b'{"before":"stable"}\n'
+    events_path.write_bytes(event_prefix + b'{"event_id":"partial')
+    event_id = "event-pending"
+    artifact_data = b'{"payload":"orphan"}'
+    checksum = hashlib.sha256(artifact_data).hexdigest()
+    artifact_path = artifact_root / f"{checksum}.json"
+    artifact_path.write_bytes(artifact_data)
+    trusted_paths = pending_root / ".trusted-event-paths"
+    trusted_paths.write_text(
+        json.dumps({"version": 1, "event_paths": [str(events_path.resolve())]}),
+        encoding="utf-8",
+    )
+    journal_path = pending_root / f"{checksum}.json"
+    journal_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "event_path_sha256": hashlib.sha256(
+                    str(events_path.resolve()).encode()
+                ).hexdigest(),
+                "event_id_sha256": hashlib.sha256(event_id.encode()).hexdigest(),
+                "event_size_before": len(event_prefix),
+                "checksum": checksum,
+                "created": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    evidence_before = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in sorted(tmp_path.rglob("*"))
+        if path.is_file()
+    }
     result = subprocess.run(
         [
             sys.executable,
@@ -224,16 +263,22 @@ def test_cli_run_rejects_unknown_agent_before_runtime(tmp_path: Path) -> None:
             "--storage-dsn",
             sqlite_dsn(db_path),
             "--events-path",
-            str(tmp_path / "events.jsonl"),
+            str(events_path),
         ],
         check=False,
         cwd=ROOT,
         text=True,
         capture_output=True,
     )
+    evidence_after = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in sorted(tmp_path.rglob("*"))
+        if path.is_file()
+    }
 
     assert result.returncode == 1
     assert "registry.agent_not_found: field=agent_id agent not found: does.not.exist" in (
         result.stderr
     )
     assert "run_id:" not in result.stdout
+    assert evidence_after == evidence_before

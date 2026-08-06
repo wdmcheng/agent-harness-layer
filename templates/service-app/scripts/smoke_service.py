@@ -107,7 +107,7 @@ def main() -> int:
             env["SERVICE_APP_SMOKE_BOUNDARY"] = "migration"
             compose(env, "run", "--rm", "migration")
             evidence: dict[str, object] = {
-                "migration": "0017_model_route_chain_state",
+                "migration": "0018_model_tool_loop_state",
                 "secret_file": {
                     "consumers": ["migration"],
                     "postgres_password_file": True,

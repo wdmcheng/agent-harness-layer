@@ -13,6 +13,10 @@ from tests.contracts.test_controlled_real_model_config_contracts import (
     PROFILES,
     real_model_override,
 )
+from tests.contracts.test_tool_intent_model_catalog_config_contracts import (
+    _tool_catalog,  # pyright: ignore[reportPrivateUsage]
+    tool_intent_override,
+)
 
 from agent_harness.config import load_settings
 from agent_harness.models import ModelRequest, ModelRouter, ModelRouterConfig
@@ -205,3 +209,58 @@ def test_budget_tree_v2_route_restores_old_path_without_current_settings_project
         plan.endpoint_policy_digest
         == ledger.snapshot["agents"]["agent-real"]["routes"][0]["endpoint_policy_digest"]
     )
+
+
+def test_tool_intent_snapshot_freezes_catalog_cap_and_plans_actual_catalog() -> None:
+    """恢复必须从v2 route取catalog max，再用本次冻结bytes重算动态reservation。"""
+
+    settings = load_settings(
+        profile="local",
+        profiles_dir=PROFILES,
+        overrides=tool_intent_override(),
+    )
+    registry = _registry()
+    runtime = SharedBudgetRuntime(settings=settings, registry=registry)
+    ledger = runtime.ledger_create(
+        tenant_id="tenant-a",
+        run_id="run-tool",
+        agent_id="agent-real",
+    )
+    route = ledger.snapshot["agents"]["agent-real"]["routes"][0]
+    assert route["max_tool_catalog_utf8_bytes"] == 512
+    assert route["max_per_attempt_token_bound"] == 1680
+
+    async def prepare_tool_intent(*_args: object, **_kwargs: object) -> None:
+        """纯快照规划夹具不执行provider，只声明完整协议shape。"""
+
+    provider = SimpleNamespace(
+        provider_id="openai-compatible",
+        tool_intent_observation_supported=True,
+        prepare_tool_intent=prepare_tool_intent,
+    )
+    router = ModelRouter(
+        config=ModelRouterConfig(
+            default_provider="openai-compatible",
+            default_model="fixture-text-1",
+        ),
+        providers={"openai-compatible": cast(Any, provider)},
+        model_settings=settings.model,
+    )
+    plan = router.plan_tool_intent_from_snapshot(
+        ModelRequest(
+            deployment_id="real_primary",
+            provider="openai-compatible",
+            model="fixture-text-1",
+            prompt="hello",
+            capability="tool_intent",
+            max_output_tokens=8,
+        ),
+        tool_catalog=_tool_catalog(),
+        snapshot=ledger.snapshot,
+        agent_id="agent-real",
+    )
+
+    assert plan.tool_request_identity is not None
+    assert plan.tool_request_identity.tool_catalog_utf8_bytes == 352
+    assert plan.trusted_input_token_bound == len(b"hello") + 352 + 16
+    assert plan.reserved_token_bound == len(b"hello") + 352 + 16 + 8

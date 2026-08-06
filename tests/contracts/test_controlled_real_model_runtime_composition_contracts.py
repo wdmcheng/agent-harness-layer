@@ -22,6 +22,11 @@ from tests.contracts.test_controlled_real_model_config_contracts import (
     PROFILES,
     real_model_override,
 )
+from tests.contracts.test_tool_intent_model_catalog_config_contracts import (
+    tool_intent_catalog_fixture,
+    tool_intent_override,
+    tool_intent_router_and_policy_fixture,
+)
 
 from agent_harness import cli as harness_cli
 from agent_harness.adapters.models import _pydantic_ai_client as pydantic_ai_client
@@ -175,6 +180,79 @@ async def test_openai_sdk_ambient_env_cannot_change_controlled_client_or_outboun
 
 
 @pytest.mark.asyncio
+async def test_controlled_client_has_immutable_untrusted_context_instruction_plane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """只有tool-intent使用可预算的SDK instruction角色固定不可信上下文边界。"""
+
+    _settings, request, policy, model_settings = controlled_route()
+    captured: list[dict[str, object]] = []
+
+    def recording_agent(model: object, **kwargs: object) -> AsyncAgentDouble:
+        captured.append({"model": model, **kwargs})
+        return AsyncAgentDouble()
+
+    monkeypatch.setattr(pydantic_ai_client, "Agent", recording_agent)
+    factory = ControlledOpenAIClientFactory(
+        model_settings=model_settings,
+        transport_factory=lambda: httpx.MockTransport(
+            lambda inbound: httpx.Response(200, request=inbound, json={})
+        ),
+    )
+    provider_stub = PydanticAIModelProvider(
+        provider_id="openai-compatible",
+        agent_factory=lambda _plan: AsyncAgentDouble(),
+    )
+    router = ModelRouter(
+        config=ModelRouterConfig(
+            default_provider="openai-compatible",
+            default_model="fixture-text-1",
+        ),
+        providers={"openai-compatible": provider_stub},
+        model_settings=model_settings,
+    )
+    plan = router.plan(request, agent_policy=policy)
+    await factory.acquire(plan)
+    await factory.aclose()
+
+    assert captured[0]["instructions"] is None
+
+    tool_settings = load_settings(
+        profile="local",
+        profiles_dir=PROFILES,
+        overrides=tool_intent_override(),
+    )
+    tool_router, tool_policy = tool_intent_router_and_policy_fixture()
+    tool_request = request.model_copy(
+        update={
+            "prompt": "tool turn",
+            "capability": "tool_intent",
+            "max_output_tokens": 8,
+        }
+    )
+    tool_plan = tool_router.plan_tool_intent(
+        tool_request,
+        tool_catalog=tool_intent_catalog_fixture(),
+        agent_policy=tool_policy,
+    )
+    tool_factory = ControlledOpenAIClientFactory(
+        model_settings=tool_settings.model,
+        transport_factory=lambda: httpx.MockTransport(
+            lambda inbound: httpx.Response(200, request=inbound, json={})
+        ),
+    )
+    await tool_factory.acquire(tool_plan)
+    await tool_factory.aclose()
+
+    instructions = captured[1]["instructions"]
+    assert isinstance(instructions, str)
+    assert instructions == "RULES>UNTRUSTED"
+    assert len(instructions.encode("utf-8")) <= tool_plan.input_envelope_token_bound
+    assert request.prompt not in instructions
+    assert captured[1]["tools"] == ()
+
+
+@pytest.mark.asyncio
 async def test_model_invocation_close_cascades_router_provider_and_client_factory() -> None:
     """组合根只关闭 provider-neutral invocation，资源链必须幂等下沉到 client。"""
 
@@ -283,7 +361,10 @@ def test_cli_run_uses_one_event_loop_for_execution_and_provider_cleanup() -> Non
     source = inspect.getsource(harness_cli.run)
 
     assert source.count("asyncio.run(") == 1
-    assert "finally:\n            await close_agent_execution_services(executor_services)" in source
+    assert (
+        "finally:\n                await close_agent_execution_services(executor_services)"
+        in source
+    )
     assert "await storage.dispose()" in source
 
 

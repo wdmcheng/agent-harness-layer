@@ -18,7 +18,6 @@ from agent_harness.models._router_contracts import ModelRouteChainPlan
 from agent_harness.models._settlement_contracts import (
     IdentityRuntime,
     ModelProviderInvocationError,
-    SettlementStart,
 )
 from agent_harness.models._streaming_consumption import consume_prepared_stream
 from agent_harness.models._streaming_contracts import StreamingRuntime
@@ -28,15 +27,13 @@ from agent_harness.models._streaming_events import (
 )
 from agent_harness.models._streaming_settlement import handle_interrupted_stream
 from agent_harness.models.providers import (
-    ModelAttemptEvidence,
     ModelRequest,
     ModelResponse,
     ModelStreamCloseResult,
     PreparedModelStreamCall,
 )
-from agent_harness.models.router import ModelRoutePlan, ModelRouter
+from agent_harness.models.router import ModelRouter
 from agent_harness.models.streaming import StreamLimitExceeded, StreamSafetyError
-from agent_harness.models.structured import StructuredOutputReplayIdentity
 from agent_harness.models.usage import (
     CostStatus,
     ModelUsageEvidence,
@@ -46,15 +43,20 @@ from agent_harness.models.usage import (
 from agent_harness.models.usage_events import UsageEvidenceLifecycle
 from agent_harness.observability.facade import TelemetryFacade
 from agent_harness.policy import PolicyCheck, PolicyEngine
-from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage, SQLAlchemyUnitOfWork
-from agent_harness.storage.evidence_repositories import UsageSettlementClaim
-from agent_harness.storage.shared_budget import BudgetOperationOwnership
+from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
 
 if TYPE_CHECKING:
+    from agent_harness.models._invocation_streaming_requirements import (
+        ModelInvocationStreamingRequirements as _StreamingRequirements,
+    )
     from agent_harness.registry.descriptor import AgentModelPolicy
+else:
+
+    class _StreamingRequirements:
+        """运行时空基类；跨mixin类型契约只由Pyright读取。"""
 
 
-class ModelInvocationStreamingMixin:
+class ModelInvocationStreamingMixin(_StreamingRequirements):
     """协调策略、双预留、provider 消费和原子结算，不承载各子域细节。"""
 
     _storage: SQLAlchemyStorage
@@ -66,124 +68,6 @@ class ModelInvocationStreamingMixin:
     _agent_policy_resolver: Callable[[str], AgentModelPolicy] | None
     _stream_output_guardrail: Callable[[str], bool] | None
     _stream_timing_observer: Callable[[str], None] | None
-
-    if TYPE_CHECKING:
-
-        async def _replay_settlement_before_current_snapshot(
-            self,
-            *,
-            request: ModelRequest,
-            context: UsageEvidenceContext,
-            usage_call_id: str,
-        ) -> SettlementStart | None: ...
-
-        async def _resume_existing_settlement(
-            self,
-            *,
-            claim: UsageSettlementClaim,
-            usage_call_id: str,
-        ) -> ModelResponse: ...
-
-        async def _plan(
-            self,
-            *,
-            request: ModelRequest,
-            context: UsageEvidenceContext,
-            approved: bool,
-        ) -> ModelRoutePlan | ModelRouteChainPlan: ...
-
-        async def _stream_chain(
-            self,
-            request: ModelRequest,
-            *,
-            chain: ModelRouteChainPlan,
-            context: UsageEvidenceContext,
-            usage_call_id: str,
-            operation_identity_digest: str,
-            soft_approved: bool,
-            actor: IdentityContext | None,
-            approved_grant: ModelApprovalGrantLike | None = None,
-        ) -> ModelResponse: ...
-
-        @staticmethod
-        def _started_evidence(
-            *,
-            context: UsageEvidenceContext,
-            provider: str,
-            model: str,
-            decision: dict[str, object],
-            latency_ms: int = 0,
-            input_tokens: int | None = None,
-            output_tokens: int | None = None,
-            cost_usd: float | None = None,
-            cost_status: CostStatus = "unavailable",
-        ) -> ModelUsageEvidence: ...
-
-        @staticmethod
-        def _safe_decision(*parts: dict[str, object]) -> dict[str, object]: ...
-
-        @staticmethod
-        def _route_evidence(plan: ModelRoutePlan) -> dict[str, object]: ...
-
-        async def _start_settlement(
-            self,
-            *,
-            evidence: ModelUsageEvidence,
-            usage_call_id: str,
-            request: ModelRequest,
-            plan: ModelRoutePlan,
-            stream: bool = False,
-        ) -> SettlementStart: ...
-
-        @staticmethod
-        def _attempt_summary(
-            *,
-            attempts: list[ModelAttemptEvidence],
-            plan: ModelRoutePlan,
-            provider_called: bool,
-        ) -> dict[str, object]: ...
-
-        async def _mark_side_effect_started(
-            self,
-            *,
-            context: UsageEvidenceContext,
-            usage_call_id: str,
-            ownership: BudgetOperationOwnership | None,
-        ) -> None: ...
-
-        async def _persist_final_in_uow(
-            self,
-            *,
-            uow: SQLAlchemyUnitOfWork,
-            evidence: ModelUsageEvidence,
-            usage_call_id: str,
-            outcome: str,
-            error_code: str | None,
-            ownership: BudgetOperationOwnership | None,
-            response: ModelResponse | None,
-            structured_replay: StructuredOutputReplayIdentity | None = None,
-        ) -> None: ...
-
-        async def _finalize(
-            self,
-            *,
-            evidence: ModelUsageEvidence,
-            usage_call_id: str,
-            outcome: str,
-            error_code: str | None,
-            ownership: BudgetOperationOwnership | None,
-            response: ModelResponse | None,
-            structured_replay: StructuredOutputReplayIdentity | None = None,
-        ) -> None: ...
-
-        async def _publish_final(
-            self,
-            *,
-            evidence: ModelUsageEvidence,
-            usage_call_id: str,
-            outcome: str,
-            error_code: str | None,
-        ) -> None: ...
 
     def _streaming_runtime(self) -> StreamingRuntime:
         """为拆分后的子模块装配一次窄协作者视图，不暴露到公开 façade。"""

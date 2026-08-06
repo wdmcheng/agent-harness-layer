@@ -172,6 +172,7 @@ async def _structured_approval_fixture(tmp_path: Path, *, tamper: str) -> _Appro
         lease_id=lease.lease_id,
         tenant_id="tenant-a",
         identity_id="user-a",
+        session_id="session-a",
         agent_id="agent-a",
         run_id=run_id,
         action="model.invoke",

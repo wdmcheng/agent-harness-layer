@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from agent_harness.events import CanonicalEventType
+from agent_harness.events.model_tool_loop import ModelToolLoopEventPublishPending
 from agent_harness.identity import IdentityContext
 from agent_harness.runtime._orchestrator_base import OrchestratorState
 from agent_harness.runtime._orchestrator_support import run_correlation
@@ -52,6 +54,7 @@ class RunContinuation(OrchestratorState):
         persisted = {
             "tenant_id": approval.tenant_id,
             "identity_id": str(approval.metadata.get("identity_id") or approval.requested_by),
+            "session_id": str(approval.metadata.get("session_id") or ""),
             "agent_id": approval.agent_id,
             "run_id": approval.run_id,
             "action": approval.action,
@@ -61,6 +64,7 @@ class RunContinuation(OrchestratorState):
         actual = {
             "tenant_id": grant.tenant_id,
             "identity_id": grant.identity_id,
+            "session_id": grant.session_id,
             "agent_id": grant.agent_id,
             "run_id": grant.run_id,
             "action": grant.action,
@@ -73,6 +77,58 @@ class RunContinuation(OrchestratorState):
         )
         if mismatch is not None:
             raise InvalidRunTransition(f"approval grant persistence mismatch: {mismatch}")
+
+    @staticmethod
+    def _model_tool_loop_continuation(state: dict[str, Any]) -> dict[str, Any] | None:
+        """只识别版本化model tool loop continuation，不猜测legacy payload。"""
+
+        raw_continuation = state.get("continuation")
+        if not isinstance(raw_continuation, dict):
+            return None
+        continuation = cast(dict[str, Any], raw_continuation)
+        if (
+            continuation.get("kind") == "model_tool_loop"
+            and continuation.get("schema_version") == "model-tool-loop-continuation-v1"
+        ):
+            return continuation
+        return None
+
+    async def _require_model_tool_loop_run_terminal_allowed(
+        self,
+        state: dict[str, Any],
+    ) -> None:
+        """run终态前要求关联loop已确定终态，needs-review仍保留围栏。"""
+
+        continuation = self._model_tool_loop_continuation(state)
+        if continuation is None:
+            return
+        loop_id = continuation.get("loop_id")
+        tenant_id = state.get("tenant_id")
+        if not isinstance(loop_id, str) or not isinstance(tenant_id, str):
+            raise AgentExecutionUncertain("model tool loop continuation is invalid")
+        async with self._storage.uow() as uow:
+            loop = await uow.model_tool_loops.get(tenant_id, loop_id)
+        if loop is None or loop.status not in {"completed", "failed", "cancelled"}:
+            raise AgentExecutionUncertain(
+                "model tool loop terminal prerequisites are not satisfied"
+            )
+
+    async def _preflight_model_tool_loop_resume(
+        self,
+        *,
+        state: dict[str, Any],
+        context: AgentExecutionContext,
+        grant: ApprovalGrant,
+    ) -> None:
+        """在`run.resumed`前调用bound service的只读/围栏式恢复校验。"""
+
+        if self._model_tool_loop_continuation(state) is None:
+            return
+        service = context.require_service("model_tool_loop")
+        preflight = getattr(service, "preflight_resume", None)
+        if not callable(preflight):
+            raise InvalidRunTransition("model tool loop resume preflight is unavailable")
+        await cast(Callable[[ApprovalGrant], Awaitable[None]], preflight)(grant)
 
     async def resume_run(
         self,
@@ -265,6 +321,35 @@ class RunContinuation(OrchestratorState):
                 terminal_event=terminal.event_type.value if terminal is not None else None,
             )
 
+        try:
+            await self._preflight_model_tool_loop_resume(
+                state=checkpoint.state,
+                context=context,
+                grant=approval_grant,
+            )
+        except (AgentExecutionLeaseLost, AgentExecutionUncertain):
+            raise
+        except Exception as exc:  # noqa: BLE001 - preflight closes only proven failures
+            if getattr(exc, "code", None) == "model.tool_loop_needs_review":
+                raise AgentExecutionUncertain(str(exc)) from exc
+            await self._require_model_tool_loop_run_terminal_allowed(checkpoint.state)
+            return await self._recover_delegation_after_wait(
+                await self._fail_execution(
+                    run.id,
+                    run.agent_id,
+                    str(redact_secrets(str(exc))),
+                    identity=execution_identity,
+                    request_id=context.request_id,
+                    trace_id=context.trace_id,
+                    input=run.input,
+                    defer_terminal=defer_terminal,
+                    approval_recovery={
+                        "approval_id": approval_grant.approval_id,
+                        "actor": active_identity.to_payload(),
+                    },
+                ),
+            )
+
         await self._event_bus.publish(
             tenant_id=execution_identity.tenant_id,
             run_id=run.id,
@@ -285,9 +370,17 @@ class RunContinuation(OrchestratorState):
                 context,
                 approval_grant,
             )
-        except (AgentExecutionLeaseLost, AgentExecutionUncertain):
+        except (
+            AgentExecutionLeaseLost,
+            AgentExecutionUncertain,
+            ModelToolLoopEventPublishPending,
+        ):
+            # 工具事件 intent 已耐久时不能把发布确认失败降格成确定性 executor
+            # 失败。保留 waiting run 与 approval lease，下一次 continuation 只会
+            # 重入同一 claim 并补投 exact envelope，不会重放 handler。
             raise
         except Exception as exc:  # noqa: BLE001 - deterministic executor failure closes the run
+            await self._require_model_tool_loop_run_terminal_allowed(checkpoint.state)
             return await self._recover_delegation_after_wait(
                 await self._fail_execution(
                     run.id,
@@ -418,6 +511,7 @@ class RunContinuation(OrchestratorState):
                 "arguments_hash": approval.arguments_hash,
                 "continuation": approval.continuation,
                 "identity_id": context.identity.user_id,
+                "session_id": context.identity.session_id,
             },
         )
         return RunResult(

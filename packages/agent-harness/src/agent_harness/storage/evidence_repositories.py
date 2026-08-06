@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection, Mapping
 from typing import Any, cast
 
 from sqlalchemy import select, update
@@ -118,6 +119,66 @@ class EvidenceOutboxRepository(
             )
         )
         return list(result.all())
+
+    async def blocks_model_loop_terminal(
+        self,
+        *,
+        run_id: str,
+        in_flight_approval_ids: Collection[str],
+    ) -> bool:
+        """锁定未决outbox，并只豁免ApprovalService的受控循环依赖组。
+
+        approve 的公开状态和两项 ordered evidence 必须等 run terminal 后才能最终
+        发布，而 run terminal 又依赖内部模型循环先返回成功。这里仅接受 exact
+        ``approval_resolution -> run_terminal`` 两项组均已 ``result_persisted``、
+        decision=approved 且 run_status=pending 的循环中间态；其他 pending/unknown
+        evidence 继续阻断 loop terminal。
+        """
+
+        pending = list(
+            await self._session.scalars(
+                select(RunEvidenceOutboxModel)
+                .where(
+                    RunEvidenceOutboxModel.run_id == run_id,
+                    RunEvidenceOutboxModel.state.not_in(("published", "cancelled")),
+                )
+                .order_by(
+                    RunEvidenceOutboxModel.group_id.asc().nulls_first(),
+                    RunEvidenceOutboxModel.sequence_in_group.asc().nulls_first(),
+                )
+                .with_for_update()
+            )
+        )
+        approval_ids = set(in_flight_approval_ids)
+        allowed_rows: set[str] = set()
+        for approval_id in approval_ids:
+            group_id = f"approval:{approval_id}:resolution"
+            rows = [row for row in pending if row.group_id == group_id]
+            if len(rows) != 2:
+                return True
+            expected = (
+                (1, EvidenceOperationKind.APPROVAL_RESOLUTION.value, 1),
+                (2, "run_terminal", 0),
+            )
+            for row, (sequence, operation_kind, reserved_count) in zip(
+                rows,
+                expected,
+                strict=True,
+            ):
+                payload = row.result_json
+                if (
+                    row.sequence_in_group != sequence
+                    or row.operation_kind != operation_kind
+                    or row.state != "result_persisted"
+                    or not isinstance(payload, Mapping)
+                    or payload.get("approval_id") != approval_id
+                    or payload.get("resolution_status") != "approved"
+                    or payload.get("run_status") != "pending"
+                    or row.reserved_event_count != reserved_count
+                ):
+                    return True
+                allowed_rows.add(row.id)
+        return any(row.id not in allowed_rows for row in pending)
 
     async def has_pending_operation(
         self,

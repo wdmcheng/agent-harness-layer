@@ -10,6 +10,10 @@ from agent_harness.storage.run_models import AgentRunModel as AgentRunModel
 from agent_harness.storage.run_models import CheckpointModel as CheckpointModel
 from agent_harness.storage.run_models import ContextAssemblyModel as ContextAssemblyModel
 from agent_harness.storage.run_models import EmbeddingCacheModel as EmbeddingCacheModel
+from agent_harness.storage.run_models import ModelToolLoopModel as ModelToolLoopModel
+from agent_harness.storage.run_models import (
+    ModelToolLoopSchemaMarkerModel as ModelToolLoopSchemaMarkerModel,
+)
 from agent_harness.storage.run_models import RunEventCapacityModel as RunEventCapacityModel
 from agent_harness.storage.run_models import RunTraceBindingModel as RunTraceBindingModel
 from agent_harness.storage.run_models import SessionModel as SessionModel

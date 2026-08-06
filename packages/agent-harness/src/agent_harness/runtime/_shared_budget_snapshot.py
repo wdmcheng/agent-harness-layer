@@ -195,6 +195,7 @@ class SharedBudgetSnapshotBuilder:
         catalog = resolved.model_catalogs[model]
         route_token_ceiling = (
             deployment.max_prompt_utf8_bytes
+            + (catalog.max_tool_catalog_utf8_bytes or 0)
             + catalog.input_envelope_token_bound
             + deployment.max_output_tokens
         )
@@ -203,7 +204,11 @@ class SharedBudgetSnapshotBuilder:
             assert catalog.input_token_price_usd is not None
             assert catalog.output_token_price_usd is not None
             route_cost_ceiling = (
-                Decimal(deployment.max_prompt_utf8_bytes + catalog.input_envelope_token_bound)
+                Decimal(
+                    deployment.max_prompt_utf8_bytes
+                    + (catalog.max_tool_catalog_utf8_bytes or 0)
+                    + catalog.input_envelope_token_bound
+                )
                 * catalog.input_token_price_usd
                 + Decimal(deployment.max_output_tokens) * catalog.output_token_price_usd
             )
@@ -235,6 +240,7 @@ class SharedBudgetSnapshotBuilder:
             "input_bound_strategy_ref": catalog.input_bound_strategy_ref,
             "input_bound_strategy_version": catalog.input_bound_strategy_version,
             "input_envelope_token_bound": catalog.input_envelope_token_bound,
+            "max_tool_catalog_utf8_bytes": catalog.max_tool_catalog_utf8_bytes,
             "cost_enabled": catalog.cost_enabled,
             "price_source_ref": catalog.price_source_ref,
             "price_source_version": catalog.price_source_version,

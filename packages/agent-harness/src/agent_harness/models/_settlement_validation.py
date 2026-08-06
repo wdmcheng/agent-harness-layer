@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from agent_harness.models._settlement_contracts import (
     ModelProviderInvocationError,
@@ -19,6 +19,13 @@ from agent_harness.models.providers import ModelResponse
 from agent_harness.models.structured import (
     StructuredOutputReplayIdentity,
     canonical_structured_json,
+)
+from agent_harness.models.tool_intent import (
+    FinalStructuredTurnResult,
+    FinalTextTurnResult,
+    ModelTurnResult,
+    ToolIntentReplaySeed,
+    ToolIntentTurnResult,
 )
 from agent_harness.models.usage import (
     ModelUsageEvidence,
@@ -58,6 +65,34 @@ class SettlementValidationMixin(SettlementPublicationMixin):
                 error_code=claim.error_code,
             )
         return self._replayed_response(validated, state=claim.state)
+
+    async def _resume_existing_turn_settlement(
+        self,
+        *,
+        claim: UsageSettlementClaim,
+        usage_call_id: str,
+    ) -> ModelTurnResult:
+        """补投同一 final 后恢复已验证 turn result，绝不再次调用 provider。"""
+
+        if claim.state not in {"result_persisted", "published"} or claim.result_json is None:
+            raise UsageInvocationReplayError(claim.state)
+        validated = self._validated_settlement_result(
+            claim.result_json,
+            state=claim.state,
+            error_code=claim.error_code,
+        )
+        if claim.state == "result_persisted":
+            await self._publish_final(
+                evidence=validated.evidence,
+                usage_call_id=usage_call_id,
+                outcome=validated.outcome,
+                error_code=claim.error_code,
+            )
+        result = self._replayed_turn_result(validated, state=claim.state)
+        if isinstance(result, ToolIntentTurnResult):
+            if result.intent.model_usage_call_id != usage_call_id:
+                raise UsageInvocationReplayError(claim.state)
+        return result
 
     @staticmethod
     def _chain_final_provider_identity_valid(
@@ -132,6 +167,31 @@ class SettlementValidationMixin(SettlementPublicationMixin):
         }:
             raise UsageInvocationReplayError(state)
 
+        raw_tool_seed = result.get("tool_intent_replay_seed")
+        try:
+            tool_seed = (
+                ToolIntentReplaySeed.model_validate(raw_tool_seed)
+                if raw_tool_seed is not None
+                else None
+            )
+        except ValidationError:
+            raise UsageInvocationReplayError(state) from None
+        raw_route_value = evidence.decision.get("route")
+        started_route_value = started.decision.get("route")
+        if tool_seed is not None:
+            if not isinstance(raw_route_value, dict) or not isinstance(started_route_value, dict):
+                raise UsageInvocationReplayError(state)
+            raw_route = cast(dict[str, object], raw_route_value)
+            started_route = cast(dict[str, object], started_route_value)
+            if (
+                raw_route != started_route
+                or raw_route.get("capability") != "tool_intent"
+                or raw_route.get("tool_request_identity") != tool_seed.request_identity.to_payload()
+                or raw_route.get("tool_request_identity_digest")
+                != tool_seed.request_identity.digest
+            ):
+                raise UsageInvocationReplayError(state)
+
         # route/attempt/charge 是所有真实 outcome 的共同事实边界；必须在解析
         # response/failure 或发布 final event 前统一验证，不能只保护失败分支。
         evidence_attempt_count = validate_settlement_evidence_nesting(
@@ -197,7 +257,11 @@ class SettlementValidationMixin(SettlementPublicationMixin):
             expected_failure_outcome = (
                 "cancelled" if error_code == "model.invocation_cancelled" else "failed"
             )
-            if outcome != expected_failure_outcome or "response" in result:
+            if (
+                outcome != expected_failure_outcome
+                or "response" in result
+                or "turn_result" in result
+            ):
                 raise UsageInvocationReplayError(state)
             failure_value = result.get("failure")
             if not isinstance(failure_value, dict):
@@ -286,6 +350,7 @@ class SettlementValidationMixin(SettlementPublicationMixin):
                 evidence=evidence,
                 outcome=outcome,
                 response=None,
+                turn_result=None,
                 failure=ModelProviderInvocationError(
                     error_code,
                     provider_called=provider_called,
@@ -298,6 +363,7 @@ class SettlementValidationMixin(SettlementPublicationMixin):
         if "failure" in result or outcome == "failed":
             raise UsageInvocationReplayError(state)
         raw_response = result.get("response")
+        raw_turn_result = result.get("turn_result")
         response_required = outcome == "completed" or (
             outcome == "rejected" and error_code == "model.policy_required"
         )
@@ -308,30 +374,65 @@ class SettlementValidationMixin(SettlementPublicationMixin):
             "model.policy_required",
         }:
             raise UsageInvocationReplayError(state)
+        response: ModelResponse | None
+        turn_result: ModelTurnResult | None
         if not response_required:
-            if raw_response is not None or outcome != "rejected":
+            if raw_response is not None or raw_turn_result is not None or outcome != "rejected":
                 raise UsageInvocationReplayError(state)
             response = None
+            turn_result = None
         else:
-            if not isinstance(raw_response, dict):
+            if (raw_response is None) == (raw_turn_result is None):
                 raise UsageInvocationReplayError(state)
-            try:
-                response = ModelResponse.model_validate(raw_response)
-            except ValidationError:
-                raise UsageInvocationReplayError(state) from None
-            if response.provider != evidence.provider or response.model != evidence.model:
+            if raw_response is not None:
+                if not isinstance(raw_response, dict):
+                    raise UsageInvocationReplayError(state)
+                try:
+                    response = ModelResponse.model_validate(raw_response)
+                except ValidationError:
+                    raise UsageInvocationReplayError(state) from None
+                turn_result = None
+            else:
+                if not isinstance(raw_turn_result, dict) or outcome != "completed":
+                    raise UsageInvocationReplayError(state)
+                try:
+                    turn_adapter: TypeAdapter[ModelTurnResult] = TypeAdapter(ModelTurnResult)
+                    turn_result = turn_adapter.validate_python(raw_turn_result)
+                except ValidationError:
+                    raise UsageInvocationReplayError(state) from None
+                response = (
+                    turn_result.response
+                    if isinstance(
+                        turn_result,
+                        (FinalTextTurnResult, FinalStructuredTurnResult),
+                    )
+                    else None
+                )
+                if tool_seed is None:
+                    raise UsageInvocationReplayError(state)
+                if isinstance(turn_result, ToolIntentTurnResult) and (
+                    turn_result.intent.loop_id != tool_seed.loop_id
+                    or turn_result.intent.turn_ordinal != tool_seed.turn_ordinal
+                    or turn_result.intent.catalog_digest != tool_seed.tool_catalog.catalog_digest
+                ):
+                    raise UsageInvocationReplayError(state)
+            if response is not None:
+                if response.provider != evidence.provider or response.model != evidence.model:
+                    raise UsageInvocationReplayError(state)
+                if (outcome == "rejected") != (response.decision.action == "policy_required"):
+                    raise UsageInvocationReplayError(state)
+                SettlementValidationMixin._validate_structured_response(
+                    response=response,
+                    evidence=evidence,
+                    state=state,
+                )
+            elif not isinstance(turn_result, ToolIntentTurnResult):
                 raise UsageInvocationReplayError(state)
-            if (outcome == "rejected") != (response.decision.action == "policy_required"):
-                raise UsageInvocationReplayError(state)
-            SettlementValidationMixin._validate_structured_response(
-                response=response,
-                evidence=evidence,
-                state=state,
-            )
         return ValidatedSettlementResult(
             evidence=evidence,
             outcome=outcome,
             response=response,
+            turn_result=turn_result,
             failure=None,
         )
 
@@ -382,6 +483,20 @@ class SettlementValidationMixin(SettlementPublicationMixin):
             return result.response
         # pre-0016 result 没有可恢复业务 response 时必须 fail closed，不能把
         # usage evidence 猜成 provider 输出或再次调用 provider。
+        raise UsageInvocationReplayError(state)
+
+    @staticmethod
+    def _replayed_turn_result(
+        result: ValidatedSettlementResult,
+        *,
+        state: str,
+    ) -> ModelTurnResult:
+        """从同一已验证 settlement 恢复判别结果或稳定失败。"""
+
+        if result.failure is not None:
+            raise result.failure
+        if result.turn_result is not None:
+            return result.turn_result
         raise UsageInvocationReplayError(state)
 
     @staticmethod

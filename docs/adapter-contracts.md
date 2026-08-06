@@ -43,6 +43,10 @@ Exports and protocols under `packages/agent-harness/src/agent_harness/` define t
 
 Non-streaming structured output uses the separate `ModelStructuredProvider.prepare_structured()` / `PreparedStructuredModelCall.send_structured()` protocols. Each adapter send returns exactly one `StructuredProviderCandidate` and one local attempt. Adapters must not perform schema repair, stringify SDK/Pydantic objects, enable SDK retries, execute tools, or fall back to text/fake. Core `BoundModelInvocationService.complete_structured()` owns the strict schema oracle, bounded repair, joint transport×repair reservation, cleanup, durable replay, and `needs_review` fencing. Only `StructuredOutputResult` plus canonical `ModelResponse.output_text` crosses the success boundary; schema identity, attempts, usage, cost, and replay identity remain jointly durable. Structured streaming, explicit route-chain structured fallback, and tool calls are not supported.
 
+Provider-neutral tool intent uses the separate `ModelToolIntentProvider.prepare_tool_intent()` / `PreparedToolIntentModelCall.send_tool_intent()` protocols. Core projects `tool_policy.allowed_tools` against descriptors from the same `ToolRegistry` into canonical tool-catalog bytes; `ToolCatalogSelection` remains a separate public-seam argument and never enters `ModelRequest`. Each adapter send returns exactly one `ProviderToolIntentCandidate`; core then derives stable `loop_id/turn_ordinal/tool_call_id` and returns the exact `ModelTurnResult`. This seam observes only `final_text` or `tool_intent`: it never executes a tool, registers a callback, guesses JSON, or bypasses Registry/Policy/HITL. If the locked SDK cannot prove zero-execution observation, planning fails closed with `model.capability_unsupported` before usage claim or provider side effects. The fake adapter accepts only explicit finite scripts.
+
+A tool-loop continuation consumes only the frozen `output_ref`, `input_refs`, and safe `assembled_text` from `context_assembly`, while preserving `trust_level=untrusted`, the trust summary, and the injection summary. When a real tool-intent client is available, it must send a fixed high-priority rule through the separate SDK `instructions` role, and the rule's conservative UTF-8 byte bound must fit within the frozen `input_envelope_token_bound`; ordinary no-tools requests keep `instructions=None`. Tool text therefore remains referenced user-role data rather than a peer of system, developer, or policy instructions, without adding unreserved input.
+
 ### Queue and runtime
 
 `RunQueue` defines enqueue/receipt/ack/claim contracts. The service profile implements Redis Streams in `adapters/queue/redis.py`; DBOS is wrapped in `adapters/runtime/dbos.py`. Recovery relies on stable message refs, owner/lease/fencing, and PostgreSQL checkpoints—not in-memory objects.
@@ -67,6 +71,7 @@ Key contract tests:
 
 - model/provider: `tests/contracts/test_model_usage_invocation_contracts.py`
 - structured model/provider: `tests/contracts/test_provider_neutral_structured_public_seam_contracts.py`, `tests/contracts/test_provider_neutral_structured_transport_contracts.py`, `tests/contracts/test_provider_neutral_structured_adapter_contracts.py`
+- tool intent/provider: `tests/contracts/test_provider_neutral_tool_turn_result_contracts.py`, `tests/contracts/test_provider_neutral_tool_catalog_contracts.py`, `tests/contracts/test_tool_intent_usage_settlement_contracts.py`, `tests/contracts/test_fake_model_tool_intent_adapter_contracts.py`
 - retrieval: `tests/contracts/test_retrieval_rag_contracts.py`
 - tools/MCP: `tests/contracts/test_tool_registry_public_seam_contracts.py`
 - observability: `tests/contracts/test_observability_local_first_fanout_contracts.py`

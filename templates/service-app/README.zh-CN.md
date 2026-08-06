@@ -276,6 +276,78 @@ deployment、exact endpoint policy、版本化 model catalog 和 credential refe
 值只能放在品牌化 direct env 或受控 `_FILE` 中，不能写进 Agent YAML，也不能依赖 provider
 原生 ambient 变量。
 
+### 从配置片段到可验证调用
+
+1. 从 `configs/profiles/local.yaml` 或 `configs/profiles/service.yaml` 复制一个独立 profile，
+   例如 `configs/profiles/real-model.yaml`，再把
+   [`configs/examples/real-text-model.fragment.yaml`](configs/examples/real-text-model.fragment.yaml)
+   的顶层 `model` mapping 合并进去。不要让片段与原 profile 同时保留两份 `model` key。
+2. 把示例中的 model id、`base_url`、两处 `allowed_origins`、deployment 上界和 catalog 字段
+   改成实际非生产 deployment 的值。credential 只保留引用，secret value 继续为空。
+3. 修改 model catalog 的 mapping key/ref、version、provider、model、request shape、输入上界
+   或价格字段后，在复制后的 service-app 根目录运行下面这条命令：
+
+```bash
+uv run python -c 'from pathlib import Path; import yaml; from agent_harness.config.model_catalog import model_catalog_digest; p=Path("configs/profiles/real-model.yaml"); data=yaml.safe_load(p.read_text(encoding="utf-8")); print("\n".join("{}: {}".format(ref, model_catalog_digest(ref, {k: v for k, v in entry.items() if k != "digest"})) for ref, entry in data["model"]["model_catalogs"].items()))'
+```
+
+命令直接复用 runtime 的 canonical decimal、JSON 编码和 SHA-256 实现。把输出中每个 ref
+对应的值写回实际 profile 中该 catalog 的 `digest`。
+`base_url`、origin、endpoint policy 与 credential 不属于 model catalog digest 输入；修改这些
+字段不需要重算 catalog digest，runtime 会单独派生并校验 endpoint policy digest。
+
+4. 让目标 Agent 的 `config.yaml` 只缩权到该 deployment，例如：
+
+```yaml
+model:
+  deployment_id: real_primary
+  provider: openai-compatible
+  allowed_models:
+    - replace-with-provider-model-id
+    - replace-with-fallback-model-id
+  default_model: replace-with-provider-model-id
+  fallback_models:
+    - replace-with-fallback-model-id
+```
+
+现有示例 Agent 为保持离线，有的 executor 会在 `ModelRequest` 中显式声明 `provider="fake"`；
+只改 YAML 不会把这种请求变成真实调用。真实业务 executor 应让 `ModelRequest` 的 provider
+与上述策略一致，或省略该可选字段让冻结的 Agent 策略继续收窄，且必须通过
+`context.require_service("model_invocation")` 使用受控调用服务，不能自行创建 vendor client。
+
+5. 注入 credential 后先运行 `doctor`。它会解析 profile、重算 catalog digest 并在任何
+provider 副作用前拒绝不匹配配置：
+
+```bash
+uv run agent-harness doctor \
+  --profile real-model \
+  --profiles-dir ./configs/profiles \
+  --storage-dsn "$STORAGE_DSN"
+```
+
+`_FILE` 必须填写绝对路径，并位于 loader 使用的受信 secret root 内。普通 app/CLI 默认使用
+`/run/secrets`；不要把 `.agent-harness/secrets/...` 这样的相对路径写进 `.env`。
+
+6. 只有当前会话已单独授权真实 provider 调用时，才从 Agent Harness Layer 源仓库根目录执行
+一次受控 live smoke。下面命令假定 `real-model.yaml` 位于
+`templates/service-app/configs/profiles/`，隔离 credential 文件位于本仓库忽略的目录：
+
+```bash
+export MODEL_SECRET_ROOT="$PWD/.agent-harness/secrets"
+export AGENT_HARNESS_MODEL__CREDENTIALS__REAL_PRIMARY_KEY__VALUE_FILE="$MODEL_SECRET_ROOT/model-real-primary-key"
+export AGENT_HARNESS_LIVE_MODEL_AUTHORIZED=1
+export AGENT_HARNESS_LIVE_MODEL_OPT_IN=1
+uv run python scripts/smoke_live_model.py \
+  --profile real-model \
+  --profiles-dir templates/service-app/configs/profiles \
+  --secret-root "$MODEL_SECRET_ROOT"
+```
+
+先自行创建权限为 `0600` 的 credential 文件，并设置非空且稳定的
+`AGENT_HARNESS_BUDGET__FINGERPRINT_KEY`。缺少本会话授权、opt-in、隔离 credential 或受信
+endpoint 任一项时，正确结果是零调用 `hosted-unverified`，不是 PASS。该 smoke 是源仓库的
+受控外部验证入口；复制后的 service-app 不会因为写好 profile 就自动调用 provider。
+
 Agent `config.yaml` 只声明 `deployment_id`、`provider`、`allowed_models`、`default_model`
 与 fallback models，这是一层缩权策略，不能提供 endpoint 或 credential；单次请求只能在
 deployment 与 Agent 交集内再次收窄。恢复使用 root run 的冻结快照，配置 reload 只影响新

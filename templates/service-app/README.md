@@ -284,6 +284,84 @@ non-streaming text deployment, configure only branded `AGENT_HARNESS_MODEL__...`
 catalog, and credential reference. Put the secret value in a direct branded variable or controlled
 `_FILE`, never in Agent YAML and never in an ambient provider variable.
 
+### From configuration fragment to a verifiable invocation
+
+1. Copy `configs/profiles/local.yaml` or `configs/profiles/service.yaml` to a dedicated profile such
+   as `configs/profiles/real-model.yaml`, then merge the top-level `model` mapping from
+   [`configs/examples/real-text-model.fragment.yaml`](configs/examples/real-text-model.fragment.yaml).
+   Do not leave two `model` keys in the merged profile.
+2. Replace the example model IDs, `base_url`, both `allowed_origins` entries, deployment ceilings, and
+   catalog fields with values for the isolated non-production deployment. Keep only the credential
+   reference in the profile and leave its secret value empty.
+3. After changing a model-catalog mapping key/ref, version, provider, model, request shape, input
+   bound, or pricing field, run this command from the copied service-app root:
+
+```bash
+uv run python -c 'from pathlib import Path; import yaml; from agent_harness.config.model_catalog import model_catalog_digest; p=Path("configs/profiles/real-model.yaml"); data=yaml.safe_load(p.read_text(encoding="utf-8")); print("\n".join("{}: {}".format(ref, model_catalog_digest(ref, {k: v for k, v in entry.items() if k != "digest"})) for ref, entry in data["model"]["model_catalogs"].items()))'
+```
+
+The command reuses the runtime's canonical decimal, JSON encoding, and SHA-256 implementation.
+Copy each printed value back to the matching catalog's `digest` in the real profile. `base_url`,
+origins, endpoint policy, and credential fields are not
+model-catalog digest inputs; changing them does not require a catalog digest update. The runtime
+derives and validates a separate endpoint-policy digest from those fields.
+
+4. Narrow the target Agent's `config.yaml` to the deployment:
+
+```yaml
+model:
+  deployment_id: real_primary
+  provider: openai-compatible
+  allowed_models:
+    - replace-with-provider-model-id
+    - replace-with-fallback-model-id
+  default_model: replace-with-provider-model-id
+  fallback_models:
+    - replace-with-fallback-model-id
+```
+
+Some bundled example executors explicitly set `provider="fake"` in `ModelRequest` to preserve their
+offline contract. Changing only their YAML does not turn those requests into real invocations. A
+real application executor must either use the provider allowed above or omit that optional request
+field so the frozen Agent policy can narrow it, and it must obtain the governed invocation service
+through `context.require_service("model_invocation")` instead of constructing a vendor client.
+
+5. Inject the credential, then run `doctor`. It resolves the profile, recomputes every catalog
+digest, and rejects mismatches before any provider side effect:
+
+```bash
+uv run agent-harness doctor \
+  --profile real-model \
+  --profiles-dir ./configs/profiles \
+  --storage-dsn "$STORAGE_DSN"
+```
+
+Every `_FILE` value must be an absolute path inside the trusted secret root used by the loader. The
+ordinary app and CLI default to `/run/secrets`; do not put a relative path such as
+`.agent-harness/secrets/...` in `.env`.
+
+6. Only after a separate authorization for a real provider call in the current session, run one
+governed live smoke from the Agent Harness Layer source repository root. This example assumes
+`real-model.yaml` is under `templates/service-app/configs/profiles/` and the isolated credential is
+stored in the repository's ignored state directory:
+
+```bash
+export MODEL_SECRET_ROOT="$PWD/.agent-harness/secrets"
+export AGENT_HARNESS_MODEL__CREDENTIALS__REAL_PRIMARY_KEY__VALUE_FILE="$MODEL_SECRET_ROOT/model-real-primary-key"
+export AGENT_HARNESS_LIVE_MODEL_AUTHORIZED=1
+export AGENT_HARNESS_LIVE_MODEL_OPT_IN=1
+uv run python scripts/smoke_live_model.py \
+  --profile real-model \
+  --profiles-dir templates/service-app/configs/profiles \
+  --secret-root "$MODEL_SECRET_ROOT"
+```
+
+Create the credential file yourself with mode `0600`, and set a non-empty, stable
+`AGENT_HARNESS_BUDGET__FINGERPRINT_KEY` first. Without current-session authorization, opt-in, an
+isolated credential, and a trusted endpoint, the correct result is a zero-call `hosted-unverified`,
+not PASS. This smoke is the source repository's governed external verification entry point; a copied
+service-app does not call a provider merely because its profile is configured.
+
 Agent `config.yaml` declares `deployment_id`, `provider`, `allowed_models`, `default_model`, and
 fallback models. This is a narrowing policy: it cannot supply an endpoint or credential. A request
 can only choose a model inside the deployment and Agent intersection. Route recovery uses the root

@@ -6,13 +6,14 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from agent_harness.events import CanonicalEvent, EventBus
 from agent_harness.identity import IdentityContext
 from agent_harness.models._invocation_approval_identity import (
-    resolve_approved_invocation_identity,
+    ModelInvocationApprovalIdentityMixin,
 )
+from agent_harness.models._invocation_basic import ModelInvocationBasicMixin
 from agent_harness.models._invocation_execution import (
     ModelApprovalRequired,
     ModelInvocationExecutionMixin,
@@ -22,6 +23,10 @@ from agent_harness.models._invocation_settlement import (
 )
 from agent_harness.models._invocation_streaming import ModelInvocationStreamingMixin
 from agent_harness.models._invocation_structured import ModelInvocationStructuredMixin
+from agent_harness.models._invocation_tool_intent import (
+    BoundModelToolIntentMixin,
+    ModelInvocationToolIntentMixin,
+)
 from agent_harness.models._streaming_events import publish_persisted_stream
 from agent_harness.models.providers import ModelRequest, ModelResponse
 from agent_harness.models.route_chain_identity import model_route_operation_identity_digest
@@ -30,6 +35,7 @@ from agent_harness.models.structured import (
     OutputSchemaDefinition,
     structured_operation_identity_digest,
 )
+from agent_harness.models.tool_catalog import ToolCatalog, ToolCatalogSelection
 from agent_harness.models.usage import (
     UsageEvidenceContext,
     stable_usage_call_id,
@@ -103,7 +109,7 @@ class _ApprovedModelGrant(Protocol):
     def arguments_hash(self) -> str: ...
 
 
-class BoundModelInvocationService:
+class BoundModelInvocationService(BoundModelToolIntentMixin):
     """只向单个 run 的业务 executor 暴露请求与稳定操作槽位。"""
 
     def __init__(
@@ -264,25 +270,14 @@ class BoundModelInvocationService:
 
 
 class ModelInvocationService(
+    ModelInvocationApprovalIdentityMixin,
+    ModelInvocationToolIntentMixin,
     ModelInvocationStructuredMixin,
+    ModelInvocationBasicMixin,
     ModelInvocationStreamingMixin,
     ModelInvocationExecutionMixin,
 ):
     """在 provider 副作用前建立 settlement，并只补投 evidence。"""
-
-    async def approved_invocation_identity(
-        self,
-        *,
-        context: UsageEvidenceContext,
-        grant: _ApprovedModelGrant,
-    ) -> tuple[str, str]:
-        """从 durable approval artifact 恢复 route-chain 或 legacy 调用身份。"""
-
-        return await resolve_approved_invocation_identity(
-            storage=self._storage,
-            context=context,
-            grant=grant,
-        )
 
     def __init__(
         self,
@@ -297,6 +292,9 @@ class ModelInvocationService(
         stream_output_guardrail: Callable[[str], bool] | None = None,
         stream_timing_observer: Callable[[str], None] | None = None,
         output_schema_resolver: Callable[[str], OutputSchemaDefinition] | None = None,
+        tool_catalog_resolver: (
+            Callable[[str, ToolCatalogSelection | None], ToolCatalog] | None
+        ) = None,
     ) -> None:
         """保存路由、持久化、事件和可选共享预算协作者。"""
 
@@ -314,6 +312,7 @@ class ModelInvocationService(
         # provider DTO 或异常对象。
         self._stream_timing_observer = stream_timing_observer
         self._output_schema_resolver = output_schema_resolver
+        self._tool_catalog_resolver = tool_catalog_resolver
         # 不响应取消的provider cleanup不能阻塞公开调用；组合根显式持有这些
         # 已围栏task，完成后由callback回收，避免静默orphan和未观察异常。
         self._structured_cleanup_tasks: set[asyncio.Future[None]] = set()
@@ -347,48 +346,6 @@ class ModelInvocationService(
                 request_id=request_id,
                 trace_id=trace_id,
             ),
-        )
-
-    async def complete(
-        self,
-        request: ModelRequest,
-        *,
-        context: UsageEvidenceContext,
-        usage_call_id: str,
-        route_operation_identity_digest: str | None = None,
-        actor: IdentityContext | None = None,
-    ) -> ModelResponse:
-        """执行普通策略路径；公开调用面不接受布尔型审批旁路。"""
-
-        return await self._complete(
-            request,
-            context=context,
-            usage_call_id=usage_call_id,
-            route_operation_identity_digest=route_operation_identity_digest,
-            soft_approved=False,
-            actor=actor,
-            approved_grant=None,
-        )
-
-    async def stream(
-        self,
-        request: ModelRequest,
-        *,
-        context: UsageEvidenceContext,
-        usage_call_id: str,
-        route_operation_identity_digest: str | None = None,
-        actor: IdentityContext | None = None,
-    ) -> ModelResponse:
-        """执行受控普通文本流；增量只写 CanonicalEvent，不返回第二个 iterator。"""
-
-        return await self._stream(
-            request,
-            context=context,
-            usage_call_id=usage_call_id,
-            route_operation_identity_digest=route_operation_identity_digest,
-            soft_approved=False,
-            actor=actor,
-            approved_grant=None,
         )
 
     async def _validate_approved_grant(
@@ -468,14 +425,17 @@ class ModelInvocationService(
             identity=actor,
             grant=grant,
         )
-        return await self._complete(
-            request,
-            context=context,
-            usage_call_id=usage_call_id,
-            route_operation_identity_digest=route_operation_identity_digest,
-            soft_approved=True,
-            actor=actor,
-            approved_grant=grant,
+        return cast(
+            ModelResponse,
+            await self._complete(
+                request,
+                context=context,
+                usage_call_id=usage_call_id,
+                route_operation_identity_digest=route_operation_identity_digest,
+                soft_approved=True,
+                actor=actor,
+                approved_grant=grant,
+            ),
         )
 
     async def stream_with_approval(

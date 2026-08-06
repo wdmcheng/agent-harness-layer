@@ -27,6 +27,11 @@ from agent_harness.models._router_identity import (
     route_plan_identity_payload,
 )
 from agent_harness.models.providers import ModelDecision, ModelProvider, ModelRequest
+from agent_harness.models.tool_catalog import (
+    ToolCatalog,
+    ToolIntentRequestIdentity,
+    provider_tool_catalog_bytes,
+)
 
 
 class RouterSnapshotChainPlanningMixin(RouterCurrentPlanningMixin):
@@ -297,6 +302,7 @@ class RouterSnapshotChainPlanningMixin(RouterCurrentPlanningMixin):
         policy: AgentModelPolicyLike,
         frozen: FrozenModelRouteSnapshot,
         tolerate_static_ineligible: bool = False,
+        tool_catalog: ToolCatalog | None = None,
     ) -> ModelRoutePlan:
         """对快照静态输入重做动态 hard eligibility 与 checked reservation 公式。"""
 
@@ -312,14 +318,47 @@ class RouterSnapshotChainPlanningMixin(RouterCurrentPlanningMixin):
         prompt_bytes = len(request.prompt.encode("utf-8"))
         if prompt_bytes > frozen.max_prompt_utf8_bytes and not tolerate_static_ineligible:
             raise ModelRouteError("model.route_not_allowed", "prompt exceeds snapshot byte cap")
+        tool_mode = request.capability == "tool_intent"
+        if tool_mode != (tool_catalog is not None):
+            raise ModelRouteError(
+                "model.tool_catalog_conflict",
+                "snapshot route and tool catalog mode mismatch",
+            )
+        if tool_mode:
+            if (
+                frozen.request_shape_ref != "single-user-text-with-tool-catalog"
+                or frozen.max_tool_catalog_utf8_bytes is None
+            ):
+                raise ModelRouteError(
+                    "budget.reservation_rejected",
+                    "tool-intent snapshot catalog identity is incomplete",
+                )
+            assert tool_catalog is not None
+            provider_catalog = provider_tool_catalog_bytes(tool_catalog)
+            if len(provider_catalog) > frozen.max_tool_catalog_utf8_bytes:
+                raise ModelRouteError(
+                    "model.input_too_large",
+                    "provider tool catalog exceeds frozen byte cap",
+                )
+        else:
+            if (
+                frozen.request_shape_ref != "single-user-text-no-tools"
+                or frozen.max_tool_catalog_utf8_bytes is not None
+            ):
+                raise ModelRouteError(
+                    "budget.reservation_rejected",
+                    "no-tools snapshot carries tool catalog identity",
+                )
+            provider_catalog = b""
         expected_static_tokens = (
             frozen.max_prompt_utf8_bytes
+            + (frozen.max_tool_catalog_utf8_bytes or 0)
             + frozen.input_envelope_token_bound
             + frozen.max_output_tokens
         )
         if expected_static_tokens != frozen.max_per_attempt_token_bound:
             raise ModelRouteError("budget.reservation_rejected", "snapshot token formula mismatch")
-        trusted_input = prompt_bytes + frozen.input_envelope_token_bound
+        trusted_input = prompt_bytes + len(provider_catalog) + frozen.input_envelope_token_bound
         per_attempt_tokens = trusted_input + request.max_output_tokens
         if (
             per_attempt_tokens > frozen.max_per_attempt_token_bound
@@ -339,7 +378,11 @@ class RouterSnapshotChainPlanningMixin(RouterCurrentPlanningMixin):
             ):
                 raise ModelRouteError("budget.reservation_rejected", "snapshot price is incomplete")
             expected_static_cost = (
-                Decimal(frozen.max_prompt_utf8_bytes + frozen.input_envelope_token_bound)
+                Decimal(
+                    frozen.max_prompt_utf8_bytes
+                    + (frozen.max_tool_catalog_utf8_bytes or 0)
+                    + frozen.input_envelope_token_bound
+                )
                 * frozen.input_token_price_usd
                 + Decimal(frozen.max_output_tokens) * frozen.output_token_price_usd
             )
@@ -373,6 +416,18 @@ class RouterSnapshotChainPlanningMixin(RouterCurrentPlanningMixin):
             price_source_ref=frozen.price_source_ref,
             price_source_version=frozen.price_source_version,
         )
+        tool_request_identity = (
+            ToolIntentRequestIdentity(
+                model_catalog_digest=frozen.model_catalog_digest,
+                tool_catalog_digest=tool_catalog.catalog_digest,
+                tool_catalog_utf8_bytes=len(provider_catalog),
+                max_tool_catalog_utf8_bytes=frozen.max_tool_catalog_utf8_bytes,
+                trusted_input_token_bound=trusted_input,
+                output_token_cap=request.max_output_tokens,
+            )
+            if tool_catalog is not None and frozen.max_tool_catalog_utf8_bytes is not None
+            else None
+        )
         return ModelRoutePlan(
             deployment_id=frozen.deployment_id,
             provider_kind=frozen.provider,
@@ -392,6 +447,13 @@ class RouterSnapshotChainPlanningMixin(RouterCurrentPlanningMixin):
             model_catalog_ref=frozen.model_catalog_ref,
             model_catalog_version=frozen.model_catalog_version,
             model_catalog_digest=frozen.model_catalog_digest,
+            tool_request_identity=tool_request_identity,
+            tool_request_identity_digest=(
+                tool_request_identity.digest if tool_request_identity is not None else None
+            ),
+            provider_tool_catalog_json=(
+                provider_catalog.decode("utf-8") if tool_request_identity is not None else None
+            ),
             request_shape_ref=frozen.request_shape_ref,
             request_shape_version=frozen.request_shape_version,
             input_bound_strategy_ref=frozen.input_bound_strategy_ref,

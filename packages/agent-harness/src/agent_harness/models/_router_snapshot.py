@@ -14,7 +14,8 @@ from agent_harness.models._router_contracts import (
     ModelRouterConfig,
 )
 from agent_harness.models._router_snapshot_chain import RouterSnapshotChainPlanningMixin
-from agent_harness.models.providers import ModelProvider, ModelRequest
+from agent_harness.models.providers import ModelProvider, ModelRequest, ModelToolIntentProvider
+from agent_harness.models.tool_catalog import ToolCatalog
 
 
 class RouterSnapshotPlanningMixin(RouterSnapshotChainPlanningMixin):
@@ -23,6 +24,30 @@ class RouterSnapshotPlanningMixin(RouterSnapshotChainPlanningMixin):
     config: ModelRouterConfig
     _providers: dict[str, ModelProvider]
     _model_settings: ModelSettings | None
+
+    def validate_tool_intent_route(
+        self,
+        request: ModelRequest,
+        *,
+        plan: ModelRoutePlan,
+    ) -> None:
+        """在 usage claim 前证明 adapter 能零执行观察 proposal。"""
+
+        if request.capability != "tool_intent" or plan.capability != "tool_intent":
+            raise ModelRouteError(
+                "model.capability_unsupported",
+                "tool-intent route capability mismatch",
+            )
+        provider = self._providers.get(plan.provider)
+        if (
+            provider is None
+            or not isinstance(provider, ModelToolIntentProvider)
+            or provider.tool_intent_observation_supported is not True
+        ):
+            raise ModelRouteError(
+                "model.capability_unsupported",
+                "bound provider cannot observe tool intent without execution",
+            )
 
     @staticmethod
     def _minimum_limit(first: int | None, second: int | None) -> int | None:
@@ -35,6 +60,7 @@ class RouterSnapshotPlanningMixin(RouterSnapshotChainPlanningMixin):
         *,
         snapshot: Mapping[str, Any],
         agent_id: str,
+        tool_catalog: ToolCatalog | None = None,
     ) -> ModelRoutePlan:
         """只从完整 v2 子快照重建真实 route；current settings 不参与路由选择。"""
 
@@ -59,8 +85,18 @@ class RouterSnapshotPlanningMixin(RouterSnapshotChainPlanningMixin):
             raise ModelRouteError("model.route_not_allowed", "request cannot change deployment")
         if request.provider is not None and request.provider != policy.provider:
             raise ModelRouteError("model.route_not_allowed", "provider assertion mismatch")
-        if request.capability not in {"text_completion", "text_stream", "structured_output"}:
+        if request.capability not in {
+            "text_completion",
+            "text_stream",
+            "structured_output",
+            "tool_intent",
+        }:
             raise ModelRouteError("model.capability_unsupported", "capability is not supported")
+        if (request.capability == "tool_intent") != (tool_catalog is not None):
+            raise ModelRouteError(
+                "model.tool_catalog_conflict",
+                "snapshot tool-intent planning requires a dedicated catalog",
+            )
         selected_model = request.model or policy.default_model
         if selected_model not in policy.allowed_models:
             raise ModelRouteError("model.route_not_allowed", "model is outside frozen policy")
@@ -113,6 +149,7 @@ class RouterSnapshotPlanningMixin(RouterSnapshotChainPlanningMixin):
                 candidate_request,
                 policy=policy,
                 frozen=frozen,
+                tool_catalog=tool_catalog,
             )
 
         hard_token_limit, hard_cost_limit = self._snapshot_target_budget(target)
@@ -173,3 +210,27 @@ class RouterSnapshotPlanningMixin(RouterSnapshotChainPlanningMixin):
             ),
             cost_limit=hard_cost_limit,
         )
+
+    def plan_tool_intent_from_snapshot(
+        self,
+        request: ModelRequest,
+        *,
+        tool_catalog: ToolCatalog,
+        snapshot: Mapping[str, Any],
+        agent_id: str,
+    ) -> ModelRoutePlan:
+        """从耐久v2 route与冻结selected catalog恢复tool-enabled动态上界。"""
+
+        if request.capability != "tool_intent":
+            raise ModelRouteError(
+                "model.tool_catalog_conflict",
+                "tool catalog can only restore tool-intent capability",
+            )
+        plan = self.plan_from_snapshot(
+            request,
+            snapshot=snapshot,
+            agent_id=agent_id,
+            tool_catalog=tool_catalog,
+        )
+        self.validate_tool_intent_route(request, plan=plan)
+        return plan

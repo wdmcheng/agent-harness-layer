@@ -104,6 +104,13 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
             if run is None or run.tenant_id != actor.tenant_id:
                 raise LookupError(f"run not found: {run_id}")
             canonical_trace = run.trace_id
+            # 审批能力必须绑定到发起暂停的原执行身份。调用方可补充 continuation
+            # 元数据，但不能覆盖 identity/session；reviewer 只授权，不接管 run。
+            bound_metadata = {
+                **(metadata or {}),
+                "identity_id": actor.user_id,
+                "session_id": actor.session_id,
+            }
             record = await uow.approvals.create(
                 ApprovalCreate(
                     tenant_id=actor.tenant_id,
@@ -116,7 +123,7 @@ class ApprovalService(ApprovalContinuationMixin, ApprovalQueueResolutionMixin):
                     requested_by=actor.user_id,
                     trace_id=canonical_trace,
                     request_id=request_id,
-                    metadata=redact_secrets(metadata or {}),
+                    metadata=redact_secrets(bound_metadata),
                 )
             )
             await uow.commit()

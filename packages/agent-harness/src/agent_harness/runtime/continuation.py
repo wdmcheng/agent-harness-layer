@@ -42,6 +42,7 @@ def validate_approval_grant(
     expected = {
         "tenant_id": state.get("tenant_id"),
         "identity_id": state.get("identity_id"),
+        "session_id": state.get("session_id"),
         "agent_id": state.get("agent_id"),
         "run_id": state.get("run_id"),
         "action": state.get("action"),
@@ -51,6 +52,7 @@ def validate_approval_grant(
     actual = {
         "tenant_id": grant.tenant_id,
         "identity_id": grant.identity_id,
+        "session_id": grant.session_id,
         "agent_id": grant.agent_id,
         "run_id": grant.run_id,
         "action": grant.action,
@@ -97,6 +99,7 @@ def approval_checkpoint_state(
         "arguments_hash": approval.arguments_hash,
         "continuation": approval.continuation,
         "identity_id": context.identity.user_id,
+        "session_id": context.identity.session_id,
         "tenant_id": context.identity.tenant_id,
         "identity": context.identity.to_payload(),
         "request_id": context.request_id,

@@ -532,7 +532,7 @@ def test_0017_columns_and_revision_are_declared_without_rewriting_legacy_rows() 
 
     assert claim_column.nullable is True
     assert allocation_column.nullable is True
-    assert get_head_revision() == "0017_model_route_chain_state"
+    assert get_head_revision() == "0018_model_tool_loop_state"
 
 
 @pytest.mark.asyncio

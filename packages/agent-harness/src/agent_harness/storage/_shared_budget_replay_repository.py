@@ -134,7 +134,11 @@ class _SharedBudgetReplayMixin:
                 and seed.result is None
                 and usage_state == "started"
                 and isinstance(usage_result, dict)
-                and set(usage_result) == {"started"}
+                and set(usage_result)
+                in (
+                    {"started"},
+                    {"started", "tool_intent_replay_seed"},
+                )
             )
         elif seed.side_effect_state == "started":
             valid = (
@@ -142,7 +146,11 @@ class _SharedBudgetReplayMixin:
                 and seed.result is None
                 and usage_state == "started"
                 and isinstance(usage_result, dict)
-                and set(usage_result) == {"started"}
+                and set(usage_result)
+                in (
+                    {"started"},
+                    {"started", "tool_intent_replay_seed"},
+                )
             )
         else:
             outbox_result = (

@@ -21,6 +21,7 @@ from agent_harness.models.structured import (
 
 if TYPE_CHECKING:
     from agent_harness.models.router import ModelRoutePlan
+    from agent_harness.models.tool_intent import ProviderToolIntentCandidate
 
 
 class ModelRequest(HarnessDTO):
@@ -559,6 +560,37 @@ class PreparedModelCall(Protocol):
 
     async def aclose(self) -> None:
         """释放本次调用 permit；client 由进程级 factory 统一管理。"""
+        ...
+
+
+@runtime_checkable
+class PreparedModelToolIntentCall(Protocol):
+    """已取得 permit/client、但未发送的 provider-neutral tool-intent 调用。"""
+
+    async def send_tool_intent(self) -> ModelResponse | ProviderToolIntentCandidate:
+        """发送恰好一次请求；不得执行或注册任何工具 callback。"""
+        ...
+
+    async def aclose(self) -> None:
+        """释放本次调用资源；不得在清理时发送请求。"""
+        ...
+
+
+@runtime_checkable
+class ModelToolIntentProvider(Protocol):
+    """与 text/stream/structured 正交的工具意图观察能力。"""
+
+    provider_id: str
+    tool_intent_observation_supported: bool
+
+    async def prepare_tool_intent(
+        self,
+        request: ModelRequest,
+        *,
+        plan: ModelRoutePlan,
+        tool_catalog_json: bytes,
+    ) -> PreparedModelToolIntentCall:
+        """只映射核心冻结目录，不得读取 Registry 或 executable handler。"""
         ...
 
 

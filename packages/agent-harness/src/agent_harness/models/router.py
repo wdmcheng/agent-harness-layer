@@ -22,11 +22,14 @@ from agent_harness.models.providers import (
     ModelResponse,
     ModelStreamingProvider,
     ModelStructuredProvider,
+    ModelToolIntentProvider,
     PreparedModelCall,
     PreparedModelStreamCall,
+    PreparedModelToolIntentCall,
     PreparedStructuredModelCall,
 )
 from agent_harness.models.structured import OutputSchemaDefinition
+from agent_harness.models.tool_catalog import ToolCatalog
 
 
 class ModelRouter(RouterSnapshotPlanningMixin):
@@ -154,6 +157,33 @@ class ModelRouter(RouterSnapshotPlanningMixin):
                 "controlled routing requires an agent model policy",
             )
         return self._plan_legacy_fake(request, config=config)
+
+    def plan_tool_intent(
+        self,
+        request: ModelRequest,
+        *,
+        tool_catalog: ToolCatalog,
+        agent_policy: AgentModelPolicyLike | None = None,
+    ) -> ModelRoutePlan:
+        """使用独立catalog参数冻结tool-enabled单route与可信输入上界。"""
+
+        if request.capability != "tool_intent":
+            raise ModelRouteError(
+                "model.tool_catalog_conflict",
+                "tool catalog can only be used with tool-intent capability",
+            )
+        if self._model_settings is None or agent_policy is None:
+            raise ModelRouteError(
+                "model.tool_catalog_conflict",
+                "tool-intent routing requires controlled settings and agent policy",
+            )
+        plan = self._plan_controlled(
+            request,
+            agent_policy=agent_policy,
+            tool_catalog=tool_catalog,
+        )
+        self.validate_tool_intent_route(request, plan=plan)
+        return plan
 
     def plan_structured(
         self,
@@ -333,6 +363,30 @@ class ModelRouter(RouterSnapshotPlanningMixin):
                 "bound provider does not implement structured output",
             )
         return await provider.prepare_structured(request, plan=plan, schema=schema)
+
+    async def prepare_tool_intent(
+        self,
+        request: ModelRequest,
+        *,
+        plan: ModelRoutePlan,
+    ) -> PreparedModelToolIntentCall:
+        """把冻结 provider catalog bytes 交给只观察 proposal 的 adapter。"""
+
+        if self._closed:
+            raise RuntimeError("model router is closed")
+        self.validate_tool_intent_route(request, plan=plan)
+        provider = self._providers.get(plan.provider)
+        assert isinstance(provider, ModelToolIntentProvider)
+        if plan.provider_tool_catalog_json is None:
+            raise ModelRouteError(
+                "model.tool_catalog_conflict",
+                "tool-intent plan is missing frozen provider catalog",
+            )
+        return await provider.prepare_tool_intent(
+            request,
+            plan=plan,
+            tool_catalog_json=plan.provider_tool_catalog_json.encode("utf-8"),
+        )
 
 
 class _DirectPreparedCall:

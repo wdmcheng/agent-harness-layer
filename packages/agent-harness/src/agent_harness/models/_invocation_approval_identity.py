@@ -81,6 +81,26 @@ class StructuredApprovalIdentity:
     arguments_hash: str
 
 
+class ModelInvocationApprovalIdentityMixin:
+    """从主调用服务的storage恢复普通route-chain或legacy审批身份。"""
+
+    _storage: SQLAlchemyStorage
+
+    async def approved_invocation_identity(
+        self,
+        *,
+        context: UsageEvidenceContext,
+        grant: ApprovalIdentityGrant,
+    ) -> tuple[str, str]:
+        """只信任durable approval artifact，不从业务operation key重派生。"""
+
+        return await resolve_approved_invocation_identity(
+            storage=self._storage,
+            context=context,
+            grant=grant,
+        )
+
+
 def structured_approval_arguments(
     *,
     request: ModelRequest,
@@ -359,6 +379,7 @@ async def resolve_approved_invocation_identity(
 
 __all__ = [
     "ApprovalIdentityGrant",
+    "ModelInvocationApprovalIdentityMixin",
     "StructuredApprovalIdentity",
     "resolve_approved_invocation_identity",
     "resolve_structured_approved_invocation_identity",

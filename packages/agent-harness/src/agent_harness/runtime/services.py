@@ -17,6 +17,7 @@ from agent_harness.embeddings import (
     StorageEmbeddingCache,
 )
 from agent_harness.events import EventBus, EventSink
+from agent_harness.events.model_tool_loop import ModelToolLoopEventProducer
 from agent_harness.models import (
     FakeModelProvider,
     ModelInvocationService,
@@ -24,6 +25,11 @@ from agent_harness.models import (
     ModelRouter,
     ModelRouterConfig,
     StructuredSchemaResolutionError,
+    ToolCatalog,
+    ToolCatalogConflictError,
+    ToolCatalogSelection,
+    ToolCatalogSourceDescriptor,
+    build_tool_catalog,
 )
 from agent_harness.observability import TelemetryFacade
 from agent_harness.policy import PolicyEngine
@@ -32,6 +38,8 @@ from agent_harness.retrieval import (
     LocalSQLiteBM25RetrievalProvider,
     PostgreSQLRetrievalProvider,
 )
+from agent_harness.runtime.model_tool_loop import ModelToolLoopService
+from agent_harness.runtime.model_tool_loop_approval import ModelToolLoopApprovalStore
 from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.storage import SQLAlchemyStorage
 from agent_harness.tools import ToolRegistry, WorkspacePolicy
@@ -91,6 +99,86 @@ class ToolRegistryFactory:
             enforce_agent_tool_allowlist=True,
             storage=self._storage,
         )
+
+    def catalog_descriptors(self) -> tuple[ToolCatalogSourceDescriptor, ...]:
+        """返回未按单个 Agent 过滤的 data-only 目录，供 Registry 原子预检。"""
+
+        workspace = WorkspacePolicy(
+            root=self._workspace_root,
+            ignore_file=self._settings.tools.workspace.ignore_file,
+        )
+        return ToolRegistry(
+            tools=builtin_tools(
+                settings=self._settings,
+                workspace_policy=workspace,
+                artifact_store=self._artifact_store,
+                policy=self._policy,
+                requested_tool_name="",
+            ),
+            policy=self._policy,
+            audit=self._audit,
+            artifact_store=self._artifact_store,
+            inline_result_bytes=self._settings.tools.workspace.inline_result_bytes,
+            storage=self._storage,
+        ).catalog_descriptors()
+
+
+def build_registry_tool_catalog_descriptors(
+    *,
+    settings: HarnessSettings,
+    storage: SQLAlchemyStorage,
+    policy: PolicyEngine,
+    audit: AuditService,
+    artifact_store: FileArtifactStore,
+    workspace_root: Path,
+) -> tuple[ToolCatalogSourceDescriptor, ...]:
+    """以与执行期相同的工具组合构造加载期受信目录快照。"""
+
+    return ToolRegistryFactory(
+        settings=settings,
+        storage=storage,
+        policy=policy,
+        audit=audit,
+        artifact_store=artifact_store,
+        workspace_root=workspace_root,
+    ).catalog_descriptors()
+
+
+class AgentToolCatalogResolver:
+    """把受信 Agent descriptor 与当前 Registry 描述投影成冻结模型工具目录。"""
+
+    def __init__(
+        self,
+        *,
+        registry: AgentRegistry,
+        tool_registry_factory: ToolRegistryFactory,
+    ) -> None:
+        """保存只读Registry与既有工具组合工厂，不持有handler或provider能力。"""
+
+        self._registry = registry
+        self._tool_registry_factory = tool_registry_factory
+
+    def __call__(
+        self,
+        agent_id: str,
+        selection: ToolCatalogSelection | None,
+    ) -> ToolCatalog:
+        """从加载期快照缩小目录，并重验当前 Registry 未发生身份漂移。"""
+
+        catalog = self._registry.resolve_tool_catalog(agent_id, selection)
+        allowed_tools = tuple(self._registry.get(agent_id).tool_policy.allowed_tools)
+        current = self._tool_registry_factory(
+            allowed_tools=allowed_tools,
+            requested_tool_name="",
+        )
+        current_catalog = build_tool_catalog(
+            allowed_tools=allowed_tools,
+            registry_descriptors=current.catalog_descriptors(),
+            selection=selection,
+        )
+        if current_catalog != catalog:
+            raise ToolCatalogConflictError
+        return catalog
 
 
 async def close_agent_execution_services(services: Mapping[str, object]) -> None:
@@ -191,6 +279,23 @@ def build_agent_execution_services(
             )
             raise StructuredSchemaResolutionError(code) from exc
 
+    tool_registry_factory = ToolRegistryFactory(
+        settings=settings,
+        storage=storage,
+        policy=policy,
+        audit=audit,
+        artifact_store=artifact_store,
+        workspace_root=resolved_workspace,
+    )
+    tool_catalog_resolver = AgentToolCatalogResolver(
+        registry=registry,
+        tool_registry_factory=tool_registry_factory,
+    )
+    context_assembly = ContextAssemblyService(
+        storage=storage,
+        artifact_store=artifact_store,
+    )
+
     model_invocation = ModelInvocationService(
         router=ModelRouter(
             config=model_router_config,
@@ -205,6 +310,7 @@ def build_agent_execution_services(
         policy_engine=policy,
         stream_timing_observer=stream_timing_observer,
         output_schema_resolver=resolve_output_schema,
+        tool_catalog_resolver=tool_catalog_resolver,
     )
     embedding_invocation = EmbeddingInvocationService(
         provider=LocalEmbeddingProvider(cache=StorageEmbeddingCache(storage)),
@@ -216,24 +322,45 @@ def build_agent_execution_services(
         price_source_ref="catalog:local:mock-small",
         price_source_version="catalog-v1",
     )
-    return {
-        "artifact_store": artifact_store,
-        "context_assembly": ContextAssemblyService(
+
+    def resolve_tool_registry(agent_id: str, tool_name: str) -> ToolRegistry:
+        """每次工具调用都重新读取 descriptor allowlist 并构造受策略保护的 Registry。"""
+
+        allowed_tools = tuple(registry.get(agent_id).tool_policy.allowed_tools)
+        return tool_registry_factory(
+            allowed_tools=allowed_tools,
+            requested_tool_name=tool_name,
+        )
+
+    def resolve_loop_limits(agent_id: str):
+        """返回完整Agent循环maxima；缺失时不为legacy Agent合成默认值。"""
+
+        return registry.get(agent_id).model_tool_loop
+
+    model_tool_loop = ModelToolLoopService(
+        model_turns=model_invocation,
+        tool_catalog_resolver=tool_catalog_resolver,
+        tool_registry_resolver=resolve_tool_registry,
+        context_assembly=context_assembly,
+        loop_limits_resolver=resolve_loop_limits,
+        agent_model_policy_resolver=lambda agent_id: registry.get(agent_id).model_policy,
+        approval_store=ModelToolLoopApprovalStore(
             storage=storage,
             artifact_store=artifact_store,
         ),
+        loop_events=ModelToolLoopEventProducer(storage=storage, event_bus=event_bus),
+        storage=storage,
+        artifact_store=artifact_store,
+    )
+    return {
+        "artifact_store": artifact_store,
+        "context_assembly": context_assembly,
         "embedding_invocation": embedding_invocation,
         "model_invocation": model_invocation,
+        "model_tool_loop": model_tool_loop,
         "shared_budget": shared_budget,
         "retrieval_provider": retrieval,
         "telemetry": telemetry,
-        "tool_registry_factory": ToolRegistryFactory(
-            settings=settings,
-            storage=storage,
-            policy=policy,
-            audit=audit,
-            artifact_store=artifact_store,
-            workspace_root=resolved_workspace,
-        ),
+        "tool_registry_factory": tool_registry_factory,
         "service_root": service_root.resolve(),
     }

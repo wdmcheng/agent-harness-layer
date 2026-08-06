@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
+    DateTime,
     ForeignKey,
     Integer,
     String,
@@ -95,7 +98,31 @@ class ToolInvocationModel(TimestampMixin, Base):
     """一次工具调用的参数/result artifact 引用和状态摘要。"""
 
     __tablename__ = "tool_invocations"
-    __table_args__ = (UniqueConstraint("approval_id", name="uq_tool_invocations_approval_id"),)
+    __table_args__ = (
+        UniqueConstraint("approval_id", name="uq_tool_invocations_approval_id"),
+        UniqueConstraint("tool_call_id", name="uq_tool_invocations_tool_call_id"),
+        CheckConstraint(
+            "(loop_id is null and turn_ordinal is null and tool_call_id is null "
+            "and binding_json is null and execution_lease_digest is null "
+            "and execution_fence is null and execution_lease_expires_at is null "
+            "and handler_started_at is null and not_started_proof_json is null) or ("
+            "loop_id is not null and turn_ordinal is not null and tool_call_id is not null "
+            "and binding_json is not null and execution_lease_digest is not null "
+            "and execution_fence is not null and execution_lease_expires_at is not null "
+            "and length(loop_id) = 64 and turn_ordinal >= 1 and length(tool_call_id) = 64 "
+            "and binding_json is not null and length(arguments_hash) = 64 "
+            "and length(execution_lease_digest) = 64 and execution_fence >= 1 "
+            "and execution_lease_expires_at is not null and run_id is not null "
+            "and execution_state in ('claimed','executing','completed','failed','needs_review') "
+            "and ((execution_state = 'claimed' and handler_started_at is null "
+            "and result_ref is null) or (execution_state = 'executing' "
+            "and handler_started_at is not null and result_ref is null) or "
+            "(execution_state in ('completed','failed') and handler_started_at is not null "
+            "and result_ref is not null and length(result_ref) > 0) or "
+            "(execution_state = 'needs_review' and result_ref is null)))",
+            name="ck_tool_invocations_model_loop_shape",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(64), ForeignKey("tenants.id"), index=True)
@@ -114,6 +141,27 @@ class ToolInvocationModel(TimestampMixin, Base):
     trace_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    loop_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    turn_ordinal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tool_call_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    binding_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON(none_as_null=True),
+        nullable=True,
+    )
+    execution_lease_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    execution_fence: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    execution_lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    handler_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    not_started_proof_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON(none_as_null=True),
+        nullable=True,
+    )
 
 
 class ApiKeyModel(TimestampMixin, Base):

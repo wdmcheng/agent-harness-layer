@@ -31,6 +31,7 @@ from agent_harness.models._structured_settlement_evidence_models import (
     StructuredSettlementSummary,
 )
 from agent_harness.models.providers import (
+    ModelAttemptEvidence,
     ModelRequest,
     ModelResponse,
 )
@@ -43,6 +44,7 @@ from agent_harness.models.structured import (
     maximum_structured_validation_codes,
     structured_provider_prompt,
 )
+from agent_harness.models.tool_catalog import ToolCatalog
 from agent_harness.models.usage import CostStatus, ModelUsageEvidence, UsageEvidenceContext
 from agent_harness.models.usage_events import UsageEvidenceLifecycle
 from agent_harness.observability.facade import TelemetryFacade
@@ -51,6 +53,7 @@ from agent_harness.storage.adapters.sqlalchemy import SQLAlchemyStorage
 
 if TYPE_CHECKING:
     from agent_harness.models._settlement_contracts import SettlementStart
+    from agent_harness.models.tool_intent import ModelTurnResult, ToolIntentReplaySeed
     from agent_harness.registry.descriptor import AgentModelPolicy
     from agent_harness.storage.evidence_repositories import UsageSettlementClaim
     from agent_harness.storage.shared_budget import BudgetOperationOwnership
@@ -78,6 +81,7 @@ class ModelInvocationStructuredMixin(
             request: ModelRequest,
             context: UsageEvidenceContext,
             approved: bool,
+            tool_catalog: ToolCatalog | None = None,
         ) -> ModelRoutePlan | ModelRouteChainPlan: ...
 
         @staticmethod
@@ -110,6 +114,7 @@ class ModelInvocationStructuredMixin(
             stream: bool = False,
             structured_replay_seed: StructuredOutputReplayIdentity | None = None,
             structured_output_request: StructuredOutputRequest | None = None,
+            tool_intent_replay_seed: ToolIntentReplaySeed | None = None,
         ) -> SettlementStart: ...
 
         async def _resume_existing_settlement(
@@ -136,6 +141,9 @@ class ModelInvocationStructuredMixin(
             error_code: str | None,
             ownership: BudgetOperationOwnership | None,
             response: ModelResponse | None,
+            turn_result: ModelTurnResult | None = None,
+            settlement_attempts: list[ModelAttemptEvidence] | None = None,
+            tool_intent_replay_seed: ToolIntentReplaySeed | None = None,
             structured_replay: StructuredOutputReplayIdentity | None = None,
         ) -> None: ...
 

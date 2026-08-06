@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from agent_harness.events import CanonicalEventType, EventBus
 from agent_harness.events.sinks.base import EventSinkReplayConflict
@@ -18,7 +18,7 @@ from agent_harness.storage.evidence_repositories import EvidenceOperationKind
 def approval_evidence(record: ApprovalRecord) -> dict[str, Any]:
     """返回 event/audit 共用且不含 private lease 的 approval 摘要。"""
 
-    return {
+    evidence: dict[str, Any] = {
         "approval_id": record.approval_id,
         "tenant_id": record.tenant_id,
         "run_id": record.run_id,
@@ -32,6 +32,33 @@ def approval_evidence(record: ApprovalRecord) -> dict[str, Any]:
         "trace_id": record.trace_id,
         "request_id": record.request_id,
     }
+    continuation = record.metadata.get("continuation")
+    if isinstance(continuation, dict):
+        continuation_map = cast(dict[str, object], continuation)
+    else:
+        continuation_map = {}
+    if continuation_map.get("kind") == "model_tool_loop":
+        loop_id = continuation_map.get("loop_id")
+        turn_ordinal = continuation_map.get("turn_ordinal")
+        tool_call_id = continuation_map.get("tool_call_id")
+        catalog_digest = continuation_map.get("catalog_digest")
+        if (
+            isinstance(loop_id, str)
+            and loop_id
+            and type(turn_ordinal) is int
+            and turn_ordinal >= 1
+            and isinstance(tool_call_id, str)
+            and tool_call_id
+            and isinstance(catalog_digest, str)
+            and catalog_digest
+        ):
+            evidence["correlation"] = {
+                "loop_id": loop_id,
+                "turn_ordinal": turn_ordinal,
+                "tool_call_id": tool_call_id,
+                "catalog_digest": catalog_digest,
+            }
+    return evidence
 
 
 def resolved_approval_record(record: ApprovalRecord, *, status: str) -> ApprovalRecord:

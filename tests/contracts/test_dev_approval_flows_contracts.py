@@ -302,6 +302,7 @@ async def test_deterministic_run_result_before_approval_finalize_recovers_existi
             lease_id=lease.lease_id,
             tenant_id=approval.tenant_id,
             identity_id=str(approval.metadata["identity_id"]),
+            session_id=str(approval.metadata["session_id"]),
             agent_id=approval.agent_id,
             run_id=approval.run_id,
             action=approval.action,

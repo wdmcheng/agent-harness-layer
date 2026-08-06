@@ -102,6 +102,91 @@ class OrderedEvidenceRepositoryMixin:
         await self._session.flush()
         return models
 
+    async def stage_reserved_group(
+        self,
+        *,
+        tenant_id: str,
+        run_id: str,
+        group_id: str,
+        items: Sequence[Mapping[str, object]],
+    ) -> list[RunEvidenceOutboxModel]:
+        """先冻结稳定event identity，正文只在对应业务结果确定后转为可发布。
+
+        该接缝供必须先于handler/Context副作用预约容量的步骤使用；`reserved`
+        行不能被EventBus发布或越过前序，崩溃时会继续围栏run terminal。
+        """
+
+        existing = await self.ordered_group(group_id=group_id)
+        expected = [
+            (
+                _required_text(item, "event_id"),
+                _required_text(item, "operation_kind"),
+                _required_non_negative_int(item, "sequence_in_group"),
+                _required_non_negative_int(item, "reserved_event_count"),
+            )
+            for item in items
+        ]
+        if existing:
+            actual = [
+                (
+                    item.event_id,
+                    item.operation_kind,
+                    int(item.sequence_in_group or 0),
+                    item.reserved_event_count,
+                )
+                for item in existing
+            ]
+            if actual != expected:
+                raise ValueError("reserved evidence group does not match persisted items")
+            return existing
+        sequences = [item[2] for item in expected]
+        if sequences != list(range(1, len(items) + 1)):
+            raise ValueError("reserved evidence group sequence must be contiguous from one")
+        models = [
+            RunEvidenceOutboxModel(
+                id=str(uuid4()),
+                tenant_id=tenant_id,
+                run_id=run_id,
+                usage_call_id=None,
+                event_id=event_id,
+                operation_kind=operation_kind,
+                state="reserved",
+                result_json=None,
+                reserved_event_count=reserved_event_count,
+                group_id=group_id,
+                sequence_in_group=sequence,
+            )
+            for event_id, operation_kind, sequence, reserved_event_count in expected
+        ]
+        self._session.add_all(models)
+        await self._session.flush()
+        return models
+
+    async def persist_reserved_event(
+        self,
+        *,
+        event_id: str,
+        result: Mapping[str, object],
+    ) -> None:
+        """把单个已预约identity原子提升为exact可发布event intent。"""
+
+        model = await self._session.scalar(
+            select(RunEvidenceOutboxModel)
+            .where(RunEvidenceOutboxModel.event_id == event_id)
+            .with_for_update()
+        )
+        if model is None:
+            raise LookupError("reserved evidence event not found")
+        snapshot = dict(result)
+        if model.state == "reserved":
+            model.result_json = snapshot
+            model.state = "result_persisted"
+            await self._session.flush()
+            return
+        if model.state in {"result_persisted", "published"} and model.result_json == snapshot:
+            return
+        raise ValueError("reserved evidence event conflicts with persisted result")
+
     async def ordered_group(self, *, group_id: str) -> list[RunEvidenceOutboxModel]:
         """按 sequence_in_group 读取完整证据组，供恢复与一致性比较使用。"""
         result = await self._session.scalars(
@@ -124,6 +209,25 @@ class OrderedEvidenceRepositoryMixin:
         if changed.rowcount < 1:
             raise LookupError("ordered evidence group not found")
         return int(changed.rowcount)
+
+    async def mark_event_recovery_error(self, *, event_id: str, error_code: str) -> None:
+        """保留原event intent与预约，只追加稳定恢复错误供人工处置。"""
+
+        if not error_code:
+            raise ValueError("event recovery error code must be non-empty")
+        changed = cast(
+            CursorResult[Any],
+            await self._session.execute(
+                update(RunEvidenceOutboxModel)
+                .where(
+                    RunEvidenceOutboxModel.event_id == event_id,
+                    RunEvidenceOutboxModel.state.in_(("reserved", "result_persisted", "published")),
+                )
+                .values(error_code=error_code)
+            ),
+        )
+        if changed.rowcount != 1:
+            raise LookupError("evidence outbox event not found")
 
     async def update_group_result(
         self,

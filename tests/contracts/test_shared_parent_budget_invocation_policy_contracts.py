@@ -133,6 +133,7 @@ async def test_approved_continuation_rechecks_current_parent_balance(tmp_path: P
             lease_id=lease.lease_id,
             tenant_id="tenant-a",
             identity_id="user-a",
+            session_id="session-a",
             agent_id="agent-a",
             run_id=run_id,
             action="model.invoke",

@@ -58,7 +58,7 @@ def collect_evidence(
     approval_evidence = run_approval_smoke(env, base_url=base_url, token=token)
 
     evidence: dict[str, object] = {
-        "migration": "0017_model_route_chain_state",
+        "migration": "0018_model_tool_loop_state",
         "secret_file": {
             "consumers": ["migration", "api", "worker"],
             "postgres_password_file": True,

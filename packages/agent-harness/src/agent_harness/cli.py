@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, NoReturn, cast
 from uuid import uuid4
 
 import typer
@@ -25,6 +25,7 @@ from agent_harness.registry import AgentRegistry, RegistryLoadError
 from agent_harness.runtime import RunOrchestrator, RunTraceError
 from agent_harness.runtime.services import (
     build_agent_execution_services,
+    build_registry_tool_catalog_descriptors,
     close_agent_execution_services,
 )
 from agent_harness.runtime.shared_budget import SharedBudgetRuntime
@@ -58,6 +59,16 @@ migrate_local_state_command = cli_local_state.migrate_local_state_command
 @app.callback()
 def cli_root() -> None:
     """开发者和维护者共用的本地命令集合。"""
+
+
+def _exit_registry_error(exc: RegistryLoadError) -> NoReturn:
+    """把 registry 诊断稳定投影到 CLI，并以统一退出码结束当前命令。"""
+
+    for error in exc.error_details:
+        field = f" field={error.field_path}" if error.field_path else ""
+        hint = f" hint={error.hint}" if error.hint else ""
+        typer.echo(f"{error.code}:{field} {error.message}{hint}", err=True)
+    raise typer.Exit(1) from exc
 
 
 @scaffold_app.command("agent")
@@ -137,21 +148,15 @@ def run(
     """通过 registry executor 运行 Agent，并保留 runtime、storage 与 event evidence。"""
 
     settings = cli_shared.load_settings_or_exit(profile, profiles_dir)
+    try:
+        # 未知目标必须在 storage、artifact 恢复或动态 import 之前拒绝；这个探针只读
+        # registry YAML，完整 registry 验证仍在后续 composition 中执行。
+        AgentRegistry.require_declared_agent(agents_dir, agent_id)
+    except RegistryLoadError as exc:
+        _exit_registry_error(exc)
 
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
-    try:
-        registry = AgentRegistry.load_from_directory(agents_dir)
-        registry.get(agent_id)
-    except RegistryLoadError as exc:
-        for error in exc.error_details:
-            field = f" field={error.field_path}" if error.field_path else ""
-            hint = f" hint={error.hint}" if error.hint else ""
-            typer.echo(f"{error.code}:{field} {error.message}{hint}", err=True)
-        raise typer.Exit(1) from exc
-
-    cli_shared.require_schema_or_exit(resolved_dsn)
     resolved_events_path = cli_shared.event_path(settings, events_path)
-    cli_shared.require_local_state_ready_or_exit(event_paths=(resolved_events_path,))
     service_root = agents_dir.resolve().parent
     configured_artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
     artifact_root = (
@@ -173,127 +178,152 @@ def run(
         artifact_store=artifact_store,
         capacity_storage=storage,
     )
-    executor_services = build_agent_execution_services(
-        settings=settings,
-        storage=storage,
-        storage_dsn=resolved_dsn,
-        policy=policy,
-        audit=audit,
-        event_sink=event_sink,
-        event_bus=event_bus,
-        artifact_store=artifact_store,
-        service_root=service_root,
-        registry=registry,
-    )
-    orchestrator = RunOrchestrator(
-        storage=storage,
-        # CLI 也带 artifact store；否则本地命令路径会绕过“大 payload 只留
-        # payload_ref”的事件规则。
-        event_bus=event_bus,
-        identity=settings.identity.default,
-        executor_resolver=registry.resolve_executor,
-        executor_services=executor_services,
-    )
-    delegation_service = DelegationService(
-        storage=storage,
-        registry=registry,
-        policy=policy,
-        event_bus=event_bus,
-        orchestrator=orchestrator,
-        shared_budget=cast(SharedBudgetRuntime, executor_services["shared_budget"]),
-        mode="local",
-    )
-    orchestrator.bind_execution_service(
-        "agent.delegate",
-        AgentDelegationModule(delegation_service),
-    )
-    approval_service = ApprovalService(
-        storage=storage,
-        event_bus=event_bus,
-        orchestrator=orchestrator,
-        audit=audit,
-    )
+    registry: AgentRegistry | None = None
+    registry_error: RegistryLoadError | None = None
+    try:
+        registry = AgentRegistry.load_from_directory(
+            agents_dir,
+            model_settings=settings.model,
+            tool_catalog_descriptors=build_registry_tool_catalog_descriptors(
+                settings=settings,
+                storage=storage,
+                policy=policy,
+                audit=audit,
+                artifact_store=artifact_store,
+                workspace_root=service_root,
+            ),
+        )
+        registry.get(agent_id)
+    except RegistryLoadError as exc:
+        registry_error = exc
     input_payload = {"source": "cli"}
     if prompt is not None:
         input_payload["prompt"] = prompt
 
-    async def _execute():
-        """执行运行、输入护栏和可能的审批挂起流程。"""
-
-        preflight_trace = await orchestrator.prepare_trace(
-            agent_id=agent_id,
-            idempotency_key=idempotency_key,
-            identity=settings.identity.default,
-            trace_id=trace_id,
-        )
-        async with orchestrator.coordinate_run_submission(
-            agent_id=agent_id,
-            idempotency_key=idempotency_key,
-            trace_id=preflight_trace,
-            identity=settings.identity.default,
-        ):
-            canonical_trace = await orchestrator.prepare_trace(
-                agent_id=agent_id,
-                idempotency_key=idempotency_key,
-                identity=settings.identity.default,
-                trace_id=preflight_trace,
-            )
-            checkpoint_state = None
-            decision = None
-            if not canonical_trace.replays_existing:
-                guardrail = InputGuardrail(policy=policy, audit=audit)
-                decision = await guardrail.check(
-                    actor=settings.identity.default,
-                    agent_id=agent_id,
-                    input=input_payload,
-                )
-                if decision.decision == "deny":
-                    raise PolicyDeniedError(decision.reason)
-                if decision.decision == "require_approval":
-                    checkpoint_state = {
-                        "reason": decision.reason,
-                        "policy": decision.to_payload(),
-                    }
-            run_result = await orchestrator.start_run(
-                agent_id=agent_id,
-                input=input_payload,
-                idempotency_key=idempotency_key,
-                checkpoint_state=checkpoint_state,
-                identity=settings.identity.default,
-                trace_id=canonical_trace,
-                pre_run_events=(
-                    [(CanonicalEventType.INPUT_GUARDRAIL_CHECKED, decision.to_payload())]
-                    if decision is not None
-                    else None
-                ),
-            )
-            if (
-                decision is not None
-                and checkpoint_state is not None
-                and run_result.resume_token is not None
-            ):
-                await approval_service.require_approval(
-                    actor=settings.identity.default,
-                    run_id=run_result.run_id,
-                    agent_id=agent_id,
-                    action="input.prompt_injection",
-                    resource=f"agent:{agent_id}:input",
-                    reason=decision.reason,
-                    resume_token=run_result.resume_token,
-                )
-            return run_result
-
     async def _run():
-        """在创建异步 client 的同一事件循环内完成执行与全部资源清理。"""
+        """在唯一事件循环内校验启动条件、执行并关闭全部异步资源。"""
 
         try:
-            return await _execute()
+            if registry_error is not None:
+                raise registry_error
+            if registry is None:  # pragma: no cover - 上述装载分支已穷尽
+                raise RuntimeError("agent registry initialization did not complete")
+            # Registry 是纯配置边界，先拒绝未知 Agent；确认目标存在后才允许
+            # storage/local-state 门禁或 runtime composition 产生运行时副作用。
+            cli_shared.require_schema_or_exit(resolved_dsn)
+            cli_shared.require_local_state_ready_or_exit(event_paths=(resolved_events_path,))
+            executor_services = build_agent_execution_services(
+                settings=settings,
+                storage=storage,
+                storage_dsn=resolved_dsn,
+                policy=policy,
+                audit=audit,
+                event_sink=event_sink,
+                event_bus=event_bus,
+                artifact_store=artifact_store,
+                service_root=service_root,
+                registry=registry,
+            )
+            try:
+                orchestrator = RunOrchestrator(
+                    storage=storage,
+                    # CLI 也带 artifact store；否则本地命令路径会绕过“大 payload 只留
+                    # payload_ref”的事件规则。
+                    event_bus=event_bus,
+                    identity=settings.identity.default,
+                    executor_resolver=registry.resolve_executor,
+                    executor_services=executor_services,
+                )
+                delegation_service = DelegationService(
+                    storage=storage,
+                    registry=registry,
+                    policy=policy,
+                    event_bus=event_bus,
+                    orchestrator=orchestrator,
+                    shared_budget=cast(SharedBudgetRuntime, executor_services["shared_budget"]),
+                    mode="local",
+                )
+                orchestrator.bind_execution_service(
+                    "agent.delegate",
+                    AgentDelegationModule(delegation_service),
+                )
+                approval_service = ApprovalService(
+                    storage=storage,
+                    event_bus=event_bus,
+                    orchestrator=orchestrator,
+                    audit=audit,
+                )
+                preflight_trace = await orchestrator.prepare_trace(
+                    agent_id=agent_id,
+                    idempotency_key=idempotency_key,
+                    identity=settings.identity.default,
+                    trace_id=trace_id,
+                )
+                async with orchestrator.coordinate_run_submission(
+                    agent_id=agent_id,
+                    idempotency_key=idempotency_key,
+                    trace_id=preflight_trace,
+                    identity=settings.identity.default,
+                ):
+                    canonical_trace = await orchestrator.prepare_trace(
+                        agent_id=agent_id,
+                        idempotency_key=idempotency_key,
+                        identity=settings.identity.default,
+                        trace_id=preflight_trace,
+                    )
+                    checkpoint_state = None
+                    decision = None
+                    if not canonical_trace.replays_existing:
+                        guardrail = InputGuardrail(policy=policy, audit=audit)
+                        decision = await guardrail.check(
+                            actor=settings.identity.default,
+                            agent_id=agent_id,
+                            input=input_payload,
+                        )
+                        if decision.decision == "deny":
+                            raise PolicyDeniedError(decision.reason)
+                        if decision.decision == "require_approval":
+                            checkpoint_state = {
+                                "reason": decision.reason,
+                                "policy": decision.to_payload(),
+                            }
+                    run_result = await orchestrator.start_run(
+                        agent_id=agent_id,
+                        input=input_payload,
+                        idempotency_key=idempotency_key,
+                        checkpoint_state=checkpoint_state,
+                        identity=settings.identity.default,
+                        trace_id=canonical_trace,
+                        pre_run_events=(
+                            [(CanonicalEventType.INPUT_GUARDRAIL_CHECKED, decision.to_payload())]
+                            if decision is not None
+                            else None
+                        ),
+                    )
+                    if (
+                        decision is not None
+                        and checkpoint_state is not None
+                        and run_result.resume_token is not None
+                    ):
+                        await approval_service.require_approval(
+                            actor=settings.identity.default,
+                            run_id=run_result.run_id,
+                            agent_id=agent_id,
+                            action="input.prompt_injection",
+                            resource=f"agent:{agent_id}:input",
+                            reason=decision.reason,
+                            resume_token=run_result.resume_token,
+                        )
+                    return run_result
+            finally:
+                await close_agent_execution_services(executor_services)
         finally:
-            await close_agent_execution_services(executor_services)
             await storage.dispose()
 
     try:
         result = asyncio.run(_run())
+    except RegistryLoadError as exc:
+        _exit_registry_error(exc)
     except PolicyDeniedError as exc:
         typer.echo(f"policy.denied: {exc}", err=True)
         raise typer.Exit(1) from exc
@@ -318,20 +348,34 @@ def list_agents(
     """按当前身份和策略列出 registry 中可见的 agent public descriptor。"""
 
     settings = cli_shared.load_settings_or_exit(profile, profiles_dir)
-    try:
-        registry = AgentRegistry.load_from_directory(agents_dir)
-    except RegistryLoadError as exc:
-        for error in exc.error_details:
-            field = f" field={error.field_path}" if error.field_path else ""
-            hint = f" hint={error.hint}" if error.hint else ""
-            typer.echo(f"{error.code}:{field} {error.message}{hint}", err=True)
-        raise typer.Exit(1) from exc
-
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
     cli_shared.require_schema_or_exit(resolved_dsn)
     storage = SQLAlchemyStorage.from_dsn(resolved_dsn)
     audit = AuditService(storage=storage)
     policy = cli_shared.policy_engine(settings, storage, audit, profiles_dir=profiles_dir)
+    service_root = agents_dir.resolve().parent
+    configured_artifact_root = Path(settings.storage.root or ".agent-harness/local") / "artifacts"
+    artifact_root = (
+        configured_artifact_root
+        if configured_artifact_root.is_absolute()
+        else service_root / configured_artifact_root
+    )
+    try:
+        registry = AgentRegistry.load_from_directory(
+            agents_dir,
+            model_settings=settings.model,
+            tool_catalog_descriptors=build_registry_tool_catalog_descriptors(
+                settings=settings,
+                storage=storage,
+                policy=policy,
+                audit=audit,
+                artifact_store=FileArtifactStore(artifact_root),
+                workspace_root=service_root,
+            ),
+        )
+    except RegistryLoadError as exc:
+        asyncio.run(storage.dispose())
+        _exit_registry_error(exc)
 
     async def _check_visibility() -> None:
         """在同步 Typer 命令中桥接异步策略检查，避免直接绕过授权门面。"""

@@ -43,6 +43,10 @@
 
 非流式结构化输出使用独立的 `ModelStructuredProvider.prepare_structured()` / `PreparedStructuredModelCall.send_structured()` protocol。Adapter 每次 send 只返回一个 `StructuredProviderCandidate` 和一个本地 attempt；不得在 adapter 内做 schema repair、把 SDK/Pydantic 对象字符串化、启用 SDK retry、执行工具或退回普通文本/fake。核心 `BoundModelInvocationService.complete_structured()` 负责严格 schema oracle、有限 repair、transport×repair 联合 reservation、cleanup、durable replay 与 `needs_review` 围栏。成功结果只通过 `StructuredOutputResult` 和 canonical `ModelResponse.output_text` 越界；schema identity、attempt、usage、cost 与 replay identity 必须共同进入耐久 evidence。当前不支持 structured streaming、显式 route-chain structured fallback 或 tool call。
 
+Provider-neutral 工具意图使用独立的 `ModelToolIntentProvider.prepare_tool_intent()` / `PreparedToolIntentModelCall.send_tool_intent()` protocol。Core 只把 `tool_policy.allowed_tools` 与同一个 `ToolRegistry` 的 descriptor 投影为 canonical tool catalog bytes；`ToolCatalogSelection` 是 public seam 的独立参数，不能混入 `ModelRequest`。Adapter 每次 send 只返回一个 `ProviderToolIntentCandidate`，core 再生成稳定 `loop_id/turn_ordinal/tool_call_id` 并收敛为 exact `ModelTurnResult`。该 seam 只观察 `final_text` 或 `tool_intent`，不会执行工具、注册 callback、猜测 JSON 或绕过 Registry/Policy/HITL；锁定 SDK 无法证明零执行观察时必须在 usage claim 和 provider side effect 前以 `model.capability_unsupported` fail closed。Fake adapter 只接受显式、有限脚本。
+
+工具循环续轮的 `context_assembly` 只消费冻结 `output_ref`、`input_refs` 与安全 `assembled_text`，并显式保留 `trust_level=untrusted`、trust summary 和 injection summary。真实 tool-intent client 若可用，必须通过独立 SDK `instructions` 角色发送固定高优先级规则，且该规则的保守 UTF-8 字节上界不得超过冻结 `input_envelope_token_bound`；普通 no-tools 请求保持 `instructions=None`。这样工具正文仍是 user-role 中的引用数据，不能成为 system/developer/policy 同级指令，也不会暗增未预约输入。
+
 ### Queue 与 runtime
 
 `RunQueue` 定义 enqueue/receipt/ack/claim 合同；service profile 的 Redis Streams 实现在 `adapters/queue/redis.py`。DBOS 封装在 `adapters/runtime/dbos.py`。稳定 message refs、owner/lease/fencing 和 PostgreSQL checkpoint 是恢复依据，内存对象不是。
@@ -67,6 +71,7 @@ make test
 
 - model/provider：`tests/contracts/test_model_usage_invocation_contracts.py`
 - structured model/provider：`tests/contracts/test_provider_neutral_structured_public_seam_contracts.py`、`tests/contracts/test_provider_neutral_structured_transport_contracts.py`、`tests/contracts/test_provider_neutral_structured_adapter_contracts.py`
+- tool intent/provider：`tests/contracts/test_provider_neutral_tool_turn_result_contracts.py`、`tests/contracts/test_provider_neutral_tool_catalog_contracts.py`、`tests/contracts/test_tool_intent_usage_settlement_contracts.py`、`tests/contracts/test_fake_model_tool_intent_adapter_contracts.py`
 - retrieval：`tests/contracts/test_retrieval_rag_contracts.py`
 - tools/MCP：`tests/contracts/test_tool_registry_public_seam_contracts.py`
 - observability：`tests/contracts/test_observability_local_first_fanout_contracts.py`

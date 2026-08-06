@@ -18,6 +18,7 @@ project/
 │   ├── EVOLUTION.md
 │   ├── RELATED-PROJECTS.md        # 可选：多项目协作关系，可提交
 │   ├── agent-pack.lock.json
+│   ├── agent-pack.local.json      # 本机能力包路径，不提交
 │   ├── evolution/
 │   ├── templates/
 │   └── skills/
@@ -29,7 +30,7 @@ project/
 
 `.agents/evolution` 是自进化队列源目录；`.codex/evolution` 和 `.claude/evolution` 都是指向它的 symlink。
 
-`.agents/evolution/signals.jsonl`、`.agents/evolution/proposals.md`、`.agents/related-projects.local.json` 和 `.agents/.needs-review` 是本地运行状态，不提交。
+`.agents/agent-pack.lock.json` 是可提交的安装清单，只记录能力包来源、commit 和文件 hash，不记录本机绝对路径。`.agents/agent-pack.local.json` 只记录当前电脑上的能力包路径；它和 `.agents/evolution/signals.jsonl`、`.agents/evolution/proposals.md`、`.agents/related-projects.local.json`、`.agents/.needs-review` 都是本地运行状态，不提交。
 
 日常规则变化先改项目本地文件。只有确认某条规则、Skill、hook 或 Sub-Agent 对多个项目通用，并且用户明确同意升格时，才用 `agent-pack promote` 写回能力包。
 
@@ -37,7 +38,7 @@ project/
 
 能力包里的 `agent-pack`、`agent-pack.ps1`、`agent-pack.cmd` 都是薄入口。它们从脚本所在目录识别 Agent Pack，从当前执行目录识别项目，然后转发到 `.agents/cli/agent_pack_cli.py`。
 
-项目根目录里的 `agent-pack`、`agent-pack.ps1`、`agent-pack.cmd` 是安装时生成的 launcher。它们读取 `.agents/agent-pack.lock.json`，再转发到真实能力包脚本；这样日常可以在项目里直接执行 `./agent-pack status`、PowerShell 下 `./agent-pack.ps1 status`，或 cmd 下 `agent-pack.cmd status`。
+项目根目录里的 `agent-pack`、`agent-pack.ps1`、`agent-pack.cmd` 是安装时生成的 launcher。它们优先读取 `AGENT_PACK_DIR`，再读取 `.agents/agent-pack.local.json`，最后兼容读取旧版 lock 中的 `packPath`，然后转发到真实能力包脚本；这样日常可以在项目里直接执行 `./agent-pack status`、PowerShell 下 `./agent-pack.ps1 status`，或 cmd 下 `agent-pack.cmd status`。共享 lock 存在但本机绑定缺失时，项目仍视为已安装，只需重新绑定本机路径，不需要重新复制项目文件。
 
 `install.sh`、`install.ps1`、`install.cmd` 是远程 bootstrap。它们先 clone 或 pull 能力包，再转交给对应平台的 `agent-pack` 入口。
 
@@ -87,7 +88,7 @@ project/
 - 在 Windows 原生环境下，安装/更新会把 `.codex/hooks.json` 和 `.claude/settings.json` 渲染为调用 `.ps1` wrapper 的命令，并把生成后的 hash 记录进 lock，避免 `status` 误报。
 - 将能力包 README 复制为项目根目录的 `AGENT-PACK.md`，避免和项目自己的 `README.md` 冲突，也方便直接查看。
 - 在项目根目录生成 `agent-pack`、`agent-pack.ps1`、`agent-pack.cmd` launcher，便于日常执行命令；如果项目已有同名 `agent-pack` 且不是 launcher，脚本会跳过，不覆盖。
-- 创建 `.agents/agent-pack.lock.json`，记录能力包来源、commit 和文件 hash。
+- 创建可提交的 `.agents/agent-pack.lock.json`，记录能力包来源、commit 和文件 hash；另写入被忽略的 `.agents/agent-pack.local.json` 保存本机能力包路径。
 - 多项目安装时创建 `.agents/RELATED-PROJECTS.md`，并创建本机路径表 `.agents/related-projects.local.json`。
 - 创建 `.agents/evolution/signals.jsonl` 和 `.agents/evolution/proposals.md`，并通过 `.gitignore` 忽略队列内容。
 - 创建 `.codex/evolution`、`.claude/evolution` 到 `.agents/evolution` 的链接；Windows 原生 symlink 不可用时目录使用 junction fallback。
@@ -212,7 +213,7 @@ gh api -H "Accept: application/vnd.github.raw" /repos/wdmcheng/agent-pack/conten
 ./agent-pack status
 ```
 
-用于判断项目本地副本、lock 和当前 Agent Pack 是否一致。
+用于判断项目本地副本、共享 lock 和当前绑定的 Agent Pack 是否一致。
 如果项目存在 `openspec/`，还会显示 OpenSpec 是否存在、active changes、artifact 进度和 `openspec validate --all --json` 摘要。未安装 OpenSpec CLI 时只做目录级检测，不让状态命令失败。
 
 常见状态：
@@ -379,25 +380,27 @@ b/.agents/skills/dev-builder/SKILL.md
 
 不要把普通规则微调用 `--replace` 升格。
 
-## 迁移能力包路径
+## 绑定或迁移本机能力包路径
 
-项目根目录有 `agent-pack` launcher，`.agents/agent-pack.lock.json` 记录真实能力包来源。能力包换路径后，可以用新能力包目录里的脚本执行迁移，也可以用项目 launcher 显式指定新目录。
+项目根目录有 `agent-pack` launcher。可提交的 `.agents/agent-pack.lock.json` 记录能力包来源和安装文件清单，被忽略的 `.agents/agent-pack.local.json` 记录当前电脑上的真实能力包路径。团队成员首次检出项目，或能力包换路径后，只需要绑定本机路径，不需要重新安装项目副本。
 
-如果能力包从 A 目录移动到 B 目录，在项目根目录执行：
-
-```bash
-/path/to/new-agent-pack/agent-pack migrate
-```
-
-`migrate` 默认把项目 lock 更新为当前脚本所在的能力包目录。命令会更新项目的 `.agents/agent-pack.lock.json`，并修正 evolution 目录和 symlink。它不会自动更新业务代码。
-
-如果必须用某个脚本去指定另一个能力包目录，才使用：
+在项目根目录执行：
 
 ```bash
-./agent-pack migrate --pack /path/to/target-agent-pack
+/path/to/agent-pack/agent-pack bind
 ```
 
-`--pack` 的参数是能力包目录，不是 `agent-pack` 脚本文件。通常迁移到新目录时不需要传它。
+`bind` 默认把当前脚本所在的能力包目录写入 `.agents/agent-pack.local.json`。对 version 2 项目，它不会修改其他项目文件；如果本机绑定文件尚未被 `.gitignore` 覆盖，只提示维护者补充规则。它也不会改写共享 lock 中锁定的能力包版本。绑定的能力包 remote 或 commit 与共享 lock 不同时会给出提示，是否执行 `update` 由用户决定。只有迁移 version 1 lock 时，它会同步升级共享 lock、`.gitignore` 和项目 launcher，使新旧入口切换保持可用。
+
+如果必须用某个脚本去指定另一个能力包目录，使用：
+
+```bash
+/path/to/agent-pack/agent-pack bind --pack /path/to/target-agent-pack
+```
+
+`--pack` 的参数是能力包目录，不是 `agent-pack` 脚本文件。旧的 `migrate` 命令保留为 `bind` 的兼容别名；读取到 version 1 lock 时，`bind/migrate` 会先写新版 launcher，再写本机绑定，最后才移除共享 lock 中的 `packPath` 并升级为 version 2。
+
+`update`、`promote` 等其他会重写共享 lock 的命令如果读到 version 1，也遵守相同顺序：先补本机绑定忽略项和新版 launcher，再写本机绑定，最后才移除共享 lock 中的 `packPath`。即使最后一步写 lock 中断，旧 launcher 和旧 lock 仍可继续定位能力包。
 
 ## 提交和推送能力包
 
@@ -560,7 +563,7 @@ session 启动时发现 `.agents/evolution/signals.jsonl` 有信号，或用户�
 - `.agents/evolution/` 是自进化队列源目录。
 - `.codex/evolution` 和 `.claude/evolution` 只做入口 symlink。
 - `.agents/RELATED-PROJECTS.md` 是可提交的多项目关系说明。
-- `.agents/related-projects.local.json` 只记录本机路径，不提交。
+- `.agents/agent-pack.local.json` 和 `.agents/related-projects.local.json` 只记录本机路径，不提交。
 - `.agents/evolution/signals.jsonl`、`.agents/evolution/proposals.md` 和 `.agents/.needs-review` 是本地运行状态，不提交。
 - `AGENTS.md` 是共享主控规则；Claude Code 通过 `.claude/CLAUDE.md` 的 `@../AGENTS.md` 读取。
 - 平台专属配置只放对应平台目录：Codex 放 `.codex/`，Claude Code 放 `.claude/`。
@@ -580,6 +583,16 @@ session 启动时发现 `.agents/evolution/signals.jsonl` 有信号，或用户�
 ```bash
 /path/to/agent-pack install
 ```
+
+### 项目已安装但本机尚未绑定
+
+如果共享 `.agents/agent-pack.lock.json` 存在，但当前电脑没有 `.agents/agent-pack.local.json`，项目 launcher 会提示本机尚未绑定。执行：
+
+```bash
+/path/to/agent-pack/agent-pack bind
+```
+
+绑定只写本机路径，不需要重新安装，也不应把 `.agents/agent-pack.local.json` 提交到仓库。
 
 ### update 后仍有 local-modified
 

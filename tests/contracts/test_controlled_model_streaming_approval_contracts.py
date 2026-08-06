@@ -299,6 +299,7 @@ async def test_stream_approved_rejects_every_forged_grant_field_before_side_effe
             lease_id=lease.lease_id,
             tenant_id=record.tenant_id,
             identity_id=identity.user_id,
+            session_id=identity.session_id,
             agent_id=record.agent_id,
             run_id=record.run_id,
             action=record.action,

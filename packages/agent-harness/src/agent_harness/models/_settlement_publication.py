@@ -8,8 +8,13 @@ from typing import cast
 from agent_harness.events import EventBus
 from agent_harness.models._invocation_evidence import ModelInvocationEvidenceMixin
 from agent_harness.models._settlement_contracts import ModelProviderInvocationError
-from agent_harness.models.providers import ModelResponse
+from agent_harness.models.providers import ModelAttemptEvidence, ModelResponse
 from agent_harness.models.structured import StructuredOutputReplayIdentity
+from agent_harness.models.tool_intent import (
+    ModelTurnResult,
+    ToolIntentReplaySeed,
+    ToolIntentTurnResult,
+)
 from agent_harness.models.usage import ModelUsageEvidence
 from agent_harness.models.usage_events import UsageEvidenceLifecycle
 from agent_harness.observability.facade import TelemetryFacade
@@ -24,6 +29,34 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
     _event_bus: EventBus
     _telemetry: TelemetryFacade | None
 
+    @staticmethod
+    def _tool_loop_correlated_evidence(
+        evidence: ModelUsageEvidence,
+        *,
+        replay_seed: ToolIntentReplaySeed | None,
+        turn_result: ModelTurnResult | None,
+    ) -> ModelUsageEvidence:
+        """把模型usage事件绑定到冻结loop/turn/catalog，正文和动态余额不进入事件。"""
+
+        if replay_seed is None:
+            return evidence
+        tool_call_id = (
+            turn_result.intent.tool_call_id
+            if isinstance(turn_result, ToolIntentTurnResult)
+            else None
+        )
+        correlation = {
+            "loop_id": replay_seed.loop_id,
+            "turn_ordinal": replay_seed.turn_ordinal,
+            "tool_call_id": tool_call_id,
+            "model_usage_call_id": replay_seed.usage_call_id,
+            "catalog_digest": replay_seed.tool_catalog.catalog_digest,
+        }
+        return evidence.model_copy(
+            update={"decision": {**evidence.decision, "model_tool_loop": correlation}},
+            deep=True,
+        )
+
     async def _finalize(
         self,
         *,
@@ -33,6 +66,9 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
         error_code: str | None,
         ownership: BudgetOperationOwnership | None,
         response: ModelResponse | None,
+        turn_result: ModelTurnResult | None = None,
+        settlement_attempts: list[ModelAttemptEvidence] | None = None,
+        tool_intent_replay_seed: ToolIntentReplaySeed | None = None,
         structured_replay: StructuredOutputReplayIdentity | None = None,
     ) -> None:
         """原子持久化最终 usage 结果并结算共享预算，提交后才发布最终事件。
@@ -40,6 +76,12 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
         先完成 outbox 与账本结算，保证 event 重试永远可从耐久事实恢复；最终事件属于
         可补投副作用，不能先于结果与预算事实对外可见。
         """
+
+        evidence = self._tool_loop_correlated_evidence(
+            evidence,
+            replay_seed=tool_intent_replay_seed,
+            turn_result=turn_result,
+        )
 
         async with self._storage.uow() as uow:
             await self._persist_final_in_uow(
@@ -50,6 +92,9 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
                 error_code=error_code,
                 ownership=ownership,
                 response=response,
+                turn_result=turn_result,
+                settlement_attempts=settlement_attempts,
+                tool_intent_replay_seed=tool_intent_replay_seed,
                 structured_replay=structured_replay,
             )
             await uow.commit()
@@ -70,6 +115,9 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
         error_code: str | None,
         ownership: BudgetOperationOwnership | None,
         response: ModelResponse | None,
+        turn_result: ModelTurnResult | None = None,
+        settlement_attempts: list[ModelAttemptEvidence] | None = None,
+        tool_intent_replay_seed: ToolIntentReplaySeed | None = None,
         structured_replay: StructuredOutputReplayIdentity | None = None,
     ) -> None:
         """在调用方提供的事务中原子保存 usage 结果与共享预算，不提交或发布事件。
@@ -131,6 +179,16 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
             ),
             **({"response": self._durable_response(response)} if response is not None else {}),
             **(
+                {"turn_result": self._durable_turn_result(turn_result)}
+                if turn_result is not None
+                else {}
+            ),
+            **(
+                {"tool_intent_replay_seed": tool_intent_replay_seed.to_payload()}
+                if tool_intent_replay_seed is not None
+                else {}
+            ),
+            **(
                 {"structured_replay": structured_replay.model_dump(mode="json")}
                 if structured_replay is not None
                 else {}
@@ -160,15 +218,22 @@ class SettlementPublicationMixin(ModelInvocationEvidenceMixin):
         output_tokens = evidence.output_tokens
         actual_tokens: int | None
         actual_cost: Decimal | None
+        raw_attempts = cast(
+            list[object],
+            settlement_attempts or (response.attempts if response is not None else []),
+        )
+        if any(not isinstance(item, ModelAttemptEvidence) for item in raw_attempts):
+            raise RuntimeError("settlement attempts must be provider-neutral evidence")
+        attempts = cast(list[ModelAttemptEvidence], raw_attempts)
         if structured_replay is not None and structured_replay.final_status == "needs_review":
             # Structured needs-review不论provider request是否已知，都代表至少一个
             # 结算维度不可确认；以null actual让direct/allocation/owner保留预约并围栏。
             actual_tokens = None
             actual_cost = None
-        elif provider_called and response is not None and response.attempts:
+        elif provider_called and attempts:
             started_attempts = [
                 attempt
-                for attempt in response.attempts
+                for attempt in attempts
                 if attempt.side_effect_state in {"started", "unknown"}
             ]
             attempts_have_usage = all(

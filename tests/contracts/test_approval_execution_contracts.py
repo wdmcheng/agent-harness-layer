@@ -111,6 +111,7 @@ async def build_approval_flow(
     handler: Any,
     recovery_lease_timeout_seconds: float = 300.0,
     queue: InMemoryRunQueue | None = None,
+    storage_dsn: str | None = None,
 ) -> tuple[
     SQLAlchemyStorage,
     LocalJsonlEventSink,
@@ -122,7 +123,7 @@ async def build_approval_flow(
 ]:
     """组装隔离的审批、工具、事件与可选队列环境，供下游合同聚焦一个恢复边界。"""
 
-    dsn = sqlite_dsn(tmp_path / "approval.db")
+    dsn = storage_dsn or sqlite_dsn(tmp_path / "approval.db")
     run_migrations(dsn)
     storage = SQLAlchemyStorage.from_dsn(dsn)
     sink = LocalJsonlEventSink(tmp_path / "approval-events.jsonl")

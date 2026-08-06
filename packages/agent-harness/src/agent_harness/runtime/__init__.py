@@ -29,6 +29,27 @@ from agent_harness.runtime.executor import AgentExecutorResolver as AgentExecuto
 from agent_harness.runtime.executor import ApprovalGrant as ApprovalGrant
 from agent_harness.runtime.executor import RunDetailResult as RunDetailResult
 from agent_harness.runtime.executor import RunResult as RunResult
+from agent_harness.runtime.executor import build_execution_context as build_execution_context
+from agent_harness.runtime.model_tool_loop import (
+    BoundModelToolLoopService as BoundModelToolLoopService,
+)
+from agent_harness.runtime.model_tool_loop import (
+    ModelToolLoopApprovalRequired as ModelToolLoopApprovalRequired,
+)
+from agent_harness.runtime.model_tool_loop import (
+    ModelToolLoopApprovalSnapshot as ModelToolLoopApprovalSnapshot,
+)
+from agent_harness.runtime.model_tool_loop import ModelToolLoopError as ModelToolLoopError
+from agent_harness.runtime.model_tool_loop import (
+    ModelToolLoopLimitOverrides as ModelToolLoopLimitOverrides,
+)
+from agent_harness.runtime.model_tool_loop import (
+    ModelToolLoopLimitState as ModelToolLoopLimitState,
+)
+from agent_harness.runtime.model_tool_loop import ModelToolLoopService as ModelToolLoopService
+from agent_harness.runtime.model_tool_loop_approval import (
+    ModelToolLoopApprovalStore as ModelToolLoopApprovalStore,
+)
 from agent_harness.runtime.orchestrator import RunEnqueueUnavailable as RunEnqueueUnavailable
 from agent_harness.runtime.orchestrator import RunOrchestrator as RunOrchestrator
 from agent_harness.runtime.queue import InMemoryRunQueue as InMemoryRunQueue
@@ -89,6 +110,15 @@ _EXECUTOR_EXPORTS = [
     "AgentExecutorResolver",
     "AgentExecutionUncertain",
     "ApprovalGrant",
+    "build_execution_context",
+    "BoundModelToolLoopService",
+    "ModelToolLoopApprovalRequired",
+    "ModelToolLoopApprovalSnapshot",
+    "ModelToolLoopError",
+    "ModelToolLoopLimitOverrides",
+    "ModelToolLoopLimitState",
+    "ModelToolLoopService",
+    "ModelToolLoopApprovalStore",
 ]
 
 _STATE_EXPORTS = [

@@ -152,6 +152,7 @@ async def test_forged_grants_and_denial_never_call_handler(tmp_path: Path) -> No
             lease_id=lease.lease_id,
             tenant_id=identity.tenant_id,
             identity_id=identity.user_id,
+            session_id=identity.session_id,
             agent_id=approval.agent_id,
             run_id=approval.run_id,
             action=approval.action,

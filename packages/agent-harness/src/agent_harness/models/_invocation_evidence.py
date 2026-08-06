@@ -34,6 +34,14 @@ class ModelInvocationEvidenceMixin:
             "model_catalog_ref": plan.model_catalog_ref,
             "model_catalog_version": plan.model_catalog_version,
             "model_catalog_digest": plan.model_catalog_digest,
+            **(
+                {
+                    "tool_request_identity": plan.tool_request_identity.to_payload(),
+                    "tool_request_identity_digest": plan.tool_request_identity_digest,
+                }
+                if plan.tool_request_identity is not None
+                else {}
+            ),
             "request_shape_ref": plan.request_shape_ref,
             "request_shape_version": plan.request_shape_version,
             "input_bound_strategy_ref": plan.input_bound_strategy_ref,
@@ -258,3 +266,19 @@ class ModelInvocationEvidenceMixin:
             raise RuntimeError("model response redaction changed payload shape")
         validated = ModelResponse.model_validate(safe)
         return validated.to_payload()
+
+    @staticmethod
+    def _durable_turn_result(turn_result: object) -> dict[str, Any]:
+        """判别结果先脱敏再重验，避免 candidate 或 SDK 字段进入 outbox。"""
+
+        from pydantic import TypeAdapter
+
+        from agent_harness.models.tool_intent import ModelTurnResult
+
+        adapter: TypeAdapter[ModelTurnResult] = TypeAdapter(ModelTurnResult)
+        observed: ModelTurnResult = adapter.validate_python(turn_result)
+        safe = redact_secrets(adapter.dump_python(observed, mode="json"))
+        if not isinstance(safe, dict):  # pragma: no cover - 判别 DTO 保证 mapping
+            raise RuntimeError("model turn result redaction changed payload shape")
+        validated: ModelTurnResult = adapter.validate_python(safe)
+        return cast(dict[str, Any], adapter.dump_python(validated, mode="json"))

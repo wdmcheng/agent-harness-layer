@@ -26,6 +26,7 @@ class EvidenceOperationKind(StrEnum):
     EMBEDDING_USAGE = "embedding_usage"
     APPROVAL_RESOLUTION = "approval_resolution"
     TOOL_INVOCATION = "tool_invocation"
+    CONTEXT_ASSEMBLY = "context_assembly"
     DELEGATION = "delegation"
 
 
@@ -59,6 +60,10 @@ _OPERATION_EVENT_CAPACITY: Mapping[EvidenceOperationKind, OperationReservationSp
             EvidenceOperationKind.TOOL_INVOCATION: OperationReservationSpec(
                 version=EVIDENCE_OPERATION_REGISTRY_VERSION,
                 max_prerequisite_events=3,
+            ),
+            EvidenceOperationKind.CONTEXT_ASSEMBLY: OperationReservationSpec(
+                version=EVIDENCE_OPERATION_REGISTRY_VERSION,
+                max_prerequisite_events=2,
             ),
             EvidenceOperationKind.DELEGATION: OperationReservationSpec(
                 version=EVIDENCE_OPERATION_REGISTRY_VERSION,
@@ -348,6 +353,31 @@ class EventCapacityRepository:
         if model is None or model.terminal_reservation != 1:
             raise RuntimeError("terminal reservation is unavailable")
         if model.outstanding_reserved_event_count:
+            raise RuntimeError("pending evidence blocks terminal")
+
+    async def assert_model_loop_terminal_publishable(
+        self,
+        *,
+        run_id: str,
+        approval_capacity_allowance: int,
+    ) -> None:
+        """锁定容量行并仅允许当前approve循环依赖占用的预约。
+
+        模型loop completed不会消费run terminal槽；ApprovalService随后发布
+        approval resolution和run terminal并结算这些预约。除调用方已逐项核实的
+        exact approval group外，多一个或少一个预约都表示容量账本不一致。
+        """
+
+        if approval_capacity_allowance < 0:
+            raise ValueError("approval capacity allowance must be non-negative")
+        model = await self._session.scalar(
+            select(RunEventCapacityModel)
+            .where(RunEventCapacityModel.run_id == run_id)
+            .with_for_update()
+        )
+        if model is None or model.terminal_reservation != 1:
+            raise RuntimeError("terminal reservation is unavailable")
+        if model.outstanding_reserved_event_count != approval_capacity_allowance:
             raise RuntimeError("pending evidence blocks terminal")
 
     async def record_local_event(

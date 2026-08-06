@@ -141,6 +141,14 @@ def test_service_smoke_uses_http_auth_crash_reclaim_checkpoint_and_scoped_cleanu
     ):
         assert marker in secret_smoke
     assert "TemporaryDirectory" in root_smoke
+    for boundary in (
+        '"checkpoint-approval-submit"',
+        '"checkpoint-approval-waiting"',
+        '"checkpoint-approval-id"',
+        '"checkpoint-approval-outage"',
+        '"checkpoint-approval-redis-ready"',
+    ):
+        assert boundary in approval_smoke
     assert "copytree" in root_smoke
     assert "wheel.name" in root_smoke
     assert "secret-cleanup=ok" in root_smoke
@@ -174,7 +182,7 @@ def test_service_smoke_executes_postgresql_migration_and_shared_budget_scenarios
         '"assert-budget-race"',
         '"assert-budget-topology"',
         '"shared-budget-crash-windows"',
-        '"0017_model_route_chain_state"',
+        '"0018_model_tool_loop_state"',
     ):
         assert marker in smoke
 

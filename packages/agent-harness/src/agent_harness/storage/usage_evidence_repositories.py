@@ -432,10 +432,12 @@ class UsageEvidenceRepositoryMixin(
         """按 tenant 与 usage_call_id 读取结算记录；不存在即报告稳定的查找失败。"""
 
         model = await self._session.scalar(
-            select(RunEvidenceOutboxModel).where(
+            select(RunEvidenceOutboxModel)
+            .where(
                 RunEvidenceOutboxModel.tenant_id == tenant_id,
                 RunEvidenceOutboxModel.usage_call_id == usage_call_id,
             )
+            .with_for_update()
         )
         if model is None:
             raise LookupError("usage settlement not found")

@@ -60,6 +60,7 @@ if TYPE_CHECKING:
     from agent_harness.models._settlement_contracts import SettlementStart
     from agent_harness.models._streaming_contracts import StreamingRuntime
     from agent_harness.models.router import ModelRoutePlan, ModelRouter
+    from agent_harness.models.tool_intent import ModelTurnResult, ToolIntentReplaySeed
     from agent_harness.observability.facade import TelemetryFacade
     from agent_harness.policy import PolicyEngine
     from agent_harness.runtime.executor import AgentApprovalRequest
@@ -235,6 +236,9 @@ class ChainRuntimeBase:
             error_code: str | None,
             ownership: BudgetOperationOwnership | None,
             response: ModelResponse | None,
+            turn_result: ModelTurnResult | None = None,
+            settlement_attempts: list[ModelAttemptEvidence] | None = None,
+            tool_intent_replay_seed: ToolIntentReplaySeed | None = None,
             structured_replay: StructuredOutputReplayIdentity | None = None,
         ) -> None: ...
 
@@ -248,6 +252,9 @@ class ChainRuntimeBase:
             error_code: str | None,
             ownership: BudgetOperationOwnership | None,
             response: ModelResponse | None,
+            turn_result: ModelTurnResult | None = None,
+            settlement_attempts: list[ModelAttemptEvidence] | None = None,
+            tool_intent_replay_seed: ToolIntentReplaySeed | None = None,
             structured_replay: StructuredOutputReplayIdentity | None = None,
         ) -> None: ...
 

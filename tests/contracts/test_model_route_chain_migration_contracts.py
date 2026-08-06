@@ -34,7 +34,7 @@ def test_0017_empty_upgrade_and_downgrade_restores_0016_shape(tmp_path: Path) ->
 
     path = tmp_path / "empty.sqlite3"
     run_migrations(_dsn(path))
-    assert get_current_revision(_dsn(path)) == "0017_model_route_chain_state"
+    assert get_current_revision(_dsn(path)) == "0018_model_tool_loop_state"
 
     command.downgrade(migration_config(_dsn(path)), "0016_shared_parent_budget_ledger")
 
@@ -48,17 +48,17 @@ def test_0017_empty_upgrade_and_downgrade_restores_0016_shape(tmp_path: Path) ->
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "target",
-    ["0016_shared_parent_budget_ledger", "-1", "head-1"],
+    ["0016_shared_parent_budget_ledger", "-1", "0017_model_route_chain_state-1"],
 )
 async def test_0017_downgrade_to_0016_preserves_v1_shared_budget_evidence(
     tmp_path: Path,
     target: str,
 ) -> None:
-    """显式或相对只退一版时都不能误用 0016 evidence 删除门禁。"""
+    """0017显式或相对只退一版时不能误用0016 evidence删除门禁。"""
 
     path = tmp_path / "v1-evidence.sqlite3"
     dsn = _dsn(path)
-    run_migrations(dsn)
+    run_migrations(dsn, "0017_model_route_chain_state")
     storage = SQLAlchemyStorage(dsn)
     try:
         await create_root(storage, suffix="v1-evidence")
@@ -139,7 +139,7 @@ async def test_0017_refuses_completed_active_and_needs_review_chain_state_downgr
             "0016_shared_parent_budget_ledger",
         )
     assert await asyncio.to_thread(get_current_revision, _dsn(tmp_path / "failover.db")) == (
-        "0017_model_route_chain_state"
+        "0018_model_tool_loop_state"
     )
 
 

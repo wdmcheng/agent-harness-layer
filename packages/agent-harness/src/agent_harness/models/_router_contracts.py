@@ -11,6 +11,7 @@ from agent_harness.config.schemas import ModelRouteRef
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.models._router_identity import canonical_decimal, model_route_digest
 from agent_harness.models.providers import ModelDecision
+from agent_harness.models.tool_catalog import ToolIntentRequestIdentity
 
 
 class AgentModelPolicyLike(Protocol):
@@ -116,6 +117,12 @@ class ModelRoutePlan(HarnessDTO):
     model_catalog_ref: str | None = None
     model_catalog_version: str | None = None
     model_catalog_digest: str | None = None
+    tool_request_identity: ToolIntentRequestIdentity | None = None
+    tool_request_identity_digest: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    provider_tool_catalog_json: str | None = Field(default=None, exclude=True, repr=False)
     request_shape_ref: str | None = None
     request_shape_version: str | None = None
     input_bound_strategy_ref: str | None = None
@@ -145,6 +152,30 @@ class ModelRoutePlan(HarnessDTO):
     snapshot_schema_version: str = "budget-tree-v1"
     trusted_token_bound: int
     trusted_cost_bound: Decimal | None
+
+    @model_validator(mode="after")
+    def validate_tool_request_shape(self) -> ModelRoutePlan:
+        """Tool-intent与no-tools route使用互斥的catalog请求身份。"""
+
+        values = (
+            self.tool_request_identity,
+            self.tool_request_identity_digest,
+            self.provider_tool_catalog_json,
+        )
+        if self.capability == "tool_intent":
+            if any(value is None for value in values):
+                raise ValueError("tool-intent route requires complete tool request identity")
+            assert self.tool_request_identity is not None
+            if (
+                self.request_shape_ref != "single-user-text-with-tool-catalog"
+                or self.tool_request_identity_digest != self.tool_request_identity.digest
+                or len((self.provider_tool_catalog_json or "").encode("utf-8"))
+                != self.tool_request_identity.tool_catalog_utf8_bytes
+            ):
+                raise ValueError("tool-intent route request identity is inconsistent")
+        elif any(value is not None for value in values):
+            raise ValueError("no-tools route cannot carry tool request identity")
+        return self
 
 
 class ModelRouteCandidate(HarnessDTO):
@@ -274,6 +305,7 @@ class FrozenModelRouteSnapshot(HarnessDTO):
     input_bound_strategy_ref: str
     input_bound_strategy_version: str
     input_envelope_token_bound: int
+    max_tool_catalog_utf8_bytes: int | None = Field(default=None, ge=0, strict=True)
     cost_enabled: bool
     input_token_price_usd: Decimal | None = None
     output_token_price_usd: Decimal | None = None

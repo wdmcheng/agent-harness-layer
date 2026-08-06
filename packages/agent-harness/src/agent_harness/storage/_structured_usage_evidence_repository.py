@@ -42,5 +42,32 @@ class StructuredUsageEvidenceRepositoryMixin:
         result["structured_replay_seed"] = normalized_seed
         row.result_json = result
 
+    async def bind_tool_intent_started_replay_seed(
+        self,
+        *,
+        tenant_id: str,
+        usage_call_id: str,
+        replay_seed: Mapping[str, object],
+    ) -> None:
+        """在同一started claim冻结完整provider catalog；漂移重绑关闭失败。"""
+
+        row = await self._session.scalar(
+            select(RunEvidenceOutboxModel)
+            .where(
+                RunEvidenceOutboxModel.tenant_id == tenant_id,
+                RunEvidenceOutboxModel.usage_call_id == usage_call_id,
+            )
+            .with_for_update()
+        )
+        if row is None or row.state != "started" or not isinstance(row.result_json, Mapping):
+            raise ValueError("tool-intent replay seed requires a started usage claim")
+        result = dict(row.result_json)
+        normalized_seed = dict(replay_seed)
+        existing = result.get("tool_intent_replay_seed")
+        if existing is not None and existing != normalized_seed:
+            raise ValueError("tool-intent replay seed conflicts with durable identity")
+        result["tool_intent_replay_seed"] = normalized_seed
+        row.result_json = result
+
 
 __all__ = ["StructuredUsageEvidenceRepositoryMixin"]

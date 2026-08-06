@@ -157,3 +157,15 @@ def test_deep_documentation_link_chain_is_bilingual() -> None:
         for marker in markers:
             assert marker in english
             assert marker in chinese
+
+
+def test_adapter_contracts_publish_exact_tool_intent_identity_fields() -> None:
+    """双语 adapter 文档必须引用公开 DTO 的真实身份字段，防止接入方构造不存在的字段。"""
+
+    for path in (
+        ROOT / "docs" / "adapter-contracts.md",
+        ROOT / "docs" / "adapter-contracts.zh-CN.md",
+    ):
+        content = path.read_text(encoding="utf-8")
+        assert "`loop_id/turn_ordinal/tool_call_id`" in content
+        assert "loop_id/turn_id/model_tool_call_id" not in content

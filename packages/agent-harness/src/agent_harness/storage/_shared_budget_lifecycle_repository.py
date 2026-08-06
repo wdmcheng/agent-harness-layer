@@ -79,6 +79,42 @@ class _SharedBudgetLifecycleMixin:
             await self._session.flush()
         return len(claims) + len(allocations)
 
+    async def fence_needs_review_for_run_if_managed(
+        self,
+        tenant_id: str,
+        run_id: str,
+    ) -> bool:
+        """把模型工具等账本外未知副作用关联到同一execution-tree owner。
+
+        工具当前没有计价合同，不能伪造token/cost reservation；但其副作用未知时仍须
+        单调围栏root ledger，保留已经结算或预留的真实影响，并禁止后续消费和terminal。
+        未受shared-budget管理的legacy run保持兼容，不凭空创建第二账本。
+        """
+
+        try:
+            ownership = await self.resolve_operation_ownership(
+                tenant_id=tenant_id,
+                run_id=run_id,
+            )
+        except BudgetReservationRejected:
+            return False
+        existing = await self._session.get(
+            ParentBudgetLedgerModel,
+            (tenant_id, ownership.budget_owner_run_id),
+        )
+        if existing is None:
+            return False
+        ledger = await self._lock_ledger(
+            tenant_id,
+            ownership.budget_owner_run_id,
+            allow_needs_review=True,
+        )
+        if ledger.state == "active":
+            ledger.state = "needs_review"
+            ledger.version += 1
+            await self._session.flush()
+        return True
+
     async def terminal_allowed(self, tenant_id: str, budget_owner_run_id: str) -> bool:
         """仅当账本活跃且没有预留或待复核 claim/allocation 时允许终结 run。"""
 
@@ -107,6 +143,33 @@ class _SharedBudgetLifecycleMixin:
             )
         )
         return not pending_claim and not pending_allocation
+
+    async def terminal_allowed_for_run_if_managed(self, tenant_id: str, run_id: str) -> bool:
+        """检查执行树 owner 的终态条件；未启用共享账本的legacy run视为可继续。
+
+        这里只做同一事务内的只读前置校验，不消费或终结 root ledger。run 的最终
+        terminal owner 仍负责调用 ``fence_terminal_if_managed``，避免模型循环私自
+        接管整棵执行树的生命周期。
+        """
+
+        try:
+            ownership = await self.resolve_operation_ownership(
+                tenant_id=tenant_id,
+                run_id=run_id,
+            )
+        except BudgetReservationRejected:
+            return True
+        ledger = await self._session.get(
+            ParentBudgetLedgerModel,
+            (tenant_id, ownership.budget_owner_run_id),
+        )
+        if ledger is None:
+            return True
+        try:
+            await self._lock_ledger(tenant_id, ownership.budget_owner_run_id)
+        except BudgetReservationRejected:
+            return False
+        return await self.terminal_allowed(tenant_id, ownership.budget_owner_run_id)
 
     async def fence_terminal(self, tenant_id: str, budget_owner_run_id: str) -> None:
         """在账本锁内再次确认终结条件，再把 ledger 不可逆地标记为 terminal。"""

@@ -388,7 +388,9 @@ async def bound_failover_invocation(
     policy_engine: Any | None = None,
     provider_override: Any | None = None,
     soft_token_limits: dict[str, int] | None = None,
-    first_capabilities: list[Literal["text_completion", "text_stream", "structured_output"]]
+    first_capabilities: list[
+        Literal["text_completion", "text_stream", "structured_output", "tool_intent"]
+    ]
     | None = None,
     first_max_output_tokens: int | None = None,
     max_attempts_by_deployment: dict[str, int] | None = None,

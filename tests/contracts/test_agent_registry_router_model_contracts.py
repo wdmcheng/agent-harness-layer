@@ -194,6 +194,7 @@ async def test_agent_list_route_uses_injected_registry_seam(tmp_path: Path) -> N
                 "max_tokens_per_run": 8192,
                 "max_cost_usd_per_run": None,
             },
+            "model_tool_loop": None,
             "eval_dataset": "eval-cases/drafts/basic.yaml",
             "delegation_targets": [],
         }

@@ -236,6 +236,13 @@ One deployment may contain an ordered list of fallback models. The router select
 provider side effects from frozen budgets and never replays a real failure automatically. Use
 `--secret-root` when the isolated `_FILE` directory is not the default `/run/secrets`.
 
+The complete profile-merge, Agent-policy, catalog-digest, configuration-check, and authorized live
+smoke procedure is in the service template's
+[controlled real text deployment guide](templates/service-app/README.md#controlled-real-text-deployment).
+Only model-catalog identity fields participate in `model_catalog_digest`; changing a base URL,
+allowed origin, endpoint policy, or credential does not require a catalog digest update. The runtime
+derives a separate endpoint-policy digest from those endpoint-bound fields.
+
 Explicit cross-deployment fallback uses Agent `fallback_routes` to freeze an ordered candidate
 chain. Every candidate has its own endpoint, credential, catalog, bulkhead, and budget. The chain
 advances only with durable `client_not_started` or endpoint-policy-bound

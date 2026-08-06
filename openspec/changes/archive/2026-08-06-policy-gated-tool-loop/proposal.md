@@ -44,4 +44,4 @@ Phase 20A 只让模型产生可验证 intent，仍没有授权执行和结果回
 ## Impact
 
 - 预计影响 `runtime/` loop orchestration、`tools/` resolve/execution、`policy/`、`approvals/`、`context/`、`events/`、`models/` bound invocation、`storage/` 既有 claim/checkpoint seam 和 service-app 示例/合同测试。
-- 20B 必须在 20A 同步归档的公开 DTO 上串行实现；与 20C 共享 runtime/approval/storage/event owner，不允许并行写入。
+- 20B 必须在同一 active-change 工作树中等待 20A 全部任务与聚焦验证冻结，再消费其公开 DTO 串行实现；与 20C 共享 runtime/approval/storage/event owner，不允许并行写入，也不以中间 sync/archive 作为接力门槛。

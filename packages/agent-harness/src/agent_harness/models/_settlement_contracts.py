@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from pydantic import ConfigDict, Field, model_validator
 
@@ -15,6 +15,9 @@ from agent_harness.models.usage import ModelUsageEvidence
 from agent_harness.storage.evidence_repositories import UsageSettlementClaim
 from agent_harness.storage.shared_budget import BudgetOperationOwnership, OperationIdentity
 
+if TYPE_CHECKING:
+    from agent_harness.models.tool_intent import ModelTurnResult, ToolIntentReplaySeed
+
 
 @dataclass(frozen=True)
 class SettlementStart:
@@ -24,6 +27,7 @@ class SettlementStart:
     ownership: BudgetOperationOwnership | None
     safe_to_start: bool = False
     started_evidence: ModelUsageEvidence | None = None
+    tool_intent_replay_seed: ToolIntentReplaySeed | None = None
 
 
 @dataclass(frozen=True)
@@ -103,6 +107,7 @@ class ModelProviderInvocationError(RuntimeError):
             "model.structured_capability_unsupported",
             "model.structured_replay_conflict",
             "model.input_too_large",
+            "model.tool_intent_invalid",
             "budget.reservation_rejected",
         }
     )
@@ -151,6 +156,7 @@ class ValidatedSettlementResult:
     evidence: ModelUsageEvidence
     outcome: str
     response: ModelResponse | None
+    turn_result: ModelTurnResult | None
     failure: ModelProviderInvocationError | None
 
 

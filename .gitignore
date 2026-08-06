@@ -1,5 +1,6 @@
 # Agent Pack local runtime state
 /.agent-harness/
+/.agents/agent-pack.local.json
 /.agents/related-projects.local.json
 /.agents/evolution/signals.jsonl
 /.agents/evolution/proposals.md
