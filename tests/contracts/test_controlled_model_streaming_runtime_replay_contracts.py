@@ -52,6 +52,7 @@ class _ReplaySDKAgent:
             class Result:
                 output = prompt
 
+                @property
                 def usage(self) -> object:
                     return type("Usage", (), {"input_tokens": 1, "output_tokens": 1})()
 

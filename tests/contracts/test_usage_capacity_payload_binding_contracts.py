@@ -2,23 +2,31 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.contracts.controlled_multi_provider_failover_test_support import (
+    ROUTES,
+    BoundFailoverFixture,
+    bound_failover_invocation,
+)
 from tests.contracts.embedding_cache_postgresql_migration_contract_helpers import (
     isolated_database,
 )
 from tests.contracts.model_usage_capacity_test_helpers import event_bus, seed_run
 
+from agent_harness.artifacts import FileArtifactStore
 from agent_harness.events import (
     CanonicalEventType,
     EventBus,
     LocalJsonlEventSink,
     PostgreSQLEventSink,
+    canonical_json_bytes,
 )
-from agent_harness.models import ModelUsageEvidence, UsageEvidenceLifecycle
+from agent_harness.models import ModelRequest, ModelUsageEvidence, UsageEvidenceLifecycle
 from agent_harness.storage import SQLAlchemyStorage, run_migrations
 from agent_harness.storage.evidence_repositories import EvidenceOperationKind
 
@@ -231,6 +239,110 @@ async def test_local_usage_events_reject_bound_payload_tampering(tmp_path: Path)
         assert settled.outstanding_reserved_event_count == 0
     finally:
         await storage.dispose()
+
+
+async def _assert_six_route_externalized_usage(
+    tmp_path: Path,
+    *,
+    storage_dsn: str | None = None,
+    use_postgresql_event_sink: bool = False,
+) -> None:
+    """经公共六路调用 seam 验证超限 usage 的 artifact 与容量绑定。"""
+
+    artifact_store = FileArtifactStore(tmp_path / "six-route-artifacts")
+    scripts = {
+        str(route["deployment_id"]): [
+            "completed" if ordinal == len(ROUTES) else "client_not_started"
+        ]
+        for ordinal, route in enumerate(ROUTES, start=1)
+    }
+    fixture: BoundFailoverFixture | None = None
+    try:
+        fixture = await bound_failover_invocation(
+            tmp_path,
+            scripts=scripts,
+            storage_dsn=storage_dsn,
+            route_count=6,
+            artifact_store=artifact_store,
+            use_postgresql_event_sink=use_postgresql_event_sink,
+        )
+        response = await fixture.bound.complete(
+            ModelRequest(prompt="hello", max_output_tokens=8),
+            operation_key=fixture.operation_key,
+        )
+        assert response.model == ROUTES[-1]["model_id"]
+        assert fixture.provider.trace == [
+            *(f"prepare:{route['deployment_id']}" for route in ROUTES),
+            f"send:{ROUTES[-1]['deployment_id']}",
+        ]
+
+        events = await fixture.sink.read(run_id=fixture.run_id)
+        usage_events = [
+            item
+            for item in events
+            if item.event_type
+            in {
+                CanonicalEventType.MODEL_REQUEST_STARTED,
+                CanonicalEventType.MODEL_USAGE_UPDATED,
+            }
+        ]
+        assert [item.event_type for item in usage_events] == [
+            CanonicalEventType.MODEL_REQUEST_STARTED,
+            CanonicalEventType.MODEL_USAGE_UPDATED,
+        ]
+        for item in usage_events:
+            assert item.payload_ref is not None
+            assert item.payload_checksum is not None
+            assert item.payload is not None
+            assert item.payload["correlation"]["usage_call_id"] == fixture.usage_call_id
+            assert item.payload["usage"]["usage_kind"] == "model"
+            artifact_payload = artifact_store.read_json(item.payload_ref)
+            artifact_bytes = canonical_json_bytes(artifact_payload)
+            artifact_checksum = hashlib.sha256(artifact_bytes).hexdigest()
+            assert len(artifact_bytes) > 8_192
+            assert item.payload["artifact"]["size_bytes"] == len(artifact_bytes)
+            assert item.payload_ref == f"artifact://{artifact_checksum}"
+            assert item.payload_checksum == artifact_checksum
+
+            route_chain = artifact_payload["usage"]["decision"]["route_chain"]
+            assert route_chain["schema_version"] == "model-route-chain-evidence-v1"
+            assert route_chain["identity"]["candidate_count"] == 6
+            assert route_chain["state"]["candidate_count"] == 6
+            assert [
+                candidate["deployment_id"] for candidate in route_chain["identity"]["candidates"]
+            ] == [route["deployment_id"] for route in ROUTES]
+        async with fixture.storage.uow() as uow:
+            snapshot = await uow.event_capacity.snapshot(fixture.run_id)
+        assert snapshot.highest_persisted_seq == 2
+        assert snapshot.outstanding_reserved_event_count == 0
+    finally:
+        if fixture is not None:
+            await fixture.storage.dispose()
+
+
+@pytest.mark.asyncio
+async def test_local_six_route_externalized_usage_keeps_capacity_binding(tmp_path: Path) -> None:
+    """真实六路 decision 超过 8 KiB 后，本地 sink 仍按完整 artifact 结算。"""
+
+    await _assert_six_route_externalized_usage(tmp_path)
+
+
+@pytest.mark.skipif(
+    not os.environ.get("AGENT_HARNESS_TEST_POSTGRES_DSN"),
+    reason="真实 PostgreSQL 六路 usage artifact 合同需要测试 DSN。",
+)
+@pytest.mark.asyncio
+async def test_postgresql_six_route_externalized_usage_keeps_capacity_binding(
+    tmp_path: Path,
+) -> None:
+    """同一六路超限 usage 必须通过 PostgreSQL claim、artifact 与容量事务。"""
+
+    async with isolated_database("six_route_usage_artifact") as dsn:
+        await _assert_six_route_externalized_usage(
+            tmp_path,
+            storage_dsn=dsn,
+            use_postgresql_event_sink=True,
+        )
 
 
 @pytest.mark.asyncio

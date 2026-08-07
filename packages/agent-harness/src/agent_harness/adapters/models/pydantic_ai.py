@@ -521,10 +521,9 @@ class _PreparedPydanticCall:
 def _provider_token_usage(result: _AgentRunResult) -> dict[str, int]:
     """只收敛 provider 明确报告的合法 token；缺失时保持 unknown。"""
 
-    usage_reader = getattr(result, "usage", None)
-    if not callable(usage_reader):
+    usage = getattr(result, "usage", None)
+    if usage is None:
         return {}
-    usage = usage_reader()
     normalized: dict[str, int] = {}
     for field in ("input_tokens", "output_tokens"):
         value = getattr(usage, field, None)

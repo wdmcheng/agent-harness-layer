@@ -22,8 +22,9 @@ class _Result:
             {"input_tokens": input_tokens, "output_tokens": output_tokens},
         )()
 
+    @property
     def usage(self) -> object:
-        """按 SDK 风格返回 usage 对象，不预先执行类型转换或范围校验。"""
+        """按 SDK 风格返回 usage 属性，不预先执行类型转换或范围校验。"""
 
         return self._usage
 

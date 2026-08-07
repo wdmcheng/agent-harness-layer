@@ -12,6 +12,10 @@ from tests.contracts.controlled_multi_provider_failover_settings_test_support im
     ROUTE_A,
     ROUTE_B,
     ROUTE_C,
+    ROUTE_D,
+    ROUTE_E,
+    ROUTE_F,
+    ROUTES,
     chain_settings,
     downstream_chain_policy,
     three_deployment_override,
@@ -21,7 +25,8 @@ from tests.contracts.provider_neutral_structured_output_test_support import (
 )
 from tests.contracts.test_model_usage_invocation_contracts import usage_run
 
-from agent_harness.events import EventBus, LocalJsonlEventSink
+from agent_harness.artifacts import FileArtifactStore
+from agent_harness.events import EventBus, LocalJsonlEventSink, PostgreSQLEventSink
 from agent_harness.identity import IdentityContext
 from agent_harness.models import (
     BoundModelInvocationService,
@@ -53,6 +58,10 @@ __all__ = [
     "ROUTE_A",
     "ROUTE_B",
     "ROUTE_C",
+    "ROUTE_D",
+    "ROUTE_E",
+    "ROUTE_F",
+    "ROUTES",
     "chain_settings",
     "downstream_chain_policy",
     "three_deployment_override",
@@ -369,7 +378,7 @@ class BoundFailoverFixture:
 
     bound: BoundModelInvocationService
     storage: SQLAlchemyStorage
-    sink: LocalJsonlEventSink
+    sink: LocalJsonlEventSink | PostgreSQLEventSink
     provider: Any
     fake_provider: UnexpectedFakeProvider
     run_id: str
@@ -384,7 +393,7 @@ async def bound_failover_invocation(
     *,
     scripts: dict[str, list[str]],
     storage_dsn: str | None = None,
-    route_count: Literal[2, 3] = 3,
+    route_count: Literal[2, 3, 6] = 3,
     policy_engine: Any | None = None,
     provider_override: Any | None = None,
     soft_token_limits: dict[str, int] | None = None,
@@ -396,6 +405,8 @@ async def bound_failover_invocation(
     max_attempts_by_deployment: dict[str, int] | None = None,
     total_timeout_ms_by_deployment: dict[str, int] | None = None,
     prepare_delays_seconds: dict[str, float] | None = None,
+    artifact_store: FileArtifactStore | None = None,
+    use_postgresql_event_sink: bool = False,
 ) -> BoundFailoverFixture:
     """装配真实 UoW/ledger 和公共 bound seam，全程只使用离线 provider double。"""
 
@@ -477,7 +488,13 @@ async def bound_failover_invocation(
         )
         await uow.commit()
 
-    sink = LocalJsonlEventSink(tmp_path / "failover.events.jsonl")
+    sink: LocalJsonlEventSink | PostgreSQLEventSink
+    if use_postgresql_event_sink:
+        if storage_dsn is None:
+            raise ValueError("PostgreSQL event sink requires an explicit storage DSN")
+        sink = PostgreSQLEventSink(storage)
+    else:
+        sink = LocalJsonlEventSink(tmp_path / "failover.events.jsonl")
 
     async def resolve_trace(**_: object) -> str:
         """测试 run 的 canonical trace 固定为同一受信 identity。"""
@@ -507,8 +524,9 @@ async def bound_failover_invocation(
         storage=storage,
         event_bus=EventBus(
             sink=sink,
+            artifact_store=artifact_store,
             run_trace_resolver=resolve_trace,
-            capacity_storage=storage,
+            capacity_storage=None if use_postgresql_event_sink else storage,
         ),
         shared_budget=shared_budget,
         agent_policy_resolver=lambda _agent_id: policy,

@@ -83,6 +83,7 @@ class _AdapterResult:
 
     output = "adapter-secondary"
 
+    @property
     def usage(self) -> _AdapterUsage:
         return _AdapterUsage()
 

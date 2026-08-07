@@ -278,6 +278,7 @@ def test_stream_close_result_enforces_state_and_usage_matrix(
 class _SDKResultDouble:
     output: str
 
+    @property
     def usage(self) -> object:
         return SimpleNamespace(input_tokens=2, output_tokens=1)
 

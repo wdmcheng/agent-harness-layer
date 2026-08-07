@@ -75,8 +75,9 @@ async def test_pydantic_ai_adapter_invokes_agent_run_without_leaking_sdk_types()
             input_tokens = 7
             output_tokens = 4
 
+        @property
         def usage(self) -> Usage:
-            """按 SDK 约定返回嵌套 usage，供 adapter 读取 token 计数。"""
+            """按 SDK 约定返回嵌套 usage 属性，供 adapter 读取 token 计数。"""
 
             return self.Usage()
 

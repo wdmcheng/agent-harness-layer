@@ -17,6 +17,10 @@ from agent_harness.config.model_catalog import model_catalog_digest
 from agent_harness.registry import AgentModelPolicy
 
 ROUTE_C = {"deployment_id": "real_tertiary", "model_id": "fixture-text-3"}
+ROUTE_D = {"deployment_id": "real_quaternary", "model_id": "fixture-text-4"}
+ROUTE_E = {"deployment_id": "real_quinary", "model_id": "fixture-text-5"}
+ROUTE_F = {"deployment_id": "real_senary", "model_id": "fixture-text-6"}
+ROUTES = (ROUTE_A, ROUTE_B, ROUTE_C, ROUTE_D, ROUTE_E, ROUTE_F)
 
 
 def three_deployment_override() -> dict[str, object]:
@@ -62,10 +66,70 @@ def three_deployment_override() -> dict[str, object]:
     return overrides
 
 
-def chain_settings(*, route_count: Literal[2, 3] = 3) -> HarnessSettings:
+def six_deployment_override() -> dict[str, object]:
+    """扩展为六个隔离 deployment，复现真实 profile 的最大常用链形状。"""
+
+    overrides = three_deployment_override()
+    model = cast(dict[str, Any], overrides["model"])
+    catalogs = cast(dict[str, Any], model["model_catalogs"])
+    deployments = cast(dict[str, Any], model["deployments"])
+    credentials = cast(dict[str, Any], model["credentials"])
+    endpoint_policies = cast(dict[str, Any], model["endpoint_policies"])
+
+    for ordinal, route in enumerate(ROUTES[3:], start=4):
+        deployment_id = str(route["deployment_id"])
+        model_id = str(route["model_id"])
+        catalog_ref = model_id.replace("-", "_")
+        endpoint_ref = f"{deployment_id}_endpoint"
+        credential_ref = f"{deployment_id}_key"
+        origin = f"https://models-{ordinal}.example.test"
+
+        catalog = deepcopy(catalogs["fixture_text_3"])
+        catalog.update(
+            {
+                "model": model_id,
+                "price_source_ref": f"fixture-price-{ordinal}",
+            }
+        )
+        catalog["digest"] = model_catalog_digest(catalog_ref, catalog)
+        catalogs[catalog_ref] = catalog
+        credentials[credential_ref] = {
+            "value": f"controlled-failover-{ordinal}-secret-fixture",
+            "allowed_origins": [origin],
+        }
+        endpoint_policies[endpoint_ref] = {
+            "version": "v1",
+            "provider_kind": "openai-compatible",
+            "allowed_origins": [origin],
+            "completion_classifiers": [
+                {"ref": "trusted_response_header_not_started", "version": "v1"}
+            ],
+        }
+        deployment = deepcopy(deployments["real_tertiary"])
+        deployment.update(
+            {
+                "allowed_models": [model_id],
+                "model_catalog_refs": {model_id: catalog_ref},
+                "model_catalog_versions": {model_id: "v1"},
+                "default_model": model_id,
+                "base_url": f"{origin}/v1",
+                "endpoint_policy_ref": endpoint_ref,
+                "credential_ref": credential_ref,
+            }
+        )
+        deployments[deployment_id] = deployment
+    return overrides
+
+
+def chain_settings(*, route_count: Literal[2, 3, 6] = 3) -> HarnessSettings:
     """加载全部 typed 安全身份，但不构造 client、socket 或真实 SDK。"""
 
-    overrides = two_deployment_override() if route_count == 2 else three_deployment_override()
+    if route_count == 2:
+        overrides = two_deployment_override()
+    elif route_count == 3:
+        overrides = three_deployment_override()
+    else:
+        overrides = six_deployment_override()
     model = cast(dict[str, Any], overrides["model"])
     endpoint_policies = cast(dict[str, dict[str, Any]], model["endpoint_policies"])
     deployments = cast(dict[str, dict[str, Any]], model["deployments"])
@@ -85,10 +149,10 @@ def chain_settings(*, route_count: Literal[2, 3] = 3) -> HarnessSettings:
     return load_settings(profile="local", profiles_dir=PROFILES, overrides=overrides)
 
 
-def downstream_chain_policy(*, route_count: Literal[2, 3] = 3) -> AgentModelPolicy:
+def downstream_chain_policy(*, route_count: Literal[2, 3, 6] = 3) -> AgentModelPolicy:
     """用合法 A 投影和完整 route refs 构造 downstream 专用 policy。"""
 
-    routes = [ROUTE_A, ROUTE_B, ROUTE_C][:route_count]
+    routes = ROUTES[:route_count]
     return AgentModelPolicy(
         deployment_id="real_primary",
         provider="openai-compatible",

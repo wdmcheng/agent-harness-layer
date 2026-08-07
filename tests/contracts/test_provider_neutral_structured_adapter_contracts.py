@@ -465,8 +465,9 @@ class _Result:
     def __init__(self, output: object) -> None:
         self.output = output
 
+    @property
     def usage(self) -> _Usage:
-        """返回完整 usage，确保 sole attempt 可结算。"""
+        """返回完整 usage 属性，确保 sole attempt 可结算。"""
 
         return _Usage()
 

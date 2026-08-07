@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
+from agent_harness.events.serialization import canonical_json_bytes
 from agent_harness.events.types import CanonicalEvent, CanonicalEventType
 
 
@@ -74,6 +76,42 @@ class StreamCapacityBinding:
     sequence_in_group: int
 
 
+def usage_capacity_projection(
+    payload: Mapping[str, object],
+    *,
+    size_bytes: int,
+) -> dict[str, Any]:
+    """为外置 usage 正文保留容量结算所需的最小可信身份投影。
+
+    完整 decision 与计量正文仍进入内容寻址 artifact；事件只内联调用关联、
+    usage kind、流式身份标记和最终状态。容量校验会从 durable outbox 重建完整
+    正文并核对 checksum，因此该投影不能被用来绕过逐值绑定。
+    """
+
+    correlation = payload.get("correlation")
+    usage = payload.get("usage")
+    if not isinstance(correlation, Mapping) or not isinstance(usage, Mapping):
+        raise ValueError("usage event requires correlation and usage payloads")
+    correlation_mapping = cast(Mapping[str, object], correlation)
+    usage_mapping = cast(Mapping[str, object], usage)
+    projected_usage: dict[str, Any] = {"usage_kind": usage_mapping.get("usage_kind")}
+    decision = usage_mapping.get("decision")
+    if isinstance(decision, Mapping) and "usage_event_identity" in decision:
+        decision_mapping = cast(Mapping[str, object], decision)
+        projected_usage["decision"] = {
+            "usage_event_identity": decision_mapping.get("usage_event_identity")
+        }
+    projection: dict[str, Any] = {
+        "correlation": dict(correlation_mapping),
+        "usage": projected_usage,
+        "artifact": {"size_bytes": size_bytes},
+    }
+    for field in ("outcome", "error_code"):
+        if field in payload:
+            projection[field] = payload[field]
+    return projection
+
+
 def usage_capacity_binding(event: CanonicalEvent) -> UsageCapacityBinding | None:
     """解析 usage 事件的稳定调用关联，拒绝不完整形状。
 
@@ -138,6 +176,24 @@ def usage_capacity_binding(event: CanonicalEvent) -> UsageCapacityBinding | None
         started_event_id=started_event_id,
         final_event_id=final_event_id,
         phase=phase,
+    )
+
+
+def _usage_payload_matches_durable_result(
+    event: CanonicalEvent,
+    expected_payload: dict[str, Any],
+) -> bool:
+    """同时支持内联正文与内容寻址外置正文的逐值绑定。"""
+
+    if event.payload_ref is None:
+        return event.payload == expected_payload
+    expected_bytes = canonical_json_bytes(expected_payload)
+    expected_checksum = hashlib.sha256(expected_bytes).hexdigest()
+    return (
+        event.payload_ref == f"artifact://{expected_checksum}"
+        and event.payload_checksum == expected_checksum
+        and event.payload
+        == usage_capacity_projection(expected_payload, size_bytes=len(expected_bytes))
     )
 
 
@@ -307,7 +363,7 @@ def validate_usage_capacity_outbox(
                 "decision": started.decision,
             },
         }
-        if event.payload != expected_payload:
+        if not _usage_payload_matches_durable_result(event, expected_payload):
             raise ValueError("usage started payload does not match its durable settlement")
         return 1
     if binding.phase == "final" and outbox.state == "started":
@@ -328,7 +384,7 @@ def validate_usage_capacity_outbox(
     }
     if outbox.error_code is not None:
         expected_payload["error_code"] = outbox.error_code
-    if event.payload != expected_payload:
+    if not _usage_payload_matches_durable_result(event, expected_payload):
         raise ValueError("usage final payload does not match its durable settlement")
     return 1
 
@@ -340,6 +396,7 @@ __all__ = [
     "StreamCapacityBinding",
     "StreamCapacitySettlement",
     "stream_capacity_binding",
+    "usage_capacity_projection",
     "validate_stream_capacity_outbox",
     "usage_capacity_binding",
     "validate_usage_capacity_outbox",

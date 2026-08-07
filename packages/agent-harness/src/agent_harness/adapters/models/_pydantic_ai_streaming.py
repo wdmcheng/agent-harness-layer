@@ -33,8 +33,9 @@ class AgentRunResult(Protocol):
 
     output: object
 
+    @property
     def usage(self) -> object:
-        """返回 provider SDK usage；只允许 adapter 边界读取。"""
+        """返回 provider SDK usage 属性；只允许 adapter 边界读取。"""
         ...
 
 

@@ -39,6 +39,7 @@ class ResultDouble:
 
     output: str = "adapter-result"
 
+    @property
     def usage(self) -> UsageDouble:
         return UsageDouble()
 

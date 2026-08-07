@@ -15,6 +15,7 @@ from weakref import WeakKeyDictionary
 
 from agent_harness.artifacts import FileArtifactStore
 from agent_harness.contracts.run_trace import TRACE_ID_PATTERN, RunTraceValidationError
+from agent_harness.events.capacity import usage_capacity_projection
 from agent_harness.events.local_capacity import LocalEventCapacityClaim
 from agent_harness.events.serialization import canonical_event_bytes, canonical_json_bytes
 from agent_harness.events.sinks.base import EventSink, EventSinkTerminalConflict
@@ -265,7 +266,15 @@ class EventBus:
                     payload_checksum = hashlib.sha256(payload_bytes).hexdigest()
                     payload_ref = f"artifact://{payload_checksum}"
                     pending_artifact_payload = event_payload
-                    event_payload = {"artifact": {"size_bytes": len(payload_bytes)}}
+                    event_payload = (
+                        usage_capacity_projection(event_payload, size_bytes=len(payload_bytes))
+                        if event_type
+                        in {
+                            CanonicalEventType.MODEL_REQUEST_STARTED,
+                            CanonicalEventType.MODEL_USAGE_UPDATED,
+                        }
+                        else {"artifact": {"size_bytes": len(payload_bytes)}}
+                    )
 
             event = CanonicalEvent(
                 event_id=event_id or str(uuid4()),

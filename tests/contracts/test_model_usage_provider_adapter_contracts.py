@@ -142,10 +142,9 @@ async def test_pydantic_ai_success_is_normalized_before_usage_persistence(tmp_pa
             input_tokens = 7
             output_tokens = 4
 
-        def usage(self) -> Usage:
-            """返回供应商原生用量对象，供适配器归一化。"""
-
-            return self.Usage()
+        # Pydantic AI 2.x 的 AgentRunResult 通过普通属性暴露 RunUsage；测试必须
+        # 贴合受支持依赖范围，避免旧式 usage() double 掩盖真实适配缺陷。
+        usage = Usage()
 
     class Agent:
         """只接受预期私密提示词的异步供应商代理替身。"""

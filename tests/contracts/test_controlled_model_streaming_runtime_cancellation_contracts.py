@@ -100,6 +100,7 @@ class _InvalidUsageSDKAgent:
             class Result:
                 output = prompt
 
+                @property
                 def usage(self) -> object:
                     return SimpleNamespace(input_tokens=True, output_tokens=1)
 
