@@ -1,110 +1,106 @@
-<?xml version='1.0' encoding='utf-8'?>
-<mxfile host="drawio" version="26.0.0">
-  <diagram name="Page-1">
-    <mxGraphModel dx="1900" dy="1290" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1290" math="0" shadow="0">
+<mxfile host="Electron">
+  <diagram name="Page-1" id="0">
+    <mxGraphModel dx="1629" dy="1179" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1290" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="title" value="运行链路与信任边界图（Agent Harness Layer）" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#111827;align=center;verticalAlign=middle;" parent="1" vertex="1">
-          <mxGeometry x="280" y="24" width="1340" height="44" as="geometry" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#111827;align=center;verticalAlign=middle;" value="运行链路与信任边界图（Agent Harness Layer）" vertex="1">
+          <mxGeometry height="44" width="1340" x="280" y="24" as="geometry" />
         </mxCell>
-        <mxCell id="legend-current" value="当前已实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="1" vertex="1">
-          <mxGeometry x="40" y="28" width="190" height="24" as="geometry" />
+        <mxCell id="legend-current" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" value="当前已实现" vertex="1">
+          <mxGeometry height="24" width="190" x="40" y="28" as="geometry" />
         </mxCell>
-        <mxCell id="legend-future" value="保留路径" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="40" y="60" width="190" height="24" as="geometry" />
+        <mxCell id="legend-future" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=12;dashed=1;" value="保留路径" vertex="1">
+          <mxGeometry height="24" width="190" x="40" y="60" as="geometry" />
         </mxCell>
-        <mxCell id="legend-split" value="未来拆分 / P1+" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="40" y="92" width="190" height="24" as="geometry" />
+        <mxCell id="legend-trust" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=12;dashed=1;" value="信任边界 / 不可信输入" vertex="1">
+          <mxGeometry height="24" width="190" x="40" y="92" as="geometry" />
         </mxCell>
-        <mxCell id="legend-trust" value="信任边界 / 不可信输入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="40" y="124" width="190" height="24" as="geometry" />
+        <mxCell id="access" parent="1" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f0f9ff;strokeColor=#0369a1;" value="调用入口（Access）" vertex="1">
+          <mxGeometry height="990" width="360" x="40" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="access" value="调用入口（Access）" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f0f9ff;strokeColor=#0369a1;" parent="1" vertex="1">
-          <mxGeometry x="40" y="150" width="360" height="990" as="geometry" />
+        <mxCell id="cli" parent="access" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="命令行入口&#xa;agent-harness run / doctor&#xa;events stream --after-seq" vertex="1">
+          <mxGeometry height="90" width="240" x="40" y="90" as="geometry" />
         </mxCell>
-        <mxCell id="runtime_lane" value="编排与状态（Runtime）" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f8fafc;strokeColor=#334155;" parent="1" vertex="1">
-          <mxGeometry x="430" y="150" width="430" height="990" as="geometry" />
+        <mxCell id="api" parent="access" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="接口入口（HTTP）&#xa;RUN-001..005&#xa;FastAPI 路由" vertex="1">
+          <mxGeometry height="100" width="240" x="40" y="230" as="geometry" />
         </mxCell>
-        <mxCell id="persist" value="存储/事件/产物（Storage / Event / Artifact）" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f7fee7;strokeColor=#65a30d;" parent="1" vertex="1">
-          <mxGeometry x="900" y="150" width="430" height="990" as="geometry" />
+        <mxCell id="events_json" parent="access" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="事件读取入口&#xa;RUN-003 JSON events&#xa;GET /runs/{id}/events&#xa;after_seq 续读&#xa;seq 断点" vertex="1">
+          <mxGeometry height="100" width="240" x="40" y="510" as="geometry" />
         </mxCell>
-        <mxCell id="trustlane" value="不可信输入 / 策略 / HITL" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#fff1f2;strokeColor=#be123c;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="1370" y="150" width="480" height="990" as="geometry" />
+        <mxCell id="sse_future" parent="access" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="当前流式输出&#xa;HTTP SSE：Last-Event-ID -&gt; seq&#xa;CLI NDJSON：--after-seq&#xa;统一 CanonicalEvent reader&#xa;P1 可选 WS" vertex="1">
+          <mxGeometry height="100" width="240" x="40" y="660" as="geometry" />
         </mxCell>
-        <mxCell id="trust-note" value="信任边界：外部输入、tool/MCP output、retrieval chunk 进入上下文前必须带 source_ref、trust_level、truncation metadata；InputGuardrail 只检查 API/CLI 输入，tool/MCP/retrieval 分别由 ToolRegistry、output_guard 与 retrieval context 收口。&#10;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来 adapter 或拆分，红虚线=信任边界，线桥=交叉不连接。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="300" y="1180" width="930" height="90" as="geometry" />
+        <mxCell id="runtime_lane" parent="1" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f8fafc;strokeColor=#334155;" value="编排与状态（Runtime）" vertex="1">
+          <mxGeometry height="990" width="430" x="430" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="stream-note" value="Phase 13.7-13.9 已实现：0014 evidence outbox、usage settlement 与 event capacity reservation；0015 DelegationService 和 durable aggregation；0016 shared parent execution-tree budget；HTTP SSE / CLI NDJSON 共用 canonical bytes reader、可见 cursor、受限分页、慢客户端无预取与 terminal EOF。outbox 只补投 evidence、不重放 provider/tool；WS 仍属 P1。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="1" vertex="1">
-          <mxGeometry x="1260" y="1170" width="560" height="110" as="geometry" />
+        <mxCell id="request_dto" parent="runtime_lane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" value="运行创建请求&#xa;RunCreateRequest&#xa;request_id&#xa;agent_id/input/idempotency" vertex="1">
+          <mxGeometry height="90" width="300" x="50" y="90" as="geometry" />
         </mxCell>
-        <mxCell id="cli" value="命令行入口&#10;agent-harness run / doctor&#10;events stream --after-seq" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="access" vertex="1">
-          <mxGeometry x="40" y="90" width="240" height="90" as="geometry" />
+        <mxCell id="run_queue" parent="runtime_lane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=11;" value="执行分派&#xa;service：RunQueue seam → worker&#xa;RedisRunQueue adapter 隐藏 Redis&#xa;local：同进程直调" vertex="1">
+          <mxGeometry height="55" width="300" x="50" y="198" as="geometry" />
         </mxCell>
-        <mxCell id="api" value="接口入口（HTTP）&#10;RUN-001..005&#10;FastAPI 路由" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="access" vertex="1">
-          <mxGeometry x="40" y="230" width="240" height="100" as="geometry" />
+        <mxCell id="orchestrator2" parent="runtime_lane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="运行编排&#xa;RunOrchestrator / DelegationService&#xa;local 同进程 / service worker&#xa;shared parent budget" vertex="1">
+          <mxGeometry height="120" width="300" x="50" y="280" as="geometry" />
         </mxCell>
-        <mxCell id="events_json" value="事件读取入口&#10;RUN-003 JSON events&#10;GET /runs/{id}/events&#10;after_seq 续读&#10;seq 断点" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="access" vertex="1">
-          <mxGeometry x="40" y="510" width="240" height="100" as="geometry" />
+        <mxCell id="run_state" parent="runtime_lane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="运行状态&#xa;RunStatus&#xa;created/running/waiting&#xa;completed/failed/cancelled" vertex="1">
+          <mxGeometry height="90" width="300" x="50" y="450" as="geometry" />
         </mxCell>
-        <mxCell id="sse_future" value="当前流式输出&#10;HTTP SSE：Last-Event-ID -&gt; seq&#10;CLI NDJSON：--after-seq&#10;统一 CanonicalEvent reader&#10;P1 可选 WS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="access" vertex="1">
-          <mxGeometry x="40" y="660" width="240" height="100" as="geometry" />
+        <mxCell id="checkpoint2" parent="runtime_lane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="检查点与恢复&#xa;普通 resume：ResumeToken 校验&#xa;审批 continuation：私有 lease / grant" vertex="1">
+          <mxGeometry height="100" width="300" x="50" y="830" as="geometry" />
         </mxCell>
-        <mxCell id="request_dto" value="运行创建请求&#10;RunCreateRequest&#10;request_id&#10;agent_id/input/idempotency" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="runtime_lane" vertex="1">
-          <mxGeometry x="50" y="90" width="300" height="90" as="geometry" />
+        <mxCell id="persist" parent="1" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f7fee7;strokeColor=#65a30d;" value="存储/事件/产物（Storage / Event / Artifact）" vertex="1">
+          <mxGeometry height="990" width="430" x="900" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="run_queue" value="执行分派&#10;service：RunQueue seam → worker&#10;RedisRunQueue adapter 隐藏 Redis&#10;local：同进程直调" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=11;" parent="runtime_lane" vertex="1">
-          <mxGeometry x="50" y="190" width="300" height="50" as="geometry" />
+        <mxCell id="uow2" parent="persist" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="事务边界&#xa;SQLAlchemyStorage.uow()&#xa;显式 commit&#xa;默认 rollback" vertex="1">
+          <mxGeometry height="100" width="300" x="50" y="110" as="geometry" />
         </mxCell>
-        <mxCell id="orchestrator2" value="运行编排&#10;RunOrchestrator / DelegationService&#10;local 同进程 / service worker&#10;shared parent budget" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="runtime_lane" vertex="1">
-          <mxGeometry x="50" y="250" width="300" height="120" as="geometry" />
+        <mxCell id="tables2" parent="persist" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" value="仓储核心表&#xa;runs/checkpoints/events&#xa;evidence outbox / delegation&#xa;shared budget ledger" vertex="1">
+          <mxGeometry height="100" width="300" x="50" y="270" as="geometry" />
         </mxCell>
-        <mxCell id="run_state" value="运行状态&#10;RunStatus&#10;created/running/waiting&#10;completed/failed/cancelled" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="runtime_lane" vertex="1">
-          <mxGeometry x="50" y="440" width="300" height="90" as="geometry" />
+        <mxCell id="eventbus2" parent="persist" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" value="有序事件发布&#xa;EventBus + evidence outbox&#xa;usage/approval/delegation evidence&#xa;capacity 保留 terminal" vertex="1">
+          <mxGeometry height="110" width="300" x="50" y="440" as="geometry" />
         </mxCell>
-        <mxCell id="checkpoint2" value="检查点与恢复&#10;普通 resume：ResumeToken 校验&#10;审批 continuation：私有 lease / grant" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="runtime_lane" vertex="1">
-          <mxGeometry x="50" y="830" width="300" height="100" as="geometry" />
+        <mxCell id="artifact2" parent="persist" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" value="大载荷产物&#xa;FileArtifactStore&#xa;large payload -&gt; payload_ref&#xa;脱敏 + checksum" vertex="1">
+          <mxGeometry height="100" width="300" x="50" y="600" as="geometry" />
         </mxCell>
-        <mxCell id="uow2" value="事务边界&#10;SQLAlchemyStorage.uow()&#10;显式 commit&#10;默认 rollback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="persist" vertex="1">
-          <mxGeometry x="50" y="110" width="300" height="100" as="geometry" />
+        <mxCell id="localjsonl2" parent="persist" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="事件持久化&#xa;local：LocalJsonlEventSink&#xa;service：PostgreSQL event sink" vertex="1">
+          <mxGeometry height="80" width="300" x="50" y="730" as="geometry" />
         </mxCell>
-        <mxCell id="tables2" value="仓储核心表&#10;runs/checkpoints/events&#10;evidence outbox / delegation&#10;shared budget ledger" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="persist" vertex="1">
-          <mxGeometry x="50" y="270" width="300" height="100" as="geometry" />
+        <mxCell id="trustlane" parent="1" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#fff1f2;strokeColor=#be123c;dashed=1;" value="不可信输入 / 策略 / HITL" vertex="1">
+          <mxGeometry height="990" width="480" x="1370" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="eventbus2" value="有序事件发布&#10;EventBus + evidence outbox&#10;usage/approval/delegation evidence&#10;capacity 保留 terminal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="persist" vertex="1">
-          <mxGeometry x="50" y="440" width="300" height="110" as="geometry" />
+        <mxCell id="external_input" parent="trustlane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=13;dashed=1;" value="外部输入&#xa;用户/API/CLI&#xa;默认不可信" vertex="1">
+          <mxGeometry height="90" width="180" x="40" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="artifact2" value="大载荷产物&#10;FileArtifactStore&#10;large payload -&gt; payload_ref&#10;脱敏 + checksum" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="persist" vertex="1">
-          <mxGeometry x="50" y="600" width="300" height="100" as="geometry" />
+        <mxCell id="tool_output" parent="trustlane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=13;dashed=1;" value="工具/MCP 输出&#xa;File/Shell/MCP stdout&#xa;source_ref / untrusted" vertex="1">
+          <mxGeometry height="90" width="190" x="250" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="localjsonl2" value="事件持久化&#10;local：LocalJsonlEventSink&#10;service：PostgreSQL event sink" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="persist" vertex="1">
-          <mxGeometry x="50" y="730" width="300" height="80" as="geometry" />
+        <mxCell id="retrieval_output" parent="trustlane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=13;dashed=1;" value="retrieval chunks&lt;br&gt;source_ref / trust_level" vertex="1">
+          <mxGeometry height="90" width="210" x="140" y="210" as="geometry" />
         </mxCell>
-        <mxCell id="external_input" value="外部输入&#10;用户/API/CLI&#10;默认不可信" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=13;dashed=1;" parent="trustlane" vertex="1">
-          <mxGeometry x="40" y="80" width="180" height="90" as="geometry" />
+        <mxCell id="context_trust" parent="trustlane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=12;" value="ContextAssembler&lt;br&gt;retrieval context&lt;br&gt;source/trust/truncation evidence" vertex="1">
+          <mxGeometry height="100" width="210" x="20" y="460" as="geometry" />
         </mxCell>
-        <mxCell id="tool_output" value="工具/MCP 输出&#10;File/Shell/MCP stdout&#10;source_ref / untrusted" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=13;dashed=1;" parent="trustlane" vertex="1">
-          <mxGeometry x="250" y="80" width="190" height="90" as="geometry" />
+        <mxCell id="guardrail_future" parent="trustlane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" value="InputGuardrail&lt;br&gt;API/CLI external input checks&lt;br&gt;decision + evidence" vertex="1">
+          <mxGeometry height="100" width="210" x="250" y="460" as="geometry" />
         </mxCell>
-        <mxCell id="retrieval_output" value="当前已实现&#10;retrieval chunks&#10;source_ref / trust_level" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=13;dashed=1;" parent="trustlane" vertex="1">
-          <mxGeometry x="140" y="210" width="210" height="90" as="geometry" />
+        <mxCell id="policy_future" parent="trustlane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="PolicyEngine&lt;br&gt;allow / deny / require_approval&lt;br&gt;gates RunOrchestrator + audit evidence" vertex="1">
+          <mxGeometry height="100" width="300" x="50" y="590" as="geometry" />
         </mxCell>
-        <mxCell id="context_trust" value="当前已实现&#10;ContextAssembler&#10;retrieval context&#10;source/trust/truncation evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=12;" parent="trustlane" vertex="1">
-          <mxGeometry x="20" y="460" width="210" height="100" as="geometry" />
+        <mxCell id="hitl_future" parent="trustlane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="approve：lease/grant → continuation&lt;br&gt;deny：终止且不 continuation&lt;br&gt;唯一 claim / fenced enqueue" vertex="1">
+          <mxGeometry height="100" width="300" x="50" y="720" as="geometry" />
         </mxCell>
-        <mxCell id="guardrail_future" value="当前已实现&#10;InputGuardrail&#10;API/CLI external input checks&#10;decision + evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="trustlane" vertex="1">
-          <mxGeometry x="250" y="460" width="210" height="100" as="geometry" />
+        <mxCell id="tool_execution" parent="trustlane" style="rounded=1;whiteSpace=wrap;html=1;fontColor=#111827;fontSize=13;fillColor=#dae8fc;strokeColor=#2f5597;" value="工具执行边界&lt;br&gt;ToolRegistry / output_guard&lt;br&gt;policy + audit + artifact_ref" vertex="1">
+          <mxGeometry height="100" width="300" x="50" y="330" as="geometry" />
         </mxCell>
-        <mxCell id="policy_future" value="当前已实现&#10;PolicyEngine&#10;allow / deny / require_approval&#10;gates RunOrchestrator + audit evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="trustlane" vertex="1">
-          <mxGeometry x="50" y="590" width="300" height="100" as="geometry" />
+        <mxCell id="trust-note" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=12;dashed=1;" value="信任边界：外部输入、tool/MCP output、retrieval chunk 进入上下文前必须带 source_ref、trust_level、truncation metadata；InputGuardrail 只检查 API/CLI 输入，tool/MCP/retrieval 分别由 ToolRegistry、output_guard 与 retrieval context 收口。&#xa;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来 adapter 或拆分，红虚线=信任边界，线桥=交叉不连接。" vertex="1">
+          <mxGeometry height="90" width="930" x="300" y="1180" as="geometry" />
         </mxCell>
-        <mxCell id="hitl_future" value="当前已实现&#10;approve：lease/grant → continuation&#10;deny：终止且不 continuation&#10;唯一 claim / fenced enqueue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="trustlane" vertex="1">
-          <mxGeometry x="50" y="720" width="300" height="100" as="geometry" />
-        </mxCell>
-        <mxCell id="e-cli-req" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="cli" target="request_dto">
+        <mxCell id="e-cli-req" edge="1" parent="1" source="cli" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="request_dto" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-api-req" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" edge="1" source="api" target="request_dto">
+        <mxCell id="e-api-req" edge="1" parent="1" source="api" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="request_dto" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="415" y="430" />
@@ -112,80 +108,116 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-req-orch" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="request_dto" target="run_queue">
+        <mxCell id="e-req-orch" edge="1" parent="1" source="request_dto" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="run_queue" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-queue-orch" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="run_queue" target="orchestrator2">
+        <mxCell id="e-queue-orch" edge="1" parent="1" source="run_queue" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="orchestrator2" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-orch-uow" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="1" edge="1" source="orchestrator2" target="uow2">
+        <mxCell id="e-orch-uow" edge="1" parent="1" source="orchestrator2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0.997;exitY=0.131;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitPerimeter=0;" target="uow2" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="630" y="395" />
-              <mxPoint x="1100" y="395" />
+              <mxPoint x="779.13" y="400.07" />
+              <mxPoint x="1100.07" y="400.07" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-uow-tables" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" parent="1" edge="1" source="uow2" target="tables2">
+        <mxCell id="e-uow-tables" edge="1" parent="1" source="uow2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" target="tables2" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-orch-event" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="orchestrator2" target="eventbus2">
+        <mxCell id="e-orch-event" edge="1" parent="1" source="orchestrator2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="eventbus2" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="890" y="460" />
-              <mxPoint x="890" y="560" />
-              <mxPoint x="1100" y="560" />
+              <mxPoint x="890.07" y="490.07" />
+              <mxPoint x="890.07" y="560.07" />
+              <mxPoint x="1100.07" y="560.07" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-event-artifact2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" parent="1" edge="1" source="eventbus2" target="artifact2">
+        <mxCell id="e-event-artifact2" edge="1" parent="1" source="eventbus2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" target="artifact2" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-event-jsonl" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" parent="1" edge="1" source="eventbus2" target="localjsonl2">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-jsonl-events" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="localjsonl2" target="events_json">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="880" y="920" /><mxPoint x="880" y="1090" /><mxPoint x="450" y="1090" /><mxPoint x="450" y="710" /></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="e-events-sse" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" parent="1" edge="1" source="events_json" target="sse_future">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-orch-state" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="orchestrator2" target="run_state">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-state-checkpoint" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="run_state" target="checkpoint2">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-input-guard" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#b85450;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="external_input" target="guardrail_future">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1380" y="275" /><mxPoint x="1380" y="590" /><mxPoint x="1725" y="590" /></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="e-tool-guard" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#b85450;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="tool_output" target="tool_execution">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1840" y="320" /><mxPoint x="1840" y="460" /><mxPoint x="1570" y="460" /></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="e-ret-context" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#b85450;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="retrieval_output" target="context_trust">
+        <mxCell id="e-event-jsonl" edge="1" parent="1" source="eventbus2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" target="localjsonl2" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="1380" y="450" />
+              <mxPoint x="1290" y="645" />
+              <mxPoint x="1290" y="920" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-jsonl-events" edge="1" parent="1" source="localjsonl2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="events_json" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="880" y="920" />
+              <mxPoint x="880" y="1090" />
+              <mxPoint x="450" y="1090" />
+              <mxPoint x="450" y="710" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-events-sse" edge="1" parent="1" source="events_json" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" target="sse_future" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-orch-state" edge="1" parent="1" source="orchestrator2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="run_state" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-state-checkpoint" edge="1" parent="1" source="run_state" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="checkpoint2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-input-guard" edge="1" parent="1" source="external_input" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#b85450;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="guardrail_future" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1380" y="275" />
               <mxPoint x="1380" y="590" />
-              <mxPoint x="1495" y="590" />
+              <mxPoint x="1725" y="590" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-guard-policy" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="guardrail_future" target="policy_future">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1725" y="725" /><mxPoint x="1570" y="725" /></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="e-policy-hitl" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="policy_future" target="hitl_future">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-hitl-checkpoint" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="hitl_future" target="checkpoint2">
+        <mxCell id="e-tool-guard" edge="1" parent="1" source="tool_output" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#b85450;dashed=1;exitX=0.816;exitY=0.996;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;" target="tool_execution" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="1350" y="850" />
-              <mxPoint x="800" y="850" />
+              <mxPoint x="1775" y="460.07" />
+              <mxPoint x="1570.07" y="460.07" />
             </Array>
           </mxGeometry>
         </mxCell>
-      <mxCell id="tool_execution" value="当前已实现&#10;工具执行边界&#10;ToolRegistry / output_guard&#10;policy + audit + artifact_ref" style="rounded=1;whiteSpace=wrap;html=1;fontColor=#111827;fontSize=13;fillColor=#dae8fc;strokeColor=#2f5597;" parent="trustlane" vertex="1"><mxGeometry x="50" y="330" width="300" height="100" as="geometry" /></mxCell><mxCell id="e-tool-exec-guard" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#b85450;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="tool_execution" target="guardrail_future" edge="1"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1570" y="590" /><mxPoint x="1725" y="590" /></Array></mxGeometry></mxCell></root>
+        <mxCell id="e-ret-context" edge="1" parent="1" source="retrieval_output" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#b85450;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="context_trust" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1380.07" y="405" />
+              <mxPoint x="1380.07" y="590.07" />
+              <mxPoint x="1495" y="590.07" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-guard-policy" edge="1" parent="1" source="guardrail_future" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="policy_future" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1725" y="725" />
+              <mxPoint x="1570" y="725" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-policy-hitl" edge="1" parent="1" source="policy_future" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="hitl_future" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-hitl-checkpoint" edge="1" parent="1" source="hitl_future" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.903;entryY=-0.003;entryDx=0;entryDy=0;entryPerimeter=0;" target="checkpoint2" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1420.07" y="860.07" />
+              <mxPoint x="750.87" y="860.07" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-tool-exec-guard" edge="1" parent="1" source="tool_execution" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#b85450;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="guardrail_future" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1570" y="590" />
+              <mxPoint x="1725" y="590" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
     </mxGraphModel>
   </diagram>
 </mxfile>

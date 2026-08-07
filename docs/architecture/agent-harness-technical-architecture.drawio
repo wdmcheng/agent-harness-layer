@@ -1,186 +1,207 @@
-<?xml version='1.0' encoding='utf-8'?>
-<mxfile host="drawio" version="26.0.0">
-  <diagram name="Page-1">
-    <mxGraphModel dx="1820" dy="1180" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1820" pageHeight="1180" math="0" shadow="0">
+<mxfile host="Electron">
+  <diagram name="Page-1" id="0">
+    <mxGraphModel dx="1629" dy="1179" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1820" pageHeight="1180" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="title" value="技术架构图（Agent Harness Layer）" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#111827;align=center;verticalAlign=middle;" parent="1" vertex="1">
-          <mxGeometry x="280" y="24" width="1260" height="44" as="geometry" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#111827;align=center;verticalAlign=middle;" value="技术架构图（Agent Harness Layer）" vertex="1">
+          <mxGeometry height="44" width="1260" x="280" y="24" as="geometry" />
         </mxCell>
-        <mxCell id="legend-current" value="当前已实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="1" vertex="1">
-          <mxGeometry x="40" y="28" width="190" height="24" as="geometry" />
+        <mxCell id="legend-current" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" value="当前已实现" vertex="1">
+          <mxGeometry height="24" width="190" x="40" y="28" as="geometry" />
         </mxCell>
-        <mxCell id="legend-future" value="保留路径" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=11;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="40" y="60" width="190" height="24" as="geometry" />
+        <mxCell id="legend-future" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=11;dashed=1;" value="保留路径" vertex="1">
+          <mxGeometry height="24" width="190" x="40" y="60" as="geometry" />
         </mxCell>
-        <mxCell id="legend-split" value="未来拆分 / P1+" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="40" y="92" width="190" height="24" as="geometry" />
+        <mxCell id="legend-trust" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=12;dashed=1;" value="信任边界 / 不可信输入" vertex="1">
+          <mxGeometry height="24" width="190" x="40" y="92" as="geometry" />
         </mxCell>
-        <mxCell id="legend-trust" value="信任边界 / 不可信输入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="40" y="124" width="190" height="24" as="geometry" />
+        <mxCell id="core" parent="1" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f8fafc;strokeColor=#334155;" value="核心包 packages/agent-harness：稳定契约与运行时边界" vertex="1">
+          <mxGeometry height="900" width="1180" x="40" y="136" as="geometry" />
         </mxCell>
-        <mxCell id="core" value="核心包 packages/agent-harness：稳定契约与运行时边界" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f8fafc;strokeColor=#334155;" parent="1" vertex="1">
-          <mxGeometry x="40" y="150" width="1180" height="900" as="geometry" />
+        <mxCell id="dto" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" value="稳定载荷契约（DTO）&#xa;HarnessDTO / ApiErrorEnvelope&#xa;trust/source refs" vertex="1">
+          <mxGeometry height="100" width="220" x="40" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="template" value="模板应用 template service-app：薄 API / worker / profile 装配层" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f0f9ff;strokeColor=#0369a1;" parent="1" vertex="1">
-          <mxGeometry x="1260" y="150" width="520" height="1140" as="geometry" />
+        <mxCell id="config" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="配置边界&#xa;HarnessSettings&#xa;local/service profile&#xa;类型化 schema&#xa;后续热更新 seam" vertex="1">
+          <mxGeometry height="100" width="220" x="290" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="contract-note" value="边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。&#10;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来物理拆分，红虚线=信任边界。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="250" y="1080" width="980" height="90" as="geometry" />
+        <mxCell id="identity" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="身份与权限上下文&#xa;IdentityContext&#xa;PermissionContext&#xa;默认租户/用户" vertex="1">
+          <mxGeometry height="100" width="230" x="540" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="status-note" value="Phase 1-15 已实现：基础 runtime、精确 OpenAPI、Docker secret、tenant cache、canonical trace/event schema 与 local state upgrader；0014 提供 model/embedding usage evidence、durable settlement、evidence outbox 与 event capacity reservation；0015 提供受控 DelegationService 与 durable aggregation；0016 提供 shared parent execution-tree budget；HTTP SSE 与 CLI NDJSON 共用 canonical bytes reader、可见 cursor、受限分页和 terminal EOF。Phase 14 已补齐维护文档/ADR，Phase 15 已建立双 CI、release automation 与 license/compliance gate。当前未来边界仅包括 WS、独立 tool/model gateway、event pipeline、storage service、RLS 与多 executor 协调；紫色虚线=P1+ 拆分。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=11;" parent="1" vertex="1">
-          <mxGeometry x="1280" y="1040" width="500" height="230" as="geometry" />
+        <mxCell id="runtime" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="运行编排核心&#xa;RunOrchestrator / DelegationService&#xa;RunResult / RunStatus&#xa;幂等与 shared parent budget" vertex="1">
+          <mxGeometry height="120" width="280" x="410" y="255" as="geometry" />
         </mxCell>
-        <mxCell id="dto" value="稳定载荷契约（DTO）&#10;HarnessDTO / ApiErrorEnvelope&#10;trust/source refs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="40" y="80" width="220" height="100" as="geometry" />
+        <mxCell id="checkpoint" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="检查点与恢复契约&#xa;CheckpointStore Protocol&#xa;ResumeToken&#xa;ApprovalWaitState" vertex="1">
+          <mxGeometry height="110" width="240" x="750" y="255" as="geometry" />
         </mxCell>
-        <mxCell id="config" value="配置边界&#10;HarnessSettings&#10;local/service profile&#10;类型化 schema&#10;后续热更新 seam" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="290" y="80" width="220" height="100" as="geometry" />
+        <mxCell id="uow" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="存储适配器&#xa;SQLAlchemyStorage&#xa;UnitOfWork&#xa;事务边界" vertex="1">
+          <mxGeometry height="110" width="250" x="60" y="470" as="geometry" />
         </mxCell>
-        <mxCell id="identity" value="身份与权限上下文&#10;IdentityContext&#10;PermissionContext&#10;默认租户/用户" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="540" y="80" width="230" height="100" as="geometry" />
+        <mxCell id="repo" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" value="仓储接口&#xa;Tenant / Session&#xa;Run / Checkpoint&#xa;不暴露 ORM session" vertex="1">
+          <mxGeometry height="100" width="230" x="350" y="480" as="geometry" />
         </mxCell>
-        <mxCell id="runtime" value="运行编排核心&#10;RunOrchestrator / DelegationService&#10;RunResult / RunStatus&#10;幂等与 shared parent budget" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="410" y="255" width="280" height="120" as="geometry" />
+        <mxCell id="sqlalchemy" parent="core" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" value="数据库实现&#xa;SQLAlchemy 2.0 / Alembic&#xa;SQLite / PostgreSQL&#xa;当前 head：0016" vertex="1">
+          <mxGeometry height="95" width="220" x="620" y="485" as="geometry" />
         </mxCell>
-        <mxCell id="checkpoint" value="检查点与恢复契约&#10;CheckpointStore Protocol&#10;ResumeToken&#10;ApprovalWaitState" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="750" y="255" width="240" height="110" as="geometry" />
+        <mxCell id="eventbus" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" value="有序事件证据&#xa;CanonicalEvent / EventSink&#xa;evidence outbox / capacity&#xa;usage/approval 先于 terminal" vertex="1">
+          <mxGeometry height="110" width="240" x="870" y="410" as="geometry" />
         </mxCell>
-        <mxCell id="uow" value="存储适配器&#10;SQLAlchemyStorage&#10;UnitOfWork&#10;事务边界" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="60" y="470" width="250" height="110" as="geometry" />
+        <mxCell id="artifact" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" value="产物存储&#xa;FileArtifactStore&#xa;payload_ref&#xa;sha256 + 脱敏" vertex="1">
+          <mxGeometry height="100" width="240" x="870" y="555" as="geometry" />
         </mxCell>
-        <mxCell id="repo" value="仓储接口&#10;Tenant / Session&#10;Run / Checkpoint&#10;不暴露 ORM session" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="350" y="480" width="230" height="100" as="geometry" />
+        <mxCell id="otel" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="观测转换&#xa;OTel mapping facade&#xa;local/jsonl 兜底" vertex="1">
+          <mxGeometry height="90" width="240" x="870" y="685" as="geometry" />
         </mxCell>
-        <mxCell id="sqlalchemy" value="数据库实现&#10;SQLAlchemy 2.0 / Alembic&#10;SQLite / PostgreSQL&#10;当前 head：0016" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="620" y="485" width="220" height="95" as="geometry" />
+        <mxCell id="dbos" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" value="耐久运行适配边界&#xa;DBOSRuntimeAdapter&#xa;NoopDBOSRuntimeAdapter" vertex="1">
+          <mxGeometry height="90" width="250" x="60" y="650" as="geometry" />
         </mxCell>
-        <mxCell id="eventbus" value="有序事件证据&#10;CanonicalEvent / EventSink&#10;evidence outbox / capacity&#10;usage/approval 先于 terminal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="870" y="410" width="240" height="110" as="geometry" />
+        <mxCell id="model" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="AgentRegistry / ModelRouter&lt;br&gt;Pydantic AI / Embedding adapter&lt;br&gt;usage evidence + settlement" vertex="1">
+          <mxGeometry height="90" width="230" x="350" y="650" as="geometry" />
         </mxCell>
-        <mxCell id="artifact" value="产物存储&#10;FileArtifactStore&#10;payload_ref&#10;sha256 + 脱敏" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="870" y="555" width="240" height="100" as="geometry" />
+        <mxCell id="policy" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="Auth / PolicyEngine / HITL&lt;br&gt;ApprovalService&lt;br&gt;AuditService" vertex="1">
+          <mxGeometry height="90" width="220" x="620" y="650" as="geometry" />
         </mxCell>
-        <mxCell id="otel" value="观测转换&#10;OTel mapping facade&#10;local/jsonl 兜底" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="870" y="685" width="240" height="90" as="geometry" />
+        <mxCell id="tools" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="ToolRegistry&lt;br&gt;File/Shell/MCP client&lt;br&gt;output_guard" vertex="1">
+          <mxGeometry height="90" width="230" x="350" y="770" as="geometry" />
         </mxCell>
-        <mxCell id="dbos" value="耐久运行适配边界&#10;DBOSRuntimeAdapter&#10;NoopDBOSRuntimeAdapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="60" y="650" width="250" height="90" as="geometry" />
+        <mxCell id="retrieval" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="检索能力&lt;br&gt;RetrievalProvider / RAG&lt;br&gt;trust_level" vertex="1">
+          <mxGeometry height="90" width="220" x="620" y="770" as="geometry" />
         </mxCell>
-        <mxCell id="model" value="当前已实现&#10;AgentRegistry / ModelRouter&#10;Pydantic AI / Embedding adapter&#10;usage evidence + settlement" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="350" y="650" width="230" height="90" as="geometry" />
+        <mxCell id="providerobs" parent="core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="观测、Eval Gate 与 experiment&lt;br&gt;score sink / compare / acceptance" vertex="1">
+          <mxGeometry height="80" width="240" x="870" y="800" as="geometry" />
         </mxCell>
-        <mxCell id="policy" value="当前已实现&#10;Auth / PolicyEngine / HITL&#10;ApprovalService&#10;AuditService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="620" y="650" width="220" height="90" as="geometry" />
+        <mxCell id="template" parent="1" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f0f9ff;strokeColor=#0369a1;" value="模板应用 template service-app：薄 API / worker / profile 装配层" vertex="1">
+          <mxGeometry height="1030" width="520" x="1260" y="136" as="geometry" />
         </mxCell>
-        <mxCell id="tools" value="当前已实现&#10;ToolRegistry&#10;File/Shell/MCP client&#10;output_guard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="350" y="770" width="230" height="90" as="geometry" />
+        <mxCell id="fastapi" parent="template" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" value="应用工厂&#xa;FastAPI create_app()&#xa;错误 envelope handler" vertex="1">
+          <mxGeometry height="100" width="210" x="40" y="90" as="geometry" />
         </mxCell>
-        <mxCell id="retrieval" value="当前已实现&#10;检索能力&#10;RetrievalProvider / RAG&#10;trust_level" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="620" y="770" width="220" height="90" as="geometry" />
+        <mxCell id="routes" parent="template" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" value="运行接口路由&#xa;RUN-001..005&#xa;薄协议适配层" vertex="1">
+          <mxGeometry height="100" width="210" x="280" y="90" as="geometry" />
         </mxCell>
-        <mxCell id="providerobs" value="当前已实现&#10;观测、Eval Gate 与 experiment&#10;score sink / compare / acceptance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="core" vertex="1">
-          <mxGeometry x="870" y="800" width="240" height="80" as="geometry" />
+        <mxCell id="components" parent="template" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" value="运行组件装配&#xa;RuntimeComponents&#xa;storage + event_sink&#xa;+ orchestrator" vertex="1">
+          <mxGeometry height="100" width="210" x="40" y="260" as="geometry" />
         </mxCell>
-        <mxCell id="fastapi" value="应用工厂&#10;FastAPI create_app()&#10;错误 envelope handler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
-          <mxGeometry x="40" y="90" width="210" height="100" as="geometry" />
+        <mxCell id="worker" parent="template" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" value="运行 worker 外壳&#xa;RunQueue protocol pickup/reclaim&#xa;Redis adapter 隔离 / DBOS recovery" vertex="1">
+          <mxGeometry height="100" width="210" x="280" y="260" as="geometry" />
         </mxCell>
-        <mxCell id="routes" value="运行接口路由&#10;RUN-001..005&#10;薄协议适配层" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
-          <mxGeometry x="280" y="90" width="210" height="100" as="geometry" />
+        <mxCell id="profiles" parent="template" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" value="环境配置&#xa;configs/profiles&#xa;local.yaml / service.yaml&#xa;storage/queue/policy&#xa;模型路由/预算变更走 reload seam" vertex="1">
+          <mxGeometry height="100" width="210" x="40" y="430" as="geometry" />
         </mxCell>
-        <mxCell id="components" value="运行组件装配&#10;RuntimeComponents&#10;storage + event_sink&#10;+ orchestrator" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
-          <mxGeometry x="40" y="260" width="210" height="100" as="geometry" />
+        <mxCell id="sse" parent="template" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" value="HTTP SSE / Last-Event-ID&lt;br&gt;CLI NDJSON / --after-seq&lt;br&gt;P1 可选：WS adapter" vertex="1">
+          <mxGeometry height="100" width="210" x="280" y="430" as="geometry" />
         </mxCell>
-        <mxCell id="worker" value="运行 worker 外壳&#10;RunQueue protocol pickup/reclaim&#10;Redis adapter 隔离 / DBOS recovery" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
-          <mxGeometry x="280" y="260" width="210" height="100" as="geometry" />
+        <mxCell id="agentroutes" parent="template" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="Agent routes / registry smoke&lt;br&gt;四个 P0 示例 Agent" vertex="1">
+          <mxGeometry height="100" width="210" x="40" y="610" as="geometry" />
         </mxCell>
-        <mxCell id="profiles" value="环境配置&#10;configs/profiles&#10;local.yaml / service.yaml&#10;storage/queue/policy&#10;模型路由/预算变更走 reload seam" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2ff;strokeColor=#6c8ebf;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
-          <mxGeometry x="40" y="430" width="210" height="100" as="geometry" />
+        <mxCell id="authroutes" parent="template" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="认证/审批/策略 routes&lt;br&gt;Eval API / experiment acceptance" vertex="1">
+          <mxGeometry height="100" width="210" x="280" y="610" as="geometry" />
         </mxCell>
-        <mxCell id="sse" value="当前已实现&#10;HTTP SSE / Last-Event-ID&#10;CLI NDJSON / --after-seq&#10;P1 可选：WS adapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="template" vertex="1">
-          <mxGeometry x="280" y="430" width="210" height="100" as="geometry" />
+        <mxCell id="contract-note" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" value="边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。&#xa;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来物理拆分，红虚线=信任边界。" vertex="1">
+          <mxGeometry height="90" width="980" x="250" y="1066" as="geometry" />
         </mxCell>
-        <mxCell id="agentroutes" value="当前已实现&#10;Agent routes / registry smoke&#10;四个 P0 示例 Agent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
-          <mxGeometry x="40" y="610" width="210" height="100" as="geometry" />
-        </mxCell>
-        <mxCell id="authroutes" value="当前已实现&#10;认证/审批/策略 routes&#10;Eval API / experiment acceptance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="template" vertex="1">
-          <mxGeometry x="280" y="610" width="210" height="100" as="geometry" />
-        </mxCell>
-        <mxCell id="e-config-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" parent="1" edge="1" source="config" target="runtime">
+        <mxCell id="e-config-runtime" edge="1" parent="1" source="config" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" target="runtime" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-identity-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" parent="1" edge="1" source="identity" target="runtime">
+        <mxCell id="e-identity-runtime" edge="1" parent="1" source="identity" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" target="runtime" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-dto-all" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.2;entryDx=0;entryDy=0;" parent="1" edge="1" source="dto" target="runtime">
+        <mxCell id="e-dto-all" edge="1" parent="1" source="dto" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.2;entryDx=0;entryDy=0;" target="runtime" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="190" y="370" />
-              <mxPoint x="430" y="370" />
-              <mxPoint x="430" y="430" />
+              <mxPoint x="190" y="356" />
+              <mxPoint x="430" y="356" />
+              <mxPoint x="430" y="416" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-runtime-uow" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="runtime" target="uow">
+        <mxCell id="e-runtime-uow" edge="1" parent="1" source="runtime" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="uow" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-uow-repo" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="uow" target="repo">
+        <mxCell id="e-uow-repo" edge="1" parent="1" source="uow" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="repo" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-repo-sql" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" parent="1" edge="1" source="repo" target="sqlalchemy">
+        <mxCell id="e-repo-sql" edge="1" parent="1" source="repo" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" target="sqlalchemy" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-runtime-checkpoint" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="runtime" target="checkpoint">
+        <mxCell id="e-runtime-checkpoint" edge="1" parent="1" source="runtime" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="checkpoint" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-runtime-event" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" parent="1" edge="1" source="runtime" target="eventbus">
+        <mxCell id="e-runtime-event" edge="1" parent="1" source="runtime" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" target="eventbus" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="820" y="540" />
-              <mxPoint x="910" y="540" />
+              <mxPoint x="820" y="526" />
+              <mxPoint x="910" y="526" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-event-artifact" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" parent="1" edge="1" source="eventbus" target="artifact">
+        <mxCell id="e-event-artifact" edge="1" parent="1" source="eventbus" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" target="artifact" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-event-otel" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" parent="1" edge="1" source="eventbus" target="otel">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-components-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.85;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="components" target="runtime">
+        <mxCell id="e-event-otel" edge="1" parent="1" source="eventbus" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;exitX=1;exitY=0.75;exitDx=0;exitDy=0;" target="otel" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="1300" y="380" />
-              <mxPoint x="690" y="380" />
+              <mxPoint x="1150.07" y="630.07" />
+              <mxPoint x="1180.07" y="630.07" />
+              <mxPoint x="1180.07" y="866.07" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-fastapi-routes" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="fastapi" target="routes">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-worker-components" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="worker" target="components">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-profiles-components" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" parent="1" edge="1" source="profiles" target="components">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-sse-event" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="1" edge="1" source="eventbus" target="sse">
+        <mxCell id="e-components-runtime" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;entryX=0.827;entryY=-0.006;entryDx=0;entryDy=0;entryPerimeter=0;" target="runtime" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="1230" y="730" />
-              <mxPoint x="1645" y="730" />
+              <mxPoint x="1325.67" y="366.07" />
+              <mxPoint x="681.67" y="366.07" />
+            </Array>
+            <mxPoint x="1325.67" y="400" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-fastapi-routes" edge="1" parent="1" source="fastapi" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="routes" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-worker-components" edge="1" parent="1" source="worker" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="components" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-profiles-components" edge="1" parent="1" source="profiles" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" target="components" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sse-event" edge="1" parent="1" source="eventbus" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="sse" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1230.07" y="573.53" />
+              <mxPoint x="1230.07" y="716.07" />
+              <mxPoint x="1645" y="716.07" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-model-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="model" target="runtime">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e-model-runtime" edge="1" parent="1" source="model" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0.207;exitY=0.056;exitDx=0;exitDy=0;exitPerimeter=0;" target="runtime" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="437.53" y="740.07" />
+              <mxPoint x="370.07" y="740.07" />
+              <mxPoint x="370.07" y="590.07" />
+              <mxPoint x="590.07" y="590.07" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="e-policy-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="policy" target="runtime">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e-policy-runtime" edge="1" parent="1" source="policy" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0.75;exitY=0;exitDx=0;exitDy=0;" target="runtime" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="825" y="740.07" />
+              <mxPoint x="890.07" y="740.07" />
+              <mxPoint x="890.07" y="590.07" />
+              <mxPoint x="590.07" y="590.07" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="e-tools-policy" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="tools" target="policy">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="505" y="900" /><mxPoint x="640" y="900" /><mxPoint x="640" y="845" /></Array></mxGeometry>
+        <mxCell id="e-tools-policy" edge="1" parent="1" source="tools" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="policy" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="505" y="886" />
+              <mxPoint x="640" y="886" />
+              <mxPoint x="640" y="831" />
+            </Array>
+          </mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>

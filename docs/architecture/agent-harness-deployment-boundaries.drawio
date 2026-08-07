@@ -1,110 +1,112 @@
-<?xml version='1.0' encoding='utf-8'?>
-<mxfile host="drawio" version="26.0.0">
-  <diagram name="Page-1">
-    <mxGraphModel dx="1880" dy="1230" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1880" pageHeight="1230" math="0" shadow="0">
+<mxfile host="Electron">
+  <diagram name="Page-1" id="0">
+    <mxGraphModel dx="1528" dy="1105" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1880" pageHeight="1230" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="title" value="部署边界图（Agent Harness Layer）" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#111827;align=center;verticalAlign=middle;" parent="1" vertex="1">
-          <mxGeometry x="280" y="24" width="1320" height="44" as="geometry" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#111827;align=center;verticalAlign=middle;" value="部署边界图（Agent Harness Layer）" vertex="1">
+          <mxGeometry height="44" width="1320" x="280" y="24" as="geometry" />
         </mxCell>
-        <mxCell id="legend-current" value="已实现 Phase 1-15" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" parent="1" vertex="1">
-          <mxGeometry x="40" y="28" width="190" height="24" as="geometry" />
+        <mxCell id="legend-current" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=12;" value="已实现 Phase 1-15" vertex="1">
+          <mxGeometry height="24" width="190" x="40" y="28" as="geometry" />
         </mxCell>
-        <mxCell id="legend-future" value="队列 / 协调边界" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="40" y="60" width="190" height="24" as="geometry" />
+        <mxCell id="legend-future" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=12;dashed=1;" value="队列 / 协调边界" vertex="1">
+          <mxGeometry height="24" width="190" x="40" y="60" as="geometry" />
         </mxCell>
-        <mxCell id="legend-split" value="未来拆分 / P1+" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="40" y="92" width="190" height="24" as="geometry" />
+        <mxCell id="legend-split" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=12;dashed=1;" value="未来拆分 / P1+" vertex="1">
+          <mxGeometry height="24" width="190" x="40" y="92" as="geometry" />
         </mxCell>
-        <mxCell id="legend-trust" value="信任边界 / 不可信输入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="40" y="124" width="190" height="24" as="geometry" />
+        <mxCell id="legend-trust" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#111827;fontSize=12;dashed=1;" value="信任边界 / 不可信输入" vertex="1">
+          <mxGeometry height="24" width="190" x="40" y="124" as="geometry" />
         </mxCell>
-        <mxCell id="local_profile" value="本地 profile：单进程开发运行（已实现基础）" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f0f9ff;strokeColor=#0369a1;" parent="1" vertex="1">
-          <mxGeometry x="40" y="150" width="560" height="950" as="geometry" />
+        <mxCell id="local_profile" parent="1" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#f0f9ff;strokeColor=#0369a1;" value="本地 profile：单进程开发运行（已实现基础）" vertex="1">
+          <mxGeometry height="950" width="560" x="40" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="service_profile" value="服务 profile（当前）：Migration + API + Worker + PostgreSQL + Redis + 只读 Secrets" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=13;fontStyle=1;fillColor=#f8fafc;strokeColor=#334155;" parent="1" vertex="1">
-          <mxGeometry x="660" y="150" width="560" height="950" as="geometry" />
+        <mxCell id="local_cli" parent="local_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="本地入口&#xa;CLI / local API&#xa;agent-harness run" vertex="1">
+          <mxGeometry height="90" width="200" x="50" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="future_split" value="未来拆分：Tool/Model Gateway → Event Pipeline → Storage（P1+）" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#faf5ff;strokeColor=#7e22ce;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="1280" y="150" width="560" height="950" as="geometry" />
+        <mxCell id="local_runtime" parent="local_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="本地运行编排&#xa;RunOrchestrator&#xa;RuntimeComponents&#xa;fake run" vertex="1">
+          <mxGeometry height="90" width="200" x="300" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="deploy-note" value="部署原则：local 保持单进程；service 已物理拆分 API/worker，并以 PostgreSQL + Redis + DBOS 共享 durable state；application DSN secret 只读挂载给 migration/API/worker，PostgreSQL 使用独立 password secret。后续顺序：tool/model gateway -&gt; observability/event pipeline；storage service 等 repository contract 稳定后再拆。Queue DTO 保留 request_id / idempotency_key / tenant_id / run_id；source_ref、trust_level、context trace、guardrail/audit 全程关联。&#10;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来拆分，红虚线=信任边界，线桥=交叉不连接。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="260" y="1130" width="1160" height="90" as="geometry" />
+        <mxCell id="local_sqlite" parent="local_profile" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" value="本地存储&#xa;SQLite&#xa;Repository/UoW&#xa;Alembic schema" vertex="1">
+          <mxGeometry height="100" width="200" x="50" y="290" as="geometry" />
         </mxCell>
-        <mxCell id="current-note" value="当前 Compose：PostgreSQL、Redis、migration、API、worker&#10;app DSN secret :ro -&gt; migration/API/worker；password secret :ro -&gt; PostgreSQL&#10;Phase 15 双 CI / release / license gate 属交付面，不是 Compose 服务；gateway / event / storage 仍是未来边界。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" parent="1" vertex="1">
-          <mxGeometry x="1430" y="1130" width="360" height="90" as="geometry" />
+        <mxCell id="local_files" parent="local_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" value="本地产物目录&#xa;filesystem artifacts&#xa;.agent-harness/local&#xa;payload_ref" vertex="1">
+          <mxGeometry height="100" width="200" x="300" y="290" as="geometry" />
         </mxCell>
-        <mxCell id="local_cli" value="本地入口&#10;CLI / local API&#10;agent-harness run" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="local_profile" vertex="1">
-          <mxGeometry x="50" y="100" width="200" height="90" as="geometry" />
+        <mxCell id="local_jsonl" parent="local_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" value="本地观测兜底&#xa;local/jsonl + OTel facade" vertex="1">
+          <mxGeometry height="90" width="200" x="50" y="500" as="geometry" />
         </mxCell>
-        <mxCell id="local_runtime" value="本地运行编排&#10;RunOrchestrator&#10;RuntimeComponents&#10;fake run" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="local_profile" vertex="1">
-          <mxGeometry x="300" y="100" width="200" height="90" as="geometry" />
+        <mxCell id="local_model" parent="local_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="模型提供方&#xa;fake + Pydantic AI adapter&#xa;Phase 6 路由已实现" vertex="1">
+          <mxGeometry height="90" width="200" x="300" y="500" as="geometry" />
         </mxCell>
-        <mxCell id="local_sqlite" value="本地存储&#10;SQLite&#10;Repository/UoW&#10;Alembic schema" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="local_profile" vertex="1">
-          <mxGeometry x="50" y="290" width="200" height="100" as="geometry" />
+        <mxCell id="local_boundary" parent="local_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" value="边界契约仍生效&#xa;DTO / CanonicalEvent&#xa;Repository interface" vertex="1">
+          <mxGeometry height="90" width="300" x="110" y="700" as="geometry" />
         </mxCell>
-        <mxCell id="local_files" value="本地产物目录&#10;filesystem artifacts&#10;.agent-harness/local&#10;payload_ref" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="local_profile" vertex="1">
-          <mxGeometry x="300" y="290" width="200" height="100" as="geometry" />
+        <mxCell id="service_profile" parent="1" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=13;fontStyle=1;fillColor=#f8fafc;strokeColor=#334155;" value="服务 profile（当前）：Migration + API + Worker + PostgreSQL + Redis + 只读 Secrets" vertex="1">
+          <mxGeometry height="950" width="560" x="660" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="local_jsonl" value="本地观测兜底&#10;local/jsonl + OTel facade" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=13;" parent="local_profile" vertex="1">
-          <mxGeometry x="50" y="500" width="200" height="90" as="geometry" />
+        <mxCell id="svc_api" parent="service_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="接口进程（API）&#xa;FastAPI create_app&#xa;RUN routes&#xa;app DSN _FILE :ro" vertex="1">
+          <mxGeometry height="90" width="200" x="50" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="local_model" value="模型提供方&#10;fake + Pydantic AI adapter&#10;Phase 6 路由已实现" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="local_profile" vertex="1">
-          <mxGeometry x="300" y="500" width="200" height="90" as="geometry" />
+        <mxCell id="svc_worker" parent="service_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" value="Runtime Worker&#xa;DBOS singleton + recovery&#xa;checkpoint / approval continuation&#xa;app DSN _FILE :ro" vertex="1">
+          <mxGeometry height="90" width="200" x="310" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="local_boundary" value="边界契约仍生效&#10;DTO / CanonicalEvent&#10;Repository interface" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="local_profile" vertex="1">
-          <mxGeometry x="110" y="700" width="300" height="90" as="geometry" />
+        <mxCell id="svc_runtime" parent="service_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" value="共享运行组件&#xa;RuntimeComponents / Orchestrator&#xa;DelegationService&#xa;shared parent budget" vertex="1">
+          <mxGeometry height="100" width="200" x="50" y="320" as="geometry" />
         </mxCell>
-        <mxCell id="svc_api" value="接口进程（API）&#10;FastAPI create_app&#10;RUN routes&#10;app DSN _FILE :ro" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="service_profile" vertex="1">
-          <mxGeometry x="50" y="150" width="200" height="90" as="geometry" />
+        <mxCell id="svc_pg" parent="service_profile" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" value="服务存储&#xa;PostgreSQL&#xa;Repository contract&#xa;password _FILE :ro" vertex="1">
+          <mxGeometry height="100" width="200" x="50" y="520" as="geometry" />
         </mxCell>
-        <mxCell id="svc_worker" value="Runtime Worker&#10;DBOS singleton + recovery&#10;checkpoint / approval continuation&#10;app DSN _FILE :ro" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#2f5597;fontColor=#111827;fontSize=13;" parent="service_profile" vertex="1">
-          <mxGeometry x="310" y="150" width="200" height="90" as="geometry" />
+        <mxCell id="svc_redis" parent="service_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;" value="Durable Queue&#xa;Redis Streams&#xa;consumer group / XAUTOCLAIM" vertex="1">
+          <mxGeometry height="100" width="200" x="310" y="520" as="geometry" />
         </mxCell>
-        <mxCell id="svc_runtime" value="共享运行组件&#10;RuntimeComponents / Orchestrator&#10;DelegationService&#10;shared parent budget" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="service_profile" vertex="1">
-          <mxGeometry x="50" y="320" width="200" height="100" as="geometry" />
+        <mxCell id="svc_observe" parent="service_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=12;" value="共享有序事件证据&#xa;PostgreSQL CanonicalEvent / outbox&#xa;usage / approval / delegation&#xa;terminal + capacity invariant" vertex="1">
+          <mxGeometry height="90" width="200" x="50" y="720" as="geometry" />
         </mxCell>
-        <mxCell id="svc_pg" value="服务存储&#10;PostgreSQL&#10;Repository contract&#10;password _FILE :ro" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="service_profile" vertex="1">
-          <mxGeometry x="50" y="520" width="200" height="100" as="geometry" />
+        <mxCell id="svc_migration" parent="service_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=10;dashed=1;" value="Schema migration（one-shot）&#xa;app DSN _FILE :ro&#xa;PostgreSQL healthy 后执行&#xa;成功后放行 API / worker" vertex="1">
+          <mxGeometry height="55" width="200" x="180" y="50" as="geometry" />
         </mxCell>
-        <mxCell id="svc_redis" value="Durable Queue&#10;Redis Streams&#10;consumer group / XAUTOCLAIM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;" parent="service_profile" vertex="1">
-          <mxGeometry x="310" y="520" width="200" height="100" as="geometry" />
+        <mxCell id="svc_queue_adapter" parent="service_profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;" value="Redis Queue Adapter&#xa;共享 library seam&#xa;API enqueue；worker pickup/reclaim" vertex="1">
+          <mxGeometry height="100" width="200" x="310" y="320" as="geometry" />
         </mxCell>
-        <mxCell id="svc_observe" value="共享有序事件证据&#10;PostgreSQL CanonicalEvent / outbox&#10;usage / approval / delegation&#10;terminal + capacity invariant" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#111827;fontSize=12;" parent="service_profile" vertex="1">
-          <mxGeometry x="50" y="720" width="200" height="90" as="geometry" />
+        <mxCell id="svc-label-api-queue" parent="service_profile" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontColor=#111827;" value="enqueue Queue DTO" vertex="1">
+          <mxGeometry height="18" width="160" x="390" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="svc_migration" value="Schema migration（one-shot）&#10;app DSN _FILE :ro&#10;PostgreSQL healthy 后执行&#10;成功后放行 API / worker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=10;dashed=1;" parent="service_profile" vertex="1">
-          <mxGeometry x="180" y="50" width="200" height="55" as="geometry" />
+        <mxCell id="future_split" parent="1" style="swimlane;startSize=34;html=1;whiteSpace=wrap;rounded=0;container=1;collapsible=0;recursiveResize=0;fontSize=15;fontStyle=1;fillColor=#faf5ff;strokeColor=#7e22ce;dashed=1;" value="未来拆分：Tool/Model Gateway → Event Pipeline → Storage（P1+）" vertex="1">
+          <mxGeometry height="950" width="560" x="1280" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="svc_queue_adapter" value="Redis Queue Adapter&#10;共享 library seam&#10;API enqueue；worker pickup/reclaim" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#111827;fontSize=13;" parent="service_profile" vertex="1">
-          <mxGeometry x="310" y="320" width="200" height="100" as="geometry" />
+        <mxCell id="gw_api" parent="future_split" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" value="访问/API 网关&#xa;Access / API Gateway&#xa;auth / request_id&#xa;rate limit later" vertex="1">
+          <mxGeometry height="90" width="210" x="45" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="gw_api" value="访问/API 网关&#10;Access / API Gateway&#10;auth / request_id&#10;rate limit later" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" parent="future_split" vertex="1">
-          <mxGeometry x="45" y="80" width="210" height="90" as="geometry" />
+        <mxCell id="worker_pool" parent="future_split" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" value="运行 worker 池&#xa;Runtime worker pool&#xa;checkpoint/resume&#xa;idempotency" vertex="1">
+          <mxGeometry height="90" width="210" x="310" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="worker_pool" value="运行 worker 池&#10;Runtime worker pool&#10;checkpoint/resume&#10;idempotency" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" parent="future_split" vertex="1">
-          <mxGeometry x="310" y="80" width="210" height="90" as="geometry" />
+        <mxCell id="model_gateway" parent="future_split" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" value="模型网关&#xa;Model gateway&#xa;ModelProvider&#xa;budget/fallback" vertex="1">
+          <mxGeometry height="90" width="210" x="45" y="270" as="geometry" />
         </mxCell>
-        <mxCell id="model_gateway" value="模型网关&#10;Model gateway&#10;ModelProvider&#10;budget/fallback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" parent="future_split" vertex="1">
-          <mxGeometry x="45" y="270" width="210" height="90" as="geometry" />
+        <mxCell id="tool_gateway" parent="future_split" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" value="工具网关&#xa;Tool gateway&#xa;Tool/MCP policy&#xa;untrusted output" vertex="1">
+          <mxGeometry height="90" width="210" x="310" y="270" as="geometry" />
         </mxCell>
-        <mxCell id="tool_gateway" value="工具网关&#10;Tool gateway&#10;Tool/MCP policy&#10;untrusted output" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" parent="future_split" vertex="1">
-          <mxGeometry x="310" y="270" width="210" height="90" as="geometry" />
+        <mxCell id="storage_service" parent="future_split" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" value="存储服务&#xa;Storage service&#xa;Repository interface stable&#xa;PostgreSQL/Object store" vertex="1">
+          <mxGeometry height="100" width="210" x="45" y="470" as="geometry" />
         </mxCell>
-        <mxCell id="storage_service" value="存储服务&#10;Storage service&#10;Repository interface stable&#10;PostgreSQL/Object store" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" parent="future_split" vertex="1">
-          <mxGeometry x="45" y="470" width="210" height="100" as="geometry" />
+        <mxCell id="event_pipeline" parent="future_split" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" value="事件/观测管道&#xa;Event pipeline&#xa;CanonicalEvent -&gt; OTel&#xa;Logfire/Langfuse/Phoenix" vertex="1">
+          <mxGeometry height="100" width="210" x="310" y="470" as="geometry" />
         </mxCell>
-        <mxCell id="event_pipeline" value="事件/观测管道&#10;Event pipeline&#10;CanonicalEvent -&gt; OTel&#10;Logfire/Langfuse/Phoenix" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#111827;fontSize=13;dashed=1;" parent="future_split" vertex="1">
-          <mxGeometry x="310" y="470" width="210" height="100" as="geometry" />
+        <mxCell id="split_contract" parent="future_split" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" value="拆分不变契约&#xa;DTO / CanonicalEvent&#xa;provider/facade interface&#xa;tenant/run/trace IDs" vertex="1">
+          <mxGeometry height="110" width="260" x="170" y="700" as="geometry" />
         </mxCell>
-        <mxCell id="split_contract" value="拆分不变契约&#10;DTO / CanonicalEvent&#10;provider/facade interface&#10;tenant/run/trace IDs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#5b8f5a;fontColor=#111827;fontSize=13;" parent="future_split" vertex="1">
-          <mxGeometry x="170" y="700" width="260" height="110" as="geometry" />
+        <mxCell id="deploy-note" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" value="部署原则：local 保持单进程；service 已物理拆分 API/worker，并以 PostgreSQL + Redis + DBOS 共享 durable state；application DSN secret 只读挂载给 migration/API/worker，PostgreSQL 使用独立 password secret。后续顺序：tool/model gateway -&gt; observability/event pipeline；storage service 等 repository contract 稳定后再拆。Queue DTO 保留 request_id / idempotency_key / tenant_id / run_id；source_ref、trust_level、context trace、guardrail/audit 全程关联。&#xa;箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来拆分，红虚线=信任边界，线桥=交叉不连接。" vertex="1">
+          <mxGeometry height="90" width="1160" x="260" y="1130" as="geometry" />
         </mxCell>
-        <mxCell id="e-local-entry-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="local_cli" target="local_runtime">
+        <mxCell id="current-note" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#94a3b8;fontColor=#111827;fontSize=12;dashed=1;" value="当前 Compose：PostgreSQL、Redis、migration、API、worker&#xa;app DSN secret :ro -&gt; migration/API/worker；password secret :ro -&gt; PostgreSQL&#xa;Phase 15 双 CI / release / license gate 属交付面，不是 Compose 服务；gateway / event / storage 仍是未来边界。" vertex="1">
+          <mxGeometry height="90" width="360" x="1430" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="e-local-entry-runtime" edge="1" parent="1" source="local_cli" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="local_runtime" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-local-runtime-sqlite" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="local_runtime" target="local_sqlite">
+        <mxCell id="e-local-runtime-sqlite" edge="1" parent="1" source="local_runtime" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="local_sqlite" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="440" y="390" />
@@ -112,10 +114,10 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-local-runtime-files" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" parent="1" edge="1" source="local_runtime" target="local_files">
+        <mxCell id="e-local-runtime-files" edge="1" parent="1" source="local_runtime" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" target="local_files" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-local-runtime-jsonl" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;exitX=0;exitY=0.12;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" edge="1" source="local_runtime" target="local_jsonl">
+        <mxCell id="e-local-runtime-jsonl" edge="1" parent="1" source="local_runtime" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;exitX=0;exitY=0.12;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="local_jsonl" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="310" y="260" />
@@ -126,7 +128,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-local-model-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="local_model" target="local_runtime">
+        <mxCell id="e-local-model-runtime" edge="1" parent="1" source="local_model" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="local_runtime" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="560" y="695" />
@@ -134,70 +136,81 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-svc-api-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" edge="1" source="svc_api" target="svc_runtime">
+        <mxCell id="e-svc-api-runtime" edge="1" parent="1" source="svc_api" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="svc_runtime" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-svc-worker-runtime" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="svc_worker" target="svc_runtime">
+        <mxCell id="e-svc-worker-runtime" edge="1" parent="1" source="svc_worker" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="svc_runtime" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="950" y="345" />
-              <mxPoint x="950" y="420" />
-              <mxPoint x="930" y="420" />
+              <mxPoint x="930" y="345" />
               <mxPoint x="930" y="520" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-svc-runtime-pg" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" parent="1" edge="1" source="svc_runtime" target="svc_pg">
+        <mxCell id="e-svc-runtime-pg" edge="1" parent="1" source="svc_runtime" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" target="svc_pg" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-svc-runtime-observe" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" parent="1" edge="1" source="svc_runtime" target="svc_observe">
+        <mxCell id="e-svc-runtime-observe" edge="1" parent="1" source="svc_runtime" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" target="svc_observe" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-svc-api-queue" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1" source="svc_api" target="svc_queue_adapter">
+        <mxCell id="e-svc-api-queue" edge="1" parent="1" source="svc_api" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="svc_queue_adapter" value="">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="930" y="350" />
-              <mxPoint x="930" y="520" />
+              <mxPoint x="910" y="350" />
+              <mxPoint x="940" y="350" />
+              <mxPoint x="940" y="520" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="svc-label-api-queue" value="enqueue Queue DTO" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontColor=#111827;" parent="1" vertex="1">
-          <mxGeometry x="1070" y="235" width="160" height="18" as="geometry" />
-        </mxCell>
-        <mxCell id="e-queue-redis" value="XADD / XREADGROUP / XAUTOCLAIM / XACK" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="svc_queue_adapter" target="svc_redis">
+        <mxCell id="e-queue-redis" edge="1" parent="1" source="svc_queue_adapter" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="svc_redis" value="XADD / XREADGROUP / XAUTOCLAIM / XACK">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-redis-worker" value="pickup / reclaim / fenced ACK" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" parent="1" edge="1" source="svc_worker" target="svc_queue_adapter">
+        <mxCell id="e-redis-worker" edge="1" parent="1" source="svc_worker" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#111827;" target="svc_queue_adapter" value="pickup / reclaim / fenced ACK">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-pg-migration" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;dashed=1;exitX=0;exitY=0.5;entryX=0;entryY=0.5;" parent="1" edge="1" source="svc_pg" target="svc_migration">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="680" y="720" /><mxPoint x="680" y="228" /></Array></mxGeometry>
+        <mxCell id="e-pg-migration" edge="1" parent="1" source="svc_pg" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;dashed=1;exitX=0;exitY=0.5;entryX=0;entryY=0.5;" target="svc_migration" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="680" y="720" />
+              <mxPoint x="680" y="228" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="e-migration-api" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#64748b;dashed=1;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" parent="1" edge="1" source="svc_migration" target="svc_api">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="890" y="280" /><mxPoint x="810" y="280" /></Array></mxGeometry>
+        <mxCell id="e-migration-api" edge="1" parent="1" source="svc_migration" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#64748b;dashed=1;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" target="svc_api" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="280" />
+              <mxPoint x="810" y="280" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="e-migration-worker" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#64748b;dashed=1;jumpStyle=arc;jumpSize=10;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" parent="1" edge="1" source="svc_migration" target="svc_worker">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="990" y="280" /><mxPoint x="1070" y="280" /></Array></mxGeometry>
+        <mxCell id="e-migration-worker" edge="1" parent="1" source="svc_migration" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#64748b;dashed=1;jumpStyle=arc;jumpSize=10;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" target="svc_worker" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="990" y="280" />
+              <mxPoint x="1070" y="280" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="e-future-api-worker" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" parent="1" edge="1" source="gw_api" target="worker_pool">
+        <mxCell id="e-future-api-worker" edge="1" parent="1" source="gw_api" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" target="worker_pool" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-future-worker-model" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" parent="1" edge="1" source="worker_pool" target="model_gateway">
+        <mxCell id="e-future-worker-model" edge="1" parent="1" source="worker_pool" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" target="model_gateway" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-future-worker-tool" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" parent="1" edge="1" source="worker_pool" target="tool_gateway">
+        <mxCell id="e-future-worker-tool" edge="1" parent="1" source="worker_pool" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" target="tool_gateway" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-future-worker-storage" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" parent="1" edge="1" source="worker_pool" target="storage_service">
+        <mxCell id="e-future-worker-storage" edge="1" parent="1" source="worker_pool" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" target="storage_service" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-future-worker-event" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" parent="1" edge="1" source="worker_pool" target="event_pipeline">
+        <mxCell id="e-future-worker-event" edge="1" parent="1" source="worker_pool" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" target="event_pipeline" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-future-storage-contract" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" parent="1" edge="1" source="storage_service" target="split_contract">
+        <mxCell id="e-future-storage-contract" edge="1" parent="1" source="storage_service" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#5b8f5a;" target="split_contract" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-future-event-contract" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" parent="1" edge="1" source="event_pipeline" target="split_contract">
+        <mxCell id="e-future-event-contract" edge="1" parent="1" source="event_pipeline" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#d79b00;" target="split_contract" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>

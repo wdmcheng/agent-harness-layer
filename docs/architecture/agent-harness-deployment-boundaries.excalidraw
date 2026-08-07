@@ -22,11 +22,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1017,
-      "version": 1,
-      "versionNonce": 9031,
+      "version": 3,
+      "versionNonce": 1523201751,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "部署边界图（Agent Harness Layer）",
@@ -38,7 +38,9 @@
       "containerId": null,
       "originalText": "部署边界图（Agent Harness Layer）",
       "lineHeight": 1.25,
-      "baseline": 28
+      "baseline": 28,
+      "index": "b7q",
+      "autoResize": true
     },
     {
       "id": "ex-legend-current",
@@ -61,13 +63,14 @@
         "type": 3
       },
       "seed": 1034,
-      "version": 1,
-      "versionNonce": 9062,
+      "version": 3,
+      "versionNonce": 926582297,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b7r"
     },
     {
       "id": "ex-legend-current-label",
@@ -88,11 +91,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1051,
-      "version": 2,
-      "versionNonce": 9093,
+      "version": 4,
+      "versionNonce": 1412121591,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "已实现 Phase 1-15",
@@ -104,7 +107,9 @@
       "containerId": null,
       "originalText": "已实现 Phase 1-15",
       "lineHeight": 1.25,
-      "baseline": 14
+      "baseline": 14,
+      "index": "b7s",
+      "autoResize": true
     },
     {
       "id": "ex-legend-future",
@@ -127,13 +132,14 @@
         "type": 3
       },
       "seed": 1068,
-      "version": 1,
-      "versionNonce": 9124,
+      "version": 3,
+      "versionNonce": 1242847993,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b7t"
     },
     {
       "id": "ex-legend-future-label",
@@ -154,11 +160,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1085,
-      "version": 2,
-      "versionNonce": 9155,
+      "version": 4,
+      "versionNonce": 1412279575,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "队列 / 协调边界",
@@ -170,7 +176,9 @@
       "containerId": null,
       "originalText": "队列 / 协调边界",
       "lineHeight": 1.25,
-      "baseline": 14
+      "baseline": 14,
+      "index": "b7u",
+      "autoResize": true
     },
     {
       "id": "ex-legend-split",
@@ -193,13 +201,14 @@
         "type": 3
       },
       "seed": 1102,
-      "version": 1,
-      "versionNonce": 9186,
+      "version": 3,
+      "versionNonce": 278959065,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b7v"
     },
     {
       "id": "ex-legend-split-label",
@@ -220,11 +229,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1119,
-      "version": 1,
-      "versionNonce": 9217,
+      "version": 3,
+      "versionNonce": 910553655,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "未来拆分 / P1+",
@@ -236,7 +245,9 @@
       "containerId": null,
       "originalText": "未来拆分 / P1+",
       "lineHeight": 1.25,
-      "baseline": 14
+      "baseline": 14,
+      "index": "b7w",
+      "autoResize": true
     },
     {
       "id": "ex-legend-trust",
@@ -259,13 +270,14 @@
         "type": 3
       },
       "seed": 1136,
-      "version": 1,
-      "versionNonce": 9248,
+      "version": 3,
+      "versionNonce": 787656889,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b7x"
     },
     {
       "id": "ex-legend-trust-label",
@@ -286,11 +298,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1153,
-      "version": 1,
-      "versionNonce": 9279,
+      "version": 3,
+      "versionNonce": 1935184727,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "信任边界 / 不可信输入",
@@ -302,7 +314,9 @@
       "containerId": null,
       "originalText": "信任边界 / 不可信输入",
       "lineHeight": 1.25,
-      "baseline": 14
+      "baseline": 14,
+      "index": "b7y",
+      "autoResize": true
     },
     {
       "id": "ex-local_profile",
@@ -325,13 +339,14 @@
         "type": 3
       },
       "seed": 1170,
-      "version": 1,
-      "versionNonce": 9310,
+      "version": 3,
+      "versionNonce": 2058236313,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b7z"
     },
     {
       "id": "ex-local_profile-label",
@@ -352,11 +367,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1187,
-      "version": 1,
-      "versionNonce": 9341,
+      "version": 3,
+      "versionNonce": 1941573751,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "本地 profile：单进程开发运行（已实现基础）",
@@ -368,7 +383,9 @@
       "containerId": null,
       "originalText": "本地 profile：单进程开发运行（已实现基础）",
       "lineHeight": 1.25,
-      "baseline": 20
+      "baseline": 20,
+      "index": "b80",
+      "autoResize": true
     },
     {
       "id": "ex-service_profile",
@@ -391,13 +408,14 @@
         "type": 3
       },
       "seed": 1204,
-      "version": 1,
-      "versionNonce": 9372,
+      "version": 3,
+      "versionNonce": 1225168505,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b81"
     },
     {
       "id": "ex-service_profile-label",
@@ -418,11 +436,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1221,
-      "version": 1,
-      "versionNonce": 9403,
+      "version": 3,
+      "versionNonce": 556722583,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "服务 profile（当前）：Migration + API + Worker + PostgreSQL + Redis + 只读 Secrets",
@@ -434,7 +452,9 @@
       "containerId": null,
       "originalText": "服务 profile（当前）：Migration + API + Worker + PostgreSQL + Redis + 只读 Secrets",
       "lineHeight": 1.25,
-      "baseline": 18
+      "baseline": 18,
+      "index": "b82",
+      "autoResize": true
     },
     {
       "id": "ex-future_split",
@@ -457,13 +477,14 @@
         "type": 3
       },
       "seed": 1238,
-      "version": 1,
-      "versionNonce": 9434,
+      "version": 5,
+      "versionNonce": 1479437783,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081340696,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b83"
     },
     {
       "id": "ex-future_split-label",
@@ -484,11 +505,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1255,
-      "version": 1,
-      "versionNonce": 9465,
+      "version": 3,
+      "versionNonce": 954965687,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "未来拆分：Tool/Model Gateway → Event Pipeline → Storage（P1+）",
@@ -500,7 +521,9 @@
       "containerId": null,
       "originalText": "未来拆分：Tool/Model Gateway → Event Pipeline → Storage（P1+）",
       "lineHeight": 1.25,
-      "baseline": 20
+      "baseline": 20,
+      "index": "b84",
+      "autoResize": true
     },
     {
       "id": "ex-deploy-note",
@@ -523,13 +546,14 @@
         "type": 3
       },
       "seed": 1272,
-      "version": 1,
-      "versionNonce": 9496,
+      "version": 3,
+      "versionNonce": 1412172857,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b85"
     },
     {
       "id": "ex-deploy-note-label",
@@ -550,11 +574,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1289,
-      "version": 2,
-      "versionNonce": 9527,
+      "version": 4,
+      "versionNonce": 1570025431,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "部署原则：local 保持单进程；service 已物理拆分 API/worker，并以 PostgreSQL + Redis + DBOS 共享 durable state；application DSN secret 只读挂载给 migration/API/worker，PostgreSQL 使用独立 password secret。后续顺序：tool/model gateway -> observability/event pipeline；storage service 等 repository contract 稳定后再拆。Queue DTO 保留 request_id / idempotency_key / tenant_id / run_id；source_ref、trust_level、context trace、guardrail/audit 全程关联。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来拆分，红虚线=信任边界，线桥=交叉不连接。",
@@ -566,7 +590,9 @@
       "containerId": null,
       "originalText": "部署原则：local 保持单进程；service 已物理拆分 API/worker，并以 PostgreSQL + Redis + DBOS 共享 durable state；application DSN secret 只读挂载给 migration/API/worker，PostgreSQL 使用独立 password secret。后续顺序：tool/model gateway -> observability/event pipeline；storage service 等 repository contract 稳定后再拆。Queue DTO 保留 request_id / idempotency_key / tenant_id / run_id；source_ref、trust_level、context trace、guardrail/audit 全程关联。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来拆分，红虚线=信任边界，线桥=交叉不连接。",
       "lineHeight": 1.25,
-      "baseline": 15
+      "baseline": 15,
+      "index": "b86",
+      "autoResize": true
     },
     {
       "id": "ex-current-note",
@@ -589,13 +615,14 @@
         "type": 3
       },
       "seed": 1306,
-      "version": 1,
-      "versionNonce": 9558,
+      "version": 3,
+      "versionNonce": 1999641881,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b87"
     },
     {
       "id": "ex-current-note-label",
@@ -616,11 +643,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1323,
-      "version": 1,
-      "versionNonce": 9589,
+      "version": 3,
+      "versionNonce": 1765711095,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "当前 Compose：PostgreSQL、Redis、migration、API、worker\napp DSN secret :ro -> migration/API/worker；password secret :ro -> PostgreSQL\nPhase 15 双 CI / release / license gate 属交付面，不是 Compose 服务；gateway / event / storage 仍是未来边界。",
@@ -632,7 +659,9 @@
       "containerId": null,
       "originalText": "当前 Compose：PostgreSQL、Redis、migration、API、worker\napp DSN secret :ro -> migration/API/worker；password secret :ro -> PostgreSQL\nPhase 15 双 CI / release / license gate 属交付面，不是 Compose 服务；gateway / event / storage 仍是未来边界。",
       "lineHeight": 1.25,
-      "baseline": 15
+      "baseline": 15,
+      "index": "b88",
+      "autoResize": true
     },
     {
       "id": "ex-local_cli",
@@ -655,8 +684,8 @@
         "type": 3
       },
       "seed": 1340,
-      "version": 1,
-      "versionNonce": 9620,
+      "version": 3,
+      "versionNonce": 1161761273,
       "isDeleted": false,
       "boundElements": [
         {
@@ -664,9 +693,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b89"
     },
     {
       "id": "ex-local_cli-label",
@@ -687,11 +717,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1357,
-      "version": 1,
-      "versionNonce": 9651,
+      "version": 3,
+      "versionNonce": 2137908759,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "本地入口\nCLI / local API\nagent-harness run",
@@ -703,7 +733,9 @@
       "containerId": null,
       "originalText": "本地入口\nCLI / local API\nagent-harness run",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8A",
+      "autoResize": true
     },
     {
       "id": "ex-local_runtime",
@@ -726,8 +758,8 @@
         "type": 3
       },
       "seed": 1374,
-      "version": 1,
-      "versionNonce": 9682,
+      "version": 3,
+      "versionNonce": 1667001049,
       "isDeleted": false,
       "boundElements": [
         {
@@ -751,9 +783,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8B"
     },
     {
       "id": "ex-local_runtime-label",
@@ -774,11 +807,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1391,
-      "version": 1,
-      "versionNonce": 9713,
+      "version": 3,
+      "versionNonce": 1595345719,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "本地运行编排\nRunOrchestrator\nRuntimeComponents\nfake run",
@@ -790,7 +823,9 @@
       "containerId": null,
       "originalText": "本地运行编排\nRunOrchestrator\nRuntimeComponents\nfake run",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8C",
+      "autoResize": true
     },
     {
       "id": "ex-local_sqlite",
@@ -813,8 +848,8 @@
         "type": 3
       },
       "seed": 1408,
-      "version": 1,
-      "versionNonce": 9744,
+      "version": 3,
+      "versionNonce": 169584569,
       "isDeleted": false,
       "boundElements": [
         {
@@ -822,9 +857,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8D"
     },
     {
       "id": "ex-local_sqlite-label",
@@ -845,11 +881,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1425,
-      "version": 1,
-      "versionNonce": 9775,
+      "version": 3,
+      "versionNonce": 1956547671,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "本地存储\nSQLite\nRepository/UoW\nAlembic schema",
@@ -861,7 +897,9 @@
       "containerId": null,
       "originalText": "本地存储\nSQLite\nRepository/UoW\nAlembic schema",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8E",
+      "autoResize": true
     },
     {
       "id": "ex-local_files",
@@ -884,8 +922,8 @@
         "type": 3
       },
       "seed": 1442,
-      "version": 1,
-      "versionNonce": 9806,
+      "version": 3,
+      "versionNonce": 329271449,
       "isDeleted": false,
       "boundElements": [
         {
@@ -893,9 +931,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8F"
     },
     {
       "id": "ex-local_files-label",
@@ -916,11 +955,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1459,
-      "version": 1,
-      "versionNonce": 9837,
+      "version": 3,
+      "versionNonce": 735635831,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "本地产物目录\nfilesystem artifacts\n.agent-harness/local\npayload_ref",
@@ -932,7 +971,9 @@
       "containerId": null,
       "originalText": "本地产物目录\nfilesystem artifacts\n.agent-harness/local\npayload_ref",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8G",
+      "autoResize": true
     },
     {
       "id": "ex-local_jsonl",
@@ -955,8 +996,8 @@
         "type": 3
       },
       "seed": 1476,
-      "version": 1,
-      "versionNonce": 9868,
+      "version": 3,
+      "versionNonce": 1235078521,
       "isDeleted": false,
       "boundElements": [
         {
@@ -964,9 +1005,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8H"
     },
     {
       "id": "ex-local_jsonl-label",
@@ -987,11 +1029,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1493,
-      "version": 1,
-      "versionNonce": 9899,
+      "version": 3,
+      "versionNonce": 34251415,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "本地观测兜底\nlocal/jsonl + OTel facade",
@@ -1003,7 +1045,9 @@
       "containerId": null,
       "originalText": "本地观测兜底\nlocal/jsonl + OTel facade",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8I",
+      "autoResize": true
     },
     {
       "id": "ex-local_model",
@@ -1026,8 +1070,8 @@
         "type": 3
       },
       "seed": 1510,
-      "version": 1,
-      "versionNonce": 9930,
+      "version": 3,
+      "versionNonce": 1935128153,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1035,9 +1079,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8J"
     },
     {
       "id": "ex-local_model-label",
@@ -1058,11 +1103,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1527,
-      "version": 2,
-      "versionNonce": 9961,
+      "version": 4,
+      "versionNonce": 1474836407,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "模型提供方\nfake + Pydantic AI adapter\nPhase 6 路由已实现",
@@ -1074,7 +1119,9 @@
       "containerId": null,
       "originalText": "模型提供方\nfake + Pydantic AI adapter\nPhase 6 路由已实现",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8K",
+      "autoResize": true
     },
     {
       "id": "ex-local_boundary",
@@ -1097,13 +1144,14 @@
         "type": 3
       },
       "seed": 1544,
-      "version": 1,
-      "versionNonce": 9992,
+      "version": 3,
+      "versionNonce": 597787449,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8L"
     },
     {
       "id": "ex-local_boundary-label",
@@ -1124,11 +1172,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1561,
-      "version": 1,
-      "versionNonce": 10023,
+      "version": 3,
+      "versionNonce": 60172503,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "边界契约仍生效\nDTO / CanonicalEvent\nRepository interface",
@@ -1140,7 +1188,9 @@
       "containerId": null,
       "originalText": "边界契约仍生效\nDTO / CanonicalEvent\nRepository interface",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8M",
+      "autoResize": true
     },
     {
       "id": "ex-svc_api",
@@ -1163,8 +1213,8 @@
         "type": 3
       },
       "seed": 1578,
-      "version": 1,
-      "versionNonce": 10054,
+      "version": 3,
+      "versionNonce": 1189000217,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1180,9 +1230,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8N"
     },
     {
       "id": "ex-svc_api-label",
@@ -1203,11 +1254,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1595,
-      "version": 1,
-      "versionNonce": 10085,
+      "version": 3,
+      "versionNonce": 581498359,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "接口进程（API）\nFastAPI create_app\nRUN routes\napp DSN _FILE :ro",
@@ -1219,7 +1270,9 @@
       "containerId": null,
       "originalText": "接口进程（API）\nFastAPI create_app\nRUN routes\napp DSN _FILE :ro",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8O",
+      "autoResize": true
     },
     {
       "id": "ex-svc_worker",
@@ -1242,14 +1295,10 @@
         "type": 3
       },
       "seed": 1612,
-      "version": 1,
-      "versionNonce": 10116,
+      "version": 4,
+      "versionNonce": 1319720663,
       "isDeleted": false,
       "boundElements": [
-        {
-          "id": "ex-e-svc-worker-runtime",
-          "type": "arrow"
-        },
         {
           "id": "ex-e-redis-worker",
           "type": "arrow"
@@ -1257,11 +1306,16 @@
         {
           "id": "ex-e-migration-worker",
           "type": "arrow"
+        },
+        {
+          "id": "ex-e-svc-worker-runtime",
+          "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081239555,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8P"
     },
     {
       "id": "ex-svc_worker-label",
@@ -1282,11 +1336,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1629,
-      "version": 1,
-      "versionNonce": 10147,
+      "version": 3,
+      "versionNonce": 740630295,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "Runtime Worker\nDBOS singleton + recovery\ncheckpoint / approval continuation\napp DSN _FILE :ro",
@@ -1298,7 +1352,9 @@
       "containerId": null,
       "originalText": "Runtime Worker\nDBOS singleton + recovery\ncheckpoint / approval continuation\napp DSN _FILE :ro",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8Q",
+      "autoResize": true
     },
     {
       "id": "ex-svc_runtime",
@@ -1321,16 +1377,12 @@
         "type": 3
       },
       "seed": 1646,
-      "version": 1,
-      "versionNonce": 10178,
+      "version": 4,
+      "versionNonce": 1281189401,
       "isDeleted": false,
       "boundElements": [
         {
           "id": "ex-e-svc-api-runtime",
-          "type": "arrow"
-        },
-        {
-          "id": "ex-e-svc-worker-runtime",
           "type": "arrow"
         },
         {
@@ -1340,11 +1392,16 @@
         {
           "id": "ex-e-svc-runtime-observe",
           "type": "arrow"
+        },
+        {
+          "id": "ex-e-svc-worker-runtime",
+          "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081239555,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8R"
     },
     {
       "id": "ex-svc_runtime-label",
@@ -1365,11 +1422,16 @@
       "frameId": null,
       "roundness": null,
       "seed": 1663,
-      "version": 1,
-      "versionNonce": 10209,
+      "version": 4,
+      "versionNonce": 1795601271,
       "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617222,
+      "boundElements": [
+        {
+          "id": "ex-e-svc-runtime-observe",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1786081311424,
       "link": null,
       "locked": false,
       "text": "共享运行组件\nRuntimeComponents / Orchestrator\nDelegationService\nshared parent budget",
@@ -1381,7 +1443,9 @@
       "containerId": null,
       "originalText": "共享运行组件\nRuntimeComponents / Orchestrator\nDelegationService\nshared parent budget",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8S",
+      "autoResize": true
     },
     {
       "id": "ex-svc_pg",
@@ -1404,8 +1468,8 @@
         "type": 3
       },
       "seed": 1680,
-      "version": 1,
-      "versionNonce": 10240,
+      "version": 3,
+      "versionNonce": 60661433,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1417,9 +1481,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8T"
     },
     {
       "id": "ex-svc_pg-label",
@@ -1440,11 +1505,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1697,
-      "version": 1,
-      "versionNonce": 10271,
+      "version": 3,
+      "versionNonce": 1167820119,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "服务存储\nPostgreSQL\nRepository contract\npassword _FILE :ro",
@@ -1456,7 +1521,9 @@
       "containerId": null,
       "originalText": "服务存储\nPostgreSQL\nRepository contract\npassword _FILE :ro",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8U",
+      "autoResize": true
     },
     {
       "id": "ex-svc_redis",
@@ -1479,8 +1546,8 @@
         "type": 3
       },
       "seed": 1714,
-      "version": 1,
-      "versionNonce": 10302,
+      "version": 3,
+      "versionNonce": 399204249,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1488,9 +1555,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8V"
     },
     {
       "id": "ex-svc_redis-label",
@@ -1511,11 +1579,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1731,
-      "version": 1,
-      "versionNonce": 10333,
+      "version": 3,
+      "versionNonce": 617529975,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "Durable Queue\nRedis Streams\nconsumer group / XAUTOCLAIM",
@@ -1527,7 +1595,9 @@
       "containerId": null,
       "originalText": "Durable Queue\nRedis Streams\nconsumer group / XAUTOCLAIM",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8W",
+      "autoResize": true
     },
     {
       "id": "ex-svc_observe",
@@ -1550,8 +1620,8 @@
         "type": 3
       },
       "seed": 1748,
-      "version": 1,
-      "versionNonce": 10364,
+      "version": 3,
+      "versionNonce": 1716388985,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1559,9 +1629,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8X"
     },
     {
       "id": "ex-svc_observe-label",
@@ -1582,11 +1653,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1765,
-      "version": 1,
-      "versionNonce": 10395,
+      "version": 3,
+      "versionNonce": 1893555095,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "共享有序事件证据\nPostgreSQL CanonicalEvent / outbox\nusage / approval / delegation\nterminal + capacity invariant",
@@ -1598,7 +1669,9 @@
       "containerId": null,
       "originalText": "共享有序事件证据\nPostgreSQL CanonicalEvent / outbox\nusage / approval / delegation\nterminal + capacity invariant",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8Y",
+      "autoResize": true
     },
     {
       "id": "ex-svc_queue_adapter",
@@ -1621,8 +1694,8 @@
         "type": 3
       },
       "seed": 1782,
-      "version": 1,
-      "versionNonce": 10426,
+      "version": 3,
+      "versionNonce": 451480921,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1638,9 +1711,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8Z"
     },
     {
       "id": "ex-svc_queue_adapter-label",
@@ -1661,11 +1735,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1799,
-      "version": 1,
-      "versionNonce": 10457,
+      "version": 3,
+      "versionNonce": 771477687,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "Redis Queue Adapter\n共享 library seam\nAPI enqueue；worker pickup/reclaim",
@@ -1677,7 +1751,9 @@
       "containerId": null,
       "originalText": "Redis Queue Adapter\n共享 library seam\nAPI enqueue；worker pickup/reclaim",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8a",
+      "autoResize": true
     },
     {
       "id": "ex-gw_api",
@@ -1700,8 +1776,8 @@
         "type": 3
       },
       "seed": 1816,
-      "version": 1,
-      "versionNonce": 10488,
+      "version": 3,
+      "versionNonce": 485489209,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1709,9 +1785,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8b"
     },
     {
       "id": "ex-gw_api-label",
@@ -1732,11 +1809,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1833,
-      "version": 1,
-      "versionNonce": 10519,
+      "version": 3,
+      "versionNonce": 1708040663,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "访问/API 网关\nAccess / API Gateway\nauth / request_id\nrate limit later",
@@ -1748,7 +1825,9 @@
       "containerId": null,
       "originalText": "访问/API 网关\nAccess / API Gateway\nauth / request_id\nrate limit later",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8c",
+      "autoResize": true
     },
     {
       "id": "ex-worker_pool",
@@ -1771,8 +1850,8 @@
         "type": 3
       },
       "seed": 1850,
-      "version": 1,
-      "versionNonce": 10550,
+      "version": 3,
+      "versionNonce": 491146009,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1796,9 +1875,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8d"
     },
     {
       "id": "ex-worker_pool-label",
@@ -1819,11 +1899,20 @@
       "frameId": null,
       "roundness": null,
       "seed": 1867,
-      "version": 1,
-      "versionNonce": 10581,
+      "version": 5,
+      "versionNonce": 54276825,
       "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617222,
+      "boundElements": [
+        {
+          "id": "ex-e-future-worker-event",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-future-worker-storage",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1786081392762,
       "link": null,
       "locked": false,
       "text": "运行 worker 池\nRuntime worker pool\ncheckpoint/resume\nidempotency",
@@ -1835,7 +1924,9 @@
       "containerId": null,
       "originalText": "运行 worker 池\nRuntime worker pool\ncheckpoint/resume\nidempotency",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8e",
+      "autoResize": true
     },
     {
       "id": "ex-model_gateway",
@@ -1858,8 +1949,8 @@
         "type": 3
       },
       "seed": 1884,
-      "version": 1,
-      "versionNonce": 10612,
+      "version": 3,
+      "versionNonce": 1683980281,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1867,9 +1958,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8f"
     },
     {
       "id": "ex-model_gateway-label",
@@ -1890,11 +1982,16 @@
       "frameId": null,
       "roundness": null,
       "seed": 1901,
-      "version": 1,
-      "versionNonce": 10643,
+      "version": 4,
+      "versionNonce": 122036535,
       "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617222,
+      "boundElements": [
+        {
+          "id": "ex-e-future-worker-model",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1786081402354,
       "link": null,
       "locked": false,
       "text": "模型网关\nModel gateway\nModelProvider\nbudget/fallback",
@@ -1906,7 +2003,9 @@
       "containerId": null,
       "originalText": "模型网关\nModel gateway\nModelProvider\nbudget/fallback",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8g",
+      "autoResize": true
     },
     {
       "id": "ex-tool_gateway",
@@ -1929,8 +2028,8 @@
         "type": 3
       },
       "seed": 1918,
-      "version": 1,
-      "versionNonce": 10674,
+      "version": 3,
+      "versionNonce": 1614747865,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1938,9 +2037,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8h"
     },
     {
       "id": "ex-tool_gateway-label",
@@ -1961,11 +2061,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1935,
-      "version": 1,
-      "versionNonce": 10705,
+      "version": 3,
+      "versionNonce": 427703607,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "工具网关\nTool gateway\nTool/MCP policy\nuntrusted output",
@@ -1977,7 +2077,9 @@
       "containerId": null,
       "originalText": "工具网关\nTool gateway\nTool/MCP policy\nuntrusted output",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8i",
+      "autoResize": true
     },
     {
       "id": "ex-storage_service",
@@ -2000,22 +2102,19 @@
         "type": 3
       },
       "seed": 1952,
-      "version": 1,
-      "versionNonce": 10736,
+      "version": 4,
+      "versionNonce": 1579890007,
       "isDeleted": false,
       "boundElements": [
         {
           "id": "ex-e-future-worker-storage",
           "type": "arrow"
-        },
-        {
-          "id": "ex-e-future-storage-contract",
-          "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081341607,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8j"
     },
     {
       "id": "ex-storage_service-label",
@@ -2036,11 +2135,20 @@
       "frameId": null,
       "roundness": null,
       "seed": 1969,
-      "version": 1,
-      "versionNonce": 10767,
+      "version": 5,
+      "versionNonce": 624701785,
       "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617222,
+      "boundElements": [
+        {
+          "id": "ex-e-future-storage-contract",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-future-worker-storage",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1786081397654,
       "link": null,
       "locked": false,
       "text": "存储服务\nStorage service\nRepository interface stable\nPostgreSQL/Object store",
@@ -2052,7 +2160,9 @@
       "containerId": null,
       "originalText": "存储服务\nStorage service\nRepository interface stable\nPostgreSQL/Object store",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8k",
+      "autoResize": true
     },
     {
       "id": "ex-event_pipeline",
@@ -2075,8 +2185,8 @@
         "type": 3
       },
       "seed": 1986,
-      "version": 1,
-      "versionNonce": 10798,
+      "version": 3,
+      "versionNonce": 2117039769,
       "isDeleted": false,
       "boundElements": [
         {
@@ -2088,9 +2198,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8l"
     },
     {
       "id": "ex-event_pipeline-label",
@@ -2111,11 +2222,16 @@
       "frameId": null,
       "roundness": null,
       "seed": 2003,
-      "version": 1,
-      "versionNonce": 10829,
+      "version": 4,
+      "versionNonce": 168260825,
       "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617222,
+      "boundElements": [
+        {
+          "id": "ex-e-future-event-contract",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1786081328765,
       "link": null,
       "locked": false,
       "text": "事件/观测管道\nEvent pipeline\nCanonicalEvent -> OTel\nLogfire/Langfuse/Phoenix",
@@ -2127,7 +2243,9 @@
       "containerId": null,
       "originalText": "事件/观测管道\nEvent pipeline\nCanonicalEvent -> OTel\nLogfire/Langfuse/Phoenix",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8m",
+      "autoResize": true
     },
     {
       "id": "ex-split_contract",
@@ -2150,22 +2268,23 @@
         "type": 3
       },
       "seed": 2020,
-      "version": 1,
-      "versionNonce": 10860,
+      "version": 8,
+      "versionNonce": 1877504631,
       "isDeleted": false,
       "boundElements": [
         {
-          "id": "ex-e-future-storage-contract",
+          "id": "ex-e-future-event-contract",
           "type": "arrow"
         },
         {
-          "id": "ex-e-future-event-contract",
+          "id": "ex-e-future-storage-contract",
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786081341607,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b8n"
     },
     {
       "id": "ex-split_contract-label",
@@ -2186,11 +2305,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 2037,
-      "version": 1,
-      "versionNonce": 10891,
+      "version": 5,
+      "versionNonce": 1649703767,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081340054,
       "link": null,
       "locked": false,
       "text": "拆分不变契约\nDTO / CanonicalEvent\nprovider/facade interface\ntenant/run/trace IDs",
@@ -2202,7 +2321,9 @@
       "containerId": null,
       "originalText": "拆分不变契约\nDTO / CanonicalEvent\nprovider/facade interface\ntenant/run/trace IDs",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b8o",
+      "autoResize": true
     },
     {
       "id": "ex-e-local-entry-runtime",
@@ -2225,11 +2346,11 @@
         "type": 2
       },
       "seed": 2054,
-      "version": 1,
-      "versionNonce": 10922,
+      "version": 3,
+      "versionNonce": 712205401,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "points": [
@@ -2244,25 +2365,32 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-local_cli",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-local_runtime",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b8p"
     },
     {
       "id": "ex-e-local-runtime-sqlite",
       "type": "arrow",
       "x": 440,
       "y": 340,
-      "width": -250,
+      "width": 250,
       "height": 100,
       "angle": 0,
       "strokeColor": "#5b8f5a",
@@ -2278,11 +2406,11 @@
         "type": 2
       },
       "seed": 2088,
-      "version": 1,
-      "versionNonce": 10984,
+      "version": 3,
+      "versionNonce": 1948674487,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "points": [
@@ -2307,16 +2435,28 @@
       "startBinding": {
         "elementId": "ex-local_runtime",
         "focus": 0,
-        "gap": 1
+        "gap": 1,
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ],
+        "mode": "orbit"
       },
       "endBinding": {
         "elementId": "ex-local_sqlite",
         "focus": 0,
-        "gap": 1
+        "gap": 1,
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ],
+        "mode": "orbit"
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": true
+      "elbowed": true,
+      "index": "b8q",
+      "fixedSegments": null
     },
     {
       "id": "ex-e-local-runtime-files",
@@ -2339,11 +2479,11 @@
         "type": 2
       },
       "seed": 2122,
-      "version": 1,
-      "versionNonce": 11046,
+      "version": 3,
+      "versionNonce": 387412281,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "points": [
@@ -2358,26 +2498,33 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-local_runtime",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-local_files",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b8r"
     },
     {
       "id": "ex-e-local-runtime-jsonl",
       "type": "arrow",
       "x": 340,
       "y": 260,
-      "width": -150,
-      "height": 390,
+      "width": 280,
+      "height": 430,
       "angle": 0,
       "strokeColor": "#d79b00",
       "backgroundColor": "transparent",
@@ -2392,11 +2539,11 @@
         "type": 2
       },
       "seed": 2156,
-      "version": 1,
-      "versionNonce": 11108,
+      "version": 3,
+      "versionNonce": 490609367,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "points": [
@@ -2433,24 +2580,36 @@
       "startBinding": {
         "elementId": "ex-local_runtime",
         "focus": 0,
-        "gap": 1
+        "gap": 1,
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ],
+        "mode": "orbit"
       },
       "endBinding": {
         "elementId": "ex-local_jsonl",
         "focus": 0,
-        "gap": 1
+        "gap": 1,
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ],
+        "mode": "orbit"
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": true
+      "elbowed": true,
+      "index": "b8s",
+      "fixedSegments": null
     },
     {
       "id": "ex-e-local-model-runtime",
       "type": "arrow",
       "x": 540,
       "y": 695,
-      "width": 0,
-      "height": -400,
+      "width": 20,
+      "height": 400,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2465,11 +2624,11 @@
         "type": 2
       },
       "seed": 2190,
-      "version": 1,
-      "versionNonce": 11170,
+      "version": 3,
+      "versionNonce": 1902567961,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "points": [
@@ -2494,24 +2653,36 @@
       "startBinding": {
         "elementId": "ex-local_model",
         "focus": 0,
-        "gap": 1
+        "gap": 1,
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ],
+        "mode": "orbit"
       },
       "endBinding": {
         "elementId": "ex-local_runtime",
         "focus": 0,
-        "gap": 1
+        "gap": 1,
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ],
+        "mode": "orbit"
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": true
+      "elbowed": true,
+      "index": "b8t",
+      "fixedSegments": null
     },
     {
       "id": "ex-e-svc-api-runtime",
       "type": "arrow",
-      "x": 810,
-      "y": 390,
-      "width": 0,
-      "height": 80,
+      "x": 810.0200000000001,
+      "y": 396.00000000000006,
+      "width": 2.2737367544323206e-13,
+      "height": 67.99999999999989,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2526,11 +2697,11 @@
         "type": 2
       },
       "seed": 2224,
-      "version": 1,
-      "versionNonce": 11232,
+      "version": 4,
+      "versionNonce": 2002850201,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081239556,
       "link": null,
       "locked": false,
       "points": [
@@ -2539,32 +2710,40 @@
           0
         ],
         [
-          0,
-          80
+          -2.2737367544323206e-13,
+          67.99999999999989
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-svc_api",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-svc_runtime",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b8u",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "ex-e-svc-worker-runtime",
       "type": "arrow",
-      "x": 970,
-      "y": 345,
-      "width": 60,
-      "height": 175,
+      "x": 964,
+      "y": 345.00104982502916,
+      "width": 98.61968958431328,
+      "height": 118.99999999999994,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2579,11 +2758,11 @@
         "type": 2
       },
       "seed": 2258,
-      "version": 1,
-      "versionNonce": 11294,
+      "version": 644,
+      "versionNonce": 1492695063,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081262125,
       "link": null,
       "locked": false,
       "points": [
@@ -2592,48 +2771,56 @@
           0
         ],
         [
-          -20,
-          0
+          -14,
+          -0.0010498250291561817
         ],
         [
-          -20,
-          75
+          -40.67765874794782,
+          41.992526456002906
         ],
         [
-          -40,
-          75
+          -58.40853749944131,
+          70.45507710414068
         ],
         [
-          -40,
-          175
+          -78.59977520947541,
+          98.7440889627598
         ],
         [
-          -60,
-          175
+          -98.61968958431328,
+          118.99895017497079
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-svc_worker",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-svc_runtime",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b8v",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "ex-e-svc-runtime-pg",
       "type": "arrow",
-      "x": 840,
-      "y": 520,
-      "width": 70,
-      "height": 200,
+      "x": 870.7096170826537,
+      "y": 575.9999999999999,
+      "width": 16.330836583910468,
+      "height": 88.03842560788246,
       "angle": 0,
       "strokeColor": "#5b8f5a",
       "backgroundColor": "transparent",
@@ -2648,11 +2835,11 @@
         "type": 2
       },
       "seed": 2292,
-      "version": 1,
-      "versionNonce": 11356,
+      "version": 128,
+      "versionNonce": 1931791961,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081300266,
       "link": null,
       "locked": false,
       "points": [
@@ -2661,32 +2848,40 @@
           0
         ],
         [
-          70,
-          200
+          16.330836583910468,
+          88.03842560788246
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "ex-svc_runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.7773289816688037,
+          0.7773289816688043
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-svc_pg",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.9000120009600642,
+          0.09998799903993585
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b8w",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "ex-e-svc-runtime-observe",
       "type": "arrow",
-      "x": 840,
-      "y": 520,
-      "width": 70,
-      "height": 395,
+      "x": 902.9798863204899,
+      "y": 567.4104764540692,
+      "width": 36.04192938267579,
+      "height": 314.5193715661492,
       "angle": 0,
       "strokeColor": "#d79b00",
       "backgroundColor": "transparent",
@@ -2701,11 +2896,11 @@
         "type": 2
       },
       "seed": 2326,
-      "version": 1,
-      "versionNonce": 11418,
+      "version": 430,
+      "versionNonce": 601061975,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081313062,
       "link": null,
       "locked": false,
       "points": [
@@ -2714,32 +2909,44 @@
           0
         ],
         [
-          70,
-          395
+          36.04192938267579,
+          141.14435396759575
+        ],
+        [
+          11.668706640155278,
+          314.5193715661492
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
-        "elementId": "ex-svc_runtime",
-        "focus": 0,
-        "gap": 1
+        "elementId": "ex-svc_runtime-label",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.9975278440334681,
+          0.9975278440334678
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-svc_observe",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          1,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b8x",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "ex-e-svc-api-queue",
       "type": "arrow",
       "x": 900,
       "y": 350,
-      "width": 60,
-      "height": 170,
+      "width": 91.03572288279634,
+      "height": 109.43191744371586,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2754,11 +2961,11 @@
         "type": 2
       },
       "seed": 2360,
-      "version": 1,
-      "versionNonce": 11480,
+      "version": 158,
+      "versionNonce": 875083545,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081271166,
       "link": null,
       "locked": false,
       "points": [
@@ -2766,24 +2973,40 @@
           0,
           0
         ],
-        [30, 0],
-        [30, 170],
-        [60, 170]
+        [
+          27.556330963147047,
+          5.410981438745864
+        ],
+        [
+          72.82051388310333,
+          72.41089459277532
+        ],
+        [
+          91.03572288279634,
+          109.43191744371586
+        ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "inside",
         "elementId": "ex-svc_api",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.95,
+          0.5555555555555556
+        ]
       },
       "endBinding": {
         "elementId": "ex-svc_queue_adapter",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.10517861441398167,
+          -0.10568082556284139
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b8y"
     },
     {
       "id": "ex-e-queue-redis",
@@ -2806,11 +3029,11 @@
         "type": 2
       },
       "seed": 2394,
-      "version": 1,
-      "versionNonce": 11542,
+      "version": 3,
+      "versionNonce": 766282937,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "points": [
@@ -2825,26 +3048,33 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-svc_queue_adapter",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-svc_redis",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b8z"
     },
     {
       "id": "ex-e-redis-worker",
       "type": "arrow",
-      "x": 1070,
-      "y": 390,
-      "width": 0,
-      "height": 80,
+      "x": 1070.0200000000002,
+      "y": 396.00000000000006,
+      "width": 2.2737367544323206e-13,
+      "height": 67.99999999999989,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2859,11 +3089,11 @@
         "type": 2
       },
       "seed": 2401,
-      "version": 1,
-      "versionNonce": 11549,
+      "version": 4,
+      "versionNonce": 2010856185,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081239555,
       "link": null,
       "locked": false,
       "points": [
@@ -2872,24 +3102,32 @@
           0
         ],
         [
-          0,
-          80
+          -2.2737367544323206e-13,
+          67.99999999999989
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-svc_worker",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-svc_queue_adapter",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b90",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "ex-e-future-api-worker",
@@ -2912,11 +3150,11 @@
         "type": 2
       },
       "seed": 2428,
-      "version": 1,
-      "versionNonce": 11604,
+      "version": 3,
+      "versionNonce": 1036815769,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "points": [
@@ -2931,26 +3169,33 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-gw_api",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-worker_pool",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b91"
     },
     {
       "id": "ex-e-future-worker-model",
       "type": "arrow",
-      "x": 1590,
-      "y": 275,
-      "width": -55,
-      "height": 190,
+      "x": 1584.0023562673464,
+      "y": 297.83136527730585,
+      "width": 75.4760403118994,
+      "height": 124.66863472269415,
       "angle": 0,
       "strokeColor": "#9673a6",
       "backgroundColor": "transparent",
@@ -2965,11 +3210,11 @@
         "type": 2
       },
       "seed": 2462,
-      "version": 1,
-      "versionNonce": 11666,
+      "version": 69,
+      "versionNonce": 357022743,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081402354,
       "link": null,
       "locked": false,
       "points": [
@@ -2978,24 +3223,31 @@
           0
         ],
         [
-          -55,
-          190
+          -75.4760403118994,
+          124.66863472269415
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-worker_pool",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.13257928176791708,
+          0.1325792817679147
+        ]
       },
       "endBinding": {
-        "elementId": "ex-model_gateway",
-        "focus": 0,
-        "gap": 1
+        "elementId": "ex-model_gateway-label",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.8538653837134267,
+          0.14613461628657337
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b92"
     },
     {
       "id": "ex-e-future-worker-tool",
@@ -3018,11 +3270,11 @@
         "type": 2
       },
       "seed": 2496,
-      "version": 1,
-      "versionNonce": 11728,
+      "version": 3,
+      "versionNonce": 1341747833,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "points": [
@@ -3037,26 +3289,33 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-worker_pool",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-tool_gateway",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b93"
     },
     {
       "id": "ex-e-future-worker-storage",
       "type": "arrow",
-      "x": 1590,
-      "y": 275,
-      "width": -55,
-      "height": 395,
+      "x": 1603.7753650323777,
+      "y": 317.5,
+      "width": 78.50346635203823,
+      "height": 305,
       "angle": 0,
       "strokeColor": "#9673a6",
       "backgroundColor": "transparent",
@@ -3071,11 +3330,11 @@
         "type": 2
       },
       "seed": 2530,
-      "version": 1,
-      "versionNonce": 11790,
+      "version": 115,
+      "versionNonce": 1698015353,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081397654,
       "link": null,
       "locked": false,
       "points": [
@@ -3084,32 +3343,39 @@
           0
         ],
         [
-          -55,
-          395
+          -78.50346635203823,
+          305
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
-        "elementId": "ex-worker_pool",
-        "focus": 0,
-        "gap": 1
+        "elementId": "ex-worker_pool-label",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.041102414553586306,
+          0.9588975854464158
+        ]
       },
       "endBinding": {
-        "elementId": "ex-storage_service",
-        "focus": 0,
-        "gap": 1
+        "elementId": "ex-storage_service-label",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.9817626811157579,
+          0.018237318884243472
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b94"
     },
     {
       "id": "ex-e-future-worker-event",
       "type": "arrow",
-      "x": 1695,
-      "y": 320,
-      "width": 0,
-      "height": 300,
+      "x": 1789.4593435942122,
+      "y": 317.50000000000006,
+      "width": 34.10732949943417,
+      "height": 297.2034805803075,
       "angle": 0,
       "strokeColor": "#9673a6",
       "backgroundColor": "transparent",
@@ -3124,11 +3390,11 @@
         "type": 2
       },
       "seed": 2564,
-      "version": 1,
-      "versionNonce": 11852,
+      "version": 411,
+      "versionNonce": 913808663,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081386958,
       "link": null,
       "locked": false,
       "points": [
@@ -3137,32 +3403,43 @@
           0
         ],
         [
-          0,
-          300
+          27.90383479069942,
+          134.34007835429833
+        ],
+        [
+          -6.203494708734752,
+          297.2034805803075
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
-        "elementId": "ex-worker_pool",
-        "focus": 0,
-        "gap": 1
+        "elementId": "ex-worker_pool-label",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.9793815399047439,
+          0.979381539904745
+        ]
       },
       "endBinding": {
         "elementId": "ex-event_pipeline",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.9055686458867674,
+          0.0944313541132317
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b95"
     },
     {
       "id": "ex-e-future-storage-contract",
       "type": "arrow",
-      "x": 1535,
-      "y": 670,
-      "width": -85,
-      "height": 235,
+      "x": 1507.1417302408754,
+      "y": 717.5,
+      "width": 22.583935907311798,
+      "height": 126.5,
       "angle": 0,
       "strokeColor": "#5b8f5a",
       "backgroundColor": "transparent",
@@ -3177,11 +3454,11 @@
         "type": 2
       },
       "seed": 2598,
-      "version": 1,
-      "versionNonce": 11914,
+      "version": 405,
+      "versionNonce": 744330425,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081345092,
       "link": null,
       "locked": false,
       "points": [
@@ -3190,32 +3467,39 @@
           0
         ],
         [
-          -85,
-          235
+          -22.583935907311798,
+          126.5
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
-        "elementId": "ex-storage_service",
-        "focus": 0,
-        "gap": 1
+        "elementId": "ex-storage_service-label",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.9096809552375036,
+          0.9096809552375043
+        ]
       },
       "endBinding": {
         "elementId": "ex-split_contract",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.11974980132467776,
+          0.11974980132467863
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b96"
     },
     {
       "id": "ex-e-future-event-contract",
       "type": "arrow",
-      "x": 1590,
-      "y": 670,
-      "width": 120,
-      "height": 235,
+      "x": 1672.2365977321767,
+      "y": 717.5000000000001,
+      "width": 2.2482695387684544,
+      "height": 126.49999999999989,
       "angle": 0,
       "strokeColor": "#d79b00",
       "backgroundColor": "transparent",
@@ -3230,11 +3514,11 @@
         "type": 2
       },
       "seed": 2632,
-      "version": 1,
-      "versionNonce": 11976,
+      "version": 325,
+      "versionNonce": 105045593,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786081334417,
       "link": null,
       "locked": false,
       "points": [
@@ -3243,30 +3527,37 @@
           0
         ],
         [
-          120,
-          235
+          2.2482695387684544,
+          126.49999999999989
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
-        "elementId": "ex-event_pipeline",
-        "focus": 0,
-        "gap": 1
+        "elementId": "ex-event_pipeline-label",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.3792405684023285,
+          0.6207594315976702
+        ]
       },
       "endBinding": {
         "elementId": "ex-split_contract",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.8648298633654393,
+          0.13517013663456406
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b97"
     },
     {
       "id": "ex-label-svc-api-queue",
       "type": "text",
-      "x": 1070,
-      "y": 235,
+      "x": 1041.8020863212912,
+      "y": 260.4952382462447,
       "width": 160,
       "height": 18,
       "angle": 0,
@@ -3281,11 +3572,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 40201,
-      "version": 1,
-      "versionNonce": 40218,
+      "version": 53,
+      "versionNonce": 729624247,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783830000000,
+      "updated": 1786081228925,
       "link": null,
       "locked": false,
       "text": "enqueue Queue DTO",
@@ -3297,7 +3588,9 @@
       "containerId": null,
       "originalText": "enqueue Queue DTO",
       "lineHeight": 1.25,
-      "baseline": 14
+      "baseline": 14,
+      "index": "b98",
+      "autoResize": true
     },
     {
       "id": "ex-label-queue-redis",
@@ -3318,11 +3611,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 40231,
-      "version": 1,
-      "versionNonce": 40248,
+      "version": 3,
+      "versionNonce": 977303833,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783830000000,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "XADD / XREADGROUP / XAUTOCLAIM / XACK",
@@ -3334,7 +3627,9 @@
       "containerId": null,
       "originalText": "XADD / XREADGROUP / XAUTOCLAIM / XACK",
       "lineHeight": 1.25,
-      "baseline": 14
+      "baseline": 14,
+      "index": "b99",
+      "autoResize": true
     },
     {
       "id": "ex-label-redis-worker",
@@ -3355,11 +3650,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 40261,
-      "version": 1,
-      "versionNonce": 40278,
+      "version": 3,
+      "versionNonce": 1660027127,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783830000000,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "pickup / reclaim / fenced ACK",
@@ -3371,7 +3666,9 @@
       "containerId": null,
       "originalText": "pickup / reclaim / fenced ACK",
       "lineHeight": 1.25,
-      "baseline": 14
+      "baseline": 14,
+      "index": "b9A",
+      "autoResize": true
     },
     {
       "id": "ex-svc_migration",
@@ -3388,21 +3685,35 @@
       "strokeStyle": "dashed",
       "roughness": 0.5,
       "opacity": 100,
-      "groupIds": ["group-svc-migration"],
+      "groupIds": [
+        "group-svc-migration"
+      ],
       "frameId": null,
-      "roundness": {"type": 3},
+      "roundness": {
+        "type": 3
+      },
       "seed": 40501,
-      "version": 1,
-      "versionNonce": 40502,
+      "version": 3,
+      "versionNonce": 2112089593,
       "isDeleted": false,
       "boundElements": [
-        {"id": "ex-e-pg-migration", "type": "arrow"},
-        {"id": "ex-e-migration-api", "type": "arrow"},
-        {"id": "ex-e-migration-worker", "type": "arrow"}
+        {
+          "id": "ex-e-pg-migration",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-migration-api",
+          "type": "arrow"
+        },
+        {
+          "id": "ex-e-migration-worker",
+          "type": "arrow"
+        }
       ],
-      "updated": 1783830000000,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b9B"
     },
     {
       "id": "ex-svc_migration-label",
@@ -3419,15 +3730,17 @@
       "strokeStyle": "solid",
       "roughness": 0,
       "opacity": 100,
-      "groupIds": ["group-svc-migration"],
+      "groupIds": [
+        "group-svc-migration"
+      ],
       "frameId": null,
       "roundness": null,
       "seed": 40503,
-      "version": 1,
-      "versionNonce": 40504,
+      "version": 3,
+      "versionNonce": 890554903,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783830000000,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
       "text": "Schema migration（one-shot）\napp DSN _FILE :ro\nPostgreSQL healthy 后执行\n成功后放行 API / worker",
@@ -3440,15 +3753,16 @@
       "originalText": "Schema migration（one-shot）\napp DSN _FILE :ro\nPostgreSQL healthy 后执行\n成功后放行 API / worker",
       "lineHeight": 1.25,
       "baseline": 12,
-      "autoResize": true
+      "autoResize": true,
+      "index": "b9C"
     },
     {
       "id": "ex-e-pg-migration",
       "type": "arrow",
-      "x": 710,
-      "y": 720,
-      "width": 160,
-      "height": 492,
+      "x": 718.0708039702663,
+      "y": 661.5170756261066,
+      "width": 147.5304706835392,
+      "height": 423.73963967534667,
       "angle": 0,
       "strokeColor": "#5b8f5a",
       "backgroundColor": "transparent",
@@ -3459,22 +3773,56 @@
       "opacity": 100,
       "groupIds": [],
       "frameId": null,
-      "roundness": {"type": 2},
+      "roundness": {
+        "type": 2
+      },
       "seed": 40505,
-      "version": 1,
-      "versionNonce": 40506,
+      "version": 279,
+      "versionNonce": 1435786265,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783830000000,
+      "updated": 1786081286580,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [-30, 0], [-30, -492], [130, -492]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -31.601274653805376,
+          -62.27036171907571
+        ],
+        [
+          -15.131846237227137,
+          -411.4395956871654
+        ],
+        [
+          115.92919602973382,
+          -423.73963967534667
+        ]
+      ],
       "lastCommittedPoint": null,
-      "startBinding": {"elementId": "ex-svc_pg", "focus": 0, "gap": 1},
-      "endBinding": {"elementId": "ex-svc_migration", "focus": 0, "gap": 1},
+      "startBinding": {
+        "elementId": "ex-svc_pg",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.04035401985133149,
+          -0.08482924373893411
+        ]
+      },
+      "endBinding": {
+        "mode": "orbit",
+        "elementId": "ex-svc_migration",
+        "fixedPoint": [
+          0.49090909090909124,
+          0.5090909090909086
+        ]
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b9D"
     },
     {
       "id": "ex-e-migration-api",
@@ -3493,22 +3841,56 @@
       "opacity": 100,
       "groupIds": [],
       "frameId": null,
-      "roundness": {"type": 2},
+      "roundness": {
+        "type": 2
+      },
       "seed": 40507,
-      "version": 1,
-      "versionNonce": 40508,
+      "version": 3,
+      "versionNonce": 104951607,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783830000000,
+      "updated": 1786081218991,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [0, 25], [-80, 25], [-80, 45]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          25
+        ],
+        [
+          -80,
+          25
+        ],
+        [
+          -80,
+          45
+        ]
+      ],
       "lastCommittedPoint": null,
-      "startBinding": {"elementId": "ex-svc_migration", "focus": -0.5, "gap": 1},
-      "endBinding": {"elementId": "ex-svc_api", "focus": 0, "gap": 1},
+      "startBinding": {
+        "mode": "orbit",
+        "elementId": "ex-svc_migration",
+        "fixedPoint": [
+          0.25000000000000056,
+          0.7500000000000006
+        ]
+      },
+      "endBinding": {
+        "mode": "orbit",
+        "elementId": "ex-svc_api",
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b9E"
     },
     {
       "id": "ex-bridge-migration-worker",
@@ -3525,25 +3907,28 @@
       "strokeStyle": "solid",
       "roughness": 0,
       "opacity": 100,
-      "groupIds": ["group-migration-worker-bridge"],
+      "groupIds": [
+        "group-migration-worker-bridge"
+      ],
       "frameId": null,
       "roundness": null,
       "seed": 40509,
-      "version": 1,
-      "versionNonce": 40510,
+      "version": 3,
+      "versionNonce": 205095865,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783830000000,
+      "updated": 1786081218991,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b9F"
     },
     {
       "id": "ex-e-migration-worker",
       "type": "arrow",
       "x": 990,
-      "y": 255,
-      "width": 80,
-      "height": 45,
+      "y": 261,
+      "width": 80.00430709594048,
+      "height": 33,
       "angle": 0,
       "strokeColor": "#64748b",
       "backgroundColor": "transparent",
@@ -3552,29 +3937,69 @@
       "strokeStyle": "dashed",
       "roughness": 0.5,
       "opacity": 100,
-      "groupIds": ["group-migration-worker-bridge"],
+      "groupIds": [
+        "group-migration-worker-bridge"
+      ],
       "frameId": null,
-      "roundness": {"type": 2},
+      "roundness": {
+        "type": 2
+      },
       "seed": 40511,
-      "version": 1,
-      "versionNonce": 40512,
+      "version": 4,
+      "versionNonce": 579564505,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783830000000,
+      "updated": 1786081239556,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [0, 25], [80, 25], [80, 45]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          19
+        ],
+        [
+          80,
+          19
+        ],
+        [
+          80.00430709594048,
+          33
+        ]
+      ],
       "lastCommittedPoint": null,
-      "startBinding": {"elementId": "ex-svc_migration", "focus": 0.5, "gap": 1},
-      "endBinding": {"elementId": "ex-svc_worker", "focus": 0, "gap": 1},
+      "startBinding": {
+        "mode": "orbit",
+        "elementId": "ex-svc_migration",
+        "fixedPoint": [
+          0.75,
+          0.750000000000001
+        ]
+      },
+      "endBinding": {
+        "mode": "orbit",
+        "elementId": "ex-svc_worker",
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
+      },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b9G",
+      "moveMidPointsWithElement": false
     }
   ],
   "appState": {
     "gridSize": 20,
-    "viewBackgroundColor": "#ffffff"
+    "gridStep": 5,
+    "gridModeEnabled": false,
+    "viewBackgroundColor": "#ffffff",
+    "lockedMultiSelections": {}
   },
   "files": {}
 }

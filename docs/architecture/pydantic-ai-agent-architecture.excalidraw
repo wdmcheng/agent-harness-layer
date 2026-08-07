@@ -22,11 +22,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1117428867,
-      "version": 5,
-      "versionNonce": 180249429,
+      "version": 6,
+      "versionNonce": 88844111,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "企业级 Pydantic AI 控制论全栈架构\n5 层运行链路 + Agent 循环与回边 + 两侧治理面 + P0 可拆部署边界",
@@ -37,7 +37,7 @@
       "containerId": null,
       "originalText": "企业级 Pydantic AI 控制论全栈架构\n5 层运行链路 + Agent 循环与回边 + 两侧治理面 + P0 可拆部署边界",
       "lineHeight": 1.25,
-      "index": "b1L",
+      "index": "b9H",
       "autoResize": true
     },
     {
@@ -63,14 +63,14 @@
         "type": 3
       },
       "seed": 108808714,
-      "version": 4,
-      "versionNonce": 1363929211,
+      "version": 5,
+      "versionNonce": 69237025,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1M"
+      "index": "b9I"
     },
     {
       "id": "legend-dashed",
@@ -95,14 +95,14 @@
         "type": 3
       },
       "seed": 1972092583,
-      "version": 4,
-      "versionNonce": 673263797,
+      "version": 5,
+      "versionNonce": 655877487,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1N"
+      "index": "b9J"
     },
     {
       "id": "left-zone",
@@ -125,14 +125,14 @@
         "type": 3
       },
       "seed": 1092599901,
-      "version": 5,
-      "versionNonce": 1246699803,
+      "version": 6,
+      "versionNonce": 1658236161,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1O"
+      "index": "b9K"
     },
     {
       "id": "core-zone",
@@ -155,14 +155,14 @@
         "type": 3
       },
       "seed": 1172131084,
-      "version": 7,
-      "versionNonce": 511922709,
+      "version": 49,
+      "versionNonce": 1559715727,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1P"
+      "index": "b9L"
     },
     {
       "id": "core-label",
@@ -183,11 +183,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 316791711,
-      "version": 4,
-      "versionNonce": 2074232251,
+      "version": 5,
+      "versionNonce": 408642785,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "纵向 5 层运行中轴 Runtime Core\n逻辑分层不等于物理微服务；P0 先保可运行，同时用稳定接口预留未来拆分边界",
@@ -198,7 +198,7 @@
       "containerId": null,
       "originalText": "纵向 5 层运行中轴 Runtime Core\n逻辑分层不等于物理微服务；P0 先保可运行，同时用稳定接口预留未来拆分边界",
       "lineHeight": 1.25,
-      "index": "b1Q",
+      "index": "b9M",
       "autoResize": true
     },
     {
@@ -222,14 +222,14 @@
         "type": 3
       },
       "seed": 137788589,
-      "version": 5,
-      "versionNonce": 987383669,
+      "version": 6,
+      "versionNonce": 958567855,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1R"
+      "index": "b9N"
     },
     {
       "id": "layer-access",
@@ -252,16 +252,12 @@
         "type": 3
       },
       "seed": 807226592,
-      "version": 3,
-      "versionNonce": 745002587,
+      "version": 6,
+      "versionNonce": 1346248897,
       "isDeleted": false,
       "boundElements": [
         {
           "id": "mr74ffwb2jt7u9qr272",
-          "type": "arrow"
-        },
-        {
-          "id": "e-engine-access-stream",
           "type": "arrow"
         },
         {
@@ -275,12 +271,16 @@
         {
           "id": "mr74ffwbskeui7q4j1",
           "type": "arrow"
+        },
+        {
+          "id": "e-engine-access-stream",
+          "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1S"
+      "index": "b9O"
     },
     {
       "id": "label-access",
@@ -301,11 +301,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 765670673,
-      "version": 3,
-      "versionNonce": 258707669,
+      "version": 4,
+      "versionNonce": 1925318607,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "1. 接入与交互层 Access",
@@ -316,7 +316,7 @@
       "containerId": null,
       "originalText": "1. 接入与交互层 Access",
       "lineHeight": 1.25,
-      "index": "b1T",
+      "index": "b9P",
       "autoResize": true
     },
     {
@@ -342,14 +342,14 @@
         "type": 3
       },
       "seed": 734113195,
-      "version": 4,
-      "versionNonce": 460477179,
+      "version": 5,
+      "versionNonce": 404644001,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1U"
+      "index": "b9Q"
     },
     {
       "id": "access-ws",
@@ -374,14 +374,14 @@
         "type": 3
       },
       "seed": 768929088,
-      "version": 4,
-      "versionNonce": 1238150709,
+      "version": 5,
+      "versionNonce": 1206793711,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1V"
+      "index": "b9R"
     },
     {
       "id": "access-cli",
@@ -406,14 +406,14 @@
         "type": 3
       },
       "seed": 1568486485,
-      "version": 4,
-      "versionNonce": 155466651,
+      "version": 5,
+      "versionNonce": 497788033,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1W"
+      "index": "b9S"
     },
     {
       "id": "access-auth",
@@ -438,14 +438,14 @@
         "type": 3
       },
       "seed": 270776336,
-      "version": 4,
-      "versionNonce": 1222844309,
+      "version": 5,
+      "versionNonce": 531603471,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1X"
+      "index": "b9T"
     },
     {
       "id": "access-schema",
@@ -470,14 +470,14 @@
         "type": 3
       },
       "seed": 1447912673,
-      "version": 4,
-      "versionNonce": 34607163,
+      "version": 5,
+      "versionNonce": 749038689,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1Y"
+      "index": "b9U"
     },
     {
       "id": "layer-runtime",
@@ -500,8 +500,8 @@
         "type": 3
       },
       "seed": 1734034620,
-      "version": 4,
-      "versionNonce": 1927570677,
+      "version": 5,
+      "versionNonce": 1811858991,
       "isDeleted": false,
       "boundElements": [
         {
@@ -521,10 +521,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1Z"
+      "index": "b9V"
     },
     {
       "id": "label-runtime",
@@ -545,11 +545,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1302910519,
-      "version": 4,
-      "versionNonce": 1740132571,
+      "version": 5,
+      "versionNonce": 1826306113,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "2. 编排与运行时层 Runtime",
@@ -560,7 +560,7 @@
       "containerId": null,
       "originalText": "2. 编排与运行时层 Runtime",
       "lineHeight": 1.25,
-      "index": "b1a",
+      "index": "b9W",
       "autoResize": true
     },
     {
@@ -586,14 +586,14 @@
         "type": 3
       },
       "seed": 880923697,
-      "version": 5,
-      "versionNonce": 1263926869,
+      "version": 6,
+      "versionNonce": 1271146575,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1b"
+      "index": "b9X"
     },
     {
       "id": "runtime-state",
@@ -618,14 +618,14 @@
         "type": 3
       },
       "seed": 683624772,
-      "version": 5,
-      "versionNonce": 1003453819,
+      "version": 6,
+      "versionNonce": 1613531169,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1c"
+      "index": "b9Y"
     },
     {
       "id": "runtime-checkpoint",
@@ -650,14 +650,14 @@
         "type": 3
       },
       "seed": 1956409791,
-      "version": 5,
-      "versionNonce": 1225616309,
+      "version": 6,
+      "versionNonce": 1826113135,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1d"
+      "index": "b9Z"
     },
     {
       "id": "runtime-hitl",
@@ -682,8 +682,8 @@
         "type": 3
       },
       "seed": 1252290830,
-      "version": 4,
-      "versionNonce": 697832987,
+      "version": 5,
+      "versionNonce": 545840129,
       "isDeleted": false,
       "boundElements": [
         {
@@ -691,10 +691,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1e"
+      "index": "b9a"
     },
     {
       "id": "runtime-hooks",
@@ -719,14 +719,14 @@
         "type": 3
       },
       "seed": 1784621693,
-      "version": 4,
-      "versionNonce": 1815096597,
+      "version": 5,
+      "versionNonce": 771989647,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1f"
+      "index": "b9b"
     },
     {
       "id": "runtime-workspace",
@@ -751,14 +751,14 @@
         "type": 3
       },
       "seed": 74187308,
-      "version": 4,
-      "versionNonce": 1342479035,
+      "version": 5,
+      "versionNonce": 1575990241,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1g"
+      "index": "b9c"
     },
     {
       "id": "layer-engine",
@@ -781,8 +781,8 @@
         "type": 3
       },
       "seed": 1486530817,
-      "version": 5,
-      "versionNonce": 338936437,
+      "version": 8,
+      "versionNonce": 16692911,
       "isDeleted": false,
       "boundElements": [
         {
@@ -794,22 +794,22 @@
           "type": "arrow"
         },
         {
-          "id": "e-engine-access-stream",
-          "type": "arrow"
-        },
-        {
           "id": "mr74ffwba3rjuqkihfa",
           "type": "arrow"
         },
         {
           "id": "mr74ffwbohvmc8pbqbm",
           "type": "arrow"
+        },
+        {
+          "id": "e-engine-access-stream",
+          "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1h"
+      "index": "b9d"
     },
     {
       "id": "label-engine",
@@ -830,11 +830,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1901160252,
-      "version": 5,
-      "versionNonce": 1270319963,
+      "version": 6,
+      "versionNonce": 477138881,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "3. 引擎与认知层 Engine",
@@ -845,7 +845,7 @@
       "containerId": null,
       "originalText": "3. 引擎与认知层 Engine",
       "lineHeight": 1.25,
-      "index": "b1i",
+      "index": "b9e",
       "autoResize": true
     },
     {
@@ -871,14 +871,14 @@
         "type": 3
       },
       "seed": 110333809,
-      "version": 5,
-      "versionNonce": 366848981,
+      "version": 6,
+      "versionNonce": 208799951,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1j"
+      "index": "b9f"
     },
     {
       "id": "engine-router",
@@ -903,14 +903,14 @@
         "type": 3
       },
       "seed": 988864344,
-      "version": 5,
-      "versionNonce": 17000443,
+      "version": 6,
+      "versionNonce": 841674657,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1k"
+      "index": "b9g"
     },
     {
       "id": "engine-output",
@@ -935,14 +935,14 @@
         "type": 3
       },
       "seed": 1953747466,
-      "version": 5,
-      "versionNonce": 289630517,
+      "version": 6,
+      "versionNonce": 234231535,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1l"
+      "index": "b9h"
     },
     {
       "id": "engine-context",
@@ -967,14 +967,14 @@
         "type": 3
       },
       "seed": 1538016636,
-      "version": 6,
-      "versionNonce": 636137627,
+      "version": 7,
+      "versionNonce": 89019265,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1m"
+      "index": "b9i"
     },
     {
       "id": "engine-compact",
@@ -999,14 +999,14 @@
         "type": 3
       },
       "seed": 251239761,
-      "version": 6,
-      "versionNonce": 130710165,
+      "version": 7,
+      "versionNonce": 2081644815,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1n"
+      "index": "b9j"
     },
     {
       "id": "engine-budget",
@@ -1031,14 +1031,14 @@
         "type": 3
       },
       "seed": 1195316353,
-      "version": 7,
-      "versionNonce": 203416891,
+      "version": 8,
+      "versionNonce": 169491297,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1o"
+      "index": "b9k"
     },
     {
       "id": "layer-tools",
@@ -1061,8 +1061,8 @@
         "type": 3
       },
       "seed": 951226887,
-      "version": 5,
-      "versionNonce": 841506805,
+      "version": 6,
+      "versionNonce": 1749182255,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1082,10 +1082,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1p"
+      "index": "b9l"
     },
     {
       "id": "label-tools",
@@ -1106,11 +1106,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 995538575,
-      "version": 5,
-      "versionNonce": 721782235,
+      "version": 6,
+      "versionNonce": 14559041,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "4. 工具与能力层 Tools",
@@ -1121,7 +1121,7 @@
       "containerId": null,
       "originalText": "4. 工具与能力层 Tools",
       "lineHeight": 1.25,
-      "index": "b1q",
+      "index": "b9m",
       "autoResize": true
     },
     {
@@ -1147,14 +1147,14 @@
         "type": 3
       },
       "seed": 1766152813,
-      "version": 5,
-      "versionNonce": 375560533,
+      "version": 6,
+      "versionNonce": 552315215,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1r"
+      "index": "b9n"
     },
     {
       "id": "tools-mcp",
@@ -1179,14 +1179,14 @@
         "type": 3
       },
       "seed": 341563711,
-      "version": 6,
-      "versionNonce": 1773015675,
+      "version": 7,
+      "versionNonce": 1945736993,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1s"
+      "index": "b9o"
     },
     {
       "id": "tools-capabilities",
@@ -1211,14 +1211,14 @@
         "type": 3
       },
       "seed": 173163199,
-      "version": 5,
-      "versionNonce": 1573824181,
+      "version": 6,
+      "versionNonce": 325560175,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1t"
+      "index": "b9p"
     },
     {
       "id": "tools-validation",
@@ -1243,14 +1243,14 @@
         "type": 3
       },
       "seed": 1777097112,
-      "version": 6,
-      "versionNonce": 685509403,
+      "version": 7,
+      "versionNonce": 1977355009,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1u"
+      "index": "b9q"
     },
     {
       "id": "tools-allowlist",
@@ -1275,14 +1275,14 @@
         "type": 3
       },
       "seed": 243706505,
-      "version": 6,
-      "versionNonce": 1796343829,
+      "version": 7,
+      "versionNonce": 1845420431,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1v"
+      "index": "b9r"
     },
     {
       "id": "tools-steering",
@@ -1307,14 +1307,14 @@
         "type": 3
       },
       "seed": 1167022765,
-      "version": 7,
-      "versionNonce": 218230715,
+      "version": 8,
+      "versionNonce": 520422113,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1w"
+      "index": "b9s"
     },
     {
       "id": "layer-infra",
@@ -1337,8 +1337,8 @@
         "type": 3
       },
       "seed": 995143607,
-      "version": 6,
-      "versionNonce": 807550325,
+      "version": 7,
+      "versionNonce": 32102319,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1354,10 +1354,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1x"
+      "index": "b9t"
     },
     {
       "id": "label-infra",
@@ -1378,11 +1378,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 301928860,
-      "version": 5,
-      "versionNonce": 138559579,
+      "version": 6,
+      "versionNonce": 1275330241,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "5. 基础设施与数据层 Infra",
@@ -1393,7 +1393,7 @@
       "containerId": null,
       "originalText": "5. 基础设施与数据层 Infra",
       "lineHeight": 1.25,
-      "index": "b1y",
+      "index": "b9u",
       "autoResize": true
     },
     {
@@ -1419,14 +1419,14 @@
         "type": 3
       },
       "seed": 1939840814,
-      "version": 6,
-      "versionNonce": 1145358037,
+      "version": 7,
+      "versionNonce": 1699809743,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b1z"
+      "index": "b9v"
     },
     {
       "id": "infra-redis",
@@ -1451,14 +1451,14 @@
         "type": 3
       },
       "seed": 718824616,
-      "version": 6,
-      "versionNonce": 611286267,
+      "version": 7,
+      "versionNonce": 460881569,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b20"
+      "index": "b9w"
     },
     {
       "id": "infra-business",
@@ -1483,14 +1483,14 @@
         "type": 3
       },
       "seed": 1251139008,
-      "version": 6,
-      "versionNonce": 974070837,
+      "version": 7,
+      "versionNonce": 1431107567,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b21"
+      "index": "b9x"
     },
     {
       "id": "infra-models",
@@ -1515,14 +1515,14 @@
         "type": 3
       },
       "seed": 1988573821,
-      "version": 6,
-      "versionNonce": 218899867,
+      "version": 7,
+      "versionNonce": 739377793,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b22"
+      "index": "b9y"
     },
     {
       "id": "infra-secrets",
@@ -1547,14 +1547,14 @@
         "type": 3
       },
       "seed": 1628211333,
-      "version": 6,
-      "versionNonce": 895931797,
+      "version": 7,
+      "versionNonce": 1474699791,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b23"
+      "index": "b9z"
     },
     {
       "id": "infra-storage",
@@ -1579,14 +1579,14 @@
         "type": 3
       },
       "seed": 1920558077,
-      "version": 6,
-      "versionNonce": 1498069563,
+      "version": 7,
+      "versionNonce": 445647457,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b24"
+      "index": "bA0"
     },
     {
       "id": "feedback",
@@ -1611,14 +1611,14 @@
         "type": 3
       },
       "seed": 748953602,
-      "version": 8,
-      "versionNonce": 1098996469,
+      "version": 9,
+      "versionNonce": 504694831,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b25"
+      "index": "bA1"
     },
     {
       "id": "l-evals-access",
@@ -1643,8 +1643,8 @@
         "type": 3
       },
       "seed": 874215999,
-      "version": 4,
-      "versionNonce": 369998555,
+      "version": 5,
+      "versionNonce": 1069684289,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1652,10 +1652,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b26"
+      "index": "bA2"
     },
     {
       "id": "l-evals-runtime",
@@ -1680,8 +1680,8 @@
         "type": 3
       },
       "seed": 504106291,
-      "version": 4,
-      "versionNonce": 1726231637,
+      "version": 5,
+      "versionNonce": 633481807,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1689,10 +1689,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b27"
+      "index": "bA3"
     },
     {
       "id": "l-evals-engine",
@@ -1717,8 +1717,8 @@
         "type": 3
       },
       "seed": 1180336533,
-      "version": 6,
-      "versionNonce": 266839931,
+      "version": 7,
+      "versionNonce": 780641825,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1726,10 +1726,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b28"
+      "index": "bA4"
     },
     {
       "id": "l-evals-tools",
@@ -1754,8 +1754,8 @@
         "type": 3
       },
       "seed": 1380373553,
-      "version": 6,
-      "versionNonce": 23388597,
+      "version": 7,
+      "versionNonce": 465963119,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1763,10 +1763,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b29"
+      "index": "bA5"
     },
     {
       "id": "l-evals-infra",
@@ -1791,8 +1791,8 @@
         "type": 3
       },
       "seed": 1464177581,
-      "version": 5,
-      "versionNonce": 1562050587,
+      "version": 6,
+      "versionNonce": 1909471745,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1800,10 +1800,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b2A"
+      "index": "bA6"
     },
     {
       "id": "r-log-access",
@@ -1828,8 +1828,8 @@
         "type": 3
       },
       "seed": 1580340629,
-      "version": 3,
-      "versionNonce": 1445520149,
+      "version": 4,
+      "versionNonce": 2112430735,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1837,10 +1837,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b2B"
+      "index": "bA7"
     },
     {
       "id": "r-log-runtime",
@@ -1865,8 +1865,8 @@
         "type": 3
       },
       "seed": 470527379,
-      "version": 4,
-      "versionNonce": 664421563,
+      "version": 5,
+      "versionNonce": 177951201,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1874,10 +1874,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b2C"
+      "index": "bA8"
     },
     {
       "id": "r-log-engine",
@@ -1902,8 +1902,8 @@
         "type": 3
       },
       "seed": 1634254897,
-      "version": 5,
-      "versionNonce": 1772468341,
+      "version": 6,
+      "versionNonce": 2095315119,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1911,10 +1911,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b2D"
+      "index": "bA9"
     },
     {
       "id": "r-log-tools",
@@ -1939,8 +1939,8 @@
         "type": 3
       },
       "seed": 1174564430,
-      "version": 5,
-      "versionNonce": 923268443,
+      "version": 6,
+      "versionNonce": 771255745,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1948,10 +1948,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b2E"
+      "index": "bAA"
     },
     {
       "id": "r-log-infra",
@@ -1976,8 +1976,8 @@
         "type": 3
       },
       "seed": 990696930,
-      "version": 5,
-      "versionNonce": 362865109,
+      "version": 6,
+      "versionNonce": 509545167,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1985,18 +1985,18 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b2F"
+      "index": "bAB"
     },
     {
       "id": "mr74ffwb2jt7u9qr272",
       "type": "arrow",
-      "x": 850,
-      "y": 355,
+      "x": 850.096,
+      "y": 353.25,
       "width": 0,
-      "height": 52,
+      "height": 55.5,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2011,11 +2011,11 @@
         "type": 2
       },
       "seed": 967389821,
-      "version": 4,
-      "versionNonce": 985043451,
+      "version": 6,
+      "versionNonce": 1124535713,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2025,32 +2025,39 @@
         ],
         [
           0,
-          52
+          55.5
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "layer-access",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.5001,
+          1
+        ]
       },
       "endBinding": {
         "elementId": "layer-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.5001,
+          0
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2G"
+      "index": "bAC",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "mr74ffwbahnnonveood",
       "type": "arrow",
-      "x": 850,
-      "y": 593,
+      "x": 850.096,
+      "y": 591.25,
       "width": 0,
-      "height": 79,
+      "height": 82.5,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2065,11 +2072,11 @@
         "type": 2
       },
       "seed": 987400956,
-      "version": 5,
-      "versionNonce": 1596972853,
+      "version": 7,
+      "versionNonce": 519231727,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2079,32 +2086,39 @@
         ],
         [
           0,
-          79
+          82.5
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "layer-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.5001,
+          1
+        ]
       },
       "endBinding": {
         "elementId": "layer-engine",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.5001,
+          0
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2H"
+      "index": "bAD",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "mr74ffwbecu6q5k1vkn",
       "type": "arrow",
-      "x": 850,
-      "y": 868,
+      "x": 850.0959999999999,
+      "y": 866.25,
       "width": 0,
-      "height": 99,
+      "height": 102.5,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2119,11 +2133,11 @@
         "type": 2
       },
       "seed": 514483613,
-      "version": 6,
-      "versionNonce": 1403558555,
+      "version": 8,
+      "versionNonce": 553038209,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2133,24 +2147,31 @@
         ],
         [
           0,
-          99
+          102.5
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "layer-engine",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.5001,
+          1
+        ]
       },
       "endBinding": {
         "elementId": "layer-tools",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.5001,
+          0
+        ]
       },
       "startArrowhead": "arrow",
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2I"
+      "index": "bAE",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "mr74ffwbcfll5ry6umn",
@@ -2173,11 +2194,11 @@
         "type": 2
       },
       "seed": 393959413,
-      "version": 5,
-      "versionNonce": 213397653,
+      "version": 6,
+      "versionNonce": 338158351,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2193,26 +2214,32 @@
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "layer-tools",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.5001,
+          1
+        ]
       },
       "endBinding": {
         "elementId": "layer-infra",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.5001,
+          0
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2J"
+      "index": "bAF"
     },
     {
       "id": "mr74ffwbyvzn2kdm6kq",
       "type": "arrow",
-      "x": 268,
-      "y": 272,
-      "width": 94,
-      "height": 5.684341886080802e-14,
+      "x": 266,
+      "y": 272.00668,
+      "width": 97.75,
+      "height": 0.007819999999981064,
       "angle": 0,
       "strokeColor": "#0288d1",
       "backgroundColor": "transparent",
@@ -2227,11 +2254,11 @@
         "type": 2
       },
       "seed": 685008197,
-      "version": 3,
-      "versionNonce": 1586532155,
+      "version": 5,
+      "versionNonce": 218552673,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2240,25 +2267,32 @@
           0
         ],
         [
-          94,
-          5.684341886080802e-14
+          97.75,
+          0.007819999999981064
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "l-evals-access",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          1,
+          0.5001
+        ]
       },
       "endBinding": {
         "elementId": "layer-access",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2K"
+      "index": "bAG",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "mr74ffwb3z2shjtxtc4",
@@ -2281,11 +2315,11 @@
         "type": 2
       },
       "seed": 285570782,
-      "version": 4,
-      "versionNonce": 2079282677,
+      "version": 5,
+      "versionNonce": 1316399407,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2301,26 +2335,32 @@
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "l-evals-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          1,
+          0.5001
+        ]
       },
       "endBinding": {
         "elementId": "layer-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2L"
+      "index": "bAH"
     },
     {
       "id": "mr74ffwba3rjuqkihfa",
       "type": "arrow",
-      "x": 268,
-      "y": 770,
-      "width": 94,
-      "height": 1.1368683772161603e-13,
+      "x": 266,
+      "y": 770.0068436363637,
+      "width": 97.75,
+      "height": 0.010485909091016765,
       "angle": 0,
       "strokeColor": "#0288d1",
       "backgroundColor": "transparent",
@@ -2335,11 +2375,11 @@
         "type": 2
       },
       "seed": 1582505210,
-      "version": 5,
-      "versionNonce": 2110844891,
+      "version": 7,
+      "versionNonce": 2022114625,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2348,25 +2388,32 @@
           0
         ],
         [
-          94,
-          1.1368683772161603e-13
+          97.75,
+          0.010485909091016765
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "l-evals-engine",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          1,
+          0.5001
+        ]
       },
       "endBinding": {
         "elementId": "layer-engine",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2M"
+      "index": "bAI",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "mr74ffwbov3zsjnxfg8",
@@ -2389,11 +2436,11 @@
         "type": 2
       },
       "seed": 187735462,
-      "version": 5,
-      "versionNonce": 937086805,
+      "version": 6,
+      "versionNonce": 2068294479,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2409,18 +2456,24 @@
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "l-evals-tools",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          1,
+          0.5001
+        ]
       },
       "endBinding": {
         "elementId": "layer-tools",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2N"
+      "index": "bAJ"
     },
     {
       "id": "mr74ffwb9382nmvaoi5",
@@ -2443,11 +2496,11 @@
         "type": 2
       },
       "seed": 1796695297,
-      "version": 5,
-      "versionNonce": 1669086331,
+      "version": 6,
+      "versionNonce": 2128000289,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2463,26 +2516,32 @@
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "l-evals-infra",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          1,
+          0.5001
+        ]
       },
       "endBinding": {
         "elementId": "layer-infra",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.3635913666702547,
+          0.36359136667025393
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2O"
+      "index": "bAK"
     },
     {
       "id": "mr74ffwbskeui7q4j1",
       "type": "arrow",
-      "x": 1338,
-      "y": 272,
-      "width": 94,
-      "height": 0,
+      "x": 1336.25,
+      "y": 272.01449999999994,
+      "width": 97.75,
+      "height": 0.007819999999981064,
       "angle": 0,
       "strokeColor": "#7b1fa2",
       "backgroundColor": "transparent",
@@ -2497,11 +2556,11 @@
         "type": 2
       },
       "seed": 1185954745,
-      "version": 3,
-      "versionNonce": 1322261685,
+      "version": 5,
+      "versionNonce": 116615535,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2510,25 +2569,32 @@
           0
         ],
         [
-          94,
-          0
+          97.75,
+          -0.007819999999981064
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "layer-access",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          1,
+          0.5001
+        ]
       },
       "endBinding": {
         "elementId": "r-log-access",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2P"
+      "index": "bAL",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "mr74ffwb804xinjyhta",
@@ -2551,11 +2617,11 @@
         "type": 2
       },
       "seed": 1683745436,
-      "version": 4,
-      "versionNonce": 1532294427,
+      "version": 5,
+      "versionNonce": 593848577,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2571,26 +2637,32 @@
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "layer-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          1,
+          0.5001
+        ]
       },
       "endBinding": {
         "elementId": "r-log-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2Q"
+      "index": "bAM"
     },
     {
       "id": "mr74ffwbohvmc8pbqbm",
       "type": "arrow",
-      "x": 1338,
-      "y": 770,
-      "width": 94,
-      "height": 0,
+      "x": 1336.25,
+      "y": 770.0173295454547,
+      "width": 97.75,
+      "height": 0.010485909091016765,
       "angle": 0,
       "strokeColor": "#7b1fa2",
       "backgroundColor": "transparent",
@@ -2605,11 +2677,11 @@
         "type": 2
       },
       "seed": 638937356,
-      "version": 5,
-      "versionNonce": 1752481301,
+      "version": 7,
+      "versionNonce": 1052926863,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2618,25 +2690,32 @@
           0
         ],
         [
-          94,
-          0
+          97.75,
+          -0.010485909091016765
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "layer-engine",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          1,
+          0.5001
+        ]
       },
       "endBinding": {
         "elementId": "r-log-engine",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2R"
+      "index": "bAN",
+      "moveMidPointsWithElement": false
     },
     {
       "id": "mr74ffwbo3893nu33y",
@@ -2659,11 +2738,11 @@
         "type": 2
       },
       "seed": 811047788,
-      "version": 5,
-      "versionNonce": 349018555,
+      "version": 6,
+      "versionNonce": 1337106657,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2679,18 +2758,24 @@
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "layer-tools",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          1,
+          0.5001
+        ]
       },
       "endBinding": {
         "elementId": "r-log-tools",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2S"
+      "index": "bAO"
     },
     {
       "id": "mr74ffwbocgsac6cv7",
@@ -2713,11 +2798,11 @@
         "type": 2
       },
       "seed": 129845214,
-      "version": 5,
-      "versionNonce": 465449845,
+      "version": 6,
+      "versionNonce": 854399407,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -2733,18 +2818,24 @@
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "layer-infra",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.6364086244214133,
+          0.3635913755785871
+        ]
       },
       "endBinding": {
         "elementId": "r-log-infra",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b2T"
+      "index": "bAP"
     },
     {
       "id": "infra-search",
@@ -2769,14 +2860,14 @@
         "type": 3
       },
       "seed": 1495720461,
-      "version": 6,
-      "versionNonce": 755542619,
+      "version": 7,
+      "versionNonce": 290315457,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b2U"
+      "index": "bAQ"
     },
     {
       "id": "left-label",
@@ -2797,11 +2888,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 256467137,
-      "version": 3,
-      "versionNonce": 82967765,
+      "version": 4,
+      "versionNonce": 1486621647,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "左翼：Eval Gate\n当前：internal EvalRunner / pytest\n可选未接入：Pydantic Evals / Ragas / DeepEval",
@@ -2812,7 +2903,7 @@
       "containerId": null,
       "originalText": "左翼：Eval Gate\n当前：internal EvalRunner / pytest\n可选未接入：Pydantic Evals / Ragas / DeepEval",
       "lineHeight": 1.25,
-      "index": "b2V",
+      "index": "bAR",
       "autoResize": true
     },
     {
@@ -2834,11 +2925,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 927666423,
-      "version": 3,
-      "versionNonce": 2027464443,
+      "version": 4,
+      "versionNonce": 399940769,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "右翼：OTel 观测\nLogfire / Langfuse / Phoenix",
@@ -2849,7 +2940,7 @@
       "containerId": null,
       "originalText": "右翼：OTel 观测\nLogfire / Langfuse / Phoenix",
       "lineHeight": 1.25,
-      "index": "b2W",
+      "index": "bAS",
       "autoResize": true
     },
     {
@@ -2873,11 +2964,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1572236897,
-      "version": 4,
-      "versionNonce": 463837749,
+      "version": 5,
+      "versionNonce": 1810348527,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "实线：业务请求运行流",
@@ -2888,7 +2979,7 @@
       "containerId": null,
       "originalText": "实线：业务请求运行流",
       "lineHeight": 1.25,
-      "index": "b2X",
+      "index": "bAT",
       "autoResize": true
     },
     {
@@ -2912,11 +3003,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1484524219,
-      "version": 4,
-      "versionNonce": 247467931,
+      "version": 5,
+      "versionNonce": 1929142401,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "虚线：治理/观测映射",
@@ -2927,7 +3018,7 @@
       "containerId": null,
       "originalText": "虚线：治理/观测映射",
       "lineHeight": 1.25,
-      "index": "b2Y",
+      "index": "bAU",
       "autoResize": true
     },
     {
@@ -2951,11 +3042,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 64807420,
-      "version": 4,
-      "versionNonce": 1220447125,
+      "version": 5,
+      "versionNonce": 299410447,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "FastAPI Routes\nHTTP API / OpenAPI",
@@ -2966,7 +3057,7 @@
       "containerId": null,
       "originalText": "FastAPI Routes\nHTTP API / OpenAPI",
       "lineHeight": 1.25,
-      "index": "b2Z",
+      "index": "bAV",
       "autoResize": true
     },
     {
@@ -2990,11 +3081,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 779911394,
-      "version": 4,
-      "versionNonce": 284255291,
+      "version": 5,
+      "versionNonce": 276736097,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "HTTP SSE 已实现\nLast-Event-ID；CLI NDJSON；P1 可选 WS",
@@ -3005,7 +3096,7 @@
       "containerId": null,
       "originalText": "HTTP SSE 已实现\nLast-Event-ID；CLI NDJSON；P1 可选 WS",
       "lineHeight": 1.25,
-      "index": "b2a",
+      "index": "bAW",
       "autoResize": true
     },
     {
@@ -3029,11 +3120,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1233845958,
-      "version": 4,
-      "versionNonce": 1014124789,
+      "version": 5,
+      "versionNonce": 979847727,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "CLI / Batch Trigger\n离线任务 / 自动化入口",
@@ -3044,7 +3135,7 @@
       "containerId": null,
       "originalText": "CLI / Batch Trigger\n离线任务 / 自动化入口",
       "lineHeight": 1.25,
-      "index": "b2b",
+      "index": "bAX",
       "autoResize": true
     },
     {
@@ -3068,11 +3159,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1314046376,
-      "version": 4,
-      "versionNonce": 927933659,
+      "version": 5,
+      "versionNonce": 2049766465,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Auth / Tenant / Session\n鉴权、租户、会话",
@@ -3083,7 +3174,7 @@
       "containerId": null,
       "originalText": "Auth / Tenant / Session\n鉴权、租户、会话",
       "lineHeight": 1.25,
-      "index": "b2c",
+      "index": "bAY",
       "autoResize": true
     },
     {
@@ -3107,11 +3198,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 380969598,
-      "version": 5,
-      "versionNonce": 71723605,
+      "version": 6,
+      "versionNonce": 1115434063,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Request & Response\nSchema\nPydantic 入出参契约",
@@ -3122,7 +3213,7 @@
       "containerId": null,
       "originalText": "Request & Response\nSchema\nPydantic 入出参契约",
       "lineHeight": 1.25,
-      "index": "b2d",
+      "index": "bAZ",
       "autoResize": true
     },
     {
@@ -3146,11 +3237,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1027406472,
-      "version": 5,
-      "versionNonce": 426496379,
+      "version": 6,
+      "versionNonce": 1407632417,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "P1 目标扩展位：Graph Nodes\nBaseNode 业务步骤",
@@ -3161,7 +3252,7 @@
       "containerId": null,
       "originalText": "P1 目标扩展位：Graph Nodes\nBaseNode 业务步骤",
       "lineHeight": 1.25,
-      "index": "b2e",
+      "index": "bAa",
       "autoResize": true
     },
     {
@@ -3185,11 +3276,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 512848638,
-      "version": 5,
-      "versionNonce": 1628460981,
+      "version": 6,
+      "versionNonce": 1441778287,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "P1 目标扩展位：GraphState\n强类型全局状态",
@@ -3200,7 +3291,7 @@
       "containerId": null,
       "originalText": "P1 目标扩展位：GraphState\n强类型全局状态",
       "lineHeight": 1.25,
-      "index": "b2f",
+      "index": "bAb",
       "autoResize": true
     },
     {
@@ -3224,11 +3315,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1358252293,
-      "version": 5,
-      "versionNonce": 948562459,
+      "version": 6,
+      "versionNonce": 429627393,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Checkpoint / Resume\n长任务恢复与回放",
@@ -3239,7 +3330,7 @@
       "containerId": null,
       "originalText": "Checkpoint / Resume\n长任务恢复与回放",
       "lineHeight": 1.25,
-      "index": "b2g",
+      "index": "bAc",
       "autoResize": true
     },
     {
@@ -3263,11 +3354,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 692021063,
-      "version": 4,
-      "versionNonce": 1559599381,
+      "version": 5,
+      "versionNonce": 294298767,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "HITL Gate\n人工确认 / 审批点",
@@ -3278,7 +3369,7 @@
       "containerId": null,
       "originalText": "HITL Gate\n人工确认 / 审批点",
       "lineHeight": 1.25,
-      "index": "b2h",
+      "index": "bAd",
       "autoResize": true
     },
     {
@@ -3302,11 +3393,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 986652710,
-      "version": 4,
-      "versionNonce": 1234955963,
+      "version": 5,
+      "versionNonce": 491450337,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "目标扩展位：REPL / Hooks\n运行时事件与干预",
@@ -3317,7 +3408,7 @@
       "containerId": null,
       "originalText": "目标扩展位：REPL / Hooks\n运行时事件与干预",
       "lineHeight": 1.25,
-      "index": "b2i",
+      "index": "bAe",
       "autoResize": true
     },
     {
@@ -3341,11 +3432,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 430404162,
-      "version": 4,
-      "versionNonce": 560705141,
+      "version": 5,
+      "versionNonce": 1694841519,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Sandbox Workspace\n工作台隔离 / 文件边界",
@@ -3356,7 +3447,7 @@
       "containerId": null,
       "originalText": "Sandbox Workspace\n工作台隔离 / 文件边界",
       "lineHeight": 1.25,
-      "index": "b2j",
+      "index": "bAf",
       "autoResize": true
     },
     {
@@ -3380,11 +3471,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 674246491,
-      "version": 6,
-      "versionNonce": 1061445467,
+      "version": 7,
+      "versionNonce": 1157909441,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Agent Core\nPydantic AI Agent · 受控 Sub-Agent 委派",
@@ -3395,7 +3486,7 @@
       "containerId": null,
       "originalText": "Agent Core\nPydantic AI Agent · 受控 Sub-Agent 委派",
       "lineHeight": 1.25,
-      "index": "b2k",
+      "index": "bAg",
       "autoResize": true
     },
     {
@@ -3419,11 +3510,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1900828537,
-      "version": 6,
-      "versionNonce": 221779925,
+      "version": 7,
+      "versionNonce": 889720015,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Model Router\n路由/降级 · model/embedding usage evidence",
@@ -3434,7 +3525,7 @@
       "containerId": null,
       "originalText": "Model Router\n路由/降级 · model/embedding usage evidence",
       "lineHeight": 1.25,
-      "index": "b2l",
+      "index": "bAh",
       "autoResize": true
     },
     {
@@ -3458,11 +3549,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 377776585,
-      "version": 5,
-      "versionNonce": 332774395,
+      "version": 6,
+      "versionNonce": 149367713,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Structured Output\nResult Schema / Validator / Retry",
@@ -3473,7 +3564,7 @@
       "containerId": null,
       "originalText": "Structured Output\nResult Schema / Validator / Retry",
       "lineHeight": 1.25,
-      "index": "b2m",
+      "index": "bAi",
       "autoResize": true
     },
     {
@@ -3497,11 +3588,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 545441763,
-      "version": 7,
-      "versionNonce": 175134005,
+      "version": 8,
+      "versionNonce": 1026267887,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Context Assembly 上下文组装收口\n历史裁剪 / 检索注入 / 结果截断",
@@ -3512,7 +3603,7 @@
       "containerId": null,
       "originalText": "Context Assembly 上下文组装收口\n历史裁剪 / 检索注入 / 结果截断",
       "lineHeight": 1.25,
-      "index": "b2n",
+      "index": "bAj",
       "autoResize": true
     },
     {
@@ -3536,11 +3627,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 561218656,
-      "version": 6,
-      "versionNonce": 1397916827,
+      "version": 7,
+      "versionNonce": 824381313,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "当前 Context Compact seam\n历史裁剪 / 上下文收敛",
@@ -3551,7 +3642,7 @@
       "containerId": null,
       "originalText": "当前 Context Compact seam\n历史裁剪 / 上下文收敛",
       "lineHeight": 1.25,
-      "index": "b2o",
+      "index": "bAk",
       "autoResize": true
     },
     {
@@ -3575,11 +3666,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 555650440,
-      "version": 7,
-      "versionNonce": 611968661,
+      "version": 8,
+      "versionNonce": 838362383,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Budget Policy\nToken / Cost / Timeout · shared parent tree",
@@ -3590,7 +3681,7 @@
       "containerId": null,
       "originalText": "Budget Policy\nToken / Cost / Timeout · shared parent tree",
       "lineHeight": 1.25,
-      "index": "b2p",
+      "index": "bAl",
       "autoResize": true
     },
     {
@@ -3614,11 +3705,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1210849478,
-      "version": 5,
-      "versionNonce": 1701656891,
+      "version": 6,
+      "versionNonce": 1408726881,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "@agent.tool Registry\n强类型工具注册",
@@ -3629,7 +3720,7 @@
       "containerId": null,
       "originalText": "@agent.tool Registry\n强类型工具注册",
       "lineHeight": 1.25,
-      "index": "b2q",
+      "index": "bAm",
       "autoResize": true
     },
     {
@@ -3653,11 +3744,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 735374176,
-      "version": 6,
-      "versionNonce": 1577733109,
+      "version": 7,
+      "versionNonce": 585558831,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "MCP Connectors 外部工具协议接入\n⚠ 信任边界：入站内容过滤 / 注入检测",
@@ -3668,7 +3759,7 @@
       "containerId": null,
       "originalText": "MCP Connectors 外部工具协议接入\n⚠ 信任边界：入站内容过滤 / 注入检测",
       "lineHeight": 1.25,
-      "index": "b2r",
+      "index": "bAn",
       "autoResize": true
     },
     {
@@ -3692,11 +3783,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 199439958,
-      "version": 5,
-      "versionNonce": 394811867,
+      "version": 6,
+      "versionNonce": 330556225,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Plugins / Capabilities\n能力包 / 文件 / 浏览器 / 代码",
@@ -3707,7 +3798,7 @@
       "containerId": null,
       "originalText": "Plugins / Capabilities\n能力包 / 文件 / 浏览器 / 代码",
       "lineHeight": 1.25,
-      "index": "b2s",
+      "index": "bAo",
       "autoResize": true
     },
     {
@@ -3731,11 +3822,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 295953651,
-      "version": 6,
-      "versionNonce": 1193739605,
+      "version": 7,
+      "versionNonce": 476032335,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Runtime Type Validation\n入参出参校验",
@@ -3746,7 +3837,7 @@
       "containerId": null,
       "originalText": "Runtime Type Validation\n入参出参校验",
       "lineHeight": 1.25,
-      "index": "b2t",
+      "index": "bAp",
       "autoResize": true
     },
     {
@@ -3770,11 +3861,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 733105386,
-      "version": 6,
-      "versionNonce": 1723229819,
+      "version": 7,
+      "versionNonce": 481809185,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Tool Allowlist\n命令、路径、资源白名单",
@@ -3785,7 +3876,7 @@
       "containerId": null,
       "originalText": "Tool Allowlist\n命令、路径、资源白名单",
       "lineHeight": 1.25,
-      "index": "b2u",
+      "index": "bAq",
       "autoResize": true
     },
     {
@@ -3809,11 +3900,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1118605264,
-      "version": 7,
-      "versionNonce": 1394971317,
+      "version": 8,
+      "versionNonce": 163261295,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Steering / Guardrails\n纠偏、截断、危险动作拦截",
@@ -3824,7 +3915,7 @@
       "containerId": null,
       "originalText": "Steering / Guardrails\n纠偏、截断、危险动作拦截",
       "lineHeight": 1.25,
-      "index": "b2v",
+      "index": "bAr",
       "autoResize": true
     },
     {
@@ -3848,11 +3939,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 887605197,
-      "version": 6,
-      "versionNonce": 163176219,
+      "version": 7,
+      "versionNonce": 1668466433,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "PostgreSQL Core Data\n当前：orchestrator 校验 + 部分 repository 过滤；未来：RLS",
@@ -3863,7 +3954,7 @@
       "containerId": null,
       "originalText": "PostgreSQL Core Data\n当前：orchestrator 校验 + 部分 repository 过滤；未来：RLS",
       "lineHeight": 1.25,
-      "index": "b2w",
+      "index": "bAs",
       "autoResize": true
     },
     {
@@ -3887,11 +3978,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1586160654,
-      "version": 5,
-      "versionNonce": 1856730133,
+      "version": 6,
+      "versionNonce": 1463936399,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Redis / Queue\n当前：Redis Streams durable RunQueue\n未来可选：session cache",
@@ -3902,7 +3993,7 @@
       "containerId": null,
       "originalText": "Redis / Queue\n当前：Redis Streams durable RunQueue\n未来可选：session cache",
       "lineHeight": 1.25,
-      "index": "b2x",
+      "index": "bAt",
       "autoResize": true
     },
     {
@@ -3926,11 +4017,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1051638034,
-      "version": 5,
-      "versionNonce": 990200763,
+      "version": 6,
+      "versionNonce": 576995041,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Business Systems\nERP / CRM / 内部服务",
@@ -3941,7 +4032,7 @@
       "containerId": null,
       "originalText": "Business Systems\nERP / CRM / 内部服务",
       "lineHeight": 1.25,
-      "index": "b2y",
+      "index": "bAu",
       "autoResize": true
     },
     {
@@ -3965,11 +4056,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1343988510,
-      "version": 5,
-      "versionNonce": 1437477237,
+      "version": 6,
+      "versionNonce": 1412193199,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Model APIs\nClaude / Gemini / Qwen / Kimi",
@@ -3980,7 +4071,7 @@
       "containerId": null,
       "originalText": "Model APIs\nClaude / Gemini / Qwen / Kimi",
       "lineHeight": 1.25,
-      "index": "b2z",
+      "index": "bAv",
       "autoResize": true
     },
     {
@@ -4004,11 +4095,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 709849286,
-      "version": 5,
-      "versionNonce": 1119556699,
+      "version": 6,
+      "versionNonce": 404470465,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Secrets\n当前：env + Docker secret file + redaction\nP1：SecretProvider / KMS",
@@ -4019,7 +4110,7 @@
       "containerId": null,
       "originalText": "Secrets\n当前：env + Docker secret file + redaction\nP1：SecretProvider / KMS",
       "lineHeight": 1.25,
-      "index": "b30",
+      "index": "bAw",
       "autoResize": true
     },
     {
@@ -4043,11 +4134,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 436364582,
-      "version": 5,
-      "versionNonce": 695415509,
+      "version": 6,
+      "versionNonce": 1419972047,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Object / File Storage\n证据、Trace、产物、索引",
@@ -4058,7 +4149,7 @@
       "containerId": null,
       "originalText": "Object / File Storage\n证据、Trace、产物、索引",
       "lineHeight": 1.25,
-      "index": "b31",
+      "index": "bAx",
       "autoResize": true
     },
     {
@@ -4082,11 +4173,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 166692828,
-      "version": 6,
-      "versionNonce": 1085133051,
+      "version": 7,
+      "versionNonce": 87603873,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "工程闭环：线上低分 Trace → Eval Case；Evals 带版本/实验标签写入观测平台（Logfire / Langfuse / Phoenix）；\nPrompt / 策略版本统一入 Registry，可回溯对比",
@@ -4097,7 +4188,7 @@
       "containerId": null,
       "originalText": "工程闭环：线上低分 Trace → Eval Case；Evals 带版本/实验标签写入观测平台（Logfire / Langfuse / Phoenix）；\nPrompt / 策略版本统一入 Registry，可回溯对比",
       "lineHeight": 1.25,
-      "index": "b32",
+      "index": "bAy",
       "autoResize": true
     },
     {
@@ -4121,11 +4212,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1530276293,
-      "version": 3,
-      "versionNonce": 1183846453,
+      "version": 4,
+      "versionNonce": 331250671,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Access Evals\npytest / internal EvalRunner",
@@ -4136,7 +4227,7 @@
       "containerId": null,
       "originalText": "Access Evals\npytest / internal EvalRunner",
       "lineHeight": 1.25,
-      "index": "b33",
+      "index": "bAz",
       "autoResize": true
     },
     {
@@ -4160,11 +4251,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 280164924,
-      "version": 4,
-      "versionNonce": 912259483,
+      "version": 5,
+      "versionNonce": 1785380481,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Runtime Evals\n图路径 / 死锁 / 恢复",
@@ -4175,7 +4266,7 @@
       "containerId": null,
       "originalText": "Runtime Evals\n图路径 / 死锁 / 恢复",
       "lineHeight": 1.25,
-      "index": "b34",
+      "index": "bB0",
       "autoResize": true
     },
     {
@@ -4199,11 +4290,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 134132450,
-      "version": 5,
-      "versionNonce": 1525301653,
+      "version": 6,
+      "versionNonce": 1434920463,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Engine Evals\n当前：internal EvalRunner",
@@ -4214,7 +4305,7 @@
       "containerId": null,
       "originalText": "Engine Evals\n当前：internal EvalRunner",
       "lineHeight": 1.25,
-      "index": "b35",
+      "index": "bB1",
       "autoResize": true
     },
     {
@@ -4238,11 +4329,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 375707361,
-      "version": 5,
-      "versionNonce": 1359220283,
+      "version": 6,
+      "versionNonce": 108086881,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "RAG / Tool Evals\n当前：Mock / Safety\n未来可选：Ragas",
@@ -4253,16 +4344,16 @@
       "containerId": null,
       "originalText": "RAG / Tool Evals\n当前：Mock / Safety\n未来可选：Ragas",
       "lineHeight": 1.25,
-      "index": "b36",
+      "index": "bB2",
       "autoResize": true
     },
     {
       "id": "l-evals-infra-text",
       "type": "text",
       "x": 68,
-      "y": 1335,
-      "width": 184,
-      "height": 30,
+      "y": 1342.5,
+      "width": 162.076171875,
+      "height": 15,
       "angle": 0,
       "strokeColor": "#1e3a8a",
       "backgroundColor": "transparent",
@@ -4277,22 +4368,22 @@
       "frameId": null,
       "roundness": null,
       "seed": 164614262,
-      "version": 5,
-      "versionNonce": 1001866997,
+      "version": 12,
+      "versionNonce": 880674991,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082751217,
       "link": null,
       "locked": false,
-      "text": "Phase 15 已实现\n双 CI / Release / License Gate",
+      "text": "双 CI / Release / License Gate",
       "fontSize": 12,
       "fontFamily": 2,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "Phase 15 已实现\n双 CI / Release / License Gate",
+      "originalText": "双 CI / Release / License Gate",
       "lineHeight": 1.25,
-      "index": "b37",
+      "index": "bB3",
       "autoResize": true
     },
     {
@@ -4316,11 +4407,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 593718397,
-      "version": 3,
-      "versionNonce": 1937542875,
+      "version": 4,
+      "versionNonce": 337367617,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Access Trace\n入口请求 / 会话 / 错误率",
@@ -4331,7 +4422,7 @@
       "containerId": null,
       "originalText": "Access Trace\n入口请求 / 会话 / 错误率",
       "lineHeight": 1.25,
-      "index": "b38",
+      "index": "bB4",
       "autoResize": true
     },
     {
@@ -4355,11 +4446,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1074886847,
-      "version": 4,
-      "versionNonce": 2071765077,
+      "version": 5,
+      "versionNonce": 703737423,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Runtime Spans\n当前：run / checkpoint / HITL\n未来：GraphState / 分支",
@@ -4370,7 +4461,7 @@
       "containerId": null,
       "originalText": "Runtime Spans\n当前：run / checkpoint / HITL\n未来：GraphState / 分支",
       "lineHeight": 1.25,
-      "index": "b39",
+      "index": "bB5",
       "autoResize": true
     },
     {
@@ -4394,11 +4485,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 807394876,
-      "version": 5,
-      "versionNonce": 6028155,
+      "version": 6,
+      "versionNonce": 1212801569,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Engine Metrics\nToken / Compact / 熔断",
@@ -4409,7 +4500,7 @@
       "containerId": null,
       "originalText": "Engine Metrics\nToken / Compact / 熔断",
       "lineHeight": 1.25,
-      "index": "b3A",
+      "index": "bB6",
       "autoResize": true
     },
     {
@@ -4433,11 +4524,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1299697622,
-      "version": 5,
-      "versionNonce": 1074777525,
+      "version": 6,
+      "versionNonce": 592809071,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Tool I/O Audit\n脱敏 / 越权 / 失败回放",
@@ -4448,7 +4539,7 @@
       "containerId": null,
       "originalText": "Tool I/O Audit\n脱敏 / 越权 / 失败回放",
       "lineHeight": 1.25,
-      "index": "b3B",
+      "index": "bB7",
       "autoResize": true
     },
     {
@@ -4472,11 +4563,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 267521149,
-      "version": 5,
-      "versionNonce": 1675940891,
+      "version": 6,
+      "versionNonce": 267056641,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Infra Trace\nDB / Queue / Model API",
@@ -4487,7 +4578,7 @@
       "containerId": null,
       "originalText": "Infra Trace\nDB / Queue / Model API",
       "lineHeight": 1.25,
-      "index": "b3C",
+      "index": "bB8",
       "autoResize": true
     },
     {
@@ -4511,11 +4602,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1918644055,
-      "version": 6,
-      "versionNonce": 1486245653,
+      "version": 7,
+      "versionNonce": 1894262415,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Hybrid Retrieval — P0 必备：FTS/BM25；可选 adapter：pgvector / PGroonga(CJK)；未来：OpenSearch / Elasticsearch / Vespa\n调用形态：作为 @agent.tool 暴露、模型自主调用 · ⚠ 检索内容一律按不可信输入处理",
@@ -4526,7 +4617,7 @@
       "containerId": null,
       "originalText": "Hybrid Retrieval — P0 必备：FTS/BM25；可选 adapter：pgvector / PGroonga(CJK)；未来：OpenSearch / Elasticsearch / Vespa\n调用形态：作为 @agent.tool 暴露、模型自主调用 · ⚠ 检索内容一律按不可信输入处理",
       "lineHeight": 1.25,
-      "index": "b3D",
+      "index": "bB9",
       "autoResize": true
     },
     {
@@ -4552,16 +4643,16 @@
         "type": 3
       },
       "seed": 77599203,
-      "version": 4,
-      "versionNonce": 1577687227,
+      "version": 5,
+      "versionNonce": 234786273,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "createdAt": "2026-07-05T02:36:19.000Z",
       "updatedAt": "2026-07-05T02:36:19.000Z",
-      "index": "b3E"
+      "index": "bBA"
     },
     {
       "id": "runtime-state-lock-text",
@@ -4584,11 +4675,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1690261368,
-      "version": 4,
-      "versionNonce": 327525493,
+      "version": 5,
+      "versionNonce": 1096973487,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "状态并发控制\n会话串行化 / 版本号 / 幂等键",
@@ -4601,7 +4692,7 @@
       "lineHeight": 1.25,
       "createdAt": "2026-07-05T02:36:19.000Z",
       "updatedAt": "2026-07-05T02:36:19.000Z",
-      "index": "b3F",
+      "index": "bBB",
       "autoResize": true
     },
     {
@@ -4627,16 +4718,16 @@
         "type": 3
       },
       "seed": 1592409648,
-      "version": 6,
-      "versionNonce": 208456027,
+      "version": 7,
+      "versionNonce": 1502882241,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "createdAt": "2026-07-05T02:36:19.000Z",
       "updatedAt": "2026-07-05T02:36:19.000Z",
-      "index": "b3G"
+      "index": "bBC"
     },
     {
       "id": "engine-async-compact-text",
@@ -4659,11 +4750,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1475196481,
-      "version": 6,
-      "versionNonce": 1419988437,
+      "version": 7,
+      "versionNonce": 1483542223,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "未来复杂 memory 策略\n长期记忆 / 异步后台压缩",
@@ -4676,7 +4767,7 @@
       "lineHeight": 1.25,
       "createdAt": "2026-07-05T02:36:19.000Z",
       "updatedAt": "2026-07-05T02:36:19.000Z",
-      "index": "b3H",
+      "index": "bBD",
       "autoResize": true
     },
     {
@@ -4702,16 +4793,16 @@
         "type": 3
       },
       "seed": 856994326,
-      "version": 6,
-      "versionNonce": 878765563,
+      "version": 7,
+      "versionNonce": 2076920225,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "createdAt": "2026-07-05T02:36:19.000Z",
       "updatedAt": "2026-07-05T02:36:19.000Z",
-      "index": "b3I"
+      "index": "bBE"
     },
     {
       "id": "tools-immutable-audit-text",
@@ -4734,11 +4825,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 714455796,
-      "version": 6,
-      "versionNonce": 1795476277,
+      "version": 7,
+      "versionNonce": 1889557743,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "未来增强：防篡改审计\n不可变日志 / 哈希链",
@@ -4751,7 +4842,7 @@
       "lineHeight": 1.25,
       "createdAt": "2026-07-05T02:36:19.000Z",
       "updatedAt": "2026-07-05T02:36:19.000Z",
-      "index": "b3J",
+      "index": "bBF",
       "autoResize": true
     },
     {
@@ -4777,14 +4868,14 @@
         "type": 3
       },
       "seed": 1932891813,
-      "version": 5,
-      "versionNonce": 1290301083,
+      "version": 6,
+      "versionNonce": 768830849,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b3K"
+      "index": "bBG"
     },
     {
       "id": "deploy-boundary-text",
@@ -4807,11 +4898,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 715033776,
-      "version": 5,
-      "versionNonce": 655334549,
+      "version": 6,
+      "versionNonce": 1568990991,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "P0 部署边界 / 未来微服务拆分基础",
@@ -4822,7 +4913,7 @@
       "containerId": null,
       "originalText": "P0 部署边界 / 未来微服务拆分基础",
       "lineHeight": 1.25,
-      "index": "b3L",
+      "index": "bBH",
       "autoResize": true
     },
     {
@@ -4848,14 +4939,14 @@
         "type": 3
       },
       "seed": 603827360,
-      "version": 5,
-      "versionNonce": 1219879739,
+      "version": 6,
+      "versionNonce": 1458312545,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b3M"
+      "index": "bBI"
     },
     {
       "id": "deploy-service",
@@ -4880,14 +4971,14 @@
         "type": 3
       },
       "seed": 678122532,
-      "version": 5,
-      "versionNonce": 813253109,
+      "version": 6,
+      "versionNonce": 1838361903,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b3N"
+      "index": "bBJ"
     },
     {
       "id": "deploy-contracts",
@@ -4912,14 +5003,14 @@
         "type": 3
       },
       "seed": 159465853,
-      "version": 5,
-      "versionNonce": 539739099,
+      "version": 6,
+      "versionNonce": 1248117057,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b3O"
+      "index": "bBK"
     },
     {
       "id": "deploy-future",
@@ -4944,14 +5035,14 @@
         "type": 3
       },
       "seed": 1976463544,
-      "version": 5,
-      "versionNonce": 474430293,
+      "version": 6,
+      "versionNonce": 204713807,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b3P"
+      "index": "bBL"
     },
     {
       "id": "deploy-local-text",
@@ -4974,11 +5065,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1972686635,
-      "version": 5,
-      "versionNonce": 459051131,
+      "version": 6,
+      "versionNonce": 1167913249,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "local profile\n单进程开发运行",
@@ -4989,7 +5080,7 @@
       "containerId": null,
       "originalText": "local profile\n单进程开发运行",
       "lineHeight": 1.25,
-      "index": "b3Q",
+      "index": "bBM",
       "autoResize": true
     },
     {
@@ -5013,11 +5104,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1612513657,
-      "version": 5,
-      "versionNonce": 1120864437,
+      "version": 6,
+      "versionNonce": 599715183,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "service profile（已实现）\nAPI + Runtime Worker\n物理分进程",
@@ -5028,7 +5119,7 @@
       "containerId": null,
       "originalText": "service profile（已实现）\nAPI + Runtime Worker\n物理分进程",
       "lineHeight": 1.25,
-      "index": "b3R",
+      "index": "bBN",
       "autoResize": true
     },
     {
@@ -5052,11 +5143,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1156570022,
-      "version": 5,
-      "versionNonce": 1544210715,
+      "version": 6,
+      "versionNonce": 772023553,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "跨边界契约\nPydantic DTO / CanonicalEvent\nRepository / Provider / Facade",
@@ -5067,7 +5158,7 @@
       "containerId": null,
       "originalText": "跨边界契约\nPydantic DTO / CanonicalEvent\nRepository / Provider / Facade",
       "lineHeight": 1.25,
-      "index": "b3S",
+      "index": "bBO",
       "autoResize": true
     },
     {
@@ -5091,11 +5182,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1835245659,
-      "version": 5,
-      "versionNonce": 1438001685,
+      "version": 6,
+      "versionNonce": 1065183119,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "未来可拆服务\nModel / Tool Gateway\nStorage / Event Pipeline",
@@ -5106,7 +5197,7 @@
       "containerId": null,
       "originalText": "未来可拆服务\nModel / Tool Gateway\nStorage / Event Pipeline",
       "lineHeight": 1.25,
-      "index": "b3T",
+      "index": "bBP",
       "autoResize": true
     },
     {
@@ -5132,14 +5223,14 @@
         "type": 3
       },
       "seed": 809248371,
-      "version": 4,
-      "versionNonce": 665382331,
+      "version": 5,
+      "versionNonce": 253353185,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b3U"
+      "index": "bBQ"
     },
     {
       "id": "legend-loop-text",
@@ -5162,11 +5253,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1707935171,
-      "version": 4,
-      "versionNonce": 905060213,
+      "version": 5,
+      "versionNonce": 1839701423,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "回边：Agent Loop / HITL / 流式",
@@ -5177,7 +5268,7 @@
       "containerId": null,
       "originalText": "回边：Agent Loop / HITL / 流式",
       "lineHeight": 1.25,
-      "index": "b3V",
+      "index": "bBR",
       "autoResize": true
     },
     {
@@ -5203,14 +5294,14 @@
         "type": 3
       },
       "seed": 1568825509,
-      "version": 3,
-      "versionNonce": 1901690459,
+      "version": 4,
+      "versionNonce": 1483577537,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
-      "index": "b3W"
+      "index": "bBS"
     },
     {
       "id": "access-guard-text",
@@ -5233,11 +5324,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1267017465,
-      "version": 3,
-      "versionNonce": 164128981,
+      "version": 4,
+      "versionNonce": 1634078671,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Input Guardrails\n输入过滤 / 注入检测",
@@ -5248,7 +5339,7 @@
       "containerId": null,
       "originalText": "Input Guardrails\n输入过滤 / 注入检测",
       "lineHeight": 1.25,
-      "index": "b3X",
+      "index": "bBT",
       "autoResize": true
     },
     {
@@ -5270,11 +5361,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 151318211,
-      "version": 102,
-      "versionNonce": 1090922965,
+      "version": 103,
+      "versionNonce": 1537136801,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330675352,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "Agent Loop：模型决策 ⇄ 工具执行 / 结果回填（循环至完成或熔断）",
@@ -5285,7 +5376,7 @@
       "containerId": null,
       "originalText": "Agent Loop：模型决策 ⇄ 工具执行 / 结果回填（循环至完成或熔断）",
       "lineHeight": 1.25,
-      "index": "b3Y",
+      "index": "bBU",
       "autoResize": true
     },
     {
@@ -5307,11 +5398,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1838554530,
-      "version": 99,
-      "versionNonce": 1629932245,
+      "version": 100,
+      "versionNonce": 1422999023,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330662848,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "目标工作流：Graph 节点调用 Agent",
@@ -5322,16 +5413,16 @@
       "containerId": null,
       "originalText": "目标工作流：Graph 节点调用 Agent",
       "lineHeight": 1.25,
-      "index": "b3Z",
+      "index": "bBV",
       "autoResize": true
     },
     {
       "id": "e-engine-access-stream",
       "type": "arrow",
-      "x": 1005,
-      "y": 640,
-      "width": 55,
-      "height": 293,
+      "x": 1004.99752590629,
+      "y": 673.75,
+      "width": 54.509247550249256,
+      "height": 320.5,
       "angle": 0,
       "strokeColor": "#2563eb",
       "backgroundColor": "transparent",
@@ -5346,11 +5437,11 @@
         "type": 2
       },
       "seed": 857197157,
-      "version": 6,
-      "versionNonce": 736879515,
+      "version": 237,
+      "versionNonce": 173874305,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "points": [
@@ -5358,25 +5449,41 @@
           0,
           0
         ],
-        [0, -125],
-        [55, -125],
-        [55, -293]
+        [
+          -0.00487839074742169,
+          -132.4795730335809
+        ],
+        [
+          53.03200825911688,
+          -177.3223757394835
+        ],
+        [
+          54.504369159501834,
+          -320.5
+        ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "layer-engine",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.6614583333333334,
+          0.3385416666666667
+        ]
       },
       "endBinding": {
         "elementId": "layer-access",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.71875,
+          0.71875
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false,
-      "index": "b3a"
+      "index": "bBW",
+      "moveMidPointsWithElement": false
     },
     {
       "type": "rectangle",
@@ -5392,12 +5499,12 @@
       },
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330654964,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "id": "stream-label-bg",
-      "x": 351.300475137014,
-      "y": 352.3288457264542,
+      "x": 1075.784883634933,
+      "y": 364.1516407340113,
       "width": 280,
       "height": 28,
       "strokeColor": "#2f5597",
@@ -5406,15 +5513,15 @@
         "group-stream-return-label"
       ],
       "seed": 1768236481,
-      "version": 42,
-      "versionNonce": 1920203835,
-      "index": "b3b"
+      "version": 188,
+      "versionNonce": 720480271,
+      "index": "bBX"
     },
     {
       "id": "stream-label",
       "type": "text",
-      "x": 362.300475137014,
-      "y": 359.3288457264542,
+      "x": 1086.784883634933,
+      "y": 371.1516407340113,
       "width": 268,
       "height": 13.75,
       "angle": 0,
@@ -5431,11 +5538,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 976991002,
-      "version": 43,
-      "versionNonce": 2092874971,
+      "version": 189,
+      "versionNonce": 1952965729,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330654964,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "■ HTTP SSE / CLI NDJSON 已实现；WS 为 P1 可选",
@@ -5446,63 +5553,8 @@
       "containerId": null,
       "originalText": "■ HTTP SSE / CLI NDJSON 已实现；WS 为 P1 可选",
       "lineHeight": 1.25,
-      "index": "b3c",
+      "index": "bBY",
       "autoResize": true
-    },
-    {
-      "id": "e-hitl-access",
-      "type": "arrow",
-      "x": 535,
-      "y": 571,
-      "width": 460,
-      "height": 233,
-      "angle": 0,
-      "strokeColor": "#ea580c",
-      "backgroundColor": "transparent",
-      "fillStyle": "hachure",
-      "strokeWidth": 2,
-      "strokeStyle": "solid",
-      "roughness": 0.25,
-      "opacity": 100,
-      "groupIds": [],
-      "frameId": null,
-      "roundness": {
-        "type": 2
-      },
-      "seed": 1866725277,
-      "version": 6,
-      "versionNonce": 391134453,
-      "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617222,
-      "link": null,
-      "locked": false,
-      "points": [
-        [
-          0,
-          0
-        ],
-        [0, 9],
-        [460, 9],
-        [460, -56],
-        [300, -56],
-        [300, -224]
-      ],
-      "lastCommittedPoint": null,
-      "startBinding": {
-        "elementId": "runtime-hitl",
-        "focus": 0,
-        "gap": 1
-      },
-      "endBinding": {
-        "elementId": "layer-access",
-        "focus": 0,
-        "gap": 1
-      },
-      "startArrowhead": "arrow",
-      "endArrowhead": "arrow",
-      "elbowed": false,
-      "index": "b3d"
     },
     {
       "type": "rectangle",
@@ -5518,12 +5570,12 @@
       },
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330658994,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "id": "hitl-label-bg",
-      "x": 585.0364124032404,
-      "y": 354.3431575766995,
+      "x": 421.3554034117989,
+      "y": 363.4234758816331,
       "width": 160,
       "height": 28,
       "strokeColor": "#ea580c",
@@ -5532,15 +5584,15 @@
         "group-hitl-return-label"
       ],
       "seed": 43490890,
-      "version": 199,
-      "versionNonce": 1783595099,
-      "index": "b3e"
+      "version": 434,
+      "versionNonce": 1371524655,
+      "index": "bBZ"
     },
     {
       "id": "hitl-label",
       "type": "text",
-      "x": 596.0364124032404,
-      "y": 361.3431575766995,
+      "x": 432.3554034117989,
+      "y": 370.4234758816331,
       "width": 138,
       "height": 13.75,
       "angle": 0,
@@ -5557,11 +5609,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 21385947,
-      "version": 200,
-      "versionNonce": 1389673723,
+      "version": 435,
+      "versionNonce": 93237313,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330658994,
+      "updated": 1786082737326,
       "link": null,
       "locked": false,
       "text": "■ HITL 审批回路",
@@ -5572,8 +5624,85 @@
       "containerId": null,
       "originalText": "■ HITL 审批回路",
       "lineHeight": 1.25,
-      "index": "b3f",
+      "index": "bBa",
       "autoResize": true
+    },
+    {
+      "id": "e-hitl-access",
+      "type": "arrow",
+      "x": 533.2739428872713,
+      "y": 576.75,
+      "width": 179.74880186073756,
+      "height": 265.6078803575497,
+      "angle": 0,
+      "strokeColor": "#ea580c",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0.25,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1866725277,
+      "version": 3715,
+      "versionNonce": 1680093263,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1786082737326,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -2.111939774052985,
+          35.81415366198428
+        ],
+        [
+          -134.12663580234687,
+          42.107880357549675
+        ],
+        [
+          -179.74880186073756,
+          -8.6577097328543
+        ],
+        [
+          -175.57517641064794,
+          -131.89270172393992
+        ],
+        [
+          -128.7552562566554,
+          -223.5
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": {
+        "elementId": "runtime-hitl",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
+      },
+      "endBinding": {
+        "elementId": "layer-access",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.04269386234549769,
+          0.957306137654502
+        ]
+      },
+      "startArrowhead": "arrow",
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "index": "bBb",
+      "moveMidPointsWithElement": false
     }
   ],
   "appState": {

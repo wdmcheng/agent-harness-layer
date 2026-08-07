@@ -2,14 +2,48 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Agent Harness Layer is a Python core package and copyable backend service template for building governed agent applications. It supplies the parts that demo-style agent projects usually leave until too late: typed configuration, identity and policy, durable runs and approvals, constrained tools, retrieval, observability, evaluation, packaging, and release gates.
+> **Enterprise Agent Runtime & Governance Control Plane**
+>
+> Five-layer runtime architecture · Eval feedback loop · HITL tool approvals · Budget-aware model routing · Durable recovery
+
+[![CI](https://github.com/wdmcheng/agent-harness-layer/actions/workflows/ci.yml/badge.svg)](https://github.com/wdmcheng/agent-harness-layer/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
+![Pydantic AI](https://img.shields.io/badge/Pydantic_AI-2.5%2B-E92063?logo=pydantic&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.139-009688?logo=fastapi&logoColor=white)
+![Status](https://img.shields.io/badge/status-v0.1--alpha-7C3AED)
+![License](https://img.shields.io/badge/license-Apache--2.0-2563EB)
+
+Agent Harness Layer turns model SDK calls into **governed, recoverable, and evidence-producing workflows**. It is a Python core package and copyable backend service template for teams that need more than a thin AI wrapper: typed authority boundaries, durable execution, human approval, cost-aware routing, constrained tools, retrieval, observability, evaluation, and release gates.
+
+Pydantic AI is integrated behind a provider-neutral adapter boundary rather than allowed to leak through business contracts. The engineering focus is the control plane around the model: what may run, how much it may spend, which side effects require approval, what can be recovered safely, and which evidence is strong enough to promote a behavior change.
+
+**Human-led architecture · AI-assisted engineering · Evidence-driven verification**
+
+![Five-layer Pydantic AI agent control-plane architecture](docs/architecture/pydantic-ai-agent-architecture.png)
+
+The diagram distinguishes implemented runtime paths from reserved extension seams. Graph Nodes/GraphState, REPL/hooks, an independent gateway, and stronger process-level sandboxing are future boundaries—not current feature claims.
+
+## Engineering highlights
+
+| Engineering problem | Implemented answer |
+|---|---|
+| **Reliable execution** | Durable run, checkpoint, resume, idempotency, queue, event, and recovery contracts across local SQLite and service PostgreSQL/Redis profiles. |
+| **Model and cost governance** | Typed deployment/Agent/request authority intersection; immutable route, price, and budget evidence; shared parent-tree budgets; bounded retry, bulkhead isolation, streaming fences, and controlled cross-provider failover. |
+| **HITL tool approval** | Policy-gated tools enter a durable waiting state before the handler runs. Approval binds the exact tool, arguments, catalog, identity, and continuation snapshot; CLI/API approve or deny resumes the original run without replaying the pre-approval model turn. |
+| **Eval feedback loop** | Failed or low-score traces create drafts only; human review promotes cases into approved datasets; approved-only runs persist scores; versioned experiments compare optimization, holdout, and regression evidence before an immutable human acceptance decision. |
+| **Safe tool platform** | A single typed `ToolRegistry` applies schema validation, Agent allowlists, policy/HITL checks, execution claims, output guards, artifact offloading, and the same boundaries to file, Shell, and MCP tools. |
+| **Evidence-first observability** | Canonical events, usage, audit, and eval evidence commit locally before optional OTel/provider fan-out; external telemetry degradation cannot erase local truth. |
+
+See the [Eval and observability loop](docs/eval-observability-loop.md), [security policy](docs/security-policy.md), and [architecture boundaries](docs/architecture/README.md) for the public contracts and explicit limitations behind these claims.
 
 This repository is for two audiences:
 
 - **Agent application developers** copy and extend [`templates/service-app`](templates/service-app/README.md).
 - **Scaffold maintainers** evolve the reusable `agent_harness` package, template, adapters, contracts, and verification pipeline.
 
-The local profile runs with SQLite, an in-memory queue, local JSONL evidence, and a fake model. It does not require a real model key or an observability SaaS account. The service profile uses PostgreSQL, Redis, a migration process, FastAPI, and a separate runtime worker.
+The committed profiles are safe defaults, not hard-coded limits. `local` defaults to SQLite, an in-memory queue, local JSONL evidence, and `fake_default`; `service` selects PostgreSQL, Redis Streams, authentication, FastAPI, and a separate runtime worker while retaining `fake_default` for deterministic offline verification. Storage, queue, model, and observability providers are selected through typed configuration and adapter seams.
+
+An application that calls a real model must explicitly configure a branded `AGENT_HARNESS_MODEL__...` deployment, endpoint policy, versioned model catalog, and credential reference. Ambient provider keys never opt the runtime into a real call. Start with the [controlled model runtime overview](#controlled-non-streaming-model-runtime), then follow the template's [real-model configuration and verification procedure](templates/service-app/README.md#controlled-real-text-deployment). External observability providers are optional fan-out from local evidence; their adapter boundary is documented in [adapter contracts](docs/adapter-contracts.md#event-and-observability).
 
 ## What it does
 
@@ -174,7 +208,7 @@ make smoke-local
 make eval
 ```
 
-These commands use the local/fake path and do not require a real model API key. `make smoke-local` creates isolated state, injects an ephemeral budget fingerprint key, migrates its own database, and exercises the packaged CLI.
+These commands deliberately exercise the committed offline verification defaults; they do not prove that a real provider deployment is configured. `make smoke-local` creates isolated state, injects an ephemeral budget fingerprint key, migrates its own database, and exercises the packaged CLI. For a real model call, continue with the [explicit deployment procedure](templates/service-app/README.md#controlled-real-text-deployment).
 
 ### 3. Start the actual service template
 

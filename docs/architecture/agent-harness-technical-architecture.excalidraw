@@ -22,11 +22,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1017,
-      "version": 1,
-      "versionNonce": 9031,
+      "version": 3,
+      "versionNonce": 1574751641,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "技术架构图（Agent Harness Layer）",
@@ -38,7 +38,9 @@
       "containerId": null,
       "originalText": "技术架构图（Agent Harness Layer）",
       "lineHeight": 1.25,
-      "baseline": 28
+      "baseline": 28,
+      "index": "b54",
+      "autoResize": true
     },
     {
       "id": "ex-legend-current",
@@ -61,13 +63,14 @@
         "type": 3
       },
       "seed": 1034,
-      "version": 1,
-      "versionNonce": 9062,
+      "version": 3,
+      "versionNonce": 357774455,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b55"
     },
     {
       "id": "ex-legend-current-label",
@@ -88,11 +91,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1051,
-      "version": 2,
-      "versionNonce": 9093,
+      "version": 4,
+      "versionNonce": 67220089,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "当前已实现",
@@ -104,7 +107,9 @@
       "containerId": null,
       "originalText": "当前已实现",
       "lineHeight": 1.25,
-      "baseline": 14
+      "baseline": 14,
+      "index": "b56",
+      "autoResize": true
     },
     {
       "id": "ex-legend-future",
@@ -127,13 +132,14 @@
         "type": 3
       },
       "seed": 1068,
-      "version": 1,
-      "versionNonce": 9124,
+      "version": 3,
+      "versionNonce": 2080607639,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b57"
     },
     {
       "id": "ex-legend-future-label",
@@ -154,11 +160,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1085,
-      "version": 2,
-      "versionNonce": 9155,
+      "version": 4,
+      "versionNonce": 1643576153,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "保留路径",
@@ -170,7 +176,9 @@
       "containerId": null,
       "originalText": "保留路径",
       "lineHeight": 1.25,
-      "baseline": 14
+      "baseline": 14,
+      "index": "b58",
+      "autoResize": true
     },
     {
       "id": "ex-legend-split",
@@ -193,13 +201,14 @@
         "type": 3
       },
       "seed": 1102,
-      "version": 1,
-      "versionNonce": 9186,
-      "isDeleted": false,
+      "version": 4,
+      "versionNonce": 1414746359,
+      "isDeleted": true,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079894385,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b59"
     },
     {
       "id": "ex-legend-split-label",
@@ -220,11 +229,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1119,
-      "version": 1,
-      "versionNonce": 9217,
-      "isDeleted": false,
+      "version": 4,
+      "versionNonce": 1241488889,
+      "isDeleted": true,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079894385,
       "link": null,
       "locked": false,
       "text": "未来拆分 / P1+",
@@ -236,13 +245,15 @@
       "containerId": null,
       "originalText": "未来拆分 / P1+",
       "lineHeight": 1.25,
-      "baseline": 14
+      "baseline": 14,
+      "index": "b5A",
+      "autoResize": true
     },
     {
       "id": "ex-legend-trust",
       "type": "rectangle",
       "x": 42,
-      "y": 134,
+      "y": 105,
       "width": 190,
       "height": 26,
       "angle": 0,
@@ -259,19 +270,20 @@
         "type": 3
       },
       "seed": 1136,
-      "version": 1,
-      "versionNonce": 9248,
+      "version": 32,
+      "versionNonce": 1479856473,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079903314,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5B"
     },
     {
       "id": "ex-legend-trust-label",
       "type": "text",
       "x": 48,
-      "y": 138,
+      "y": 109,
       "width": 178,
       "height": 18,
       "angle": 0,
@@ -286,11 +298,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1153,
-      "version": 1,
-      "versionNonce": 9279,
+      "version": 32,
+      "versionNonce": 255741111,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079903314,
       "link": null,
       "locked": false,
       "text": "信任边界 / 不可信输入",
@@ -302,7 +314,9 @@
       "containerId": null,
       "originalText": "信任边界 / 不可信输入",
       "lineHeight": 1.25,
-      "baseline": 14
+      "baseline": 14,
+      "index": "b5C",
+      "autoResize": true
     },
     {
       "id": "ex-core",
@@ -325,13 +339,19 @@
         "type": 3
       },
       "seed": 1170,
-      "version": 1,
-      "versionNonce": 9310,
+      "version": 9,
+      "versionNonce": 1976148055,
       "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617222,
+      "boundElements": [
+        {
+          "id": "ex-e-identity-runtime",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1786080010927,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5D"
     },
     {
       "id": "ex-core-label",
@@ -352,11 +372,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1187,
-      "version": 1,
-      "versionNonce": 9341,
+      "version": 3,
+      "versionNonce": 1271672313,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "核心包 packages/agent-harness：稳定契约与运行时边界",
@@ -368,7 +388,9 @@
       "containerId": null,
       "originalText": "核心包 packages/agent-harness：稳定契约与运行时边界",
       "lineHeight": 1.25,
-      "baseline": 20
+      "baseline": 20,
+      "index": "b5E",
+      "autoResize": true
     },
     {
       "id": "ex-template",
@@ -376,7 +398,7 @@
       "x": 1260,
       "y": 150,
       "width": 520,
-      "height": 1140,
+      "height": 1036.4681464587175,
       "angle": 0,
       "strokeColor": "#6c8ebf",
       "backgroundColor": "#e6f2ff",
@@ -391,13 +413,14 @@
         "type": 3
       },
       "seed": 1204,
-      "version": 1,
-      "versionNonce": 9372,
+      "version": 38,
+      "versionNonce": 2054947129,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786080169362,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5F"
     },
     {
       "id": "ex-template-label",
@@ -418,11 +441,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1221,
-      "version": 1,
-      "versionNonce": 9403,
+      "version": 3,
+      "versionNonce": 1374029529,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "模板应用 template service-app：薄 API / worker / profile 装配层",
@@ -434,7 +457,9 @@
       "containerId": null,
       "originalText": "模板应用 template service-app：薄 API / worker / profile 装配层",
       "lineHeight": 1.25,
-      "baseline": 20
+      "baseline": 20,
+      "index": "b5G",
+      "autoResize": true
     },
     {
       "id": "ex-contract-note",
@@ -457,13 +482,14 @@
         "type": 3
       },
       "seed": 1238,
-      "version": 1,
-      "versionNonce": 9434,
+      "version": 3,
+      "versionNonce": 746925879,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5H"
     },
     {
       "id": "ex-contract-note-label",
@@ -484,11 +510,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1255,
-      "version": 2,
-      "versionNonce": 9465,
+      "version": 4,
+      "versionNonce": 756138937,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来物理拆分，红虚线=信任边界。",
@@ -500,7 +526,9 @@
       "containerId": null,
       "originalText": "边界契约：Pydantic DTO / CanonicalEvent / Repository interface / Provider interface / Facade；禁止跨边界传 ORM session、SDK 原始对象、进程内可变全局。\n箭头语义：黑=控制流，绿=Repository/UoW 数据，橙=CanonicalEvent/payload_ref，紫虚线=未来物理拆分，红虚线=信任边界。",
       "lineHeight": 1.25,
-      "baseline": 15
+      "baseline": 15,
+      "index": "b5I",
+      "autoResize": true
     },
     {
       "id": "ex-status-note",
@@ -523,13 +551,14 @@
         "type": 3
       },
       "seed": 1272,
-      "version": 1,
-      "versionNonce": 9496,
-      "isDeleted": false,
+      "version": 4,
+      "versionNonce": 760004857,
+      "isDeleted": true,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079882413,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5J"
     },
     {
       "id": "ex-status-note-label",
@@ -550,11 +579,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1289,
-      "version": 2,
-      "versionNonce": 9527,
-      "isDeleted": false,
+      "version": 5,
+      "versionNonce": 71938263,
+      "isDeleted": true,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079880693,
       "link": null,
       "locked": false,
       "text": "Phase 1-15 已实现：基础 runtime、精确 OpenAPI、Docker secret、tenant cache、canonical trace/event schema 与 local state upgrader；0014 提供 model/embedding usage evidence、durable settlement、evidence outbox 与 event capacity reservation；0015 提供受控 DelegationService 与 durable aggregation；0016 提供 shared parent execution-tree budget；HTTP SSE 与 CLI NDJSON 共用 canonical bytes reader、可见 cursor、受限分页和 terminal EOF。Phase 14 已补齐维护文档/ADR，Phase 15 已建立双 CI、release automation 与 license/compliance gate。当前未来边界仅包括 WS、独立 tool/model gateway、event pipeline、storage service、RLS 与多 executor 协调；紫色虚线=P1+ 拆分。",
@@ -566,7 +595,9 @@
       "containerId": null,
       "originalText": "Phase 1-15 已实现：基础 runtime、精确 OpenAPI、Docker secret、tenant cache、canonical trace/event schema 与 local state upgrader；0014 提供 model/embedding usage evidence、durable settlement、evidence outbox 与 event capacity reservation；0015 提供受控 DelegationService 与 durable aggregation；0016 提供 shared parent execution-tree budget；HTTP SSE 与 CLI NDJSON 共用 canonical bytes reader、可见 cursor、受限分页和 terminal EOF。Phase 14 已补齐维护文档/ADR，Phase 15 已建立双 CI、release automation 与 license/compliance gate。当前未来边界仅包括 WS、独立 tool/model gateway、event pipeline、storage service、RLS 与多 executor 协调；紫色虚线=P1+ 拆分。",
       "lineHeight": 1.25,
-      "baseline": 15
+      "baseline": 15,
+      "index": "b5K",
+      "autoResize": true
     },
     {
       "id": "ex-dto",
@@ -589,8 +620,8 @@
         "type": 3
       },
       "seed": 1306,
-      "version": 1,
-      "versionNonce": 9558,
+      "version": 3,
+      "versionNonce": 118361463,
       "isDeleted": false,
       "boundElements": [
         {
@@ -598,9 +629,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5L"
     },
     {
       "id": "ex-dto-label",
@@ -621,11 +653,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1323,
-      "version": 1,
-      "versionNonce": 9589,
+      "version": 3,
+      "versionNonce": 1119676793,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "稳定载荷契约（DTO）\nHarnessDTO / ApiErrorEnvelope\ntrust/source refs",
@@ -637,7 +669,9 @@
       "containerId": null,
       "originalText": "稳定载荷契约（DTO）\nHarnessDTO / ApiErrorEnvelope\ntrust/source refs",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5M",
+      "autoResize": true
     },
     {
       "id": "ex-config",
@@ -660,8 +694,8 @@
         "type": 3
       },
       "seed": 1340,
-      "version": 1,
-      "versionNonce": 9620,
+      "version": 15,
+      "versionNonce": 1464670393,
       "isDeleted": false,
       "boundElements": [
         {
@@ -669,9 +703,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786080023463,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5N"
     },
     {
       "id": "ex-config-label",
@@ -692,11 +727,16 @@
       "frameId": null,
       "roundness": null,
       "seed": 1357,
-      "version": 1,
-      "versionNonce": 9651,
+      "version": 11,
+      "versionNonce": 1610402329,
       "isDeleted": false,
-      "boundElements": [],
-      "updated": 1783330617222,
+      "boundElements": [
+        {
+          "id": "ex-e-config-runtime",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1786079995018,
       "link": null,
       "locked": false,
       "text": "配置边界\nHarnessSettings\nlocal/service profile\n类型化 schema\n后续热更新 seam",
@@ -708,7 +748,9 @@
       "containerId": null,
       "originalText": "配置边界\nHarnessSettings\nlocal/service profile\n类型化 schema\n后续热更新 seam",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5O",
+      "autoResize": true
     },
     {
       "id": "ex-identity",
@@ -731,8 +773,8 @@
         "type": 3
       },
       "seed": 1374,
-      "version": 1,
-      "versionNonce": 9682,
+      "version": 3,
+      "versionNonce": 992238519,
       "isDeleted": false,
       "boundElements": [
         {
@@ -740,9 +782,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5P"
     },
     {
       "id": "ex-identity-label",
@@ -763,11 +806,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1391,
-      "version": 1,
-      "versionNonce": 9713,
+      "version": 3,
+      "versionNonce": 1017749305,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "身份与权限上下文\nIdentityContext\nPermissionContext\n默认租户/用户",
@@ -779,7 +822,9 @@
       "containerId": null,
       "originalText": "身份与权限上下文\nIdentityContext\nPermissionContext\n默认租户/用户",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5Q",
+      "autoResize": true
     },
     {
       "id": "ex-runtime",
@@ -802,16 +847,12 @@
         "type": 3
       },
       "seed": 1408,
-      "version": 1,
-      "versionNonce": 9744,
+      "version": 7,
+      "versionNonce": 1607796729,
       "isDeleted": false,
       "boundElements": [
         {
           "id": "ex-e-config-runtime",
-          "type": "arrow"
-        },
-        {
-          "id": "ex-e-identity-runtime",
           "type": "arrow"
         },
         {
@@ -841,11 +882,16 @@
         {
           "id": "ex-e-policy-runtime",
           "type": "arrow"
+        },
+        {
+          "id": "ex-e-identity-runtime",
+          "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786080015301,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5R"
     },
     {
       "id": "ex-runtime-label",
@@ -866,11 +912,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1425,
-      "version": 1,
-      "versionNonce": 9775,
+      "version": 5,
+      "versionNonce": 786450135,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786080008583,
       "link": null,
       "locked": false,
       "text": "运行编排核心\nRunOrchestrator / DelegationService\nRunResult / RunStatus\n幂等与 shared parent budget",
@@ -882,7 +928,9 @@
       "containerId": null,
       "originalText": "运行编排核心\nRunOrchestrator / DelegationService\nRunResult / RunStatus\n幂等与 shared parent budget",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5S",
+      "autoResize": true
     },
     {
       "id": "ex-checkpoint",
@@ -905,8 +953,8 @@
         "type": 3
       },
       "seed": 1442,
-      "version": 1,
-      "versionNonce": 9806,
+      "version": 3,
+      "versionNonce": 2016156151,
       "isDeleted": false,
       "boundElements": [
         {
@@ -914,9 +962,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5T"
     },
     {
       "id": "ex-checkpoint-label",
@@ -937,11 +986,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1459,
-      "version": 1,
-      "versionNonce": 9837,
+      "version": 3,
+      "versionNonce": 62121209,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "检查点与恢复契约\nCheckpointStore Protocol\nResumeToken\nApprovalWaitState",
@@ -953,7 +1002,9 @@
       "containerId": null,
       "originalText": "检查点与恢复契约\nCheckpointStore Protocol\nResumeToken\nApprovalWaitState",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5U",
+      "autoResize": true
     },
     {
       "id": "ex-uow",
@@ -976,8 +1027,8 @@
         "type": 3
       },
       "seed": 1476,
-      "version": 1,
-      "versionNonce": 9868,
+      "version": 3,
+      "versionNonce": 765707031,
       "isDeleted": false,
       "boundElements": [
         {
@@ -989,9 +1040,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5V"
     },
     {
       "id": "ex-uow-label",
@@ -1012,11 +1064,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1493,
-      "version": 1,
-      "versionNonce": 9899,
+      "version": 3,
+      "versionNonce": 1103027673,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "存储适配器\nSQLAlchemyStorage\nUnitOfWork\n事务边界",
@@ -1028,7 +1080,9 @@
       "containerId": null,
       "originalText": "存储适配器\nSQLAlchemyStorage\nUnitOfWork\n事务边界",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5W",
+      "autoResize": true
     },
     {
       "id": "ex-repo",
@@ -1051,8 +1105,8 @@
         "type": 3
       },
       "seed": 1510,
-      "version": 1,
-      "versionNonce": 9930,
+      "version": 3,
+      "versionNonce": 1686718519,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1064,9 +1118,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5X"
     },
     {
       "id": "ex-repo-label",
@@ -1087,11 +1142,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1527,
-      "version": 1,
-      "versionNonce": 9961,
+      "version": 3,
+      "versionNonce": 2042084025,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "仓储接口\nTenant / Session\nRun / Checkpoint\n不暴露 ORM session",
@@ -1103,7 +1158,9 @@
       "containerId": null,
       "originalText": "仓储接口\nTenant / Session\nRun / Checkpoint\n不暴露 ORM session",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5Y",
+      "autoResize": true
     },
     {
       "id": "ex-sqlalchemy",
@@ -1126,8 +1183,8 @@
         "type": 3
       },
       "seed": 1544,
-      "version": 1,
-      "versionNonce": 9992,
+      "version": 3,
+      "versionNonce": 1791043927,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1135,9 +1192,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5Z"
     },
     {
       "id": "ex-sqlalchemy-label",
@@ -1158,11 +1216,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1561,
-      "version": 1,
-      "versionNonce": 10023,
+      "version": 3,
+      "versionNonce": 2084699033,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "数据库实现\nSQLAlchemy 2.0 / Alembic\nSQLite / PostgreSQL\n当前 head：0016",
@@ -1174,7 +1232,9 @@
       "containerId": null,
       "originalText": "数据库实现\nSQLAlchemy 2.0 / Alembic\nSQLite / PostgreSQL\n当前 head：0016",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5a",
+      "autoResize": true
     },
     {
       "id": "ex-eventbus",
@@ -1197,8 +1257,8 @@
         "type": 3
       },
       "seed": 1578,
-      "version": 1,
-      "versionNonce": 10054,
+      "version": 3,
+      "versionNonce": 1570760311,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1218,9 +1278,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5b"
     },
     {
       "id": "ex-eventbus-label",
@@ -1241,11 +1302,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1595,
-      "version": 1,
-      "versionNonce": 10085,
+      "version": 3,
+      "versionNonce": 965812345,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "有序事件证据\nCanonicalEvent / EventSink\nevidence outbox / capacity\nusage/approval 先于 terminal",
@@ -1257,7 +1318,9 @@
       "containerId": null,
       "originalText": "有序事件证据\nCanonicalEvent / EventSink\nevidence outbox / capacity\nusage/approval 先于 terminal",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5c",
+      "autoResize": true
     },
     {
       "id": "ex-artifact",
@@ -1280,8 +1343,8 @@
         "type": 3
       },
       "seed": 1612,
-      "version": 1,
-      "versionNonce": 10116,
+      "version": 3,
+      "versionNonce": 1005191063,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1289,9 +1352,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5d"
     },
     {
       "id": "ex-artifact-label",
@@ -1312,11 +1376,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1629,
-      "version": 1,
-      "versionNonce": 10147,
+      "version": 3,
+      "versionNonce": 1332259161,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "产物存储\nFileArtifactStore\npayload_ref\nsha256 + 脱敏",
@@ -1328,7 +1392,9 @@
       "containerId": null,
       "originalText": "产物存储\nFileArtifactStore\npayload_ref\nsha256 + 脱敏",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5e",
+      "autoResize": true
     },
     {
       "id": "ex-otel",
@@ -1351,8 +1417,8 @@
         "type": 3
       },
       "seed": 1646,
-      "version": 1,
-      "versionNonce": 10178,
+      "version": 3,
+      "versionNonce": 936637623,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1360,9 +1426,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5f"
     },
     {
       "id": "ex-otel-label",
@@ -1383,11 +1450,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1663,
-      "version": 1,
-      "versionNonce": 10209,
+      "version": 3,
+      "versionNonce": 1461458489,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "观测转换\nOTel mapping facade\nlocal/jsonl 兜底",
@@ -1399,7 +1466,9 @@
       "containerId": null,
       "originalText": "观测转换\nOTel mapping facade\nlocal/jsonl 兜底",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5g",
+      "autoResize": true
     },
     {
       "id": "ex-dbos",
@@ -1422,13 +1491,14 @@
         "type": 3
       },
       "seed": 1680,
-      "version": 1,
-      "versionNonce": 10240,
+      "version": 3,
+      "versionNonce": 1224885719,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5h"
     },
     {
       "id": "ex-dbos-label",
@@ -1449,11 +1519,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1697,
-      "version": 1,
-      "versionNonce": 10271,
+      "version": 3,
+      "versionNonce": 1938745113,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "耐久运行适配边界\nDBOSRuntimeAdapter\nNoopDBOSRuntimeAdapter",
@@ -1465,7 +1535,9 @@
       "containerId": null,
       "originalText": "耐久运行适配边界\nDBOSRuntimeAdapter\nNoopDBOSRuntimeAdapter",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5i",
+      "autoResize": true
     },
     {
       "id": "ex-model",
@@ -1488,8 +1560,8 @@
         "type": 3
       },
       "seed": 1714,
-      "version": 2,
-      "versionNonce": 10302,
+      "version": 4,
+      "versionNonce": 2122937079,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1497,17 +1569,18 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617223,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5j"
     },
     {
       "id": "ex-model-label",
       "type": "text",
       "x": 398,
-      "y": 808,
-      "width": 214,
-      "height": 74,
+      "y": 816.75,
+      "width": 204.681640625,
+      "height": 52.5,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -1520,23 +1593,25 @@
       "frameId": null,
       "roundness": null,
       "seed": 1731,
-      "version": 2,
-      "versionNonce": 10333,
+      "version": 6,
+      "versionNonce": 334092729,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079920383,
       "link": null,
       "locked": false,
-      "text": "当前已实现\nAgentRegistry / ModelRouter\nPydantic AI / Embedding adapter\nusage evidence + settlement",
+      "text": "AgentRegistry / ModelRouter\nPydantic AI / Embedding adapter\nusage evidence + settlement",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "当前已实现\nAgentRegistry / ModelRouter\nPydantic AI / Embedding adapter\nusage evidence + settlement",
+      "originalText": "AgentRegistry / ModelRouter\nPydantic AI / Embedding adapter\nusage evidence + settlement",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5k",
+      "autoResize": true
     },
     {
       "id": "ex-policy",
@@ -1559,8 +1634,8 @@
         "type": 3
       },
       "seed": 1748,
-      "version": 2,
-      "versionNonce": 10364,
+      "version": 4,
+      "versionNonce": 284032023,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1572,17 +1647,18 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617223,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5l"
     },
     {
       "id": "ex-policy-label",
       "type": "text",
       "x": 668,
-      "y": 808,
-      "width": 204,
-      "height": 74,
+      "y": 816.75,
+      "width": 163.4130859375,
+      "height": 52.5,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -1595,23 +1671,25 @@
       "frameId": null,
       "roundness": null,
       "seed": 1765,
-      "version": 2,
-      "versionNonce": 10395,
+      "version": 6,
+      "versionNonce": 1311565239,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079925723,
       "link": null,
       "locked": false,
-      "text": "当前已实现\nAuth / PolicyEngine / HITL\nApprovalService\nAuditService",
+      "text": "Auth / PolicyEngine / HITL\nApprovalService\nAuditService",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "当前已实现\nAuth / PolicyEngine / HITL\nApprovalService\nAuditService",
+      "originalText": "Auth / PolicyEngine / HITL\nApprovalService\nAuditService",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5m",
+      "autoResize": true
     },
     {
       "id": "ex-tools",
@@ -1634,8 +1712,8 @@
         "type": 3
       },
       "seed": 1782,
-      "version": 2,
-      "versionNonce": 10426,
+      "version": 4,
+      "versionNonce": 874799415,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1643,17 +1721,18 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617223,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5n"
     },
     {
       "id": "ex-tools-label",
       "type": "text",
       "x": 398,
-      "y": 928,
-      "width": 214,
-      "height": 74,
+      "y": 936.75,
+      "width": 129.1513671875,
+      "height": 52.5,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -1666,23 +1745,25 @@
       "frameId": null,
       "roundness": null,
       "seed": 1799,
-      "version": 2,
-      "versionNonce": 10457,
+      "version": 6,
+      "versionNonce": 648786905,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079930902,
       "link": null,
       "locked": false,
-      "text": "当前已实现\nToolRegistry\nFile/Shell/MCP client\noutput_guard",
+      "text": "ToolRegistry\nFile/Shell/MCP client\noutput_guard",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "当前已实现\nToolRegistry\nFile/Shell/MCP client\noutput_guard",
+      "originalText": "ToolRegistry\nFile/Shell/MCP client\noutput_guard",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5o",
+      "autoResize": true
     },
     {
       "id": "ex-retrieval",
@@ -1705,21 +1786,22 @@
         "type": 3
       },
       "seed": 1816,
-      "version": 1,
-      "versionNonce": 10488,
+      "version": 3,
+      "versionNonce": 697377367,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5p"
     },
     {
       "id": "ex-retrieval-label",
       "type": "text",
       "x": 668,
-      "y": 928,
-      "width": 204,
-      "height": 74,
+      "y": 936.75,
+      "width": 149.37890625,
+      "height": 52.5,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -1732,23 +1814,25 @@
       "frameId": null,
       "roundness": null,
       "seed": 1833,
-      "version": 1,
-      "versionNonce": 10519,
+      "version": 5,
+      "versionNonce": 1909574039,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079935827,
       "link": null,
       "locked": false,
-      "text": "当前已实现\n检索能力\nRetrievalProvider / RAG\ntrust_level",
+      "text": "检索能力\nRetrievalProvider / RAG\ntrust_level",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "当前已实现\n检索能力\nRetrievalProvider / RAG\ntrust_level",
+      "originalText": "检索能力\nRetrievalProvider / RAG\ntrust_level",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5q",
+      "autoResize": true
     },
     {
       "id": "ex-providerobs",
@@ -1771,21 +1855,22 @@
         "type": 3
       },
       "seed": 1850,
-      "version": 1,
-      "versionNonce": 10550,
+      "version": 3,
+      "versionNonce": 302563191,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5r"
     },
     {
       "id": "ex-providerobs-label",
       "type": "text",
       "x": 918,
-      "y": 958,
-      "width": 224,
-      "height": 64,
+      "y": 966.75,
+      "width": 212.43359375,
+      "height": 35,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -1798,23 +1883,25 @@
       "frameId": null,
       "roundness": null,
       "seed": 1867,
-      "version": 1,
-      "versionNonce": 10581,
+      "version": 5,
+      "versionNonce": 1292775929,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079940140,
       "link": null,
       "locked": false,
-      "text": "当前已实现\n观测、Eval Gate 与 experiment\nscore sink / compare / acceptance",
+      "text": "观测、Eval Gate 与 experiment\nscore sink / compare / acceptance",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "当前已实现\n观测、Eval Gate 与 experiment\nscore sink / compare / acceptance",
+      "originalText": "观测、Eval Gate 与 experiment\nscore sink / compare / acceptance",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5s",
+      "autoResize": true
     },
     {
       "id": "ex-fastapi",
@@ -1837,8 +1924,8 @@
         "type": 3
       },
       "seed": 1884,
-      "version": 1,
-      "versionNonce": 10612,
+      "version": 3,
+      "versionNonce": 2144319639,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1846,9 +1933,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5t"
     },
     {
       "id": "ex-fastapi-label",
@@ -1869,11 +1957,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1901,
-      "version": 1,
-      "versionNonce": 10643,
+      "version": 3,
+      "versionNonce": 1888944217,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "应用工厂\nFastAPI create_app()\n错误 envelope handler",
@@ -1885,7 +1973,9 @@
       "containerId": null,
       "originalText": "应用工厂\nFastAPI create_app()\n错误 envelope handler",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5u",
+      "autoResize": true
     },
     {
       "id": "ex-routes",
@@ -1908,8 +1998,8 @@
         "type": 3
       },
       "seed": 1918,
-      "version": 1,
-      "versionNonce": 10674,
+      "version": 3,
+      "versionNonce": 1218088375,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1917,9 +2007,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5v"
     },
     {
       "id": "ex-routes-label",
@@ -1940,11 +2031,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1935,
-      "version": 1,
-      "versionNonce": 10705,
+      "version": 3,
+      "versionNonce": 241667385,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "运行接口路由\nRUN-001..005\n薄协议适配层",
@@ -1956,7 +2047,9 @@
       "containerId": null,
       "originalText": "运行接口路由\nRUN-001..005\n薄协议适配层",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5w",
+      "autoResize": true
     },
     {
       "id": "ex-components",
@@ -1979,8 +2072,8 @@
         "type": 3
       },
       "seed": 1952,
-      "version": 1,
-      "versionNonce": 10736,
+      "version": 3,
+      "versionNonce": 395165399,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1996,9 +2089,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5x"
     },
     {
       "id": "ex-components-label",
@@ -2019,11 +2113,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1969,
-      "version": 1,
-      "versionNonce": 10767,
+      "version": 3,
+      "versionNonce": 1079213593,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "运行组件装配\nRuntimeComponents\nstorage + event_sink\n+ orchestrator",
@@ -2035,7 +2129,9 @@
       "containerId": null,
       "originalText": "运行组件装配\nRuntimeComponents\nstorage + event_sink\n+ orchestrator",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b5y",
+      "autoResize": true
     },
     {
       "id": "ex-worker",
@@ -2058,8 +2154,8 @@
         "type": 3
       },
       "seed": 1986,
-      "version": 1,
-      "versionNonce": 10798,
+      "version": 3,
+      "versionNonce": 1061014519,
       "isDeleted": false,
       "boundElements": [
         {
@@ -2067,9 +2163,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b5z"
     },
     {
       "id": "ex-worker-label",
@@ -2090,11 +2187,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 2003,
-      "version": 1,
-      "versionNonce": 10829,
+      "version": 3,
+      "versionNonce": 894325497,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "text": "运行 worker 外壳\nRunQueue protocol pickup/reclaim\nRedis adapter 隔离 / DBOS recovery",
@@ -2106,7 +2203,9 @@
       "containerId": null,
       "originalText": "运行 worker 外壳\nRunQueue protocol pickup/reclaim\nRedis adapter 隔离 / DBOS recovery",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b60",
+      "autoResize": true
     },
     {
       "id": "ex-profiles",
@@ -2129,8 +2228,8 @@
         "type": 3
       },
       "seed": 2020,
-      "version": 1,
-      "versionNonce": 10860,
+      "version": 8,
+      "versionNonce": 1085534137,
       "isDeleted": false,
       "boundElements": [
         {
@@ -2138,9 +2237,10 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786080172844,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b61"
     },
     {
       "id": "ex-profiles-label",
@@ -2161,11 +2261,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 2037,
-      "version": 1,
-      "versionNonce": 10891,
+      "version": 5,
+      "versionNonce": 151614521,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786080167521,
       "link": null,
       "locked": false,
       "text": "环境配置\nconfigs/profiles\nlocal.yaml / service.yaml\nstorage/queue/policy\n模型路由/预算变更走 reload seam",
@@ -2177,7 +2277,9 @@
       "containerId": null,
       "originalText": "环境配置\nconfigs/profiles\nlocal.yaml / service.yaml\nstorage/queue/policy\n模型路由/预算变更走 reload seam",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b62",
+      "autoResize": true
     },
     {
       "id": "ex-sse",
@@ -2200,8 +2302,8 @@
         "type": 3
       },
       "seed": 2054,
-      "version": 1,
-      "versionNonce": 10922,
+      "version": 3,
+      "versionNonce": 1414953527,
       "isDeleted": false,
       "boundElements": [
         {
@@ -2209,17 +2311,18 @@
           "type": "arrow"
         }
       ],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b63"
     },
     {
       "id": "ex-sse-label",
       "type": "text",
       "x": 1548,
-      "y": 588,
-      "width": 194,
-      "height": 84,
+      "y": 595.5,
+      "width": 142.037109375,
+      "height": 45,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2232,23 +2335,25 @@
       "frameId": null,
       "roundness": null,
       "seed": 2071,
-      "version": 1,
-      "versionNonce": 10953,
+      "version": 5,
+      "versionNonce": 1049469559,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079960702,
       "link": null,
       "locked": false,
-      "text": "当前已实现\nHTTP SSE / Last-Event-ID\nCLI NDJSON / --after-seq\nP1 可选：WS adapter",
+      "text": "HTTP SSE / Last-Event-ID\nCLI NDJSON / --after-seq\nP1 可选：WS adapter",
       "fontSize": 12,
       "fontFamily": 2,
       "fontString": "12px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "当前已实现\nHTTP SSE / Last-Event-ID\nCLI NDJSON / --after-seq\nP1 可选：WS adapter",
+      "originalText": "HTTP SSE / Last-Event-ID\nCLI NDJSON / --after-seq\nP1 可选：WS adapter",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b64",
+      "autoResize": true
     },
     {
       "id": "ex-agentroutes",
@@ -2271,21 +2376,22 @@
         "type": 3
       },
       "seed": 2088,
-      "version": 2,
-      "versionNonce": 10984,
+      "version": 4,
+      "versionNonce": 236460887,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b65"
     },
     {
       "id": "ex-agentroutes-label",
       "type": "text",
       "x": 1308,
-      "y": 768,
-      "width": 194,
-      "height": 84,
+      "y": 776.75,
+      "width": 182.0751953125,
+      "height": 35,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2298,23 +2404,25 @@
       "frameId": null,
       "roundness": null,
       "seed": 2105,
-      "version": 2,
-      "versionNonce": 11015,
+      "version": 6,
+      "versionNonce": 2054670711,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079945864,
       "link": null,
       "locked": false,
-      "text": "当前已实现\nAgent routes / registry smoke\n四个 P0 示例 Agent",
+      "text": "Agent routes / registry smoke\n四个 P0 示例 Agent",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "当前已实现\nAgent routes / registry smoke\n四个 P0 示例 Agent",
+      "originalText": "Agent routes / registry smoke\n四个 P0 示例 Agent",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b66",
+      "autoResize": true
     },
     {
       "id": "ex-authroutes",
@@ -2337,21 +2445,22 @@
         "type": 3
       },
       "seed": 2122,
-      "version": 2,
-      "versionNonce": 11046,
+      "version": 4,
+      "versionNonce": 491296887,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079875497,
       "link": null,
-      "locked": false
+      "locked": false,
+      "index": "b67"
     },
     {
       "id": "ex-authroutes-label",
       "type": "text",
       "x": 1548,
-      "y": 768,
-      "width": 194,
-      "height": 84,
+      "y": 776.75,
+      "width": 210.109375,
+      "height": 35,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2364,31 +2473,33 @@
       "frameId": null,
       "roundness": null,
       "seed": 2139,
-      "version": 2,
-      "versionNonce": 11077,
+      "version": 6,
+      "versionNonce": 619828249,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079950192,
       "link": null,
       "locked": false,
-      "text": "当前已实现\n认证/审批/策略 routes\nEval API / experiment acceptance",
+      "text": "认证/审批/策略 routes\nEval API / experiment acceptance",
       "fontSize": 14,
       "fontFamily": 2,
       "fontString": "14px Helvetica",
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "当前已实现\n认证/审批/策略 routes\nEval API / experiment acceptance",
+      "originalText": "认证/审批/策略 routes\nEval API / experiment acceptance",
       "lineHeight": 1.25,
-      "baseline": 16
+      "baseline": 16,
+      "index": "b68",
+      "autoResize": true
     },
     {
       "id": "ex-e-config-runtime",
       "type": "arrow",
-      "x": 550,
-      "y": 280,
-      "width": -100,
-      "height": 185,
+      "x": 532.626501227187,
+      "y": 335.4069092980318,
+      "width": 5.497801193387772,
+      "height": 63.59309070196815,
       "angle": 0,
       "strokeColor": "#5b8f5a",
       "backgroundColor": "transparent",
@@ -2403,11 +2514,11 @@
         "type": 2
       },
       "seed": 2156,
-      "version": 1,
-      "versionNonce": 11108,
+      "version": 1178,
+      "versionNonce": 237501401,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786080023463,
       "link": null,
       "locked": false,
       "points": [
@@ -2416,32 +2527,39 @@
           0
         ],
         [
-          -100,
-          185
+          5.497801193387772,
+          63.59309070196815
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "ex-config",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.9155921241076705,
+          0.9155921241076703
+        ]
       },
       "endBinding": {
         "elementId": "ex-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.3287612443554577,
+          0.3287612443554579
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b69"
     },
     {
       "id": "ex-e-identity-runtime",
       "type": "arrow",
-      "x": 580,
-      "y": 280,
-      "width": 150,
-      "height": 185,
+      "x": 624.5784732339804,
+      "y": 336,
+      "width": 1.982666164133093,
+      "height": 63.00000000000006,
       "angle": 0,
       "strokeColor": "#5b8f5a",
       "backgroundColor": "transparent",
@@ -2456,11 +2574,11 @@
         "type": 2
       },
       "seed": 2190,
-      "version": 1,
-      "versionNonce": 11170,
+      "version": 753,
+      "versionNonce": 2060243737,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786080015301,
       "link": null,
       "locked": false,
       "points": [
@@ -2469,32 +2587,39 @@
           0
         ],
         [
-          150,
-          185
+          1.982666164133093,
+          63.00000000000006
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "ex-identity",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.1903933179992098,
+          0.80960668200079
+        ]
       },
       "endBinding": {
         "elementId": "ex-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.6361572127587977,
+          0.36384278724120284
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6A"
     },
     {
       "id": "ex-e-dto-all",
       "type": "arrow",
-      "x": 190,
-      "y": 330,
-      "width": 240,
-      "height": 100,
+      "x": 189.9,
+      "y": 336,
+      "width": 280.24230104070443,
+      "height": 63.85560578891773,
       "angle": 0,
       "strokeColor": "#5b8f5a",
       "backgroundColor": "transparent",
@@ -2509,11 +2634,11 @@
         "type": 2
       },
       "seed": 2224,
-      "version": 1,
-      "versionNonce": 11232,
+      "version": 206,
+      "versionNonce": 1496773975,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786080047768,
       "link": null,
       "locked": false,
       "points": [
@@ -2523,39 +2648,61 @@
         ],
         [
           0,
-          40
+          36
         ],
         [
-          240,
-          40
+          280.24230104070443,
+          36
         ],
         [
-          240,
-          100
+          280.24230104070443,
+          63.85560578891773
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "ex-dto",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.49954545454545457,
+          1.06
+        ]
       },
       "endBinding": {
         "elementId": "ex-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.07193678943108739,
+          -0.042869951759018934
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": true
+      "elbowed": true,
+      "index": "b6B",
+      "fixedSegments": [
+        {
+          "index": 2,
+          "start": [
+            185.1,
+            36.07569637390907
+          ],
+          "end": [
+            280.24230104070443,
+            36.07569637390907
+          ]
+        }
+      ],
+      "startIsSpecial": false,
+      "endIsSpecial": false
     },
     {
       "id": "ex-e-runtime-uow",
       "type": "arrow",
-      "x": 450,
-      "y": 465,
-      "width": -100,
-      "height": 210,
+      "x": 444,
+      "y": 465.47545694394796,
+      "width": 239.90492649732016,
+      "height": 148.52454305605193,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2570,11 +2717,11 @@
         "type": 2
       },
       "seed": 2258,
-      "version": 1,
-      "versionNonce": 11294,
+      "version": 463,
+      "versionNonce": 1775438457,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786080078309,
       "link": null,
       "locked": false,
       "points": [
@@ -2583,24 +2730,35 @@
           0
         ],
         [
-          -100,
-          210
+          -215.89728971005292,
+          16.6765163492783
+        ],
+        [
+          -239.90492649732016,
+          148.52454305605193
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "ex-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0,
+          0.5001
+        ]
       },
       "endBinding": {
         "elementId": "ex-uow",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.38144939128185673,
+          0.3814493912818565
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6C"
     },
     {
       "id": "ex-e-uow-repo",
@@ -2623,11 +2781,11 @@
         "type": 2
       },
       "seed": 2292,
-      "version": 1,
-      "versionNonce": 11356,
+      "version": 3,
+      "versionNonce": 2018523095,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "points": [
@@ -2642,18 +2800,25 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-uow",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5342119078745005,
+          0.4657880921254993
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-repo",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.46748450124879576,
+          0.5325154987512042
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6D"
     },
     {
       "id": "ex-e-repo-sql",
@@ -2676,11 +2841,11 @@
         "type": 2
       },
       "seed": 2326,
-      "version": 1,
-      "versionNonce": 11418,
+      "version": 3,
+      "versionNonce": 500241689,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "points": [
@@ -2695,18 +2860,25 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-repo",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5185239982194414,
+          0.4814760017805588
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-sqlalchemy",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.4906724430374368,
+          0.5093275569625647
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6E"
     },
     {
       "id": "ex-e-runtime-checkpoint",
@@ -2729,11 +2901,11 @@
         "type": 2
       },
       "seed": 2360,
-      "version": 1,
-      "versionNonce": 11480,
+      "version": 3,
+      "versionNonce": 860431607,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "points": [
@@ -2750,24 +2922,36 @@
       "startBinding": {
         "elementId": "ex-runtime",
         "focus": 0,
-        "gap": 1
+        "gap": 1,
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ],
+        "mode": "orbit"
       },
       "endBinding": {
         "elementId": "ex-checkpoint",
         "focus": 0,
-        "gap": 1
+        "gap": 1,
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ],
+        "mode": "orbit"
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": true
+      "elbowed": true,
+      "index": "b6F",
+      "fixedSegments": null
     },
     {
       "id": "ex-e-runtime-event",
       "type": "arrow",
-      "x": 730,
-      "y": 495,
-      "width": 180,
-      "height": 104,
+      "x": 735.9981899832158,
+      "y": 495.244301844279,
+      "width": 210.59997240717826,
+      "height": 58.75569815572101,
       "angle": 0,
       "strokeColor": "#d79b00",
       "backgroundColor": "transparent",
@@ -2782,11 +2966,11 @@
         "type": 2
       },
       "seed": 2394,
-      "version": 1,
-      "versionNonce": 11542,
+      "version": 238,
+      "versionNonce": 1323026777,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786080139642,
       "link": null,
       "locked": false,
       "points": [
@@ -2795,32 +2979,58 @@
           0
         ],
         [
-          90,
-          45
+          40,
+          0
         ],
         [
-          180,
-          45
+          40,
+          30.291791039320174
         ],
         [
-          180,
-          104
+          210.59997240717826,
+          30.291791039320174
+        ],
+        [
+          210.59997240717826,
+          58.75569815572101
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "ex-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          1.0214221070829137,
+          0.752035848702325
+        ]
       },
       "endBinding": {
         "elementId": "ex-eventbus",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.15249234329330838,
+          -0.05454545454545454
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": true
+      "elbowed": true,
+      "index": "b6G",
+      "fixedSegments": [
+        {
+          "index": 3,
+          "start": [
+            40,
+            30.291791039320174
+          ],
+          "end": [
+            210.59997240717826,
+            30.291791039320174
+          ]
+        }
+      ],
+      "startIsSpecial": false,
+      "endIsSpecial": false
     },
     {
       "id": "ex-e-event-artifact",
@@ -2843,11 +3053,11 @@
         "type": 2
       },
       "seed": 2428,
-      "version": 1,
-      "versionNonce": 11604,
+      "version": 3,
+      "versionNonce": 921136663,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "points": [
@@ -2862,18 +3072,25 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-eventbus",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-artifact",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6H"
     },
     {
       "id": "ex-e-event-otel",
@@ -2896,11 +3113,11 @@
         "type": 2
       },
       "seed": 2462,
-      "version": 1,
-      "versionNonce": 11666,
+      "version": 3,
+      "versionNonce": 538927833,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "points": [
@@ -2915,26 +3132,33 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-eventbus",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-otel",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6I"
     },
     {
       "id": "ex-e-components-runtime",
       "type": "arrow",
-      "x": 1300,
-      "y": 460,
-      "width": -610,
-      "height": -55,
+      "x": 1334.7291487548068,
+      "y": 404,
+      "width": 639.0875013161537,
+      "height": 45,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -2949,11 +3173,11 @@
         "type": 2
       },
       "seed": 2496,
-      "version": 1,
-      "versionNonce": 11728,
+      "version": 158,
+      "versionNonce": 1132366969,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786080156292,
       "link": null,
       "locked": false,
       "points": [
@@ -2963,31 +3187,41 @@
         ],
         [
           0,
-          -80
+          -45
         ],
         [
-          -610,
-          -80
+          -639.0875013161537,
+          -45
         ],
         [
-          -610,
-          -55
+          -639.0875013161537,
+          -5
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "ex-components",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.16537689883241347,
+          -0.06
+        ]
       },
       "endBinding": {
         "elementId": "ex-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.8772915979951895,
+          -0.05
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": true
+      "elbowed": true,
+      "index": "b6J",
+      "fixedSegments": null,
+      "startIsSpecial": null,
+      "endIsSpecial": null
     },
     {
       "id": "ex-e-fastapi-routes",
@@ -3010,11 +3244,11 @@
         "type": 2
       },
       "seed": 2530,
-      "version": 1,
-      "versionNonce": 11790,
+      "version": 3,
+      "versionNonce": 599760825,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "points": [
@@ -3029,25 +3263,32 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-fastapi",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-routes",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6K"
     },
     {
       "id": "ex-e-worker-components",
       "type": "arrow",
       "x": 1540,
       "y": 460,
-      "width": -30,
+      "width": 30,
       "height": 0,
       "angle": 0,
       "strokeColor": "#111827",
@@ -3063,11 +3304,11 @@
         "type": 2
       },
       "seed": 2598,
-      "version": 1,
-      "versionNonce": 11914,
+      "version": 3,
+      "versionNonce": 827724887,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "points": [
@@ -3082,26 +3323,33 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-worker",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-components",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          1,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6L"
     },
     {
       "id": "ex-e-profiles-components",
       "type": "arrow",
-      "x": 1510,
-      "y": 630,
-      "width": -210,
-      "height": -170,
+      "x": 1405.9215934670883,
+      "y": 574,
+      "width": 0.8161628295488299,
+      "height": 58,
       "angle": 0,
       "strokeColor": "#5b8f5a",
       "backgroundColor": "transparent",
@@ -3116,11 +3364,11 @@
         "type": 2
       },
       "seed": 2632,
-      "version": 1,
-      "versionNonce": 11976,
+      "version": 492,
+      "versionNonce": 1499312857,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786080172129,
       "link": null,
       "locked": false,
       "points": [
@@ -3129,24 +3377,31 @@
           0
         ],
         [
-          -210,
-          -170
+          -0.8161628295488299,
+          -58
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "ex-profiles",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.504690847957964,
+          -0.014885141744155134
+        ]
       },
       "endBinding": {
         "elementId": "ex-components",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.5001,
+          1
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6M"
     },
     {
       "id": "ex-e-sse-event",
@@ -3154,7 +3409,7 @@
       "x": 1150,
       "y": 642,
       "width": 495,
-      "height": 38,
+      "height": 88,
       "angle": 0,
       "strokeColor": "#d79b00",
       "backgroundColor": "transparent",
@@ -3169,11 +3424,11 @@
         "type": 2
       },
       "seed": 2666,
-      "version": 1,
-      "versionNonce": 12038,
+      "version": 3,
+      "versionNonce": 2019520887,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617222,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "points": [
@@ -3198,24 +3453,36 @@
       "startBinding": {
         "elementId": "ex-eventbus",
         "focus": 0,
-        "gap": 1
+        "gap": 1,
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ],
+        "mode": "orbit"
       },
       "endBinding": {
         "elementId": "ex-sse",
         "focus": 0,
-        "gap": 1
+        "gap": 1,
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ],
+        "mode": "orbit"
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": true
+      "elbowed": true,
+      "index": "b6N",
+      "fixedSegments": null
     },
     {
       "id": "ex-e-model-runtime",
       "type": "arrow",
-      "x": 620,
-      "y": 845,
-      "width": -170,
-      "height": -380,
+      "x": 402.88946533355187,
+      "y": 795.0930337634543,
+      "width": 97.3330722958924,
+      "height": 267.98613836799063,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -3230,11 +3497,11 @@
         "type": 2
       },
       "seed": 2700,
-      "version": 2,
-      "versionNonce": 12100,
+      "version": 409,
+      "versionNonce": 656740375,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786080114838,
       "link": null,
       "locked": false,
       "points": [
@@ -3243,32 +3510,43 @@
           0
         ],
         [
-          -170,
-          -380
+          -39.42416133758695,
+          -154.2876814591982
+        ],
+        [
+          57.908910958305455,
+          -267.98613836799063
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "ex-model",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.06113616096129259,
+          -0.0035355394201587844
+        ]
       },
       "endBinding": {
         "elementId": "ex-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.0710884064799637,
+          0.9289115935200366
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6O"
     },
     {
       "id": "ex-e-policy-runtime",
       "type": "arrow",
-      "x": 660,
-      "y": 845,
-      "width": 70,
-      "height": -380,
+      "x": 868.3371226939613,
+      "y": 795.4293669378219,
+      "width": 165.4398019546402,
+      "height": 271.0800428651128,
       "angle": 0,
       "strokeColor": "#111827",
       "backgroundColor": "transparent",
@@ -3283,11 +3561,11 @@
         "type": 2
       },
       "seed": 2734,
-      "version": 2,
-      "versionNonce": 12162,
+      "version": 326,
+      "versionNonce": 524043321,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786080121496,
       "link": null,
       "locked": false,
       "points": [
@@ -3296,24 +3574,35 @@
           0
         ],
         [
-          70,
-          -380
+          20.82708428646299,
+          -160.38057663117502
+        ],
+        [
+          -144.6127176681772,
+          -271.0800428651128
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "ex-policy",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.9463343400932254,
+          -0.03849992273814627
+        ]
       },
       "endBinding": {
         "elementId": "ex-runtime",
-        "focus": 0,
-        "gap": 1
+        "mode": "orbit",
+        "fixedPoint": [
+          0.9473133727685734,
+          0.9473133727685734
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6P"
     },
     {
       "id": "ex-e-tools-policy",
@@ -3336,11 +3625,11 @@
         "type": 2
       },
       "seed": 2768,
-      "version": 2,
-      "versionNonce": 12224,
+      "version": 4,
+      "versionNonce": 450801241,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1783330617223,
+      "updated": 1786079875497,
       "link": null,
       "locked": false,
       "points": [
@@ -3348,30 +3637,52 @@
           0,
           0
         ],
-        [0, -20],
-        [135, -20],
-        [135, -75],
-        [155, -75]
+        [
+          0,
+          -20
+        ],
+        [
+          135,
+          -20
+        ],
+        [
+          135,
+          -75
+        ],
+        [
+          155,
+          -75
+        ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "ex-tools",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "ex-policy",
-        "focus": 0,
-        "gap": 1
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "index": "b6Q"
     }
   ],
   "appState": {
     "gridSize": 20,
-    "viewBackgroundColor": "#ffffff"
+    "gridStep": 5,
+    "gridModeEnabled": false,
+    "viewBackgroundColor": "#ffffff",
+    "lockedMultiSelections": {}
   },
   "files": {}
 }

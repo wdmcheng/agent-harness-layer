@@ -2,14 +2,48 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Agent Harness Layer 是一套用于构建企业后端 Agent 应用的 Python 核心包和可复制服务模板。它补齐普通演示项目经常拖到最后才处理的工程能力：类型化配置、身份与策略、可恢复运行与审批、受控工具、检索、可观测性、评测、打包和发布门禁。
+> **企业级 Agent 运行时与治理控制层**
+>
+> 五层运行架构 · Eval 反馈闭环 · HITL 工具审批 · 预算感知模型路由 · 可恢复运行
+
+[![CI](https://github.com/wdmcheng/agent-harness-layer/actions/workflows/ci.yml/badge.svg)](https://github.com/wdmcheng/agent-harness-layer/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
+![Pydantic AI](https://img.shields.io/badge/Pydantic_AI-2.5%2B-E92063?logo=pydantic&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.139-009688?logo=fastapi&logoColor=white)
+![Status](https://img.shields.io/badge/status-v0.1--alpha-7C3AED)
+![License](https://img.shields.io/badge/license-Apache--2.0-2563EB)
+
+Agent Harness Layer 把一次模型 SDK 调用纳入**可治理、可恢复、可产出证据的工程运行链路**。它是一套面向企业后端 Agent 应用的 Python 核心包和可复制服务模板，解决普通 AI wrapper 经常拖到最后才补的难题：类型化权限边界、耐久运行、人工审批、成本感知路由、受控工具、检索、可观测性、评测与发布门禁。
+
+Pydantic AI 被收敛在 provider-neutral adapter 边界之后，不会把 SDK 对象和供应商细节泄漏到业务契约。项目真正建设的是模型周围的控制层：什么允许执行、最多花多少钱、哪些副作用必须人工批准、故障后哪些状态可以安全恢复，以及什么证据足以支持一次行为版本晋级。
+
+**人主导架构 · AI 辅助工程 · 证据驱动验证**
+
+![Pydantic AI 五层 Agent 治理控制架构](docs/architecture/pydantic-ai-agent-architecture.png)
+
+图中明确区分当前已实现链路与预留扩展位。Graph Nodes/GraphState、REPL/hooks、独立 gateway 和更强的进程级 sandbox 仍是未来边界，不作为当前能力宣称。
+
+## 工程亮点
+
+| 工程问题 | 已实现方案 |
+|---|---|
+| **可靠运行** | 在 local SQLite 与 service PostgreSQL/Redis profile 中提供耐久 run、checkpoint、resume、幂等、队列、事件和故障恢复合同。 |
+| **模型与成本治理** | 类型化 deployment/Agent/request 权限交集，不可变 route、价格与预算证据，共享 parent-tree 预算，以及有界 retry、Bulkhead 隔离、流式围栏和受控跨 provider failover。 |
+| **HITL 工具审批** | 工具在 handler 执行前经 policy 进入耐久 waiting 状态；审批精确绑定工具、参数、catalog、身份与 continuation snapshot，CLI/API approve 或 deny 后从原 run 恢复，不重放审批前的模型轮次。 |
+| **Eval 反馈闭环** | failed/low-score trace 只能生成 draft，经人工 review 才进入 approved dataset；approved-only 运行持久化 score；版本化 experiment 同时比较 optimization、holdout 与 regression 证据，再由人工做不可变 acceptance 决策。 |
+| **安全工具平台** | 统一类型化 `ToolRegistry` 对文件、Shell、MCP 工具执行 schema 校验、Agent allowlist、policy/HITL、execution claim、输出 guard 与大结果 artifact 落盘。 |
+| **证据优先可观测性** | canonical event、usage、audit 与 eval evidence 先本地提交，再可选 fan-out 到 OTel/provider；外部 telemetry 降级不能抹掉本地真相。 |
+
+上述能力的公共合同与明确限制见 [Eval 与 Observability 闭环](docs/eval-observability-loop.zh-CN.md)、[安全策略](docs/security-policy.zh-CN.md)和[架构与部署边界](docs/architecture/README.zh-CN.md)。
 
 这个仓库服务两类人：
 
 - **Agent 应用开发者**：复制并扩展 [`templates/service-app`](templates/service-app/README.zh-CN.md)。
 - **脚手架维护者**：维护可复用的 `agent_harness` 核心包、模板、adapter、契约和验证链路。
 
-local profile 使用 SQLite、进程内队列、本地 JSONL 证据和 fake model，不需要真实模型 key 或外部可观测 SaaS。service profile 使用 PostgreSQL、Redis、migration、FastAPI，以及独立 runtime worker。
+仓库提交的 profile 是安全默认值，不是写死的能力上限。`local` 默认选择 SQLite、进程内队列、本地 JSONL 证据和 `fake_default`；`service` 选择 PostgreSQL、Redis Streams、认证、FastAPI 与独立 runtime worker，但为保证离线验证可重复，模型仍默认使用 `fake_default`。storage、queue、model 和 observability provider 都通过类型化配置与 adapter seam 选择。
+
+任何调用真实模型的应用都必须显式配置品牌化 `AGENT_HARNESS_MODEL__...` deployment、endpoint policy、版本化 model catalog 和 credential reference；环境中偶然存在 provider key 不会让 runtime 自动发起真实调用。先阅读[受控模型运行时概览](#受控非流式真实模型运行时)，再按模板的[真实模型配置与验证步骤](templates/service-app/README.zh-CN.md#受控真实文本-deployment)操作。外部 observability provider 是本地证据之后的可选 fan-out，adapter 边界见 [Adapter 合同](docs/adapter-contracts.zh-CN.md#event-与-observability)。
 
 ## 这个项目能做什么
 
@@ -171,7 +205,7 @@ make smoke-local
 make eval
 ```
 
-这些命令走 local/fake 路径，不需要真实模型 API key。`make smoke-local` 会创建隔离状态、注入临时 budget fingerprint key、迁移自己的数据库，并验证打包后的 CLI。
+这些命令刻意验证仓库提交的离线默认配置，不能证明真实 provider deployment 已完成配置。`make smoke-local` 会创建隔离状态、注入临时 budget fingerprint key、迁移自己的数据库，并验证打包后的 CLI。真实模型调用继续按[显式 deployment 配置步骤](templates/service-app/README.zh-CN.md#受控真实文本-deployment)操作。
 
 ### 3. 启动真正可访问的服务模板
 
