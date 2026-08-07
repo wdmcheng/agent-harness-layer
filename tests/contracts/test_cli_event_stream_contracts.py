@@ -449,7 +449,12 @@ def test_cli_command_internal_policy_denial_has_empty_stdout(monkeypatch: Any) -
 def test_cli_command_help_keeps_after_seq_cli_only() -> None:
     """验证 CLI 帮助暴露本地 cursor 参数，不混入 HTTP SSE 专用请求头术语。"""
 
-    result = CliRunner().invoke(app, ["events", "stream", "--help"])
+    result = CliRunner().invoke(
+        app,
+        ["events", "stream", "--help"],
+        env={"COLUMNS": "120"},
+        terminal_width=120,
+    )
 
     assert result.exit_code == 0
     assert "--after-seq" in result.output

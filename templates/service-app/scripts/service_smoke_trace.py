@@ -49,7 +49,7 @@ def write_service_trace(env: dict[str, str], completed: dict[str, Any]) -> None:
             ),
             encoding="utf-8",
         )
-        temporary.chmod(0o600)
+        temporary.chmod(0o640)
         temporary.replace(trace_path)
     finally:
         temporary.unlink(missing_ok=True)

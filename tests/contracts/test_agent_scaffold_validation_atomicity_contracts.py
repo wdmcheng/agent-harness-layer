@@ -49,7 +49,12 @@ from tests.contracts.test_agent_scaffold_cli_contracts import (
 def test_scaffold_cli_help_success_structure_and_existing_target(tmp_path: Path) -> None:
     """验证 scaffold CLI 帮助、成功产物、registry 可见性及重复目标拒绝的一整条契约。"""
 
-    help_result = runner.invoke(app, ["scaffold", "agent", "--help"])
+    help_result = runner.invoke(
+        app,
+        ["scaffold", "agent", "--help"],
+        env={"COLUMNS": "120"},
+        terminal_width=120,
+    )
     assert help_result.exit_code == 0
     assert "AGENT_ID" in help_result.stdout
     assert "--agents-dir" in help_result.stdout

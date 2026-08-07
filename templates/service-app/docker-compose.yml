@@ -15,6 +15,7 @@ x-runtime-service: &runtime-service
     context: .
     dockerfile: Dockerfile
   image: ${SERVICE_APP_IMAGE:-agent-harness-service-app:smoke}
+  user: "10001:${SERVICE_APP_RUNTIME_GID:-10001}"
   profiles: ["service"]
   environment: *runtime-environment
   volumes:

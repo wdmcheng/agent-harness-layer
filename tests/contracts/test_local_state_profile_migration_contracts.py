@@ -84,7 +84,12 @@ def test_cli_exposes_single_safe_mode_boundary_without_dsn_argument(tmp_path: Pa
         ],
     )
     runner = CliRunner()
-    help_result = runner.invoke(core_cli, ["migrate-local-state", "--help"])
+    help_result = runner.invoke(
+        core_cli,
+        ["migrate-local-state", "--help"],
+        env={"COLUMNS": "120"},
+        terminal_width=120,
+    )
     missing_mode = runner.invoke(
         core_cli,
         ["migrate-local-state", "--state-dir", str(state_dir)],

@@ -62,10 +62,13 @@ def main() -> int:
     budget_fingerprint_path = smoke_dir / "budget-fingerprint.secret"
     token = secrets.token_urlsafe(32)
     tenant_id = f"smoke-{uuid4()}"
+    # 原生 Linux bind mount 保留宿主组；固定容器 UID，只让 GID 对齐本轮受限文件。
+    runtime_gid = os.environ.get("SERVICE_APP_RUNTIME_GID") or str(os.getgid())
     env = {
         **os.environ,
         "SERVICE_APP_COMPOSE_PROJECT": project,
         "SERVICE_APP_API_PORT": str(free_port()),
+        "SERVICE_APP_RUNTIME_GID": runtime_gid,
         "SERVICE_APP_SMOKE_DIR": str(smoke_dir),
         "SERVICE_APP_STORAGE_DSN_FILE": str(secret_path),
         "SERVICE_APP_POSTGRES_PASSWORD_FILE": str(postgres_password_path),
@@ -88,15 +91,17 @@ def main() -> int:
         smoke_dir.mkdir(parents=True, exist_ok=True)
         (smoke_dir / "workspace").mkdir(exist_ok=True)
         (smoke_dir / "artifacts").mkdir(exist_ok=True)
+        for shared_dir in (smoke_dir, smoke_dir / "workspace", smoke_dir / "artifacts"):
+            shared_dir.chmod(0o770)
         secret_path.write_text(
             f"postgresql+asyncpg://agent_harness:{database_password}@postgres:5432/agent_harness",
             encoding="utf-8",
         )
-        secret_path.chmod(0o600)
+        secret_path.chmod(0o640)
         postgres_password_path.write_text(database_password, encoding="utf-8")
-        postgres_password_path.chmod(0o600)
+        postgres_password_path.chmod(0o640)
         budget_fingerprint_path.write_text(secrets.token_urlsafe(48), encoding="utf-8")
-        budget_fingerprint_path.chmod(0o600)
+        budget_fingerprint_path.chmod(0o640)
         if args.migrate_only:
             env["SERVICE_APP_SMOKE_BOUNDARY"] = "image-build"
             compose(env, "build", "migration")

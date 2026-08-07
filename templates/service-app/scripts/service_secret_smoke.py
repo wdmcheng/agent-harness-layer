@@ -99,7 +99,7 @@ def _assert_api_worker_readiness_blocked(env: dict[str, str], original_secret: b
     finally:
         compose_result(env, "rm", "-sf", "migration", "api", "worker")
         secret_path.write_bytes(original_secret)
-        secret_path.chmod(0o600)
+        secret_path.chmod(0o640)
 
 
 def verify_secret_failure_cases(env: dict[str, str]) -> dict[str, bool]:
@@ -136,7 +136,7 @@ def verify_secret_failure_cases(env: dict[str, str]) -> dict[str, bool]:
         _expect_secret_startup_failure(env, "empty")
     finally:
         secret_path.write_bytes(original_secret)
-        secret_path.chmod(0o600)
+        secret_path.chmod(0o640)
 
     unreadable_dir = smoke_dir / "unreadable-secret-fixture"
     unreadable_dir.mkdir()

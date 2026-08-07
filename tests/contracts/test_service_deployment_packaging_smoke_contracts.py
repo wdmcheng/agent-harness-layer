@@ -26,6 +26,7 @@ def test_compose_declares_migration_api_worker_and_shared_runtime_configuration(
     for name in ("migration", "api", "worker"):
         assert shared_keys <= services[name]["environment"].keys()
         assert services[name]["profiles"] == ["service"]
+        assert services[name]["user"] == "10001:${SERVICE_APP_RUNTIME_GID:-10001}"
         assert services[name]["environment"]["AGENT_HARNESS_STORAGE__DSN_FILE"] == (
             "/run/secrets/agent_harness_storage_dsn"
         )

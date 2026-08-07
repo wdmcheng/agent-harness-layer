@@ -49,7 +49,7 @@ def test_service_smoke_exports_postgresql_events_as_restricted_trace(
             "event": event,
         }
     ]
-    assert trace.stat().st_mode & 0o777 == 0o600
+    assert trace.stat().st_mode & 0o777 == 0o640
 
 
 @pytest.mark.parametrize("failure", [RuntimeError("smoke failed"), KeyboardInterrupt()])
@@ -63,10 +63,21 @@ def test_service_smoke_cleans_secret_after_failure_or_interruption(
     smoke = load_smoke_service(monkeypatch)
     project = "agent-harness-cleanup-contract"
     cleanup_calls: list[tuple[str, bool]] = []
+    runtime_groups: list[str] = []
+    runtime_modes: list[tuple[int, int]] = []
 
-    def fail_smoke(*_args: object) -> dict[str, object]:
+    def fail_smoke(env: dict[str, str], *_args: object) -> dict[str, object]:
         """模拟业务冒烟在凭据已创建后失败的路径。"""
 
+        runtime_groups.append(env["SERVICE_APP_RUNTIME_GID"])
+        smoke_dir = Path(env["SERVICE_APP_SMOKE_DIR"])
+        secret_path = Path(env["SERVICE_APP_STORAGE_DSN_FILE"])
+        runtime_modes.append(
+            (
+                smoke_dir.stat().st_mode & 0o777,
+                secret_path.stat().st_mode & 0o777,
+            )
+        )
         raise failure
 
     def no_compose_output(*_args: object, **_kwargs: object) -> str:
@@ -107,6 +118,8 @@ def test_service_smoke_cleans_secret_after_failure_or_interruption(
     smoke_dir = tmp_path / ".agent-harness" / project
     assert not smoke_dir.exists()
     assert cleanup_calls == [(project, False)]
+    assert runtime_groups == [str(os.getgid())]
+    assert runtime_modes == [(0o770, 0o640)]
 
 
 def test_service_smoke_deletes_secret_when_project_cleanup_fails(
