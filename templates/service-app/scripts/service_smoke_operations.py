@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
-import shutil
-from pathlib import Path
 from typing import Any, cast
 
 from service_smoke_support import (
@@ -16,8 +13,6 @@ from service_smoke_support import (
     last_json_line,
     redis_json,
 )
-
-APP_ROOT = Path(__file__).resolve().parents[1]
 
 
 def run_queue_ack_evidence(
@@ -216,31 +211,12 @@ def postgres_approval_evidence(
     }
 
 
-def prepare_core_wheel() -> None:
-    """保证镜像只能从标准 wheel 入口安装 core，不能读取 workspace source。"""
-
-    existing = list((APP_ROOT / ".agent-harness").glob("agent_harness-*.whl"))
-    if len(existing) == 1:
-        return
-    source_value = os.environ.get("AGENT_HARNESS_SOURCE", "").strip()
-    source = Path(source_value).expanduser().resolve() if source_value else None
-    if source is None or not source.is_file() or source.suffix != ".whl":
-        raise RuntimeError(
-            "smoke-service requires .agent-harness/agent_harness-*.whl or "
-            "AGENT_HARNESS_SOURCE=/path/to/agent_harness-0.1.0.whl"
-        )
-    target = APP_ROOT / ".agent-harness" / source.name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, target)
-
-
 __all__ = [
     "assert_stale_receipt",
     "inspect_run",
     "install_approval_event_write_failure",
     "parse_args",
     "postgres_approval_evidence",
-    "prepare_core_wheel",
     "remove_approval_event_write_failure",
     "run_queue_ack_evidence",
     "run_queue_pending_evidence",

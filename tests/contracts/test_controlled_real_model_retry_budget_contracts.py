@@ -118,6 +118,9 @@ def _retry_settings(*, classifier: bool) -> HarnessSettings:
     overrides = real_model_override()
     deployment = overrides["model"]["deployments"]["real_primary"]  # type: ignore[index]
     policy = overrides["model"]["endpoint_policies"]["real_primary_endpoint"]  # type: ignore[index]
+    # Linux 全量合同运行时需覆盖首次 Pydantic AI/SDK 冷启动；具体 read timeout
+    # 仍保持 2000ms，避免把测试预算误当成 provider 超时语义。
+    deployment["total_timeout_ms"] = 10_000  # type: ignore[index]
     deployment["max_attempts"] = 2  # type: ignore[index]
     deployment["max_retry_wait_ms"] = 100  # type: ignore[index]
     if classifier:

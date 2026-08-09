@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from tests.contracts.service_deployment_test_support import (
     TEMPLATE as TEMPLATE,
 )
@@ -102,6 +104,208 @@ def test_keep_data_requires_confirmed_credential_cleanup() -> None:
     assert support.preserve_postgres_volume(True, credential_cleanup_confirmed=True) is True
     assert support.preserve_postgres_volume(True, credential_cleanup_confirmed=False) is False
     assert support.preserve_postgres_volume(False, credential_cleanup_confirmed=True) is False
+
+
+def test_compose_command_accepts_runtime_identity_only_from_internal_override(
+    tmp_path: Path,
+) -> None:
+    """基础命令保持固定身份，wrapper 生成的 override 才能加入 Compose 文件链。"""
+
+    support = load_smoke_support()
+    env = {"SERVICE_APP_COMPOSE_PROJECT": "agent-harness-safe123"}
+
+    base_command = support._compose_command(env, "config")
+    assert base_command.count("-f") == 1
+
+    env["SERVICE_APP_RUNTIME_USER_OVERRIDE_CONTENT"] = "services: {}\n"
+    override_command = support._compose_command(env, "config")
+
+    assert override_command[:7] == [
+        "docker",
+        "compose",
+        "-f",
+        str(support.COMPOSE_FILE),
+        "-f",
+        "-",
+        "-p",
+    ]
+
+
+def test_cleanup_project_falls_back_to_labels_when_smoke_identity_changed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """路径身份异常不能阻断 project label 级容器、网络和卷清理。"""
+
+    support = load_smoke_support()
+    smoke_dir = tmp_path / "safe-project"
+    smoke_dir.mkdir()
+    created = smoke_dir.stat()
+    smoke_dir.rename(tmp_path / "orphan")
+    smoke_dir.mkdir()
+    commands: list[list[str]] = []
+
+    def record_run(
+        command: list[str],
+        *,
+        env: dict[str, str],
+        check: bool = True,
+        input_text: str | None = None,
+    ) -> SimpleNamespace:
+        del env, check, input_text
+        commands.append(command)
+        is_query = (
+            command[:3] == ["docker", "ps", "-aq"]
+            or command[:3] == ["docker", "network", "ls"]
+            or command[:3] == ["docker", "volume", "ls"]
+        )
+        return SimpleNamespace(stdout="", returncode=0 if is_query else 1)
+
+    monkeypatch.setattr(support, "run", record_run)
+    support.cleanup_project(
+        {
+            "SERVICE_APP_COMPOSE_PROJECT": "agent-harness-safe123",
+            "SERVICE_APP_SMOKE_DIR": str(smoke_dir),
+            "SERVICE_APP_SMOKE_DEVICE": str(created.st_dev),
+            "SERVICE_APP_SMOKE_INODE": str(created.st_ino),
+        },
+        preserve_volume=False,
+    )
+
+    assert any("label=com.docker.compose.project=agent-harness-safe123" in row for row in commands)
+    assert any(row[:3] == ["docker", "network", "rm"] for row in commands)
+    assert any(row[:3] == ["docker", "volume", "rm"] for row in commands)
+
+
+def test_cleanup_project_rejects_repeated_docker_query_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """daemon/transport 查询持续失败不能被解释为项目资源已不存在。"""
+
+    support = load_smoke_support()
+    commands: list[list[str]] = []
+
+    def fail_docker_queries(
+        command: list[str],
+        *,
+        env: dict[str, str],
+        check: bool = True,
+        input_text: str | None = None,
+    ) -> SimpleNamespace:
+        del env, check, input_text
+        commands.append(command)
+        return SimpleNamespace(stdout="", returncode=1)
+
+    def skip_retry_delay(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(support, "run", fail_docker_queries)
+    monkeypatch.setattr(support.time, "sleep", skip_retry_delay)
+
+    with pytest.raises(RuntimeError, match="boundary=project-cleanup"):
+        support.cleanup_project(
+            {"SERVICE_APP_COMPOSE_PROJECT": "agent-harness-safe123"},
+            preserve_volume=False,
+        )
+
+    assert sum(row[:3] == ["docker", "ps", "-aq"] for row in commands) >= 20
+
+
+def test_cleanup_project_removes_and_proves_labeled_resources_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """label fallback 必须删除真实存在的三类资源，再由成功查询证明为空。"""
+
+    support = load_smoke_support()
+    project = "agent-harness-safe123"
+    network = f"{project}_default"
+    volume = f"{project}_agent_harness_postgres_data"
+    resources = {"container": True, "network": True, "volume": True}
+    commands: list[list[str]] = []
+
+    def stateful_run(
+        command: list[str],
+        *,
+        env: dict[str, str],
+        check: bool = True,
+        input_text: str | None = None,
+    ) -> SimpleNamespace:
+        del env, check, input_text
+        commands.append(command)
+        if command[:3] == ["docker", "ps", "-aq"]:
+            return SimpleNamespace(
+                stdout="container-id\n" if resources["container"] else "",
+                returncode=0,
+            )
+        if command[:3] == ["docker", "rm", "-f"]:
+            resources["container"] = False
+        elif command[:3] == ["docker", "network", "rm"]:
+            assert command[3] == network
+            resources["network"] = False
+        elif command[:3] == ["docker", "volume", "rm"]:
+            assert command[3] == volume
+            resources["volume"] = False
+        elif command[:3] == ["docker", "network", "ls"]:
+            return SimpleNamespace(
+                stdout=f"{network}\n" if resources["network"] else "",
+                returncode=0,
+            )
+        elif command[:3] == ["docker", "volume", "ls"]:
+            return SimpleNamespace(
+                stdout=f"{volume}\n" if resources["volume"] else "",
+                returncode=0,
+            )
+        return SimpleNamespace(stdout="", returncode=0)
+
+    monkeypatch.setattr(support, "run", stateful_run)
+
+    support.cleanup_project(
+        {"SERVICE_APP_COMPOSE_PROJECT": project},
+        preserve_volume=False,
+    )
+
+    assert resources == {"container": False, "network": False, "volume": False}
+    assert any(row[:3] == ["docker", "network", "ls"] for row in commands)
+    assert any(row[:3] == ["docker", "volume", "ls"] for row in commands)
+
+
+def test_cleanup_project_passes_frozen_override_content_to_compose_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """带 `-f -` 的 down 必须同步传入本轮冻结的 stdin override。"""
+
+    support = load_smoke_support()
+    calls: list[tuple[list[str], str | None]] = []
+
+    def record_run(
+        command: list[str],
+        *,
+        env: dict[str, str],
+        check: bool = True,
+        input_text: str | None = None,
+    ) -> SimpleNamespace:
+        del env, check
+        calls.append((command, input_text))
+        is_query = (
+            command[:3] == ["docker", "ps", "-aq"]
+            or command[:3] == ["docker", "network", "ls"]
+            or command[:3] == ["docker", "volume", "ls"]
+        )
+        return SimpleNamespace(stdout="", returncode=0 if is_query else 1)
+
+    monkeypatch.setattr(support, "run", record_run)
+    override = "services: {}\n"
+    support.cleanup_project(
+        {
+            "SERVICE_APP_COMPOSE_PROJECT": "agent-harness-safe123",
+            "SERVICE_APP_RUNTIME_USER_OVERRIDE_CONTENT": override,
+        },
+        preserve_volume=False,
+    )
+
+    down_calls = [call for call in calls if "down" in call[0]]
+    assert down_calls
+    assert down_calls[0][1] == override
 
 
 def test_failed_credential_cleanup_routes_to_redacted_cleanup_boundary(

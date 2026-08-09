@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from click import unstyle
 from tests.contracts.runtime_contract_helpers import sqlite_dsn
 from tests.contracts.test_runtime_checkpoint_runs_contracts import ROOT, build_orchestrator
 from typer.testing import CliRunner
@@ -457,8 +458,9 @@ def test_cli_command_help_keeps_after_seq_cli_only() -> None:
     )
 
     assert result.exit_code == 0
-    assert "--after-seq" in result.output
-    assert "Last-Event-ID" not in result.output
+    help_text = unstyle(result.output)
+    assert "--after-seq" in help_text
+    assert "Last-Event-ID" not in help_text
 
 
 def test_cli_command_reads_real_local_runtime_without_business_writes(tmp_path: Path) -> None:

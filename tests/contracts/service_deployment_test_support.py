@@ -66,6 +66,26 @@ def load_smoke_service(monkeypatch: pytest.MonkeyPatch) -> Any:
 
     support = load_smoke_support()
     monkeypatch.setitem(sys.modules, "service_smoke_support", support)
+    filesystem_module = _script_module(
+        "service_smoke_filesystem",
+        "service_smoke_filesystem.py",
+    )
+    monkeypatch.setitem(sys.modules, "service_smoke_filesystem", filesystem_module)
+    lifecycle_module = _script_module(
+        "service_smoke_lifecycle",
+        "service_smoke_lifecycle.py",
+    )
+    monkeypatch.setitem(sys.modules, "service_smoke_lifecycle", lifecycle_module)
+    wheel_module = _script_module(
+        "service_smoke_wheel",
+        "service_smoke_wheel.py",
+    )
+    monkeypatch.setitem(sys.modules, "service_smoke_wheel", wheel_module)
+    runtime_module = _script_module(
+        "service_smoke_runtime",
+        "service_smoke_runtime.py",
+    )
+    monkeypatch.setitem(sys.modules, "service_smoke_runtime", runtime_module)
     operations_path = TEMPLATE / "scripts" / "service_smoke_operations.py"
     operations_spec = importlib.util.spec_from_file_location(
         "service_smoke_operations_contract",

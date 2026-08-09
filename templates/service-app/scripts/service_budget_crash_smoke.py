@@ -165,7 +165,13 @@ def shared_budget_crash_smoke(
             env["SERVICE_APP_SMOKE_BOUNDARY"] = (
                 f"shared-budget-crash-windows-{phase}-reclaim-receipt"
             )
-            _wait_for(f"shared budget {phase} reclaim receipt", receipt_b_path.exists)
+            # Docker 冷启动或并发 runner 负载可能超过通用 45 秒轮询预算；receipt
+            # 本身仍是强制证据，只为真实 reclaim worker 留出更完整的启动窗口。
+            _wait_for(
+                f"shared budget {phase} reclaim receipt",
+                receipt_b_path.exists,
+                timeout_seconds=90,
+            )
             receipt_b = json.loads(receipt_b_path.read_text(encoding="utf-8"))
             if not reclaim_receipts_match(receipt_a["message_id"], receipt_a, receipt_b):
                 raise RuntimeError(f"shared budget {phase} reclaim mismatch: {receipt_b}")

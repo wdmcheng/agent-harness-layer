@@ -15,7 +15,9 @@ x-runtime-service: &runtime-service
     context: .
     dockerfile: Dockerfile
   image: ${SERVICE_APP_IMAGE:-agent-harness-service-app:smoke}
-  user: "10001:${SERVICE_APP_RUNTIME_GID:-10001}"
+  # 基础配置始终使用镜像内非 root 身份；smoke wrapper 在原生 Linux 上通过
+  # 自己生成的受控 override 映射宿主 UID/GID，不能直接插值未经校验的环境变量。
+  user: "10001:10001"
   profiles: ["service"]
   environment: *runtime-environment
   volumes:

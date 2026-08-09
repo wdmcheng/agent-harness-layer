@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import socket
+import stat
 import subprocess
 import time
 from pathlib import Path
@@ -14,6 +15,27 @@ from service_postgres_evidence import postgres_terminal_evidence as postgres_ter
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = APP_ROOT / "docker-compose.yml"
+
+
+def assert_smoke_directory_identity(env: dict[str, str]) -> None:
+    """外部路径副作用前核对 smoke 目录仍是创建时的真实 inode。"""
+
+    expected_device = env.get("SERVICE_APP_SMOKE_DEVICE")
+    expected_inode = env.get("SERVICE_APP_SMOKE_INODE")
+    if expected_device is None and expected_inode is None:
+        return
+    if expected_device is None or expected_inode is None:
+        raise RuntimeError("service smoke directory identity is incomplete")
+    smoke_dir = Path(env["SERVICE_APP_SMOKE_DIR"])
+    try:
+        current = smoke_dir.stat(follow_symlinks=False)
+    except (FileNotFoundError, OSError, ValueError):
+        raise RuntimeError("service smoke directory identity changed") from None
+    if not stat.S_ISDIR(current.st_mode) or (current.st_dev, current.st_ino) != (
+        int(expected_device),
+        int(expected_inode),
+    ):
+        raise RuntimeError("service smoke directory identity changed")
 
 
 def last_json_line(output: str) -> dict[str, Any]:
@@ -41,6 +63,7 @@ def run(
     *,
     env: dict[str, str],
     check: bool = True,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """在模板根目录和本轮隔离环境中执行子进程，默认保留 stdout/stderr 供诊断。"""
     return subprocess.run(
@@ -50,6 +73,7 @@ def run(
         text=True,
         capture_output=True,
         check=check,
+        input=input_text,
     )
 
 
@@ -59,11 +83,18 @@ def _compose_command(env: dict[str, str], *args: str) -> list[str]:
     project 名只从当前 smoke 环境读取，防止清理或检查误作用于开发机上其他
     Compose 栈；调用方只能追加具体子命令，不能改变隔离根参数。
     """
-    return [
+    assert_smoke_directory_identity(env)
+    command = [
         "docker",
         "compose",
         "-f",
         str(COMPOSE_FILE),
+    ]
+    if env.get("SERVICE_APP_RUNTIME_USER_OVERRIDE_CONTENT"):
+        # Compose 从 stdin 读取本轮已验证内容，避免身份检查后再按可变路径取配置。
+        command.extend(["-f", "-"])
+    return [
+        *command,
         "-p",
         env["SERVICE_APP_COMPOSE_PROJECT"],
         "--profile",
@@ -76,8 +107,14 @@ def compose(env: dict[str, str], *args: str, check: bool = True) -> str:
     """只操作当前随机 Compose project，禁止使用全局 Docker 清理。"""
 
     command = _compose_command(env, *args)
+    assert_smoke_directory_identity(env)
     try:
-        result = run(command, env=env, check=check)
+        result = run(
+            command,
+            env=env,
+            check=check,
+            input_text=env.get("SERVICE_APP_RUNTIME_USER_OVERRIDE_CONTENT"),
+        )
     except subprocess.CalledProcessError as exc:
         message = failure_diagnostic(
             f"compose-{args[0]}",
@@ -92,21 +129,42 @@ def compose(env: dict[str, str], *args: str, check: bool = True) -> str:
 def compose_result(env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
     """返回隔离 Compose 命令结果，供预期失败合同检查退出码与脱敏边界。"""
 
-    return run(_compose_command(env, *args), env=env, check=False)
+    command = _compose_command(env, *args)
+    assert_smoke_directory_identity(env)
+    return run(
+        command,
+        env=env,
+        check=False,
+        input_text=env.get("SERVICE_APP_RUNTIME_USER_OVERRIDE_CONTENT"),
+    )
 
 
 def cleanup_project(env: dict[str, str], *, preserve_volume: bool) -> None:
     """有限重试并逐项证明本轮 container/network/默认 volume 已清理。"""
 
     project = env["SERVICE_APP_COMPOSE_PROJECT"]
+    if re.fullmatch(r"[a-z0-9][a-z0-9_-]*", project) is None:
+        raise RuntimeError("service smoke cleanup requires a validated Compose project name")
     network = f"{project}_default"
     volume = f"{project}_agent_harness_postgres_data"
     down_args = ["down", "--remove-orphans"]
     if not preserve_volume:
         down_args.append("-v")
     for _ in range(20):
-        run(_compose_command(env, *down_args), env=env, check=False)
-        containers = run(
+        try:
+            down_command = _compose_command(env, *down_args)
+        except RuntimeError:
+            # 路径身份异常时跳过依赖 bind/secret 配置的 Compose 解析，但后续按
+            # 已校验 project label 做的容器、网络和卷清理必须继续执行。
+            down_command = None
+        if down_command is not None:
+            run(
+                down_command,
+                env=env,
+                check=False,
+                input_text=env.get("SERVICE_APP_RUNTIME_USER_OVERRIDE_CONTENT"),
+            )
+        containers_query = run(
             [
                 "docker",
                 "ps",
@@ -116,7 +174,8 @@ def cleanup_project(env: dict[str, str], *, preserve_volume: bool) -> None:
             ],
             env=env,
             check=False,
-        ).stdout.split()
+        )
+        containers = containers_query.stdout.split() if containers_query.returncode == 0 else []
         if containers:
             run(["docker", "rm", "-f", *containers], env=env, check=False)
         run(["docker", "network", "rm", network], env=env, check=False)
@@ -133,11 +192,33 @@ def cleanup_project(env: dict[str, str], *, preserve_volume: bool) -> None:
             ],
             env=env,
             check=False,
-        ).stdout.strip()
-        network_left = run(["docker", "network", "inspect", network], env=env, check=False)
-        volume_left = run(["docker", "volume", "inspect", volume], env=env, check=False)
-        volume_ok = preserve_volume or volume_left.returncode != 0
-        if not containers_left and network_left.returncode != 0 and volume_ok:
+        )
+        network_left = run(
+            ["docker", "network", "ls", "-q", "--filter", f"name=^{network}$"],
+            env=env,
+            check=False,
+        )
+        volume_left = (
+            None
+            if preserve_volume
+            else run(
+                ["docker", "volume", "ls", "-q", "--filter", f"name=^{volume}$"],
+                env=env,
+                check=False,
+            )
+        )
+        queries_ok = (
+            containers_left.returncode == 0
+            and network_left.returncode == 0
+            and (volume_left is None or volume_left.returncode == 0)
+        )
+        volume_ok = volume_left is None or not volume_left.stdout.strip()
+        if (
+            queries_ok
+            and not containers_left.stdout.strip()
+            and not network_left.stdout.strip()
+            and volume_ok
+        ):
             return
         time.sleep(0.25)
     raise RuntimeError(failure_diagnostic("project-cleanup", env))

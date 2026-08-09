@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from click import unstyle
 from tests.contracts.test_agent_scaffold_cli_contracts import (
     ROOT as ROOT,
 )
@@ -56,8 +57,9 @@ def test_scaffold_cli_help_success_structure_and_existing_target(tmp_path: Path)
         terminal_width=120,
     )
     assert help_result.exit_code == 0
-    assert "AGENT_ID" in help_result.stdout
-    assert "--agents-dir" in help_result.stdout
+    help_text = unstyle(help_result.stdout)
+    assert "AGENT_ID" in help_text
+    assert "--agents-dir" in help_text
 
     agents_dir = _agents_root(tmp_path)
     result = runner.invoke(

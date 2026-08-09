@@ -26,7 +26,9 @@ def test_compose_declares_migration_api_worker_and_shared_runtime_configuration(
     for name in ("migration", "api", "worker"):
         assert shared_keys <= services[name]["environment"].keys()
         assert services[name]["profiles"] == ["service"]
-        assert services[name]["user"] == "10001:${SERVICE_APP_RUNTIME_GID:-10001}"
+        # 基础 Compose 不能直接插值未校验的宿主身份；Linux 映射只允许由
+        # smoke wrapper 生成的受控 override 覆盖。
+        assert services[name]["user"] == "10001:10001"
         assert services[name]["environment"]["AGENT_HARNESS_STORAGE__DSN_FILE"] == (
             "/run/secrets/agent_harness_storage_dsn"
         )
@@ -58,6 +60,16 @@ def test_compose_declares_migration_api_worker_and_shared_runtime_configuration(
     assert "healthcheck" in services["worker"]
 
 
+def test_base_compose_cannot_render_unvalidated_runtime_identity() -> None:
+    """直接调用 Compose 时，环境变量不能把服务降级为 root 或非数字身份。"""
+
+    compose = (TEMPLATE / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "SERVICE_APP_RUNTIME_UID" not in compose
+    assert "SERVICE_APP_RUNTIME_GID" not in compose
+    assert compose.count('user: "10001:10001"') == 1
+
+
 def test_container_build_requires_core_wheel_and_does_not_copy_workspace_source() -> None:
     """镜像构建只能安装已产出的核心 wheel，避免把宿主工作区带入运行镜像。"""
 
@@ -87,6 +99,9 @@ def test_service_smoke_uses_http_auth_crash_reclaim_checkpoint_and_scoped_cleanu
     )
     secret_smoke = (TEMPLATE / "scripts" / "service_secret_smoke.py").read_text(encoding="utf-8")
     approval_smoke = (TEMPLATE / "scripts" / "service_approval_smoke.py").read_text(
+        encoding="utf-8"
+    )
+    filesystem_smoke = (TEMPLATE / "scripts" / "service_smoke_filesystem.py").read_text(
         encoding="utf-8"
     )
     root_smoke = (ROOT / "scripts" / "smoke_service.py").read_text(encoding="utf-8")
@@ -154,14 +169,18 @@ def test_service_smoke_uses_http_auth_crash_reclaim_checkpoint_and_scoped_cleanu
     assert "wheel.name" in root_smoke
     assert "secret-cleanup=ok" in root_smoke
     assert "docker system prune" not in template_smoke
-    assert "secret_path.unlink" in template_smoke
+    assert "_write_private_file" in template_smoke
+    assert "os.O_EXCL" in filesystem_smoke
+    assert "dir_fd=root_fd" in template_smoke + filesystem_smoke
+    assert "expected_identity=smoke_identity" in template_smoke
+    assert "secret_path.unlink" not in template_smoke
     support = (TEMPLATE / "scripts" / "service_smoke_support.py").read_text(encoding="utf-8")
     postgres_evidence = (TEMPLATE / "scripts" / "service_postgres_evidence.py").read_text(
         encoding="utf-8"
     )
     assert '"terminal_event"' in postgres_evidence
-    assert '"docker", "network", "inspect", network' in support
-    assert '"docker", "volume", "inspect", volume' in support
+    assert '"docker", "network", "ls", "-q"' in support
+    assert '"docker", "volume", "ls", "-q"' in support
 
 
 def test_service_smoke_executes_postgresql_migration_and_shared_budget_scenarios() -> None:

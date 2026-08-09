@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 import pytest
+from click import unstyle
 from tests.contracts.local_state_migration_contract_helpers import (
     ROOT,
 )
@@ -118,8 +119,9 @@ def test_cli_exposes_single_safe_mode_boundary_without_dsn_argument(tmp_path: Pa
     )
 
     assert help_result.exit_code == 0
-    assert "--event-path" in help_result.stdout and "--score-path" in help_result.stdout
-    assert "--storage-dsn" not in help_result.stdout
+    help_text = unstyle(help_result.stdout)
+    assert "--event-path" in help_text and "--score-path" in help_text
+    assert "--storage-dsn" not in help_text
     assert missing_mode.exit_code == conflicting_mode.exit_code == 1
     assert "local_state.mode_conflict" in missing_mode.stderr
     assert "local_state.mode_conflict" in conflicting_mode.stderr
