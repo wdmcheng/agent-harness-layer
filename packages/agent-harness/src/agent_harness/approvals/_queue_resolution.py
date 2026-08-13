@@ -112,7 +112,13 @@ class ApprovalQueueResolutionMixin(ApprovalQueueEnqueueMixin):
                     record=resolved_approval_record(record, status="approved"),
                     request_id=state.request_id,
                 )
-                run = await self._orchestrator.get_run(record.run_id, identity=actor)
+                # run 已在前一次 approval continuation 中进入终态；本次只补当前
+                # resolution 的 terminal evidence，不能退回原 execution request id。
+                run = await self._orchestrator._get_run_with_evidence_request_id(  # pyright: ignore[reportPrivateUsage]
+                    record.run_id,
+                    identity=actor,
+                    evidence_request_id=state.request_id,
+                )
                 await complete_approval_evidence_group(
                     self._storage,
                     self._event_bus,
@@ -205,7 +211,13 @@ class ApprovalQueueResolutionMixin(ApprovalQueueEnqueueMixin):
             record=resolved_approval_record(record, status="approved"),
             request_id=state.request_id,
         )
-        run = await self._orchestrator.get_run(record.run_id, identity=actor)
+        # DBOS 已证明 continuation 确定失败后，补写的 terminal 属于当前
+        # approval resolution；原 execution request id 只供 executor context 恢复。
+        run = await self._orchestrator._get_run_with_evidence_request_id(  # pyright: ignore[reportPrivateUsage]
+            record.run_id,
+            identity=actor,
+            evidence_request_id=state.request_id,
+        )
         await complete_approval_evidence_group(
             self._storage,
             self._event_bus,

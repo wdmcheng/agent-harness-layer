@@ -387,6 +387,143 @@ Active change对 approval冲突的修订范围同时包含 Agent主规格的 `�
 - characterization/contract tests 必须先固定 Phase 20 的公开行为，再移动依赖方向。
 - 任何新 DTO、port 或 event 状态如果改变公开 schema，先返回行为 change 更新 Product Spec/API Contract/OpenSpec，而不是藏在 refactor 中。
 
+### 5.6 Phase 20 后临时 Bug changes
+
+以下两项是 Phase 20 交付后临时发现的关联 Bug 修复，不是 Phase 21，也不占用或改写 `DEV-PLAN.md` 的阶段状态。2026-08-12 已原地收缩契约；仓库外快照和`joint-crop-v1`保持有效。D-363修约后的契约三票全部PASS；D-366修复后的38文件身份`82a78b59…`也按fresh Reviewer 1先行、Reviewer 2/3并行取得三范围Stage 1/2三票PASS、0 findings。后置quality/test/eval/local/service smoke全部退出0。2026-08-13经用户授权，delta已同步三份主规格，两个change已共同归档，当前无active change。
+
+| Archived change | 归档状态与历史顺序依赖 | 独占 owner | 串行共享文件/接口 | 共享验收与 review gate | 反序回滚 |
+|---|---|---|---|---|---|
+| `harden-service-app-runtime-entrypoints` | `已归档`；10/10；路径`openspec/changes/archive/2026-08-13-harden-service-app-runtime-entrypoints/`；契约与实现各三票PASS；历史上在共享worker文件上是前置owner | 生产独占：`templates/service-app/Makefile`、`app/main.py`、`app/runtime.py`；测试独占：`templates/service-app/tests/test_app_surface.py`、`tests/contracts/test_service_app_runtime_entrypoint_contracts.py` | 串行共享 `app/workers/runtime_worker.py`；harden 只保留 profile/profiles-dir/once/env-file hunk；后置 separate 不改配置 hunk，只可转发既有 delivery request id，不增加 private context/queue 协议 | workspace 外复制模板实际导入复制目录的 app/runtime，并已分别在 clean/冲突 ambient `.env` 下证明同一显式 env file；实现三票及quality/test/eval/local/service smoke全部PASS | 删除本 change 时只撤销显式参数透传；不得恢复 ambient `.env` 污染或错误 worker profile |
+| `separate-cli-input-provenance` | `已归档`；17/17；路径`openspec/changes/archive/2026-08-13-separate-cli-input-provenance/`；契约与实现各三票PASS；历史上与harden共享worker串行hunk和联合验收 | 生产独占：`packages/agent-harness/src/agent_harness/cli.py`、`policy/engine.py`、`approvals/_continuation.py`、`approvals/_queue_resolution.py`、`runtime/executor.py`、新建 `runtime/_continuation_context.py`、`runtime/_run_lifecycle.py`、`runtime/_queued_run_orchestration.py`、`runtime/_run_continuation.py`、`storage/run_repositories.py`、`storage/repositories.py`，以及四个模板 agent 适配层 `dev_assistant/rag_assistant/repo_analyst/ticket_triage` 的 `agent.py`；测试独占：`tests/contracts/test_cli_input_provenance_contracts.py`、`tests/contracts/test_cli_input_provenance_recovery_contracts.py` | `runtime_worker.py`保留既有业务input和harden配置hunk；只在DBOS确定性失败分支把`message.request_id`转给orchestrator私有terminal recovery seam。approval的确定失败和`recovery_pending`补写terminal都只通过既有私有evidence seam使用持久化resolution ID。classifier不从delivery/resolution回填execution ID；公开runtime与queue协议不变 | queued executor使用classified nullable execution ID；普通queued新terminal使用当前delivery ID；approval新terminal使用当前resolution ID；guardrail/audit逐值证明只消费typed provenance；六个聚焦文件54项、实现三票及quality/test/eval/local/service smoke全部PASS | 可先停止provenance消费再移除private typed record/classifier；不得恢复向业务input注入或由模板适配层删除transport `source` |
+
+联合文件已由主 Agent 在同一 `main@b6d468ff04e68f9fa19fa586ebd5c8ce06d0a801` 工作树串行完成。`runtime_worker.py` 按 harden 配置入口 hunk先转绿，再由 separate 恢复既有业务 input、只增加当前 delivery request id 到私有 terminal recovery seam 的单一参数转发，并验证 `execute_run` 调用链进入 classifier，最后共同复验。归档后该顺序、owner与反序回滚只作为历史维护证据；未经用户另行授权，不执行 commit/push、发布、部署或真实 provider/业务工具调用，也不启动Phase21。
+
+### 5.6.1 `joint-crop-v1` 联合裁剪 manifest
+
+该 manifest 只解决当前 dirty 工作树已存在的范围膨胀，不是第三个 change，也不授予新生产能力。执行前置是缩减契约三票 PASS、仓库外 tracked patch 与 untracked archive 均可恢复且校验通过。唯一写 owner 为主 Agent；不得使用 glob、目录级恢复/删除或第二写入 Agent。每个 tracked 路径先逐 hunk确认只含 D-320～D-348 已放弃扩张；发现无关用户 hunk时保留该 hunk并停止对应整项恢复。
+
+**逐 hunk 保留/重写的21个路径**：
+
+- `packages/agent-harness/src/agent_harness/cli.py`
+- `packages/agent-harness/src/agent_harness/policy/engine.py`
+- `packages/agent-harness/src/agent_harness/runtime/_continuation_context.py`
+- `packages/agent-harness/src/agent_harness/runtime/_queued_run_orchestration.py`
+- `packages/agent-harness/src/agent_harness/runtime/_run_continuation.py`
+- `packages/agent-harness/src/agent_harness/runtime/_run_lifecycle.py`
+- `packages/agent-harness/src/agent_harness/runtime/executor.py`
+- `packages/agent-harness/src/agent_harness/storage/repositories.py`
+- `packages/agent-harness/src/agent_harness/storage/run_repositories.py`
+- `templates/service-app/Makefile`
+- `templates/service-app/agents/examples/dev_assistant/agent.py`
+- `templates/service-app/agents/examples/rag_assistant/agent.py`
+- `templates/service-app/agents/examples/repo_analyst/agent.py`
+- `templates/service-app/agents/examples/ticket_triage/agent.py`
+- `templates/service-app/app/main.py`
+- `templates/service-app/app/runtime.py`
+- `templates/service-app/app/workers/runtime_worker.py`
+- `templates/service-app/tests/test_app_surface.py`
+- `tests/contracts/test_cli_input_provenance_contracts.py`
+- `tests/contracts/test_cli_input_provenance_recovery_contracts.py`
+- `tests/contracts/test_service_app_runtime_entrypoint_contracts.py`
+
+**只恢复已放弃 dirty hunk、最终与 HEAD 逐字一致的51个 tracked 路径**：
+
+- `packages/agent-harness/src/agent_harness/adapters/models/fake.py`
+- `packages/agent-harness/src/agent_harness/adapters/queue/redis.py`
+- `packages/agent-harness/src/agent_harness/approvals/_queue_resolution.py`
+- `packages/agent-harness/src/agent_harness/config/secret_files.py`
+- `packages/agent-harness/src/agent_harness/config/settings.py`
+- `packages/agent-harness/src/agent_harness/embeddings/_invocation_settlement.py`
+- `packages/agent-harness/src/agent_harness/models/_invocation_chain_settlement.py`
+- `packages/agent-harness/src/agent_harness/models/_invocation_planning.py`
+- `packages/agent-harness/src/agent_harness/models/_invocation_settlement.py`
+- `packages/agent-harness/src/agent_harness/runtime/__init__.py`
+- `packages/agent-harness/src/agent_harness/runtime/_orchestrator_base.py`
+- `packages/agent-harness/src/agent_harness/runtime/queue.py`
+- `packages/agent-harness/src/agent_harness/runtime/services.py`
+- `packages/agent-harness/src/agent_harness/storage/run_models.py`
+- `packages/agent-harness/src/agent_harness/storage/usage_evidence_repositories.py`
+- `packages/agent-harness/src/agent_harness/tools/cli_runtime.py`
+- `scripts/smoke_service.py`
+- `templates/service-app/agents/examples/basic/schemas.py`
+- `templates/service-app/app/migrate.py`
+- `templates/service-app/docker-compose.yml`
+- `templates/service-app/scripts/service_admin.py`
+- `templates/service-app/scripts/service_admin_budget_race.py`
+- `templates/service-app/scripts/service_admin_budget_topology.py`
+- `templates/service-app/scripts/service_approval_smoke.py`
+- `templates/service-app/scripts/service_budget_crash_smoke.py`
+- `templates/service-app/scripts/service_secret_smoke.py`
+- `templates/service-app/scripts/service_smoke_evidence.py`
+- `templates/service-app/scripts/service_smoke_reclaim.py`
+- `templates/service-app/scripts/service_smoke_scenarios.py`
+- `templates/service-app/scripts/service_smoke_support.py`
+- `templates/service-app/scripts/smoke_service.py`
+- `tests/contracts/service_deployment_test_support.py`
+- `tests/contracts/test_agent_delegation_incomplete_usage_contracts.py`
+- `tests/contracts/test_controlled_model_streaming_capacity_contracts.py`
+- `tests/contracts/test_controlled_model_streaming_postgresql_contracts.py`
+- `tests/contracts/test_delegated_child_terminal_boundaries_contracts.py`
+- `tests/contracts/test_durable_run_queue_contracts.py`
+- `tests/contracts/test_model_usage_approval_outbox_recovery_contracts.py`
+- `tests/contracts/test_model_usage_input_capacity_contracts.py`
+- `tests/contracts/test_model_usage_local_crash_recovery_contracts.py`
+- `tests/contracts/test_model_usage_postgresql_concurrency_contracts.py`
+- `tests/contracts/test_model_usage_settlement_validation_contracts.py`
+- `tests/contracts/test_policy_gated_model_tool_loop_public_seam_contracts.py`
+- `tests/contracts/test_service_deployment_packaging_smoke_contracts.py`
+- `tests/contracts/test_service_runtime_migration_fencing_contracts.py`
+- `tests/contracts/test_service_smoke_runtime_contracts.py`
+- `tests/contracts/test_service_worker_forged_identity_contracts.py`
+- `tests/contracts/test_split_runtime_worker_recovery_contracts.py`
+- `tests/contracts/test_usage_capacity_binding_contracts.py`
+- `tests/contracts/test_usage_capacity_payload_binding_contracts.py`
+- `tests/integration/test_redis_run_queue_contracts.py`
+
+**逐项删除、可由仓库外 archive 恢复的39个 untracked 路径**：
+
+- `packages/agent-harness/src/agent_harness/runtime/_approval_grant_validation.py`
+- `scripts/_service_smoke_artifact.py`
+- `scripts/_service_smoke_broker.py`
+- `scripts/_service_smoke_call_evidence.py`
+- `scripts/_service_smoke_evidence.py`
+- `scripts/_service_smoke_old_worker_bundle.py`
+- `scripts/_service_smoke_provenance_evidence.py`
+- `scripts/_service_smoke_rollback_gate.py`
+- `templates/service-app/app/_service_smoke_boundary_records.py`
+- `templates/service-app/app/service_smoke_boundaries.py`
+- `templates/service-app/app/service_smoke_boundary_io.py`
+- `templates/service-app/docker-compose.smoke.yml`
+- `templates/service-app/scripts/service_admin_rollback_readiness.py`
+- `templates/service-app/scripts/service_execution_context_provenance_common.py`
+- `templates/service-app/scripts/service_execution_context_provenance_driver.py`
+- `templates/service-app/scripts/service_execution_context_provenance_fixture.py`
+- `templates/service-app/scripts/service_execution_context_provenance_matrix.py`
+- `templates/service-app/scripts/service_execution_context_provenance_settlement.py`
+- `templates/service-app/scripts/service_execution_context_provenance_smoke.py`
+- `templates/service-app/scripts/service_execution_context_provenance_traps.py`
+- `templates/service-app/scripts/service_old_worker_compatibility_driver.py`
+- `templates/service-app/scripts/service_old_worker_compatibility_runner.py`
+- `templates/service-app/scripts/service_old_worker_compatibility_smoke.py`
+- `templates/service-app/scripts/service_old_worker_rollback_readiness.py`
+- `templates/service-app/scripts/service_smoke_call_verifier.py`
+- `templates/service-app/scripts/service_smoke_compose_broker.py`
+- `tests/contracts/cli_input_provenance_test_support.py`
+- `tests/contracts/service_app_boundary_test_support.py`
+- `tests/contracts/test_cli_input_provenance_old_worker_artifact_contracts.py`
+- `tests/contracts/test_cli_input_provenance_old_worker_compatibility_contracts.py`
+- `tests/contracts/test_cli_input_provenance_readiness_contracts.py`
+- `tests/contracts/test_cli_input_provenance_recovery_owner_contracts.py`
+- `tests/contracts/test_cli_input_provenance_rollback_contracts.py`
+- `tests/contracts/test_cli_input_provenance_runtime_contracts.py`
+- `tests/contracts/test_cli_input_provenance_worker_claim_race_contracts.py`
+- `tests/contracts/test_cli_input_provenance_worker_startup_contracts.py`
+- `tests/contracts/test_service_app_boundary_trace_contracts.py`
+- `tests/contracts/test_service_app_smoke_wiring_contracts.py`
+- `tests/contracts/worker_claim_test_support.py`
+
+OpenSpec artifacts、`API-Contract.md` 与 living plan/matrix 是契约/状态 owner，不属于实现裁剪计数；`.openspec.yaml` 保持原位。`DEV-PLAN.md`、主规格、归档目录及清单外用户文件明确禁止修改。
+
 ## 6. 并行与 Worktree 决策规则
 
 ### 6.1 Sub-agent
@@ -438,8 +575,50 @@ Active change对 approval冲突的修订范围同时包含 Agent主规格的 `�
 
 ## 8. 当前下一步
 
-1. Phase 1–20全部完成。Phase 20的20A/20B/20C按11/11、13/13、18/18完成串行实现、完整门禁与实现审查。
-2. `d34bfef3…`契约身份和D317实现身份`526d16ca…`均取得Reviewer 1先行、Reviewer 2/3并行的三张Stage 1/2 PASS、0 findings票。
-3. OpenSpec CLI于2026-08-06按20A→20B→20C把42条新增、4条修改合并到12份主规格，并归档三个change；当前无active change。acceptance旧REQ-001 evidence保持`BLOCKED`，live保持零调用`hosted-unverified`，二者不冒充PASS。
+1. Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档；当前无 active change，Phase 21 未启动。
+2. 两项归档前不共享 root broker、readiness fence、artifact/rollback gate、call-count 或 queue 新协议；仅因同一 dirty 工作树、`runtime_worker.py` 邻接和联合不变量由同一 owner 串行裁剪。该 owner 顺序现仅作为历史维护证据。
+3. D-363修约后的契约三票均PASS；D-366修复后的38文件身份`82a78b59…`也由fresh实现Reviewer 1先行、Reviewer 2/3并行取得harden、separate和联合范围Stage 1/2三票PASS、0 findings。其后quality、2475/288全量、11/11 eval、local/service smoke全部退出0；2026-08-13已同步三份主规格并共同归档。当前唯一下一动作是等待用户另行授权本地commit；不自动commit/push、发布或部署。
 
-当前唯一下一动作是等待用户明确授权本地提交Phase 20生产实现、测试、文档、主规格合并与归档事务；不得自动commit、push、发布或部署，Phase 21不自动启动。
+以下第七轮至 D-348 的记录只描述本次已经放弃的验证平台路径，保留用于诊断范围膨胀的成因；其中任何 broker/fence/readiness/Registry/FD/Docker event/rollback gate/matrix/queue capability 都不再是 active Requirement、验收或下一动作。
+
+第七轮身份`886dca8c…`的fresh Reviewer 1与独立Reviewer 3均PASS0，但Reviewer 2以1 HIGH证明maintenance把完整Redis entry关系折叠成`run_id`集合，会放行稳定的重复或冲突run映射；任一finding即使另两票通过也使三票全部失效。production-seam先稳定复现两条冲突fresh消息未拒绝，再改为保留完整queue identity、拒绝Redis/数据库/跨存储重复run并逐字段绑定execute/approval耐久状态；删除逐候选耐久绑定时rollback gate再稳定1 FAIL，新candidate字段、构造/重复检查/耐久绑定/classifier与双快照call edge纳入机械门禁后转绿。新增4项、readiness全文件与14个相关合同文件退出0，Ruff/format、Pyright、compile、strict 40/40与diff均通过。当前唯一下一动作是冻结新的实现身份并启动fresh Reviewer 1；PASS后才并行启动新的Reviewer 2/3，三票后才运行全量、重型与Docker。文件行数仅登记为后续集中拆分重构项，不作为本轮FAIL。不得修改 `DEV-PLAN.md`、sync/archive/commit/push、发布或部署，Phase 21不自动启动。
+
+第八轮身份`4d8a4768…`的fresh Reviewer 1/2/3均Stage 1/2 PASS0；三票后quality、全量2635/291、eval 11/11与local smoke通过，但真实service smoke两次在macOS sandbox启动`/usr/bin/make` xcode-select shim时SIGABRT，系统报告定位到dyld `ignition_halt`且尚未进入Makefile。真实sandbox节点先稳定RED；根owner改为sandbox外通过`xcrun --find make`绑定真实工具，profile只增加根目录literal与该工具目录只读能力，role capability根继续不可见。相关两文件42项、Ruff/format、全项目Pyright、compile与diff通过；第八轮三票和重型身份失效。当前唯一下一动作是冻结新的实现身份并启动fresh Reviewer 1；PASS后才并行启动新的Reviewer 2/3，三票后重新运行完整重型与Docker矩阵。文件行数仍只登记为后续集中拆分重构项；不得修改`DEV-PLAN.md`或启动Phase 21。
+
+D-328后身份`7435314b…`的fresh Reviewer 1先PASS0；并行Reviewer 2以2 HIGH证明空字符串`request_id`可通过唯一classifier并进入queue/event/usage副作用，且host最终success/rejected evidence在exclusive fence释放后才输出。四项production-seam合同先稳定RED；当前classifier拒绝空identity，host以exact-once emitter保证失败补偿与override删除完成后、fence释放前flush最终DTO，CLI不重复输出。相关九文件125项、局部Ruff/format、全项目Pyright 0/0/0、change strict与diff已通过，旧票全部失效。当前唯一下一动作仍是冻结新身份并启动fresh Reviewer 1；PASS后再并行启动fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数只登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-329后身份`f635c363…`的fresh Reviewer 1首末一致，以1 HIGH证明模板broker client缺少response deadline/bytes上限，且普通Compose action timeout/取消时没有在shared lease内清理并复核project container/network/volume；Reviewer 2/3未启动。四项production-seam合同先稳定4 FAIL；D-330为模板client增加有限deadline与8 MiB上限，并让root owner在普通action异常时直接按project identity强制删除、复核absent后才释放shared lease。四项转绿，13个相关合同文件185项、局部Ruff/format/Pyright 0/0/0、逐change strict与diff通过，旧FAIL票只保留诊断价值。当前唯一下一动作是冻结新身份并启动fresh Reviewer 1；PASS后才并行启动fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数只登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-330后身份`b469e509…`的fresh Reviewer 1首末身份与127文件清单一致，`separate` Stage 1/2 PASS，但以2 HIGH证明socket每次操作timeout可被slow-trickle持续重置，且Docker枚举、删除或inspect的任意错误会被误判为absent；Reviewer 2/3未启动。slow-trickle与enumerate/delete/inspect四项production-seam合同先稳定4 FAIL；D-331改为monotonic绝对deadline与逐操作剩余预算，并让root补偿只接受成功或绑定资源名的精确not-found，其余状态在shared lease内关闭式失败。四项转绿，13个相关合同文件185项、局部Ruff/format/Pyright 0/0/0通过，旧FAIL票只保留诊断价值。当前唯一下一动作是冻结新身份并启动fresh Reviewer 1；PASS后才并行启动fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数只登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-331后身份`be167488…`的fresh Reviewer 1首末身份与127文件清单一致，以1 HIGH证明具名detached container清理仍忽略`docker rm`状态，并把最终`docker inspect`任意非零误判为absent；Reviewer 2/3未启动。remove/inspect两阶段乘权限、daemon与未知错误六项production-seam合同先稳定6 FAIL；D-332让删除只接受成功或绑定精确容器名的not-found，最终复核只接受同一精确not-found，其他错误均在shared lease内关闭式失败。六项转绿，具名生命周期9项、wiring与readiness两文件69项、局部Ruff/format/Pyright 0/0/0、strict 40/40与diff通过，旧FAIL票只保留诊断价值。当前唯一下一动作是冻结新身份并启动fresh Reviewer 1；PASS后才并行启动fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数只登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-332后身份`cc55448…`的fresh Reviewer 1首末身份与127文件清单一致，以1 HIGH证明最终project cleanup早于broker stop/join，迟到accepted action可在清理后重新创建资源，异常路径还忽略cleanup非零状态；Reviewer 2/3未启动。三个production-seam合同先稳定3 FAIL；D-333把正常/异常出口统一为先stop/join、后deferred cleanup的唯一finally helper，cleanup非零关闭式失败，root producer artifact仅在helper成功后释放，rollback gate同步冻结真实call edge与顺序。三项转绿，wiring与rollback两文件聚焦回归、4文件Ruff/format、Pyright 0/0/0、strict 40/40及diff通过，旧FAIL票只保留诊断价值。当前唯一下一动作是冻结新身份并启动fresh Reviewer 1；PASS后才并行启动fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数只登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-333后身份`9b7bfd09…`的fresh Reviewer 1首末一致并Stage 1/2 PASS0；并行Reviewer 3以1 HIGH证明root broker固定5秒join短于合法accepted action的900秒production deadline，Reviewer 2未形成正式结论，整轮票失效。production-seam并发合同与rollback-gate短join漂移先稳定2 FAIL；D-334让stop只停止接收新请求，accepted action依赖自身有限subprocess、补偿与后验证deadline完整收敛，broker线程退出后才允许deferred project与artifact/capability清理，rollback gate冻结`stop.set → broker.join()`无参数等待→`is_alive`复核。两项转绿，wiring/rollback两文件77项通过；当前唯一下一动作是完成局部静态与strict校验后冻结新身份并启动fresh Reviewer 1，PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数只登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-334后身份`9e452785…`的fresh Reviewer 1先Stage 1/2 PASS0；并行Reviewer 2以1 HIGH证明proof/wheel/template-root三FD在rollback-readiness局部finally中关闭，外层随后才stop/join broker，accepted action的资源生命周期未闭合；Reviewer 3停止且不计票，整轮失效。D-335三个production-seam合同先稳定3 FAIL；FD owner现跨越最终shutdown，在deferred cleanup尝试后、仅当broker确已退出时于独立finally关闭，rollback gate冻结嵌套finally与`stop/cleanup → is_alive → FD close → producer artifact cleanup`顺序。三个节点、三份相关合同文件及五文件局部静态检查通过；当前唯一下一动作是完成strict与diff校验后冻结新身份并启动fresh Reviewer 1，PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数只登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-335后的实现审查以1 HIGH证明异常scope仍未闭合：deferred cleanup失败会在FD finally后跳过secret/capability、smoke目录与pinned/prebuilt producer artifact清理，旧rollback变异又因文本未命中形成no-op。D-336把`_stop_compose_broker`收窄为stop与无参join，唯一shutdown helper先尝试deferred cleanup、再在finally复核`is_alive`并移除socket；root最终出口用嵌套finally保证FD、本地secret/smoke与producer artifact按序清理。helper顺序与scope合同先稳定2 FAIL/1 PASS，修复后定点7项、wiring/readiness/rollback三个相关文件及6文件Ruff/format/Pyright退出0；旧实现票全部失效。当前唯一下一动作是完成strict与diff校验，冻结新身份并启动fresh Reviewer 1；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数只登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-336后身份`52601ae9…`的fresh Reviewer 1首末身份与73 tracked、54 untracked、127文件清单一致，以1 HIGH证明producer cleanup仍会被前序异常短路：pinned cleanup抛错后override与prebuilt均未尝试，rollback gate却会假绿；Reviewer 2/3未启动。D-337两项production-seam与一个对抗门禁先稳定3 FAIL，另补override失败补偿合同；root现于同一shared lease内用嵌套finally逐项补偿pinned、override与prebuilt，startup失败复用该helper并在broker启动后先join/alive复核，capability泄漏早退也进入统一最外层shutdown scope。定点7项、wiring/readiness/rollback三文件及4文件Ruff/format/Pyright退出0；旧FAIL票只保留诊断价值。当前唯一下一动作是完成strict与diff校验，冻结新身份并启动fresh Reviewer 1；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数只登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-337后身份`a9d46808…`的fresh Reviewer 1首末身份与73 tracked、54 untracked、127文件清单一致，以1 HIGH证明startup stop/join自身抛错时，即使broker实际已退出，socket与三个producer artifact补偿仍会整体跳过，而rollback gate全绿；Reviewer 2/3未启动。D-338 production-seam与rollback对抗合同先稳定2 FAIL；root现捕获shutdown异常，先复核`is_alive`，线程已退出才继续socket与逐项artifact补偿并在完成后重抛，仍存活则保持关闭式失败。三个相关合同文件及4文件Ruff/format/Pyright退出0；旧FAIL票只保留诊断价值。当前唯一下一动作是完成strict与diff校验，冻结新身份并启动fresh Reviewer 1；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数只登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-338后身份`684d1004…`的fresh Reviewer 1首末身份与73 tracked、54 untracked、127文件清单一致，以1 HIGH证明broker仍活时直接抛错会退出shared context并释放project fence，使exclusive readiness可与后台action并发；Reviewer 2/3未启动。D-339 production-seam与rollback mutation先稳定2 FAIL；root现于原shared lease内重新设置stop，以`join(timeout=0.1)`循环等待真实退出，并吞住等待阶段的后续`BaseException`直到生命周期闭合，再执行socket与逐项artifact补偿并重抛首次shutdown异常。定点3项、wiring/readiness/rollback三文件120项、14个相关合同文件220项、4文件Ruff/format/Pyright 0/0/0/compile、change/all strict 40/40均退出0。当前唯一下一动作是完成diff校验、冻结新身份并启动fresh Reviewer 1；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数仅登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-339后身份`73a6cc6c…`的fresh Reviewer 1首末身份与73 tracked、54 untracked、127文件清单一致，以1 HIGH证明首次shutdown error会被后续artifact补偿异常覆盖；Reviewer 2/3未启动。D-340 production-seam与rollback mutation先稳定2 FAIL；root现单独保存补偿异常，在原shared lease内完成全部补偿后把补偿失败作为note附到首次shutdown error，只有不存在首次shutdown error时才重抛补偿错误，rollback gate冻结捕获、note与两类重抛顺序。两项定点、wiring/readiness/rollback三份直接相关合同、4文件Ruff/format/Pyright 0/0/0/compile、change/all strict 40/40与diff均退出0。当前唯一下一动作是冻结新身份并启动fresh Reviewer 1；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数仅登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-341后冻结身份`0b41eb11…`的fresh Reviewer 1与并行fresh Reviewer 2均Stage 1/2 PASS0，但并行fresh Reviewer 3以1 HIGH证明shutdown等待helper的第二次`stop.set()`位于受保护循环之外，再次被取消时会让活跃broker越过shared lease并覆盖首次shutdown error；rollback gate仍会假绿。该finding使同一身份三票全部失效。D-342 production-seam与rollback反变异先稳定2 FAIL；root现把重复stop信号、真实live查询与有限join切片统一置于`BaseException`关闭式重试循环，只有确认broker退出才返回，rollback gate冻结完整protected loop并拒绝未保护的重复stop。两份相关合同文件、rollback gate、4文件Ruff/format/Pyright 0/0/0、逐change strict与diff均通过。当前唯一下一动作是冻结新身份并从fresh Reviewer 1重启；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数仅登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-342后冻结身份`821554ce…`的fresh Reviewer 1与并行fresh Reviewer 3均Stage 1/2 PASS0；并行fresh Reviewer 2以1 HIGH证明公开`make worker`忽略显式`ENV_FILE`，CLI因此仍按环境默认发现。任一finding使同一身份三票全部失效。D-343精确dry-run合同先稳定1 FAIL；模板现仅对非空`ENV_FILE`生成`--env-file`，空值或省略保持默认发现，并覆盖local/service、含空格路径及省略值。同一用例1 PASS、相关合同文件6 PASS，局部Ruff/format、Pyright 0/0/0、逐change及all strict 40/40与diff均通过。当前唯一下一动作是冻结新身份并从fresh Reviewer 1重启；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数仅登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-343后身份`45072ba5…`的fresh Reviewer 1首末一致，以1 HIGH证明正常最终shutdown在`BaseException`下会跳过broker退出复核或后续清理，并可能由较晚清理失败覆盖首次错误；`separate`单项Stage 1 PASS，但`harden`与联合Stage 1 FAIL，Stage 2未执行，Reviewer 2/3未启动。D-344三项production-seam先稳定3 FAIL；root现由唯一finalizer保持首次错误、关闭式等待broker退出，再逐项清理三FD、本地secret/capability、smoke目录与producer artifact，rollback gate冻结真实owner、异常handler和顺序。同三项3 PASS，wiring/rollback两份直接相关合同及14份相关合同237项退出0，5个相关测试/production文件Ruff、格式、Pyright 0/0/0与只读compile通过，逐change及all strict 40/40与diff检查通过。当前唯一下一动作是冻结新身份并从fresh Reviewer 1重启；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数仅登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-344后身份`d720432b…`的fresh Reviewer 1首末一致，以3 HIGH证明三FD关闭会被首个`os.close`失败短路、smoke目录使用`ignore_errors=True`会吞掉清理失败，且rollback gate会放过两类漂移；Stage 2未执行，Reviewer 2/3未启动。D-345三个production-seam合同先稳定3 FAIL；三FD owner现逐项尝试并保持首错、后错追加note，smoke目录失败进入统一finalization错误聚合且仍继续producer cleanup，rollback gate拒绝部分FD关闭和无保护目录删除。同三项3 PASS，三份直接合同108项、14份相关合同239项退出0，六文件Ruff/format、Pyright 0/0/0、只读compile、rollback当前树、逐change及all strict 40/40、diff与`DEV-PLAN.md`零改动均通过。当前唯一下一动作是冻结新身份并以独立只读`gpt-5.6-sol`/`high`从fresh Reviewer 1重启；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数仅登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-345后身份`6cea5e8a…`的独立只读`gpt-5.6-sol`/`high` fresh Reviewer 1首末一致，以3 HIGH证明源wheel/tree FD仍会因首个关闭失败跳过第二项，外层role capability与复制树临时目录仍以`ignore_errors=True`吞错，rollback gate也未冻结这条外层生命周期；Stage 2未执行，Reviewer 2/3未启动。D-346六个production-seam case在旧实现上5 FAIL/1 PASS；源FD现逐项关闭并保持首错/后错note，统一外层finalizer保存业务首错并继续bundle、capability root和排序后的全部project目录清理，生产路径移除`ignore_errors`，gate冻结源FD loop、四类`BaseException`聚合、无忽略删除、真实顺序及finalizer先于return。修复后6 PASS，四份直接合同134项、14份相关合同243项、六文件Ruff/format与Pyright 0/0/0、108文件只读compile、rollback当前树、逐change/all strict 40/40、diff与`DEV-PLAN.md`零改动均通过。当前唯一下一动作是冻结新身份并从fresh Reviewer 1重启；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数仅登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-346后身份`c84d3e69…`的独立只读`gpt-5.6-sol`/`high` fresh Reviewer 1首末一致并Stage 1/2 PASS0；并行Reviewer 2/3首末身份同样一致，各自以同一项HIGH证明capability root创建后验证失败分支仍用`ignore_errors=True`静默吞掉删除失败，且rollback gate未扫描该真实owner，整轮实现票失效。D-347两个production-seam case先稳定2 FAIL；创建owner现无关键字删除，保留原验证异常并将删除失败追加note，gate冻结创建owner两层`BaseException`、唯一删除、错误聚合与bare raise。两项转为2 PASS，五份关联合同141项、四文件Ruff/format与Pyright 0/0/0、只读compile、rollback当前树、逐change/all strict 40/40、diff与`DEV-PLAN.md`零改动均通过。当前唯一下一动作是冻结D-347后新身份并从fresh Reviewer 1重启；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数仅登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。
+
+D-347后身份`fcb5098a…`的独立只读`gpt-5.6-sol`/`high` fresh Reviewer 1/3首末一致并Stage 1/2 PASS0；fresh Reviewer 2以1 MEDIUM证明pinned registry/image清理首错会短路剩余唯一image和最终absent复核，build原异常也会被清理异常覆盖，整轮实现票失效。D-348两个production-seam case先稳定2 FAIL；清理owner现逐项尝试registry、全部唯一image及最终container/image复核，首错保持、后错附note，build owner继续抛原异常并转附完整清理诊断；rollback gate的真实handler/loop/call/raise拓扑和首错即抛对抗变体同步闭合。两项转为2 PASS，artifact/rollback直接合同20项、14份相关合同247项、四文件Ruff/format、Pyright 0/0/0、只读compile、all strict 40/40、diff与`DEV-PLAN.md`零改动均通过。当前唯一下一动作是冻结D-348后新身份并从fresh Reviewer 1重启；PASS后才并行fresh Reviewer 2/3，三票后才运行完整重型与Docker矩阵。文件行数仅登记为后续拆分项；不得修改`DEV-PLAN.md`、启动Phase21或执行sync/archive/commit/push、发布、部署。

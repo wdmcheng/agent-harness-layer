@@ -97,6 +97,7 @@ def create_app(
     event_sink: EventSink | None = None,
     profile: str = "local",
     profiles_dir: Path | None = None,
+    env_file: Path | None = None,
     storage_dsn: str | None = None,
     events_path: Path | None = None,
     registry: object | None = None,
@@ -116,13 +117,18 @@ def create_app(
     """
 
     # 始终先加载设置以生成健康摘要；测试可替换运行组件，但仍复用同一配置语义。
-    settings = load_settings(profile=profile, profiles_dir=profiles_dir)
+    settings = load_settings(
+        profile=profile,
+        profiles_dir=profiles_dir,
+        env_file=env_file,
+    )
     health_summary = health_summary_from_settings(settings)
     components: RuntimeComponents | None = None
     if orchestrator is None or event_sink is None:
         components = build_runtime_components(
             profile=profile,
             profiles_dir=profiles_dir,
+            env_file=env_file,
             storage_dsn=storage_dsn,
             events_path=events_path,
         )

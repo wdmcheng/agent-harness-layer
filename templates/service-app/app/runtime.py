@@ -77,6 +77,7 @@ def build_runtime_components(
     *,
     profile: str = "local",
     profiles_dir: Path | None = None,
+    env_file: Path | None = None,
     storage_dsn: str | None = None,
     events_path: Path | None = None,
     workspace_root: Path | None = None,
@@ -85,7 +86,11 @@ def build_runtime_components(
 ) -> RuntimeComponents:
     """从 profile 构造 API/worker 共享组件，旧 schema 必须先显式迁移。"""
 
-    settings = load_settings(profile=profile, profiles_dir=profiles_dir)
+    settings = load_settings(
+        profile=profile,
+        profiles_dir=profiles_dir,
+        env_file=env_file,
+    )
     resolved_dsn = storage_dsn or storage_dsn_from_settings(settings)
     require_migration_head(resolved_dsn)
     resolved_events_path = events_path or Path(

@@ -34,6 +34,7 @@ class AgentExecutionContext(HarnessDTO):
     request_id: str | None = None
     trace_id: str | None = None
     _services: Mapping[str, object] = PrivateAttr(default_factory=dict)
+    _input_provenance: object | None = PrivateAttr(default=None)
 
     def bind_services(self, services: Mapping[str, object]) -> AgentExecutionContext:
         """绑定本进程公共服务；private 属性不会进入任何 DTO payload。"""

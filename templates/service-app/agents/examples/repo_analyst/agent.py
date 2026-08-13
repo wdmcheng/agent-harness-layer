@@ -111,12 +111,10 @@ class RepoAnalystExecutor:
 def _input(request: AgentExecutionRequest) -> RepoAnalystInput:
     """将交互式 prompt 翻译为结构化只读操作，同时保留显式字段优先级。
 
-    ``source`` 是上游传入的元数据而非 schema 输入，必须在校验前移除，
-    以防示例宽松接受未知字段。未带路径时使用当前工作区根目录，实际边界
-    仍由底层文件工具校验。
+    未带路径时使用当前工作区根目录，实际边界仍由底层文件工具校验。除
+    交互式 ``prompt`` 外的未知字段交给严格 schema 拒绝，不能在此静默删除。
     """
     payload = dict(request.input)
-    payload.pop("source", None)
     prompt = str(payload.pop("prompt", None) or "").strip()
     if prompt and "operation" not in payload:
         command, _, value = prompt.partition(" ")

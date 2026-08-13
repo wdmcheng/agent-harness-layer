@@ -226,7 +226,6 @@ def _input(request: AgentExecutionRequest) -> DevAssistantInput:
     工具策略决定是否允许，不能在这里默默猜测目标文件。
     """
     payload = dict(request.input)
-    payload.pop("source", None)
     prompt = str(payload.pop("prompt", None) or "").strip()
     if prompt and "operation" not in payload:
         command, _, value = prompt.partition(" ")

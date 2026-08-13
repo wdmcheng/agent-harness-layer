@@ -9,12 +9,22 @@ from uuid import uuid4
 
 from agent_harness.events import CanonicalEventType
 from agent_harness.identity import IdentityContext
+from agent_harness.runtime._continuation_context import (
+    RunInputProvenance,
+    bind_execution_provenance,
+    classify_execution_context_record,
+    execution_context_payload,
+)
 from agent_harness.runtime._orchestrator_base import OrchestratorState, RunEnqueueUnavailable
 from agent_harness.runtime._orchestrator_support import policy_checkpoint_state, run_correlation
 from agent_harness.runtime.checkpoints import IdempotencyKey
 from agent_harness.runtime.continuation import InvalidRunTransition, idempotency_value
 from agent_harness.runtime.evidence import publish_terminal_evidence
-from agent_harness.runtime.executor import AgentExecutionRequest, RunResult, build_execution_context
+from agent_harness.runtime.executor import (
+    AgentExecutionRequest,
+    RunResult,
+    build_execution_context,
+)
 from agent_harness.runtime.queue import RunQueueMessage, build_execute_message
 from agent_harness.runtime.shared_budget import SharedBudgetRuntime
 from agent_harness.runtime.state import TERMINAL_STATUSES, RunStatus
@@ -67,6 +77,33 @@ class QueuedRunOrchestration(OrchestratorState):
     ) -> RunResult:
         """持久化并排队 service run；API 进程不调用 executor。"""
 
+        return await self._submit_run_with_provenance(
+            agent_id=agent_id,
+            input=input,
+            idempotency_key=idempotency_key,
+            checkpoint_state=checkpoint_state,
+            identity=identity,
+            request_id=request_id,
+            trace_id=trace_id,
+            parent_run_id=parent_run_id,
+            provenance=None,
+        )
+
+    async def _submit_run_with_provenance(
+        self,
+        *,
+        agent_id: str,
+        input: dict[str, Any],
+        idempotency_key: IdempotencyKey | str | None = None,
+        checkpoint_state: dict[str, Any] | None = None,
+        identity: IdentityContext | None = None,
+        request_id: str | None = None,
+        trace_id: str | None = None,
+        parent_run_id: str | None = None,
+        provenance: RunInputProvenance | None = None,
+    ) -> RunResult:
+        """受信 composition 私有入口；queue DTO 与公开 submit seam 保持不变。"""
+
         if self._queue is None:
             raise RunEnqueueUnavailable("run queue is not configured")
         active_identity = identity or self._identity
@@ -102,6 +139,13 @@ class QueuedRunOrchestration(OrchestratorState):
                     canonical_trace = normalize_trace_id(
                         str(trace_id) if trace_id is not None else None
                     )
+                    raw_execution_context = execution_context_payload(
+                        identity=active_identity.to_payload(),
+                        request_id=request_id,
+                        trace_id=canonical_trace,
+                        checkpoint_state=checkpoint_state,
+                        provenance=provenance,
+                    )
                     run = await uow.runs.create_queued(
                         RunCreate(
                             tenant_id=tenant.id,
@@ -112,12 +156,7 @@ class QueuedRunOrchestration(OrchestratorState):
                             trace_id=canonical_trace,
                             input=input,
                         ),
-                        execution_context={
-                            "identity": active_identity.to_payload(),
-                            "request_id": first_request_id,
-                            "trace_id": canonical_trace,
-                            "checkpoint_state": checkpoint_state,
-                        },
+                        execution_context=raw_execution_context,
                         operation_id="run:pending:execute",
                         request_id=first_request_id,
                         effective_idempotency_key=idempotency_key_value,
@@ -140,6 +179,10 @@ class QueuedRunOrchestration(OrchestratorState):
                 private = await uow.runs.get_execution(run.id)
                 if private is None:
                     raise RuntimeError("idempotent run is not a service queued run")
+                context_record = await uow.runs.get_execution_context_record(run.id)
+                if context_record is None:
+                    raise InvalidRunTransition("run execution context is missing")
+                classify_execution_context_record(context_record)
                 await uow.commit()
         except RunTraceRepositoryConflict as exc:
             if exc.code == "trace.idempotency_conflict":
@@ -165,6 +208,10 @@ class QueuedRunOrchestration(OrchestratorState):
                     private = await uow.runs.get_execution(run.id)
                     if private is None:
                         raise RuntimeError("idempotent run is not a service queued run") from exc
+                    context_record = await uow.runs.get_execution_context_record(run.id)
+                    if context_record is None:
+                        raise InvalidRunTransition("run execution context is missing") from exc
+                    classify_execution_context_record(context_record)
                     # replay 只使用首次 run 的 durable request/operation evidence；
                     # 后续 enqueue/reconcile 由 operation/event-id 幂等收敛。
             elif exc.code == "trace.conflict":
@@ -193,9 +240,11 @@ class QueuedRunOrchestration(OrchestratorState):
         async with self._storage.uow() as uow:
             run = await uow.runs.get(message.run_id)
             private = await uow.runs.get_execution(message.run_id)
+            context_record = await uow.runs.get_execution_context_record(message.run_id)
             if (
                 run is None
                 or private is None
+                or context_record is None
                 or run.tenant_id != message.tenant_id
                 or private.tenant_id != message.tenant_id
                 or private.operation_id != message.operation_id
@@ -203,8 +252,12 @@ class QueuedRunOrchestration(OrchestratorState):
                 or private.effective_idempotency_key != message.idempotency_key
             ):
                 raise InvalidRunTransition("run queue message does not match storage")
+            classified = classify_execution_context_record(context_record)
+            context_payload = classified.payload
+            if context_payload is None:
+                raise InvalidRunTransition("run execution identity is missing")
             identity = _validated_execution_identity(
-                execution_context=private.execution_context,
+                execution_context=context_payload,
                 run_tenant_id=run.tenant_id,
                 private_tenant_id=private.tenant_id,
                 operation_tenant_id=message.tenant_id,
@@ -242,6 +295,7 @@ class QueuedRunOrchestration(OrchestratorState):
         async with self._storage.uow() as uow:
             run = await uow.runs.get(run_id)
             private = await uow.runs.get_execution(run_id)
+            context_record = await uow.runs.get_execution_context_record(run_id)
             if (
                 run is None
                 or private is None
@@ -250,12 +304,21 @@ class QueuedRunOrchestration(OrchestratorState):
                 or private.operation_id != operation_id
             ):
                 raise LookupError(f"run not found: {run_id}")
+            if context_record is None:
+                raise InvalidRunTransition("run execution context is missing")
+            classified = classify_execution_context_record(context_record)
+            context_payload = classified.payload
+            if context_payload is None:
+                raise InvalidRunTransition("run execution identity is missing")
             execution_identity = _validated_execution_identity(
-                execution_context=private.execution_context,
+                execution_context=context_payload,
                 run_tenant_id=run.tenant_id,
                 private_tenant_id=private.tenant_id,
                 operation_tenant_id=tenant_id,
             )
+            # 先解码并校验私有 context；坏 provenance 必须发生在 claim、commit、event
+            # 与 provider/tool/approval 副作用之前。
+            provenance = classified.provenance
             status = RunStatus(run.status)
             if status in TERMINAL_STATUSES:
                 return RunResult(run_id=run_id, status=status)
@@ -276,9 +339,7 @@ class QueuedRunOrchestration(OrchestratorState):
             )
 
         await self.recover_pending_usage_evidence(run_id=run_id)
-        context_payload = private.execution_context
-        request_id = context_payload.get("request_id")
-        request_id_value = request_id if isinstance(request_id, str) else None
+        request_id_value = classified.authoritative_request_id
         trace_id_value = run.trace_id
         await self._event_bus.publish(
             tenant_id=execution_identity.tenant_id,
@@ -348,13 +409,16 @@ class QueuedRunOrchestration(OrchestratorState):
                 input=run.input,
             )
         request = AgentExecutionRequest(agent_id=run.agent_id, run_id=run.id, input=run.input)
-        context = build_execution_context(
-            identity=execution_identity,
-            services=self._executor_services,
-            agent_id=run.agent_id,
-            run_id=run.id,
-            request_id=request_id_value,
-            trace_id=trace_id_value,
+        context = bind_execution_provenance(
+            build_execution_context(
+                identity=execution_identity,
+                services=self._executor_services,
+                agent_id=run.agent_id,
+                run_id=run.id,
+                request_id=request_id_value,
+                trace_id=trace_id_value,
+            ),
+            provenance,
         )
         try:
             result = await self._executor_resolver(run.agent_id).run(request, context)
@@ -401,29 +465,43 @@ class QueuedRunOrchestration(OrchestratorState):
         tenant_id: str,
         reason: str,
         defer_terminal: bool = False,
+        recovery_request_id: str | None = None,
     ) -> RunResult:
-        """用持久化身份把 DBOS 确定性失败收口为 application terminal。"""
+        """用持久化身份收口 DBOS 确定性失败，并区分两个 request-id 平面。
+
+        executor context 始终保留首次 execution 的 authoritative nullable ID；只有本次
+        恢复新发布的 terminal evidence 使用 worker 传入的 delivery ID。
+        """
 
         async with self._storage.uow() as uow:
             run = await uow.runs.get(run_id)
             private = await uow.runs.get_execution(run_id)
+            context_record = await uow.runs.get_execution_context_record(run_id)
         if (
             run is None
             or private is None
+            or context_record is None
             or run.tenant_id != tenant_id
             or private.tenant_id != tenant_id
         ):
             raise LookupError(f"run not found: {run_id}")
+        classified = classify_execution_context_record(context_record)
+        context_payload = classified.payload
+        if context_payload is None:
+            raise InvalidRunTransition("run execution identity is missing")
         identity = _validated_execution_identity(
-            execution_context=private.execution_context,
+            execution_context=context_payload,
             run_tenant_id=run.tenant_id,
             private_tenant_id=private.tenant_id,
             operation_tenant_id=tenant_id,
         )
         status = RunStatus(run.status)
-        request_id = private.execution_context.get("request_id")
-        trace_id = private.execution_context.get("trace_id")
-        request_id_value = request_id if isinstance(request_id, str) else None
+        request_id_value = (
+            recovery_request_id
+            if recovery_request_id is not None
+            else classified.authoritative_request_id
+        )
+        trace_id = context_payload.get("trace_id")
         trace_id_value = trace_id if isinstance(trace_id, str) else None
         if status in TERMINAL_STATUSES:
             terminal = None

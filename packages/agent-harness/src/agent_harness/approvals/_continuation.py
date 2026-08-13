@@ -121,7 +121,13 @@ class ApprovalContinuationMixin:
                 record=evidence_record,
                 request_id=lease.resolution_request_id,
             )
-            run_result = await self._orchestrator.get_run(run_id, identity=actor)
+            # Approval 与 runtime 通过同一包内私有 seam 交换 resolution ID；
+            # 定点抑制只处理 Pyright 的 protected 命名规则，不关闭参数类型检查。
+            run_result = await self._orchestrator._get_run_with_evidence_request_id(  # pyright: ignore[reportPrivateUsage]
+                run_id,
+                identity=actor,
+                evidence_request_id=lease.resolution_request_id,
+            )
             await complete_approval_evidence_group(
                 self._storage,
                 self._event_bus,
@@ -186,7 +192,11 @@ class ApprovalContinuationMixin:
                     record=evidence_record,
                     request_id=lease.resolution_request_id,
                 )
-                run_result = await self._orchestrator.get_run(run_id, identity=actor)
+                run_result = await self._orchestrator._get_run_with_evidence_request_id(  # pyright: ignore[reportPrivateUsage]
+                    run_id,
+                    identity=actor,
+                    evidence_request_id=lease.resolution_request_id,
+                )
                 await complete_approval_evidence_group(
                     self._storage,
                     self._event_bus,
@@ -244,12 +254,13 @@ class ApprovalContinuationMixin:
         try:
             run_result = None
             if approval.resume_token is not None:
-                run_result = await self._orchestrator.resume_run(
+                run_result = await self._orchestrator._resume_run_with_resolution_context(  # pyright: ignore[reportPrivateUsage]
                     approval.resume_token,
                     expected_run_id=approval.run_id,
                     identity=actor,
                     approval_grant=grant,
                     defer_terminal=True,
+                    current_resume_request_id=lease.resolution_request_id,
                 )
         except AgentExecutionLeaseLost as exc:
             raise ApprovalStateConflict(
@@ -340,9 +351,10 @@ class ApprovalContinuationMixin:
                         run=run_result,
                     )
         if run_result is not None and run_result.status in {RunStatus.COMPLETED, RunStatus.FAILED}:
-            run_result = await self._orchestrator.get_run(
+            run_result = await self._orchestrator._get_run_with_evidence_request_id(  # pyright: ignore[reportPrivateUsage]
                 approval.run_id,
                 identity=actor,
+                evidence_request_id=lease.resolution_request_id,
             )
             await complete_approval_evidence_group(
                 self._storage,

@@ -165,11 +165,10 @@ class RagAssistantExecutor:
 def _input(request: AgentExecutionRequest) -> RagInput:
     """规范化 API 输入，并兼容把交互 prompt 作为检索问题传入的入口。
 
-    ``source`` 是运行时元数据，不能传给业务 schema；显式 ``query`` 优先，
-    只有缺失时才使用 prompt，避免调用方的结构化意图被界面文案覆盖。
+    显式 ``query`` 优先，只有缺失时才使用 prompt，避免调用方的结构化意图
+    被界面文案覆盖；其他未知字段交给严格 schema 拒绝。
     """
     payload = dict(request.input)
-    payload.pop("source", None)
     prompt = payload.pop("prompt", None)
     query = payload.get("query") or prompt or ""
     payload["query"] = str(query)

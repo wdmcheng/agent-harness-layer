@@ -8,6 +8,10 @@ from typing import Any, cast
 from agent_harness.events import CanonicalEventType
 from agent_harness.events.model_tool_loop import ModelToolLoopEventPublishPending
 from agent_harness.identity import IdentityContext
+from agent_harness.runtime._continuation_context import (
+    bind_execution_provenance,
+    classify_execution_context_record,
+)
 from agent_harness.runtime._orchestrator_base import OrchestratorState
 from agent_harness.runtime._orchestrator_support import run_correlation
 from agent_harness.runtime.checkpoints import ResumeToken
@@ -141,6 +145,27 @@ class RunContinuation(OrchestratorState):
     ) -> RunResult:
         """用 resume token 完成等待中的 run，并校验 URL 与 token 归属。"""
 
+        return await self._resume_run_with_resolution_context(
+            resume_token,
+            expected_run_id=expected_run_id,
+            identity=identity,
+            approval_grant=approval_grant,
+            defer_terminal=defer_terminal,
+            current_resume_request_id=None,
+        )
+
+    async def _resume_run_with_resolution_context(
+        self,
+        resume_token: ResumeToken | str,
+        *,
+        expected_run_id: str | None = None,
+        identity: IdentityContext | None = None,
+        approval_grant: ApprovalGrant | None = None,
+        defer_terminal: bool = False,
+        current_resume_request_id: str | None = None,
+    ) -> RunResult:
+        """私有 approval seam 同时携带当前 resolution request id。"""
+
         active_identity = identity or self._identity
         token_value = resume_token_value(resume_token)
         async with self._storage.uow() as uow:
@@ -152,6 +177,15 @@ class RunContinuation(OrchestratorState):
             run = await uow.runs.get(checkpoint.run_id)
             if run is None or run.tenant_id != active_identity.tenant_id:
                 raise LookupError(f"run not found: {checkpoint.run_id}")
+            execution_context_record = await uow.runs.get_execution_context_record(
+                checkpoint.run_id
+            )
+            if execution_context_record is None:
+                raise InvalidRunTransition("run execution context is missing")
+            classified_context = classify_execution_context_record(execution_context_record)
+            execution_context = classified_context.payload
+            if execution_context is None:
+                execution_context = {}
         state = checkpoint.state
         checkpoint_kind = state.get("kind")
         is_approval_checkpoint = checkpoint_kind in {
@@ -238,6 +272,13 @@ class RunContinuation(OrchestratorState):
         # run 前验证 grant；原始 token 永远不能代替 ApprovalGrant。
         if approval_grant is None:
             raise InvalidRunTransition("executor approval resume requires ApprovalGrant")
+        provenance = classified_context.provenance
+        execution_request_id = classified_context.authoritative_request_id
+        resume_request_id = (
+            current_resume_request_id
+            if current_resume_request_id is not None
+            else optional_state_text(checkpoint.state, "request_id")
+        )
         # checkpoint 字段只能证明请求语义一致；真正的授权能力来自 repository
         # 中仍有效且未完成的 resolution lease，二者必须在任何 resumed event 或
         # executor/provider 副作用前同时成立。
@@ -255,7 +296,7 @@ class RunContinuation(OrchestratorState):
                     "approval_id": approval_grant.approval_id,
                     **run_correlation(run.input),
                 },
-                request_id=optional_state_text(checkpoint.state, "request_id"),
+                request_id=resume_request_id,
                 trace_id=run.trace_id,
                 event_id=f"run-resumed:{run.id}:{approval_grant.approval_id}",
             )
@@ -264,7 +305,7 @@ class RunContinuation(OrchestratorState):
                 run.agent_id,
                 output={"resumed": True},
                 identity=execution_identity,
-                request_id=optional_state_text(checkpoint.state, "request_id"),
+                request_id=resume_request_id,
                 trace_id=run.trace_id,
                 input=run.input,
                 defer_terminal=defer_terminal,
@@ -278,13 +319,16 @@ class RunContinuation(OrchestratorState):
             raise InvalidRunTransition("agent executor is not configured")
         validate_approval_grant(checkpoint.state, approval_grant, active_identity.tenant_id)
         execution_identity = checkpoint_identity(checkpoint.state)
-        context = build_execution_context(
-            identity=execution_identity,
-            services=self._executor_services,
-            agent_id=run.agent_id,
-            run_id=run.id,
-            request_id=optional_state_text(checkpoint.state, "request_id"),
-            trace_id=run.trace_id,
+        context = bind_execution_provenance(
+            build_execution_context(
+                identity=execution_identity,
+                services=self._executor_services,
+                agent_id=run.agent_id,
+                run_id=run.id,
+                request_id=execution_request_id,
+                trace_id=run.trace_id,
+            ),
+            provenance,
         )
         request = AgentExecutionRequest(
             agent_id=run.agent_id,
@@ -311,7 +355,7 @@ class RunContinuation(OrchestratorState):
                     identity=execution_identity,
                     output=run.output,
                     error=run.error,
-                    request_id=context.request_id,
+                    request_id=resume_request_id,
                     trace_id=context.trace_id,
                     correlation=run_correlation(run.input),
                 )
@@ -339,7 +383,7 @@ class RunContinuation(OrchestratorState):
                     run.agent_id,
                     str(redact_secrets(str(exc))),
                     identity=execution_identity,
-                    request_id=context.request_id,
+                    request_id=resume_request_id,
                     trace_id=context.trace_id,
                     input=run.input,
                     defer_terminal=defer_terminal,
@@ -360,7 +404,7 @@ class RunContinuation(OrchestratorState):
                 "approval_id": approval_grant.approval_id,
                 **run_correlation(run.input),
             },
-            request_id=context.request_id,
+            request_id=resume_request_id,
             trace_id=context.trace_id,
             event_id=f"run-resumed:{run.id}:{approval_grant.approval_id}",
         )
@@ -387,7 +431,7 @@ class RunContinuation(OrchestratorState):
                     run.agent_id,
                     str(redact_secrets(str(exc))),
                     identity=execution_identity,
-                    request_id=context.request_id,
+                    request_id=resume_request_id,
                     trace_id=context.trace_id,
                     input=run.input,
                     defer_terminal=defer_terminal,
@@ -406,6 +450,7 @@ class RunContinuation(OrchestratorState):
                 "approval_id": approval_grant.approval_id,
                 "actor": active_identity.to_payload(),
             },
+            event_request_id=resume_request_id,
         )
 
     async def _apply_execution_result(
@@ -416,6 +461,7 @@ class RunContinuation(OrchestratorState):
         context: AgentExecutionContext,
         defer_terminal: bool = False,
         approval_recovery: dict[str, Any] | None = None,
+        event_request_id: str | None = None,
     ) -> RunResult:
         """将 executor 的三类结果原子映射为 run 终态或新的审批检查点。
 
@@ -424,13 +470,16 @@ class RunContinuation(OrchestratorState):
         发布审批记录，避免 executor 直接跨越审批状态机。
         """
 
+        correlation_request_id = (
+            event_request_id if event_request_id is not None else context.request_id
+        )
         if result.status == "completed":
             deferred = await self._defer_pending_delegation_terminal(
                 run_id=request.run_id,
                 status=RunStatus.COMPLETED,
                 identity=context.identity,
                 output=result.output or {},
-                request_id=context.request_id,
+                request_id=correlation_request_id,
                 trace_id=context.trace_id,
                 approval_recovery=approval_recovery,
             )
@@ -441,7 +490,7 @@ class RunContinuation(OrchestratorState):
                 request.agent_id,
                 output=result.output or {},
                 identity=context.identity,
-                request_id=context.request_id,
+                request_id=correlation_request_id,
                 trace_id=context.trace_id,
                 input=request.input,
                 defer_terminal=defer_terminal,
@@ -457,7 +506,7 @@ class RunContinuation(OrchestratorState):
                 request.agent_id,
                 result.error or "agent execution failed",
                 identity=context.identity,
-                request_id=context.request_id,
+                request_id=correlation_request_id,
                 trace_id=context.trace_id,
                 input=request.input,
                 defer_terminal=defer_terminal,
@@ -470,7 +519,7 @@ class RunContinuation(OrchestratorState):
                 request.agent_id,
                 "waiting execution omitted approval request",
                 identity=context.identity,
-                request_id=context.request_id,
+                request_id=correlation_request_id,
                 trace_id=context.trace_id,
                 input=request.input,
                 defer_terminal=defer_terminal,
@@ -482,7 +531,7 @@ class RunContinuation(OrchestratorState):
                 request.agent_id,
                 "waiting executor requires an approval service",
                 identity=context.identity,
-                request_id=context.request_id,
+                request_id=correlation_request_id,
                 trace_id=context.trace_id,
                 input=request.input,
                 defer_terminal=defer_terminal,
@@ -493,7 +542,7 @@ class RunContinuation(OrchestratorState):
             request.agent_id,
             state,
             identity=context.identity,
-            request_id=context.request_id,
+            request_id=correlation_request_id,
             trace_id=context.trace_id,
         )
         await self._approval_service.require_approval(
@@ -505,7 +554,7 @@ class RunContinuation(OrchestratorState):
             reason=approval.reason,
             resume_token=resume_token,
             trace_id=context.trace_id,
-            request_id=context.request_id,
+            request_id=correlation_request_id,
             metadata={
                 "arguments_ref": approval.arguments_ref,
                 "arguments_hash": approval.arguments_hash,

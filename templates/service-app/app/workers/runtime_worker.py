@@ -239,6 +239,7 @@ async def consume_one(
                 run_id=message.run_id,
                 tenant_id=message.tenant_id,
                 reason=error_code,
+                recovery_request_id=message.request_id,
             )
             await components.delegation_service.reconcile_child_if_delegated(message.run_id)
         _crash_before_queue_ack(message)
@@ -264,6 +265,7 @@ async def _run_worker(
     once: bool,
     profile: str = "local",
     profiles_dir: Path | None = None,
+    env_file: Path | None = None,
     storage_dsn: str | None = None,
     events_path: Path | None = None,
     artifact_root: Path | None = None,
@@ -280,6 +282,7 @@ async def _run_worker(
     components = build_runtime_components(
         profile=profile,
         profiles_dir=profiles_dir,
+        env_file=env_file,
         storage_dsn=storage_dsn,
         events_path=events_path,
         artifact_root=artifact_root,
@@ -376,6 +379,7 @@ async def run_once(
     *,
     profile: str = "local",
     profiles_dir: Path | None = None,
+    env_file: Path | None = None,
     storage_dsn: str | None = None,
     events_path: Path | None = None,
     artifact_root: Path | None = None,
@@ -392,6 +396,7 @@ async def run_once(
         once=True,
         profile=profile,
         profiles_dir=profiles_dir,
+        env_file=env_file,
         storage_dsn=storage_dsn,
         events_path=events_path,
         artifact_root=artifact_root,
@@ -406,6 +411,7 @@ async def run_forever(
     *,
     profile: str = "service",
     profiles_dir: Path | None = None,
+    env_file: Path | None = None,
     storage_dsn: str | None = None,
     events_path: Path | None = None,
     artifact_root: Path | None = None,
@@ -417,6 +423,7 @@ async def run_forever(
         once=False,
         profile=profile,
         profiles_dir=profiles_dir,
+        env_file=env_file,
         storage_dsn=storage_dsn,
         events_path=events_path,
         artifact_root=artifact_root,
@@ -431,6 +438,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--once", action="store_true", help="Consume one durable task and exit.")
     parser.add_argument("--profile", default="local")
     parser.add_argument("--profiles-dir", type=Path)
+    parser.add_argument("--env-file", type=Path)
     parser.add_argument("--storage-dsn")
     parser.add_argument("--events-path", type=Path)
     parser.add_argument("--artifact-root", type=Path)
@@ -448,6 +456,7 @@ def main() -> None:
                 run_once(
                     profile=args.profile,
                     profiles_dir=args.profiles_dir,
+                    env_file=getattr(args, "env_file", None),
                     storage_dsn=args.storage_dsn,
                     events_path=args.events_path,
                     artifact_root=args.artifact_root,
@@ -461,6 +470,7 @@ def main() -> None:
                 run_forever(
                     profile=args.profile,
                     profiles_dir=args.profiles_dir,
+                    env_file=getattr(args, "env_file", None),
                     storage_dsn=args.storage_dsn,
                     events_path=args.events_path,
                     artifact_root=args.artifact_root,

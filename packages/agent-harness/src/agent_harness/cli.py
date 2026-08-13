@@ -23,6 +23,7 @@ from agent_harness.events import CanonicalEventType, EventBus, LocalJsonlEventSi
 from agent_harness.policy import InputGuardrail, PolicyCheck, PolicyDeniedError
 from agent_harness.registry import AgentRegistry, RegistryLoadError
 from agent_harness.runtime import RunOrchestrator, RunTraceError
+from agent_harness.runtime._continuation_context import RunInputProvenance
 from agent_harness.runtime.services import (
     build_agent_execution_services,
     build_registry_tool_catalog_descriptors,
@@ -196,9 +197,10 @@ def run(
         registry.get(agent_id)
     except RegistryLoadError as exc:
         registry_error = exc
-    input_payload = {"source": "cli"}
+    input_payload: dict[str, Any] = {}
     if prompt is not None:
         input_payload["prompt"] = prompt
+    provenance = RunInputProvenance(source="cli")
 
     async def _run():
         """在唯一事件循环内校验启动条件、执行并关闭全部异步资源。"""
@@ -279,6 +281,7 @@ def run(
                             actor=settings.identity.default,
                             agent_id=agent_id,
                             input=input_payload,
+                            provenance=provenance,
                         )
                         if decision.decision == "deny":
                             raise PolicyDeniedError(decision.reason)
@@ -287,13 +290,14 @@ def run(
                                 "reason": decision.reason,
                                 "policy": decision.to_payload(),
                             }
-                    run_result = await orchestrator.start_run(
+                    run_result = await orchestrator._start_run_with_provenance(  # pyright: ignore[reportPrivateUsage]
                         agent_id=agent_id,
                         input=input_payload,
                         idempotency_key=idempotency_key,
                         checkpoint_state=checkpoint_state,
                         identity=settings.identity.default,
                         trace_id=canonical_trace,
+                        provenance=provenance,
                         pre_run_events=(
                             [(CanonicalEventType.INPUT_GUARDRAIL_CHECKED, decision.to_payload())]
                             if decision is not None

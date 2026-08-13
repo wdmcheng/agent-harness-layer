@@ -6,6 +6,7 @@ PYTHON ?= python3
 APP_ROOT := $(CURDIR)
 PROFILE ?= local
 PROFILES_DIR ?= $(APP_ROOT)/configs/profiles
+ENV_FILE ?=
 HOST ?= 127.0.0.1
 PORT ?= 8000
 STATE_DIR ?= $(APP_ROOT)/.agent-harness/local
@@ -127,4 +128,7 @@ eval-dev: bootstrap
 
 # worker 入口和 API 使用同一套 RuntimeComponents；不要在模板里另起一套存储装配。
 worker: bootstrap
-	cd "$(APP_ROOT)" && $(UV) run python -m app.workers.runtime_worker
+	cd "$(APP_ROOT)" && $(UV) run python -m app.workers.runtime_worker \
+		--profile "$(PROFILE)" --profiles-dir "$(PROFILES_DIR)" \
+		$(if $(strip $(ENV_FILE)),--env-file "$(ENV_FILE)") \
+		$(if $(filter service,$(PROFILE)),,--once --storage-dsn "$(STORAGE_DSN)" --events-path "$(EVENTS_PATH)")

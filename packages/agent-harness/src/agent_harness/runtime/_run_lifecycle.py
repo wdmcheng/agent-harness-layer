@@ -6,6 +6,12 @@ from typing import Any
 
 from agent_harness.events import CanonicalEventType
 from agent_harness.identity import IdentityContext
+from agent_harness.runtime._continuation_context import (
+    RunInputProvenance,
+    bind_execution_provenance,
+    classify_execution_context_record,
+    execution_context_payload,
+)
 from agent_harness.runtime._orchestrator_support import policy_checkpoint_state, run_correlation
 from agent_harness.runtime._run_lifecycle_persistence import RunLifecyclePersistence
 from agent_harness.runtime.checkpoints import IdempotencyKey
@@ -107,6 +113,35 @@ class RunLifecycle(RunLifecyclePersistence):
     ) -> RunResult:
         """创建 local run，执行 executor，必要时停在 checkpoint。"""
 
+        return await self._start_run_with_provenance(
+            agent_id=agent_id,
+            input=input,
+            idempotency_key=idempotency_key,
+            checkpoint_state=checkpoint_state,
+            identity=identity,
+            request_id=request_id,
+            trace_id=trace_id,
+            provenance=None,
+            parent_run_id=parent_run_id,
+            pre_run_events=pre_run_events,
+        )
+
+    async def _start_run_with_provenance(
+        self,
+        *,
+        agent_id: str,
+        input: dict[str, Any],
+        idempotency_key: IdempotencyKey | str | None = None,
+        checkpoint_state: dict[str, Any] | None = None,
+        identity: IdentityContext | None = None,
+        request_id: str | None = None,
+        trace_id: str | None = None,
+        provenance: RunInputProvenance | None = None,
+        parent_run_id: str | None = None,
+        pre_run_events: list[tuple[CanonicalEventType, dict[str, Any]]] | None = None,
+    ) -> RunResult:
+        """CLI 私有入口；公开 `start_run` 不接受或暴露 provenance。"""
+
         active_identity = identity or self._identity
         idempotency_key_value = idempotency_value(idempotency_key)
         caller_trace_id = (
@@ -136,6 +171,7 @@ class RunLifecycle(RunLifecyclePersistence):
                         existing=existing,
                         caller_trace_id=caller_trace_id,
                         identity=active_identity,
+                        recovery_request_id=request_id,
                     )
 
                 canonical_trace = normalize_trace_id(
@@ -151,14 +187,19 @@ class RunLifecycle(RunLifecyclePersistence):
                         trace_id=canonical_trace,
                         input=input,
                     ),
-                    execution_context={
-                        "identity": active_identity.to_payload(),
-                        "request_id": request_id,
-                        "trace_id": canonical_trace,
-                        "checkpoint_state": checkpoint_state,
-                    },
+                    execution_context=execution_context_payload(
+                        identity=active_identity.to_payload(),
+                        request_id=request_id,
+                        trace_id=canonical_trace,
+                        checkpoint_state=checkpoint_state,
+                        provenance=provenance,
+                    ),
                     caller_trace_id=caller_trace_id,
                 )
+                context_record = await uow.runs.get_execution_context_record(run.id)
+                if context_record is None:
+                    raise InvalidRunTransition("run execution context is missing")
+                classify_execution_context_record(context_record)
                 if parent_run_id is None:
                     budget_runtime = self._executor_services.get("shared_budget")
                     if budget_runtime is not None:
@@ -193,6 +234,7 @@ class RunLifecycle(RunLifecyclePersistence):
                         existing=existing,
                         caller_trace_id=caller_trace_id,
                         identity=active_identity,
+                        recovery_request_id=request_id,
                     )
             if exc.code == "trace.conflict":
                 raise RunTraceConflict from exc
@@ -249,13 +291,16 @@ class RunLifecycle(RunLifecyclePersistence):
                 input=input,
             )
         request = AgentExecutionRequest(agent_id=agent_id, run_id=run.id, input=input)
-        context = build_execution_context(
-            identity=active_identity,
-            services=self._executor_services,
-            agent_id=agent_id,
-            run_id=run.id,
-            request_id=request_id,
-            trace_id=canonical_trace,
+        context = bind_execution_provenance(
+            build_execution_context(
+                identity=active_identity,
+                services=self._executor_services,
+                agent_id=agent_id,
+                run_id=run.id,
+                request_id=request_id,
+                trace_id=canonical_trace,
+            ),
+            provenance,
         )
         try:
             result = await self._executor_resolver(agent_id).run(request, context)
@@ -279,11 +324,17 @@ class RunLifecycle(RunLifecyclePersistence):
         existing: Any,
         caller_trace_id: str | None,
         identity: IdentityContext,
+        recovery_request_id: str | None,
     ) -> RunResult:
-        """并发/顺序重放只读取首次 run；caller 缺失不与内部候选比较。"""
+        """重放只读首次 run；缺失终态证据绑定当前恢复入口的请求 ID。"""
 
         if caller_trace_id is not None and normalize_trace_id(caller_trace_id) != existing.trace_id:
             raise RunTraceIdempotencyConflict
+        async with self._storage.uow() as uow:
+            context_record = await uow.runs.get_execution_context_record(existing.id)
+        if context_record is None:
+            raise InvalidRunTransition("run execution context is missing")
+        classify_execution_context_record(context_record)
         existing_status = RunStatus(existing.status)
         if existing_status == RunStatus.WAITING:
             return await self._recover_delegation_after_wait(
@@ -301,6 +352,7 @@ class RunLifecycle(RunLifecyclePersistence):
                 identity=identity,
                 output=existing.output,
                 error=existing.error,
+                request_id=recovery_request_id,
                 trace_id=existing.trace_id,
             )
         return RunResult(run_id=existing.id, status=existing_status)
@@ -313,20 +365,38 @@ class RunLifecycle(RunLifecyclePersistence):
     ) -> RunResult:
         """读取 run lifecycle 摘要，不向 API/CLI 泄漏 ORM。"""
 
+        return await self._get_run_with_evidence_request_id(
+            run_id,
+            identity=identity,
+            evidence_request_id=None,
+        )
+
+    async def _get_run_with_evidence_request_id(
+        self,
+        run_id: str,
+        *,
+        identity: IdentityContext | None = None,
+        evidence_request_id: str | None = None,
+    ) -> RunResult:
+        """私有恢复 seam 允许 approval 使用当前 resolution request id。"""
+
         active_identity = identity or self._identity
         async with self._storage.uow() as uow:
             run = await uow.runs.get(run_id)
             if run is None or run.tenant_id != active_identity.tenant_id:
                 raise LookupError(f"run not found: {run_id}")
             status = RunStatus(run.status)
-            private = await uow.runs.get_execution(run_id)
+            private_context = await uow.runs.get_execution_context_record(run_id)
+        classified_context = None
+        if status in TERMINAL_STATUSES:
+            if private_context is None:
+                raise InvalidRunTransition("run execution context is missing")
+            classified_context = classify_execution_context_record(private_context)
         terminal_event = None
         if status in TERMINAL_STATUSES:
+            assert classified_context is not None
             terminal = await self._event_bus.terminal_event(run_id)
             if terminal is None:
-                private_request_id = (
-                    private.execution_context.get("request_id") if private is not None else None
-                )
                 terminal = await publish_terminal_evidence(
                     self._event_bus,
                     run_id=run_id,
@@ -336,7 +406,9 @@ class RunLifecycle(RunLifecyclePersistence):
                     output=run.output,
                     error=run.error,
                     request_id=(
-                        private_request_id if isinstance(private_request_id, str) else None
+                        evidence_request_id
+                        if evidence_request_id is not None
+                        else classified_context.authoritative_request_id
                     ),
                     trace_id=run.trace_id,
                     correlation=run_correlation(run.input),

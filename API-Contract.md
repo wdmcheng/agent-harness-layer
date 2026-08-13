@@ -981,13 +981,15 @@ model 与 embedding adapter 共用的 provider-neutral 调用证据。业务 age
 | 字段 | 内容 |
 |---|---|
 | Contract ID | `CLI-RUN-001` |
-| 状态 | 已实现可选 `--trace-id`、canonical trace 生成与稳定冲突错误。 |
+| 状态 | 已实现。业务 input 与可信 CLI provenance 分离，公开 CLI、runtime 与 HTTP/OpenAPI schema 保持兼容。 |
 | 命令 | `agent-harness run <agent_id> [--trace-id <value>]`，其余 profile/storage/events/agents/idempotency/prompt 选项保持既有语义。 |
+| Input 与来源 | 业务 input 只包含调用方实际提交字段，不注入、删除或特殊解释 `source` 或其他 transport 字段；CLI composition 独立构造内部 `RunInputProvenance(source="cli")`，经私有 submission/execution context 供 guardrail、audit、executor、queued rebuild 与 approval resume 使用。该类型不从 `agent_harness.runtime` 导出，公开 `RunOrchestrator.start_run` 与 `resume_run` 参数集合不变；provenance 不进入业务 DTO、prompt、provider request、公开 run input、HTTP/OpenAPI schema 或 delegation input/hash。 |
+| Request ID | 既有 private execution-context 顶层 nullable `request_id` 保持 authoritative execution correlation；CLI provenance 仅可写入 exact `input_provenance={"schema_version":"run-input-provenance-v1","source":"cli","execution_request_id":<non-empty-string-or-null>}`，字段必须恰为这三项且 `execution_request_id` 与顶层 `request_id` 逐值相同。缺少 envelope 是合法 legacy/非 CLI；旧键、未知版本/来源、额外/缺失字段、错型、空 ID 或冲突值以 `execution_context.provenance_invalid` 关闭失败。CLI 未提供时两处均为 `null`，不得从 queue message 的非空 delivery `request_id` 或当前 approval correlation 回填。approval continuation 从既有 resolution lease 取得当前 request id并经私有 seam 传递；executor/continuation 使用 classified execution 值，APR-002 resolution operation、`run.resumed` 与本次恢复新发布的 terminal event 使用当前 resolution request id。两个平面不得互相覆盖，公开 `resume_run` 参数集合不变。 |
 | Trace 输入 | `--trace-id` 缺失时在业务副作用前生成 lowercase RFC 4122 UUID；提供时必须原样匹配 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`，不 trim、不折叠大小写，并与 RUN-001 使用同一 normalizer。 |
 | 幂等与冲突 | 同一 idempotency key 缺失 trace 或提供首次 canonical trace 时复用首次 run；提供不同 trace 返回 `trace.idempotency_conflict`。已绑定其他 root run 返回 `trace.conflict`；格式非法返回 `validation_error`。 |
 | 输出与退出 | 成功保持既有 run/status/terminal stdout；trace validation/conflict 只向 stderr 写稳定错误 code 和安全摘要并非零退出，不回显其他 tenant/root 绑定信息。 |
 | 副作用 | 非法、全局冲突或 idempotency trace 冲突必须在 run、event、queue、approval、tool/model/provider 副作用前失败。 |
-| 验证要求 | CLI runner contracts 覆盖缺失生成、合法值保留、空白/超长/非法字符、全局冲突、同 key 相同/不同 trace、stderr/exit 与逐表/queue/provider side-effect count，并与 RUN-001 对同一 normalizer 做双向断言。 |
+| 验证要求 | CLI runner contracts 覆盖缺失生成、合法值保留、空白/超长/非法字符、全局冲突、同 key 相同/不同 trace、stderr/exit 与逐表/queue/provider side-effect count，并与 RUN-001 对同一 normalizer 做双向断言；provenance contracts 覆盖严格 DTO 不接收 transport 字段、guardrail/audit 可信来源、queued rebuild、local/service approval resume、可选 request id 保留及零真实 provider 调用。 |
 
 ### RUN-002 读取 run detail
 
@@ -1782,7 +1784,7 @@ CLI 等价入口 `agent-harness approvals list <run_id>` 必须输出稳定制�
 
 | 入口 / 调用方 | 当前或目标接口 | 说明 |
 |---|---|---|
-| `agent-harness run <agent_id> [--trace-id <value>]` | `CLI-RUN-001`，等价于 `RUN-001` 的 runtime seam | CLI 不走 HTTP，但必须使用同一 `RunOrchestrator`、storage、event bus、trace normalizer 和 DTO 语义。 |
+| `agent-harness run <agent_id> [--trace-id <value>]` | `CLI-RUN-001`，等价于 `RUN-001` 的 runtime seam | CLI 不走 HTTP，但使用同一 `RunOrchestrator`、storage、event bus、trace normalizer 和 DTO 语义；transport provenance 只进入私有 execution context，不污染业务 input。CLI 未提供 execution request id 时保持 `None`；approval resume 的 executor 复用该私有值，但 APR-002/resumed/terminal 继续使用当前 resume request id。HTTP/OpenAPI schema 不变。 |
 | `agent-harness events stream <run_id>` | `CLI-EVT-001` stream seam | CLI 不走 HTTP/SSE framing；必须复用 RUN-003/RUN-006 的授权 EventSink reader、visibility、cursor、canonical serializer 和 terminal 语义。 |
 | `agent-harness agents list` | 等价于 `AGT-001` 的 registry seam | CLI 不走 HTTP，但必须使用同一 `AgentRegistry`、descriptor DTO、identity/policy visibility 和 validation 语义。 |
 | `agent-harness policy check` | 等价于 `POL-001` 的 policy seam | CLI 不走 HTTP，但必须使用同一 `PolicyEngine`、identity、audit 和 decision DTO。 |

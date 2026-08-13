@@ -57,6 +57,13 @@ class RunExecutionRecord(HarnessDTO):
     workflow_id: str | None = None
 
 
+class RunExecutionContextRecord(HarnessDTO):
+    """只承载 execution context 的私有恢复记录，不扩展公共 RunRecord。"""
+
+    run_id: str
+    execution_context: Any
+
+
 class RunTraceRepositoryConflict(RuntimeError):
     """Repository 在任何持久化副作用前拒绝 trace claim 冲突。"""
 
@@ -266,6 +273,22 @@ class RunRepository:
         if model is None or model.queue_operation_id is None:
             return None
         return _run_execution_record(model)
+
+    async def get_execution_context_record(self, run_id: str) -> RunExecutionContextRecord | None:
+        """通过唯一私有 seam 读取 execution context，不扩张公开 RunRecord。"""
+
+        statement = select(
+            AgentRunModel.id,
+            AgentRunModel.execution_context_json,
+        ).where(AgentRunModel.id == run_id)
+        result = await self._session.execute(statement)
+        row = result.one_or_none()
+        if row is None:
+            return None
+        return RunExecutionContextRecord(
+            run_id=row.id,
+            execution_context=row.execution_context_json,
+        )
 
     async def list_pending_enqueue(self) -> list[RunExecutionRecord]:
         """列出已落库但尚未投递消息的运行，供恢复任务补偿 enqueue。"""

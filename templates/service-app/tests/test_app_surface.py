@@ -34,6 +34,8 @@ def _create_injected_app(
         "test-only-template-health-fingerprint-key",
     )
     monkeypatch.delenv("AGENT_HARNESS_BUDGET__FINGERPRINT_KEY_FILE", raising=False)
+    env_file = tmp_path / "empty.env"
+    env_file.write_text("", encoding="utf-8")
     return create_app(
         orchestrator=cast(Any, object()),
         event_sink=LocalJsonlEventSink(tmp_path / "events.jsonl"),
@@ -44,6 +46,7 @@ def _create_injected_app(
         eval_service=cast(Any, object()),
         profile=profile,
         profiles_dir=APP_ROOT / "configs" / "profiles",
+        env_file=env_file,
     )
 
 

@@ -47,7 +47,6 @@ class TicketTriageExecutor:
         低置信度判断当成自动化处置结果。
         """
         payload = dict(request.input)
-        payload.pop("source", None)
         prompt = payload.pop("prompt", None)
         payload["text"] = str(payload.get("text") or prompt or "")
         data = TicketTriageInput.model_validate(payload)

@@ -215,8 +215,13 @@ async def test_service_submit_and_worker_execute_share_run_and_identity(tmp_path
     }
     correlated = [event for event in guardrail_events if event.event_type in correlated_types]
     assert len(correlated) == 3
+    expected_request_ids = {
+        CanonicalEventType.CHECKPOINT_CREATED: "req-guardrail",
+        CanonicalEventType.RUN_RESUMED: "req-guardrail-approve",
+        CanonicalEventType.RUN_COMPLETED: "req-guardrail-approve",
+    }
     for event in correlated:
-        assert event.request_id == "req-guardrail"
+        assert event.request_id == expected_request_ids[event.event_type]
         assert event.trace_id == "trace-guardrail"
         assert event.payload is not None
         assert event.payload["source_ref"] == "source://guardrail"

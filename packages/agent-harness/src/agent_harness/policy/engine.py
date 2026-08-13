@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import yaml
 from pydantic import Field
@@ -13,6 +13,9 @@ from agent_harness.audit import AuditService
 from agent_harness.contracts.dto import HarnessDTO
 from agent_harness.contracts.trust import GuardrailDecisionStatus
 from agent_harness.identity import IdentityContext
+
+if TYPE_CHECKING:
+    from agent_harness.runtime._continuation_context import RunInputProvenance
 from agent_harness.security.redaction import redact_secrets
 from agent_harness.storage import SQLAlchemyStorage
 
@@ -304,6 +307,7 @@ class InputGuardrail:
         actor: IdentityContext,
         agent_id: str,
         input: dict[str, Any],
+        provenance: RunInputProvenance | None = None,
     ) -> PolicyEvaluation:
         """检查输入中的已知高风险提示形态，并记录脱敏后的判断结果。
 
@@ -312,6 +316,7 @@ class InputGuardrail:
         """
 
         text = str(input).lower()
+        provenance_context = {"source": provenance.source} if provenance is not None else {}
         detected = [pattern for pattern in self._PATTERNS if pattern in text]
         if not detected:
             # 未命中风险词时仍返回可序列化 decision，方便 audit 和测试断言统一形状。
@@ -320,7 +325,7 @@ class InputGuardrail:
                     actor=actor,
                     resource=f"agent:{agent_id}:input",
                     action="input.guardrail",
-                    context={"detected": []},
+                    context={"detected": [], **provenance_context},
                 ),
                 GuardrailDecisionStatus.ALLOW.value,
                 "input guardrail passed",
@@ -336,6 +341,7 @@ class InputGuardrail:
                         "agent_id": agent_id,
                         "detected": detected,
                         "input": redact_secrets(input),
+                        **provenance_context,
                     },
                 )
             )
