@@ -4,7 +4,7 @@
 >
 > 首次冻结：2026-07-27
 >
-> 当前状态：Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档。`harden-service-app-runtime-entrypoints` 与 `separate-cli-input-provenance` 已按真实 Bug 收缩范围，契约与实现分别取得 fresh `1+2` 三票 Stage 1/2 PASS、0 findings，后置质量、全量、eval 与 local/service smoke 全部退出0。2026-08-13 经用户授权，9条新增 Requirement 已同步到 `service-app-shell`、`durable-run-queue` 与 `runtime-checkpoint-runs` 三份主规格，两个 change 分别归档至 `openspec/changes/archive/2026-08-13-harden-service-app-runtime-entrypoints/` 与 `openspec/changes/archive/2026-08-13-separate-cli-input-provenance/`；当前无 active change。未开启 Phase 21，`DEV-PLAN.md` 保持零 diff，未 commit、push、发布、部署或调用真实 provider/业务工具。
+> 当前状态：Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档。两个 Bug change 由本地提交 `bd15e4e` 交付；独立 worktree 的 CI 修复 `c0879b3` 已以 patch-id 等价的 `e74413a` cherry-pick 到 `main`。组合后的联合聚焦合同为190 passed/1 skipped（191 collected），`make quality`、`make smoke-service`和`make test`均退出0，全量为2563 passed/288 skipped/21 warnings，service smoke保持`workspace-outside=ok wheel-only=ok secret-cleanup=ok`。当前无 active change，未开启 Phase 21，`DEV-PLAN.md` 保持零 diff；未 push、发布、部署或调用真实 provider/业务工具。
 >
 > 配套矩阵：[`architecture-evolution-change-matrix.md`](architecture-evolution-change-matrix.md)
 
@@ -28,17 +28,17 @@
 |---|---|
 | 快照日期 | 2026-08-13 |
 | 分支 | `main` |
-| 契约冻结基线 HEAD | 当前 Git HEAD `b6d468ff04e68f9fa19fa586ebd5c8ce06d0a801`；两个临时 Bug change 的契约身份另按 change 全文件冻结，后续实现身份只从 Git 与完整 tracked/untracked manifest 复算 |
+| 当前集成身份 | 共同基线`b6d468ff04e68f9fa19fa586ebd5c8ce06d0a801`之后依次为Bug交付提交`bd15e4e0fb1ddef1aff0707461a7db3646840c2c`与CI修复集成提交`e74413a98ecf4ff53a89d350ebe9bf4a5e60f147`；本状态同步提交位于其后。接手时必须以`git rev-parse HEAD`重新取得实时HEAD，不把共同基线误写为当前HEAD |
 | 基线工作树 | 本轮契约重审起点为 tracked 71、untracked 条目45、total 116，展开为54个实际未跟踪文件。仓库外快照`/tmp/agent-harness-phase20-scope-backup.rpGi9I`已校验 tracked reverse apply 与54项untracked archive；随后按`joint-crop-v1`恢复51个tracked膨胀路径、删除39个untracked膨胀路径，并逐hunk保留两条Bug因果链。后续身份只从当前 Git 与完整manifest复算，不复用旧冻结或审查票 |
-| 当前 Git 事务 | 工作树保留 Phase 20 后两个临时 Bug 的实现、已同步主规格、归档材料与状态文档；尚未commit、push、发布或部署 |
+| 当前 Git 事务 | 两个临时Bug实现、主规格同步与归档已提交为`bd15e4e`；CI worktree提交已等价cherry-pick为`e74413a`；当前状态同步由其后的独立文档提交收口。未push、发布或部署 |
 | OpenSpec | 当前无 active change。`harden-service-app-runtime-entrypoints` 的10/10 tasks与 `separate-cli-input-provenance` 的17/17 tasks已完成；9条新增Requirement已同步到三份主规格，并于2026-08-13分别归档到同名日期目录。D-363契约身份`b6fdcca0…`与D-366后实现身份`82a78b59…`的fresh `1+2`三范围Stage 1/2均PASS、0 findings |
 | Phase 19契约准入审查身份 | 当前14 Requirements/74 Scenarios。身份`7754ef26b11fcba87f98f7d38a8fc869ec97c53edec057e2d4995850973c21a7`的fresh Reviewer 1/2/3均在同一内容上Stage 1/2 PASS、0 findings；旧契约身份只保留诊断历史 |
 | Phase 19实现审查身份 | `phase19-freeze-v1`候选`de39eb0980f50ebae62e57f1781473a809dfd16931d3554868546802d5d1f6f6`；fresh Reviewer 1/2/3首末复算一致，均Stage 1/2 PASS、0 findings。审查后仅状态记录漂移按用户裁决豁免，不改变已审实现内容 |
 | 已完成历史 | Phase 1–20已完成并归档；归档事实以Git、`openspec list --json`和归档目录为准 |
-| 当前阶段 | Phase 1–20及两个临时Bug change均已归档；当前未开启Phase21，也未commit、push、发布或部署 |
+| 当前阶段 | Phase 1–20及两个临时Bug change均已归档并本地提交；CI修复已集成并通过当前组合回归。当前未开启Phase21，也未push、发布或部署 |
 | 已归档临时 Bug change | `harden-service-app-runtime-entrypoints` 保留 Make worker 的 profile/profiles-dir/once/env-file；`separate-cli-input-provenance` 保留业务 input 分离、封闭 typed provenance、必要 private classifier/repository seam、幂等/terminal/approval resume。executor使用authoritative nullable execution request id；approval新evidence使用当前resolution ID，service queued新terminal使用当前delivery ID。两者未增加 broker、readiness、矩阵或 queue 新协议 |
 | 当前阻塞 | 无Phase 20离线实现或归档阻塞。`acceptance-validate`因旧REQ-001 CI evidence身份不匹配保持`BLOCKED`；真实provider三入口保持零调用`hosted-unverified`，均不冒充PASS |
-| 明确未做 | 未运行真实provider/业务工具，未commit、push、发布或部署；未启动Phase 21或做structured streaming/fallback重构。最初Reviewer 2/3因证据包混入Reviewer 1结论而中止且不计票，替换票独立完成 |
+| 明确未做 | 未运行真实provider/业务工具，未push、发布或部署，也未触发新的远端GitHub Actions run；未启动Phase 21或做structured streaming/fallback重构。最初Reviewer 2/3因证据包混入Reviewer 1结论而中止且不计票，替换票独立完成 |
 
 `DEV-PLAN.md` 顶部保留 Phase 18.2本地提交与归档历史，并已同步Phase 19归档事实；后续 Agent 仍须按恢复顺序重新核对当前磁盘、Git 与 OpenSpec。
 
@@ -988,6 +988,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 - [x] 2026-08-12：D-362身份`38bfd66b…`的fresh契约Reviewer 1对三个范围Stage 1/2 PASS、0 findings；并行Reviewer 2以1个HIGH指出separate proposal仍把`_queue_resolution.py`误写成预裁剪clean，与design及51-path manifest冲突，Reviewer 3停止且不计票。本轮票全部失效；D-363只把proposal同步为先恢复HEAD、后写直接因果hunk，不改实现、测试、manifest计数或`DEV-PLAN.md`。
 - [x] 2026-08-13：用户明确授权合并并归档两个临时 Bug change。归档前确认 artifacts 全部done、tasks为10/10与17/17；三个delta均为纯新增且主规格不存在同名Requirement。现已把service-app 3条、durable queue 2条、runtime checkpoint 4条Requirement同步到主规格，并分别归档到`openspec/changes/archive/2026-08-13-harden-service-app-runtime-entrypoints/`与`openspec/changes/archive/2026-08-13-separate-cli-input-provenance/`；`openspec list --json`当前为空，`DEV-PLAN.md`保持零diff。
 - [x] 2026-08-13：归档事务首位fresh reviewer确认主规格合并、归档目录、tasks与机械门禁正确，但以matrix权威“当前下一步”仍等待archive、API Contract两处仍写active/待审核及混入review状态共3项MEDIUM判定FAIL。现已把matrix当前态改为无active、等待本地commit，并将API长期契约收敛为稳定CLI/provenance/request-id行为；旧票失效，归档事务从新的fresh reviewer重新审查。
+- [x] 2026-08-13：用户授权把独立worktree的CI修复提交拿到当前`main`并排查与Bug交付的冲突。Git证明两提交同源于`b6d468f`且分别为41/22路径、路径交集为0，因此选择cherry-pick而不改写分支历史；原`c0879b3`与新`e74413a`的stable patch-id同为`3ae35a2…`。组合后联合聚焦14文件190 passed/1 skipped（191 collected），quality、真实service smoke及全量2563 passed/288 skipped/21 warnings均退出0。首位fresh集成reviewer确认运行、安全与测试语义通过，只以living plan/matrix仍写旧HEAD、等待commit和旧2475测试数的1项MEDIUM阻断；状态现已校准，旧票失效并从新的fresh reviewer重启。
 
 ### Phase 21
 
@@ -1006,6 +1007,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | 2026-08-12 | cleanup owner即使位于正确的外层`finally`，单个FD关闭失败仍可短路同一owner的后续FD；`ignore_errors=True`还会让目录清理失败完全脱离首次错误模型 | 复合清理owner必须逐资源尝试并保存首错、把后错追加为note；rollback gate除了调用顺序还要冻结循环内异常捕获和目录清理错误进入统一聚合的真实控制流 |
 | 2026-08-13 | 两个关联change的delta分别落入三个既有capability，且全部是不存在同名Requirement的纯新增；changes根目录没有与二者共生命周期的独立侧车文件 | 按harden后separate顺序串行同步三份主规格，再共同归档；living plan与matrix只保留历史owner、回滚和证据，不再把二者写成active或下一动作 |
 | 2026-08-13 | 同一matrix可在5.6当前状态区已写“已归档”，却在权威“当前下一步”继续写active/等待archive；API长期契约也可能因实现收口时直接粘贴review状态而漂移 | 当前态必须按文档全部权威入口交叉扫描；API Contract只保留稳定公开行为和必要lifecycle语义，review、门禁、归档与下一权限动作只进入living plan/matrix |
+| 2026-08-13 | 两个提交即使路径交集为0，也可能通过模板复制、Make/runtime/worker与service smoke形成语义交叉；仅凭cherry-pick无冲突不能证明CI修复仍有效 | 保留原CI提交patch-id，组合后同时运行双方聚焦合同、quality、真实service smoke与全量test；再由fresh reviewer按完整63路径审查语义与测试真实性 |
 | 2026-08-11 | 在exclusive生命周期内捕获`BaseException`完成补偿后原样重新抛出，只能证明停止态安全，不能证明公开CLI的失败transport闭合；`main()`只捕获`Exception`时，操作者取消会绕过固定schema并产生空stdout或traceback | 增加`main()`级取消合同，要求补偿后的`KeyboardInterrupt`统一输出exact `old-worker-rollback-readiness-v1` rejected DTO、`rollback.internal_error=30`且stderr为空；该行为修订使同身份Reviewer 1/3 PASS票失效，必须重新从fresh Reviewer 1开始 |
 | 2026-08-11 | 只扫描已知Compose执行函数不能证明“全部root Docker subprocess都有timeout”；最终`cleanup_project`内部的资源枚举、删除和absent复核同样在shared lease内，任一无界调用都会永久阻塞exclusive readiness | timeout合同必须遍历root broker模块全部直接`subprocess.run`；project cleanup拆成有界单次迭代，任一Docker timeout由外层在同一shared lease内有限重试并以失败结果收敛，不把无限等待藏在最终清理路径 |
 | 2026-08-11 | 给测试注入`TimeoutExpired`不能证明生产命令具备超时；监听socket有timeout也不能终止已accept但半包阻塞的client；创建后只返回proof路径则无法证明host继承创建时同一inode。只检查符号存在的rollback gate同样允许关键call edge和lease scope被删除后假绿 | 所有root Docker subprocess必须声明有限timeout并在shared lease内补偿；broker连接单独设置读timeout且清理前验证线程已退出；proof创建者持续持有FD/device/inode并拒绝path identity漂移；rollback gate进入函数内部冻结真实call、scope与启动/清理顺序 |
@@ -1531,6 +1533,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | D-367 | 2026-08-13 | D-366修复后的38文件身份`82a78b59…`由独立只读`gpt-5.6-sol`/`high`的fresh实现Reviewer 1先行PASS，随后并行fresh Reviewer 2/3在同一身份上分别完成harden、separate和联合范围Stage 1/2审查；三票均PASS、0 findings | 三票后才运行重型门禁：`make quality`退出0；`make test`退出0，2475 passed/288 skipped/21 warnings；`make eval`退出0，11/11；`make smoke-local`退出0；`make smoke-service`退出0并证明`workspace-outside=ok wheel-only=ok secret-cleanup=ok`。两个tasks完成，`CLI-RUN-001`同步为完成，当前ready-to-archive；不授权sync/archive/commit/push、发布或部署 |
 | D-368 | 2026-08-13 | 用户明确授权将两个关联临时Bug change合并到主规格后共同归档；合并按harden→separate串行执行，既有主规格内容保持不变，只新增delta中9条Requirement | `service-app-shell`新增3条、`durable-run-queue`新增2条、`runtime-checkpoint-runs`新增4条；两个change归档到2026-08-13日期目录，changes根目录无绑定侧车残留，当前active为空。归档不授权commit、push、发布、部署或Phase21 |
 | D-369 | 2026-08-13 | 归档事务首位fresh reviewer以matrix当前下一步和API长期契约两类状态漂移共3项MEDIUM判定FAIL；主规格合并与归档结构本身通过 | matrix当前态统一为无active、等待本地commit；API Contract删除active change、fresh review、门禁、ready-to-archive与待审核叙事，只保留稳定CLI/provenance/request-id行为。旧票失效，修复后从新的fresh reviewer重启归档两阶段审查 |
+| D-370 | 2026-08-13 | 独立worktree CI修复是共同基线后的单提交，采用cherry-pick而非rebase；`e74413a`与原`c0879b3`保持stable patch-id`3ae35a2…`，避免把状态同步混入原修复补丁 | 两提交路径零交集但service-app复制/运行语义邻接；组合后190 passed/1 skipped（191 collected）聚焦、quality、真实service smoke和2563/288全量均通过。CI集成后的状态同步使用独立文档提交，下一权限门收敛为push/远端CI，不回写或amend原修复 |
 | D-170 | 2026-08-02 | 每次结构化provider输入固定为`structured-provider-prompt-v1`完整canonical JSON字符串；`max_prompt_utf8_bytes`约束该完整字符串，planning按cap加catalog envelope冻结每attempt上界并对初始及所有repair ordinal做零调用可构造性检查 | 只约束业务prompt会让schema与repair指令落在预算外，既无法证明token/cost reservation充分，也会让repair时才出现的超长输入跨过provider副作用边界 |
 | D-171 | 2026-08-02 | Validation issue从`jsonschema.ValidationError.absolute_path`按RFC6901、required/extra集合差与封闭keyword映射确定；混合错误按折叠前事实选终态，limit0只允许invalid/extra，只有limit至少1且全部repair耗尽才使用exhausted | 解析provider/raw validator消息既不稳定又可能泄漏值；同一失败若能落入两个终态会破坏durable replay、恢复和验收的确定性 |
 | D-172 | 2026-08-02 | Strict schema compiler按schema对象位置使用封闭allowlist，当前拒绝`format`、条件/contains/unevaluated系列；核心只投影`Draft202012Validator.iter_errors()`直接错误且不递归`ValidationError.context` | 默认format只是annotation且FormatChecker集合可漂移，组合器context又允许顶层、叶子或双计三种投影；若不冻结会改变validation codes、repair prompt、evidence和replay identity |
@@ -2036,10 +2039,10 @@ OpenSpec 16路径：归档快照`openspec/changes/archive/2026-08-03-provider-ne
 
 ## 16. 下一动作
 
-Phase 19及Phase 20历史交付与归档事实保持不变。当前 Git HEAD 为`b6d468ff04e68f9fa19fa586ebd5c8ce06d0a801`；两个 Phase 20 后临时 Bug change 已同步主规格并归档，当前无 active change，不构成 Phase 21。
+Phase 19及Phase 20历史交付与归档事实保持不变。两个Phase 20后临时Bug change已由`bd15e4e`交付，独立worktree的CI修复已以patch-id等价的`e74413a`集成；本段状态同步提交位于其后。当前无active change，不构成Phase21；实时HEAD必须由`git rev-parse HEAD`取得。
 
 D-159冻结身份`a1fa3fa2…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings。D-160只清理tasks历史并补齐旧Agent列表输出合同，用户明确不追加review；提交态交付manifest为140/140。全量、eval、smoke、build、license、quality、PostgreSQL、strict与diff均通过；acceptance direct validator诚实拒绝旧CI evidence，live保持零调用`hosted-unverified`。
 
 当前契约为14 Requirements/74 Scenarios，身份`7754ef26…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings。最终实现冻结身份`de39eb09…`的fresh Reviewer 1/2/3也均首末身份一致、Stage 1/2 PASS、0 findings。该身份下PostgreSQL1/1、quality、最终串行全量2102/270、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff均闭合；早期全量与service smoke失败按实际环境/失败域保留，不改写为PASS。acceptance保持`BLOCKED`，三个live入口保持零调用`hosted-unverified`。44/44 tasks已随12条新增、2条修改同步到六份主规格并归档。
 
-当前唯一下一动作是：保持归档后的工作树不再发生行为变更，等待用户另行授权本地commit；在此之前不commit、不push、不发布、不部署，也不启动Phase21。`DEV-PLAN.md`继续保持零diff。
+当前唯一下一动作是：保持本地集成提交链与clean工作树，等待用户另行授权push或触发远端CI；在此之前不push、不发布、不部署，也不启动Phase21。`DEV-PLAN.md`继续保持零diff。

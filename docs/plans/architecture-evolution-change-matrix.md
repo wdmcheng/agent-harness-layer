@@ -577,7 +577,7 @@ OpenSpec artifacts、`API-Contract.md` 与 living plan/matrix 是契约/状态 o
 
 1. Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档；当前无 active change，Phase 21 未启动。
 2. 两项归档前不共享 root broker、readiness fence、artifact/rollback gate、call-count 或 queue 新协议；仅因同一 dirty 工作树、`runtime_worker.py` 邻接和联合不变量由同一 owner 串行裁剪。该 owner 顺序现仅作为历史维护证据。
-3. D-363修约后的契约三票均PASS；D-366修复后的38文件身份`82a78b59…`也由fresh实现Reviewer 1先行、Reviewer 2/3并行取得harden、separate和联合范围Stage 1/2三票PASS、0 findings。其后quality、2475/288全量、11/11 eval、local/service smoke全部退出0；2026-08-13已同步三份主规格并共同归档。当前唯一下一动作是等待用户另行授权本地commit；不自动commit/push、发布或部署。
+3. D-363修约后的契约三票与D-366后实现三票均PASS。两个Bug change已由`bd15e4e`本地提交；独立worktree的CI修复`c0879b3`已等价cherry-pick为`e74413a`，stable patch-id同为`3ae35a2…`。两提交41/22路径零交集，组合后190 passed/1 skipped（191 collected）聚焦、quality、真实service smoke和2563/288全量均通过，service smoke保持workspace-outside/wheel-only/secret-cleanup三项ok；当前无active change。唯一下一动作是等待用户另行授权push或触发远端CI，不自动push、发布或部署。
 
 以下第七轮至 D-348 的记录只描述本次已经放弃的验证平台路径，保留用于诊断范围膨胀的成因；其中任何 broker/fence/readiness/Registry/FD/Docker event/rollback gate/matrix/queue capability 都不再是 active Requirement、验收或下一动作。
 

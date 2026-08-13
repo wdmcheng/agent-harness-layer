@@ -19,7 +19,7 @@ Pydantic AI is integrated behind a provider-neutral adapter boundary rather than
 
 **Human-led architecture · AI-assisted engineering · Evidence-driven verification**
 
-![Five-layer Pydantic AI agent control-plane architecture](docs/architecture/pydantic-ai-agent-architecture.png)
+![Five-layer Pydantic AI agent control-plane architecture](docs/architecture/pydantic-ai-agent-architecture_render.png)
 
 The diagram distinguishes implemented runtime paths from reserved extension seams. Graph Nodes/GraphState, REPL/hooks, an independent gateway, and stronger process-level sandboxing are future boundaries—not current feature claims.
 

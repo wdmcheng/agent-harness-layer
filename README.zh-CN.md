@@ -19,7 +19,7 @@ Pydantic AI 被收敛在 provider-neutral adapter 边界之后，不会把 SDK �
 
 **人主导架构 · AI 辅助工程 · 证据驱动验证**
 
-![Pydantic AI 五层 Agent 治理控制架构](docs/architecture/pydantic-ai-agent-architecture.png)
+![Pydantic AI 五层 Agent 治理控制架构](docs/architecture/pydantic-ai-agent-architecture_render.png)
 
 图中明确区分当前已实现链路与预留扩展位。Graph Nodes/GraphState、REPL/hooks、独立 gateway 和更强的进程级 sandbox 仍是未来边界，不作为当前能力宣称。
 
