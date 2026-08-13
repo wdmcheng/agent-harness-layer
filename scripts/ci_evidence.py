@@ -236,6 +236,14 @@ def run_gate(repo: Path, gate: str, artifact_specs: list[str]) -> int:
 
     exit_code = completed.returncode
     status = "pass" if exit_code == 0 else "fail"
+    command_failure = (
+        ""
+        if completed.returncode == 0
+        else (
+            f"gate command failed with exit code {completed.returncode}; "
+            f"see {log_path.relative_to(repo).as_posix()}"
+        )
+    )
     artifact_records = [_record(repo, gate, "log", log_path)]
     artifact_error = parse_error
     try:
@@ -309,7 +317,13 @@ def run_gate(repo: Path, gate: str, artifact_specs: list[str]) -> int:
         "input_identity": identity,
         "artifacts": artifact_records,
     }
-    if artifact_error:
+    if command_failure:
+        # gate命令失败是主错误；随后缺失的原生产物通常只是失败发生在产物发布前，
+        # 必须作为附加诊断保留，不能覆盖command.log中的原始失败边界。
+        result["failure"] = command_failure
+        if artifact_error:
+            result["artifact_failure"] = artifact_error
+    elif artifact_error:
         result["failure"] = artifact_error
     _atomic_write(
         result_path,
@@ -317,6 +331,8 @@ def run_gate(repo: Path, gate: str, artifact_specs: list[str]) -> int:
     )
     if artifact_error:
         print(f"ci-evidence: {artifact_error}", file=sys.stderr)
+    if command_failure:
+        print(f"ci-evidence: {command_failure}", file=sys.stderr)
     print(f"ci-evidence: {gate} {status} -> {result_path.relative_to(repo)}")
     return exit_code
 

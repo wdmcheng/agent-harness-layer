@@ -4,7 +4,7 @@
 >
 > 首次冻结：2026-07-27
 >
-> 当前状态：Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档。两个 Bug change 由本地提交 `bd15e4e` 交付；独立 worktree 的 CI 修复 `c0879b3` 已以 patch-id 等价的 `e74413a` cherry-pick 到 `main`。组合后的联合聚焦合同为190 passed/1 skipped（191 collected），`make quality`、`make smoke-service`和`make test`均退出0，全量为2563 passed/288 skipped/21 warnings，service smoke保持`workspace-outside=ok wheel-only=ok secret-cleanup=ok`。当前无 active change，未开启 Phase 21，`DEV-PLAN.md` 保持零 diff；未 push、发布、部署或调用真实 provider/业务工具。
+> 当前状态：Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档。两个 Bug change 由`bd15e4e`交付，CI 修复以`e74413a`集成，状态提交为`3c010bb`；三者已推送到`origin/main`。远端 Run `31681419548`仅`smoke-service`失败：Linux smoke 把容器 UID 映射为宿主 UID 后，`agent-harness doctor`无法写入镜像内仍属`10001:10001`且权限为`0755`的`/app/eval-cases`，随后缺失 trace 又覆盖了 CI evidence 的主失败摘要。当前未提交修复已为 smoke 装配本轮隔离的可写 eval bind mount，并让 CI evidence 保留 gate 命令主失败；强制`1001:127`的`smoke-service`与`ci-smoke-service`、聚焦合同、quality、全量`2565 passed/288 skipped`和all strict 38/38均通过，fresh code review Stage 1/2 PASS、0 findings。无 active change，未开启 Phase 21，`DEV-PLAN.md` 保持零 diff，未 commit、push、发布、部署或调用真实 provider/业务工具。
 >
 > 配套矩阵：[`architecture-evolution-change-matrix.md`](architecture-evolution-change-matrix.md)
 
@@ -989,6 +989,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 - [x] 2026-08-13：用户明确授权合并并归档两个临时 Bug change。归档前确认 artifacts 全部done、tasks为10/10与17/17；三个delta均为纯新增且主规格不存在同名Requirement。现已把service-app 3条、durable queue 2条、runtime checkpoint 4条Requirement同步到主规格，并分别归档到`openspec/changes/archive/2026-08-13-harden-service-app-runtime-entrypoints/`与`openspec/changes/archive/2026-08-13-separate-cli-input-provenance/`；`openspec list --json`当前为空，`DEV-PLAN.md`保持零diff。
 - [x] 2026-08-13：归档事务首位fresh reviewer确认主规格合并、归档目录、tasks与机械门禁正确，但以matrix权威“当前下一步”仍等待archive、API Contract两处仍写active/待审核及混入review状态共3项MEDIUM判定FAIL。现已把matrix当前态改为无active、等待本地commit，并将API长期契约收敛为稳定CLI/provenance/request-id行为；旧票失效，归档事务从新的fresh reviewer重新审查。
 - [x] 2026-08-13：用户授权把独立worktree的CI修复提交拿到当前`main`并排查与Bug交付的冲突。Git证明两提交同源于`b6d468f`且分别为41/22路径、路径交集为0，因此选择cherry-pick而不改写分支历史；原`c0879b3`与新`e74413a`的stable patch-id同为`3ae35a2…`。组合后联合聚焦14文件190 passed/1 skipped（191 collected），quality、真实service smoke及全量2563 passed/288 skipped/21 warnings均退出0。首位fresh集成reviewer确认运行、安全与测试语义通过，只以living plan/matrix仍写旧HEAD、等待commit和旧2475测试数的1项MEDIUM阻断；状态现已校准，旧票失效并从新的fresh reviewer重启。
+- [x] 2026-08-13：`main@3c010bb`推送后的 Run `31681419548`仅`smoke-service`失败；artifact中的真实边界为`secret-evidence-doctor`，`unit-contract`、test aggregate、quality、integration、local/live smoke与eval均通过。以`SERVICE_APP_RUNTIME_UID=1001 SERVICE_APP_RUNTIME_GID=127 make smoke-service`在本机完整复现同一边界；先增加5项红灯，再为smoke装配本轮隔离的可写eval bind mount，并让CI evidence把gate命令失败保留为主错、缺失artifact降为附加诊断。修复后6文件聚焦合同全绿，强制`1001:127`的`smoke-service`与`ci-smoke-service`均退出0且CI result为pass，quality、全量`2565 passed/288 skipped/21 warnings`、all strict 38/38及diff check均通过；冻结身份`de328aa…`的fresh code review Stage 1/2 PASS、HIGH/MEDIUM/LOW均为0。未授权commit、push、发布或部署。
 
 ### Phase 21
 
@@ -1179,6 +1180,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | 2026-08-04 | 恢复观察到`executing`时只抛`tool.execution_needs_review`不会改变耐久事实；进程重启会再次进入同一歧义，loop仍active还可能被其他terminal路径越过 | tool claim与协调loop必须在同一UoW单调进入needs-review，并只保存稳定reason、binding/fence和canonical摘要；事件恢复也复用该入口，禁止各自创造第二套未知状态机 |
 | 2026-08-04 | Approval store逐值验证lease id与snapshot仍不足以证明grant当前可执行；同一lease在恢复超时后可能已应由新worker接管，旧进程仍可持有全部合法binding | 在最靠近artifact/handler的durable store按受信UTC重验`claimed_at + max age`，并先区分denied/revoked/consumed；审批新鲜度只授权进入统一tool claim，不能替代tool自己的lease/fence |
 | 2026-08-12 | 同一run同时存在nullable execution request id与非空queue delivery request id；若queued失败收口只复用classified execution值，CLI首次未提供request id时会给新terminal写入`None` | classifier继续权威决定executor context；worker只在DBOS确定性失败的私有收口调用中转发当前`message.request_id`，该值只用于本次新terminal evidence，不写回execution context、不改变queue DTO或claim/ack语义 |
+| 2026-08-13 | macOS smoke固定使用镜像UID `10001`，无法覆盖原生Linux把migration/API/worker映射为宿主UID后的镜像层写权限；`doctor`对`/app/eval-cases`的真实写探针因此只在hosted Linux失败。命令失败后缺失trace又把结构化`failure`覆盖为artifact错误 | Linux UID回归必须跨越真实容器与doctor写探针；smoke应把运行期可写eval目录放进本轮隔离bind mount，不放宽整个`/app`。CI evidence需同时保留命令失败和附加artifact失败，不能让后者替代主错 |
 
 后续发现按时间追加。若发现推翻了阶段依赖、共享接口或安全假设，先更新 Decision Log 和 change matrix，再继续实现。
 
@@ -1534,6 +1536,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | D-368 | 2026-08-13 | 用户明确授权将两个关联临时Bug change合并到主规格后共同归档；合并按harden→separate串行执行，既有主规格内容保持不变，只新增delta中9条Requirement | `service-app-shell`新增3条、`durable-run-queue`新增2条、`runtime-checkpoint-runs`新增4条；两个change归档到2026-08-13日期目录，changes根目录无绑定侧车残留，当前active为空。归档不授权commit、push、发布、部署或Phase21 |
 | D-369 | 2026-08-13 | 归档事务首位fresh reviewer以matrix当前下一步和API长期契约两类状态漂移共3项MEDIUM判定FAIL；主规格合并与归档结构本身通过 | matrix当前态统一为无active、等待本地commit；API Contract删除active change、fresh review、门禁、ready-to-archive与待审核叙事，只保留稳定CLI/provenance/request-id行为。旧票失效，修复后从新的fresh reviewer重启归档两阶段审查 |
 | D-370 | 2026-08-13 | 独立worktree CI修复是共同基线后的单提交，采用cherry-pick而非rebase；`e74413a`与原`c0879b3`保持stable patch-id`3ae35a2…`，避免把状态同步混入原修复补丁 | 两提交路径零交集但service-app复制/运行语义邻接；组合后190 passed/1 skipped（191 collected）聚焦、quality、真实service smoke和2563/288全量均通过。CI集成后的状态同步使用独立文档提交，下一权限门收敛为push/远端CI，不回写或amend原修复 |
+| D-371 | 2026-08-13 | Run `31681419548`证明D-370的macOS service smoke不能作为Linux UID映射证据；当前修复保留基础Compose固定非root身份和host UID artifact owner语义，只为smoke装配同UID可写的隔离eval bind mount，并让CI evidence把命令失败保持为主失败 | 不用`chmod 777`放宽镜像层，不让doctor换用户绕过真实运行身份，也不回退已审的direct Compose防root边界；修复先由强制非`10001` UID红灯约束，实质修改后旧review与测试身份失效 |
 | D-170 | 2026-08-02 | 每次结构化provider输入固定为`structured-provider-prompt-v1`完整canonical JSON字符串；`max_prompt_utf8_bytes`约束该完整字符串，planning按cap加catalog envelope冻结每attempt上界并对初始及所有repair ordinal做零调用可构造性检查 | 只约束业务prompt会让schema与repair指令落在预算外，既无法证明token/cost reservation充分，也会让repair时才出现的超长输入跨过provider副作用边界 |
 | D-171 | 2026-08-02 | Validation issue从`jsonschema.ValidationError.absolute_path`按RFC6901、required/extra集合差与封闭keyword映射确定；混合错误按折叠前事实选终态，limit0只允许invalid/extra，只有limit至少1且全部repair耗尽才使用exhausted | 解析provider/raw validator消息既不稳定又可能泄漏值；同一失败若能落入两个终态会破坏durable replay、恢复和验收的确定性 |
 | D-172 | 2026-08-02 | Strict schema compiler按schema对象位置使用封闭allowlist，当前拒绝`format`、条件/contains/unevaluated系列；核心只投影`Draft202012Validator.iter_errors()`直接错误且不递归`ValidationError.context` | 默认format只是annotation且FormatChecker集合可漂移，组合器context又允许顶层、叶子或双计三种投影；若不冻结会改变validation codes、repair prompt、evidence和replay identity |
@@ -2045,4 +2048,4 @@ D-159冻结身份`a1fa3fa2…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findi
 
 当前契约为14 Requirements/74 Scenarios，身份`7754ef26…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings。最终实现冻结身份`de39eb09…`的fresh Reviewer 1/2/3也均首末身份一致、Stage 1/2 PASS、0 findings。该身份下PostgreSQL1/1、quality、最终串行全量2102/270、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff均闭合；早期全量与service smoke失败按实际环境/失败域保留，不改写为PASS。acceptance保持`BLOCKED`，三个live入口保持零调用`hosted-unverified`。44/44 tasks已随12条新增、2条修改同步到六份主规格并归档。
 
-当前唯一下一动作是：保持本地集成提交链与clean工作树，等待用户另行授权push或触发远端CI；在此之前不push、不发布、不部署，也不启动Phase21。`DEV-PLAN.md`继续保持零diff。
+当前唯一下一动作是：保持`main@3c010bb`上的 Linux UID service smoke 修复处于未提交状态，等待用户另行授权本地commit；不自动push、发布、部署或启动Phase21。`DEV-PLAN.md`继续保持零diff。

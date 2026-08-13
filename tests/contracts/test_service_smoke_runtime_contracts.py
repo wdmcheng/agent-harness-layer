@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yaml
 from tests.contracts.service_deployment_test_support import (
     load_root_smoke,
     load_smoke_service,
@@ -127,6 +128,26 @@ def test_service_smoke_allows_root_host_group_for_restricted_shared_files(
     monkeypatch.setenv("SERVICE_APP_RUNTIME_GID", "0")
 
     assert smoke._runtime_gid() == "0"
+
+
+def test_service_smoke_runtime_override_mounts_isolated_writable_eval_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """任意受控Linux UID都必须使用本轮隔离eval目录，不能写镜像层。"""
+
+    smoke = load_smoke_service(monkeypatch)
+    override = yaml.safe_load(smoke.runtime_user_override_content("43101", "43102"))
+
+    for service_name in ("migration", "api", "worker"):
+        service = override["services"][service_name]
+        assert service["user"] == "43101:43102"
+        assert service["volumes"] == [
+            {
+                "type": "bind",
+                "source": "${SERVICE_APP_SMOKE_DIR}/eval-cases",
+                "target": "/app/eval-cases",
+            }
+        ]
 
 
 @pytest.mark.parametrize(
@@ -434,7 +455,7 @@ def test_service_smoke_cleans_secret_after_failure_or_interruption(
     project = "agent-harness-cleanup-contract"
     cleanup_calls: list[tuple[str, bool]] = []
     runtime_users: list[tuple[str, str]] = []
-    runtime_modes: list[tuple[int, int, int]] = []
+    runtime_modes: list[tuple[int, int, int, int]] = []
     runtime_overrides: list[str] = []
 
     def fail_smoke(env: dict[str, str], *_args: object) -> dict[str, object]:
@@ -444,12 +465,14 @@ def test_service_smoke_cleans_secret_after_failure_or_interruption(
         smoke_dir = Path(env["SERVICE_APP_SMOKE_DIR"])
         secret_path = Path(env["SERVICE_APP_STORAGE_DSN_FILE"])
         override_path = Path(env["SERVICE_APP_RUNTIME_USER_OVERRIDE_FILE"])
+        eval_directory = smoke_dir / "eval-cases"
         runtime_overrides.append(override_path.read_text(encoding="utf-8"))
         runtime_modes.append(
             (
                 smoke_dir.stat().st_mode & 0o777,
                 secret_path.stat().st_mode & 0o777,
                 override_path.stat().st_mode & 0o777,
+                eval_directory.stat().st_mode & 0o777,
             )
         )
         raise failure
@@ -495,12 +518,24 @@ def test_service_smoke_cleans_secret_after_failure_or_interruption(
     host_uid = os.getuid()
     expected_uid = "10001" if sys.platform == "darwin" or host_uid == 0 else str(host_uid)
     assert runtime_users == [(expected_uid, str(os.getgid()))]
-    assert runtime_modes == [(0o770, 0o640, 0o600)]
+    assert runtime_modes == [(0o770, 0o640, 0o600, 0o770)]
     assert runtime_overrides == [
         "services:\n"
         f'  migration:\n    user: "{expected_uid}:{os.getgid()}"\n'
+        "    volumes:\n"
+        "      - type: bind\n"
+        "        source: ${SERVICE_APP_SMOKE_DIR}/eval-cases\n"
+        "        target: /app/eval-cases\n"
         f'  api:\n    user: "{expected_uid}:{os.getgid()}"\n'
+        "    volumes:\n"
+        "      - type: bind\n"
+        "        source: ${SERVICE_APP_SMOKE_DIR}/eval-cases\n"
+        "        target: /app/eval-cases\n"
         f'  worker:\n    user: "{expected_uid}:{os.getgid()}"\n'
+        "    volumes:\n"
+        "      - type: bind\n"
+        "        source: ${SERVICE_APP_SMOKE_DIR}/eval-cases\n"
+        "        target: /app/eval-cases\n"
     ]
 
 

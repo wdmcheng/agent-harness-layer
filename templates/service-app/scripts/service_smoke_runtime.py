@@ -66,13 +66,28 @@ def runtime_gid() -> str:
 
 
 def runtime_user_override_content(uid: str, gid: str) -> str:
-    """渲染只含受控数值身份的 Compose override。"""
+    """渲染受控数值身份与本轮可写eval目录的Compose override。
+
+    原生Linux把容器UID映射为宿主UID后，镜像层中属于``10001``的
+    ``/app/eval-cases``不再可写。运行期draft/approved数据必须进入本轮隔离
+    bind mount，不能通过放宽整个``/app``或切换doctor身份绕过权限检查。
+    """
+
+    eval_volume = (
+        "    volumes:\n"
+        "      - type: bind\n"
+        "        source: ${SERVICE_APP_SMOKE_DIR}/eval-cases\n"
+        "        target: /app/eval-cases\n"
+    )
 
     return (
         "services:\n"
         f'  migration:\n    user: "{uid}:{gid}"\n'
+        f"{eval_volume}"
         f'  api:\n    user: "{uid}:{gid}"\n'
+        f"{eval_volume}"
         f'  worker:\n    user: "{uid}:{gid}"\n'
+        f"{eval_volume}"
     )
 
 

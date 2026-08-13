@@ -226,6 +226,14 @@ def main() -> int:
             "artifacts",
             expected_identity=smoke_identity,
         )
+        # service eval review queue 是运行期可写状态。Linux smoke 使用宿主UID时
+        # 不能写镜像层的/app/eval-cases，因此与workspace/artifacts一样挂进
+        # 本轮隔离目录；ReviewDatasetAdapter会按需创建drafts/approved子目录。
+        _create_smoke_subdirectory(
+            smoke_dir,
+            "eval-cases",
+            expected_identity=smoke_identity,
+        )
         _write_private_file(
             runtime_user_override_path,
             runtime_user_override,

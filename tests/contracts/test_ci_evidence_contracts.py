@@ -101,6 +101,35 @@ def test_failure_still_writes_result_and_returns_make_exit_code(tmp_path: Path) 
     result = _result(tmp_path, "ruff-lint")
     assert result["status"] == "fail"
     assert result["exit_code"] == completed.returncode
+    assert result["failure"] == (
+        f"gate command failed with exit code {completed.returncode}; "
+        "see .artifacts/ci/ruff-lint/command.log"
+    )
+    assert (
+        "lint-failed" in (tmp_path / ".artifacts" / "ci" / "ruff-lint" / "command.log").read_text()
+    )
+
+
+def test_command_failure_remains_primary_when_requested_artifact_is_missing(
+    tmp_path: Path,
+) -> None:
+    """命令失败后的缺失产物只能追加诊断，不能覆盖原始gate失败。"""
+
+    _write_repo(tmp_path)
+    completed = _run(
+        tmp_path,
+        "ruff-lint",
+        "--artifact",
+        "trace=.artifacts/smoke/service/trace.jsonl",
+    )
+
+    assert completed.returncode != 0
+    result = _result(tmp_path, "ruff-lint")
+    assert result["failure"] == (
+        f"gate command failed with exit code {completed.returncode}; "
+        "see .artifacts/ci/ruff-lint/command.log"
+    )
+    assert "did not match a regular file" in str(result["artifact_failure"])
     assert (
         "lint-failed" in (tmp_path / ".artifacts" / "ci" / "ruff-lint" / "command.log").read_text()
     )
