@@ -577,7 +577,7 @@ OpenSpec artifacts、`API-Contract.md` 与 living plan/matrix 是契约/状态 o
 
 1. Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档；当前无 active change，Phase 21 未启动。
 2. 两项归档前不共享 root broker、readiness fence、artifact/rollback gate、call-count 或 queue 新协议；仅因同一 dirty 工作树、`runtime_worker.py` 邻接和联合不变量由同一 owner 串行裁剪。该 owner 顺序现仅作为历史维护证据。
-3. D-363修约后的契约三票与D-366后实现三票均PASS。Run `31692344607`已证明`dff9683`后的Linux `smoke-service`通过；当前唯一已完成失败是`license` job `94423392853`，真实边界为smoke artifact下载根错误及8个Linux wheel metadata观察缺口。本轮修复已让原始5项及审查新增3项红灯、pipeline/license聚焦102项、失败job的128包observation重放、`ci-license`、`ci-contract`、quality、全量2572/288及diff check通过；四轮fresh review findings均已闭合，最终冻结身份`a2fc5030…`的fresh reviewer Stage 1/2 PASS、0 findings。用户已授权提交并推送；无active change，推送后观察新远端CI，不自动发布或部署。
+3. D-363修约后的契约三票与D-366后实现三票均PASS。License修复`494b031`已推送，Run `31699652149`证明hosted Linux `license`与`smoke-service`通过；唯一失败变为test-aggregate的逐候选deadline流式节点。当前修订只扩大测试时序尺度，保持“两次prepare总耗时超过错误共享deadline、单候选prepare明显小于自己的deadline”的检错不等式；共享deadline变异RED、真实completion/stream GREEN、invocation 17/17、quality、strict与fresh Stage 1/2 review均通过，production与`DEV-PLAN.md`零diff。用户已授权直接commit/push；推送后观察新hosted CI，不自动发布或部署。
 
 以下第七轮至 D-348 的记录只描述本次已经放弃的验证平台路径，保留用于诊断范围膨胀的成因；其中任何 broker/fence/readiness/Registry/FD/Docker event/rollback gate/matrix/queue capability 都不再是 active Requirement、验收或下一动作。
 

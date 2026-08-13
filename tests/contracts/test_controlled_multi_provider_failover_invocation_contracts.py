@@ -415,12 +415,14 @@ async def test_each_candidate_receives_its_own_frozen_deadline(
             ROUTE_B["deployment_id"]: ["completed"],
         },
         total_timeout_ms_by_deployment={
-            ROUTE_A["deployment_id"]: 1000,
-            ROUTE_B["deployment_id"]: 1000,
+            ROUTE_A["deployment_id"]: 4000,
+            ROUTE_B["deployment_id"]: 4000,
         },
         prepare_delays_seconds={
-            ROUTE_A["deployment_id"]: 0.6,
-            ROUTE_B["deployment_id"]: 0.6,
+            # 两次延迟合计仍严格超过错误共享的4秒deadline；正确实现则为
+            # 每个候选保留约1.9秒收口余量，避免hosted负载把调度抖动误报为回归。
+            ROUTE_A["deployment_id"]: 2.1,
+            ROUTE_B["deployment_id"]: 2.1,
         },
     )
     try:
