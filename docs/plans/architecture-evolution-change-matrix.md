@@ -577,7 +577,7 @@ OpenSpec artifacts、`API-Contract.md` 与 living plan/matrix 是契约/状态 o
 
 1. Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档；当前无 active change，Phase 21 未启动。
 2. 两项归档前不共享 root broker、readiness fence、artifact/rollback gate、call-count 或 queue 新协议；仅因同一 dirty 工作树、`runtime_worker.py` 邻接和联合不变量由同一 owner 串行裁剪。该 owner 顺序现仅作为历史维护证据。
-3. D-363修约后的契约三票与D-366后实现三票均PASS。`bd15e4e`、`e74413a`与状态提交`3c010bb`已推送；Run `31681419548`仅`smoke-service`在Linux宿主UID映射下失败，真实边界为`secret-evidence-doctor`，其他已运行job通过。当前未提交修复已让强制`1001:127`的`smoke-service`与`ci-smoke-service`、聚焦合同、quality、全量2565/288、all strict 38/38及diff check通过，fresh code review Stage 1/2 PASS、0 findings；无active change。唯一下一动作是保持未提交状态等待用户授权本地commit，不自动push、发布或部署。
+3. D-363修约后的契约三票与D-366后实现三票均PASS。`bd15e4e`、`e74413a`与状态提交`3c010bb`已推送；Run `31681419548`仅`smoke-service`在Linux宿主UID映射下失败，真实边界为`secret-evidence-doctor`，其他已运行job通过。本轮修复已让强制`1001:127`的`smoke-service`与`ci-smoke-service`、聚焦合同、quality、全量2565/288、all strict 38/38及diff check通过，fresh code review Stage 1/2 PASS、0 findings，并由`dff9683`提交。用户已授权把修复与纯状态提交一并推送；无active change，唯一下一动作是观察远端CI，不发布或部署。
 
 以下第七轮至 D-348 的记录只描述本次已经放弃的验证平台路径，保留用于诊断范围膨胀的成因；其中任何 broker/fence/readiness/Registry/FD/Docker event/rollback gate/matrix/queue capability 都不再是 active Requirement、验收或下一动作。
 

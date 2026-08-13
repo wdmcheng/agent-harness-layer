@@ -4,7 +4,7 @@
 >
 > 首次冻结：2026-07-27
 >
-> 当前状态：Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档。两个 Bug change 由`bd15e4e`交付，CI 修复以`e74413a`集成，状态提交为`3c010bb`；三者已推送到`origin/main`。远端 Run `31681419548`仅`smoke-service`失败：Linux smoke 把容器 UID 映射为宿主 UID 后，`agent-harness doctor`无法写入镜像内仍属`10001:10001`且权限为`0755`的`/app/eval-cases`，随后缺失 trace 又覆盖了 CI evidence 的主失败摘要。当前未提交修复已为 smoke 装配本轮隔离的可写 eval bind mount，并让 CI evidence 保留 gate 命令主失败；强制`1001:127`的`smoke-service`与`ci-smoke-service`、聚焦合同、quality、全量`2565 passed/288 skipped`和all strict 38/38均通过，fresh code review Stage 1/2 PASS、0 findings。无 active change，未开启 Phase 21，`DEV-PLAN.md` 保持零 diff，未 commit、push、发布、部署或调用真实 provider/业务工具。
+> 当前状态：Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档。两个 Bug change 由`bd15e4e`交付，CI 修复以`e74413a`集成，状态提交为`3c010bb`；三者已推送到`origin/main`。远端 Run `31681419548`仅`smoke-service`失败：Linux smoke 把容器 UID 映射为宿主 UID 后，`agent-harness doctor`无法写入镜像内仍属`10001:10001`且权限为`0755`的`/app/eval-cases`，随后缺失 trace 又覆盖了 CI evidence 的主失败摘要。本轮修复已由`dff9683`提交：为 smoke 装配本轮隔离的可写 eval bind mount，并让 CI evidence 保留 gate 命令主失败；强制`1001:127`的`smoke-service`与`ci-smoke-service`、聚焦合同、quality、全量`2565 passed/288 skipped`和all strict 38/38均通过，fresh code review Stage 1/2 PASS、0 findings。用户已授权把修复与本次纯状态提交一并推送；无 active change，未开启 Phase 21，`DEV-PLAN.md` 保持零 diff，未发布、部署或调用真实 provider/业务工具。
 >
 > 配套矩阵：[`architecture-evolution-change-matrix.md`](architecture-evolution-change-matrix.md)
 
@@ -989,7 +989,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 - [x] 2026-08-13：用户明确授权合并并归档两个临时 Bug change。归档前确认 artifacts 全部done、tasks为10/10与17/17；三个delta均为纯新增且主规格不存在同名Requirement。现已把service-app 3条、durable queue 2条、runtime checkpoint 4条Requirement同步到主规格，并分别归档到`openspec/changes/archive/2026-08-13-harden-service-app-runtime-entrypoints/`与`openspec/changes/archive/2026-08-13-separate-cli-input-provenance/`；`openspec list --json`当前为空，`DEV-PLAN.md`保持零diff。
 - [x] 2026-08-13：归档事务首位fresh reviewer确认主规格合并、归档目录、tasks与机械门禁正确，但以matrix权威“当前下一步”仍等待archive、API Contract两处仍写active/待审核及混入review状态共3项MEDIUM判定FAIL。现已把matrix当前态改为无active、等待本地commit，并将API长期契约收敛为稳定CLI/provenance/request-id行为；旧票失效，归档事务从新的fresh reviewer重新审查。
 - [x] 2026-08-13：用户授权把独立worktree的CI修复提交拿到当前`main`并排查与Bug交付的冲突。Git证明两提交同源于`b6d468f`且分别为41/22路径、路径交集为0，因此选择cherry-pick而不改写分支历史；原`c0879b3`与新`e74413a`的stable patch-id同为`3ae35a2…`。组合后联合聚焦14文件190 passed/1 skipped（191 collected），quality、真实service smoke及全量2563 passed/288 skipped/21 warnings均退出0。首位fresh集成reviewer确认运行、安全与测试语义通过，只以living plan/matrix仍写旧HEAD、等待commit和旧2475测试数的1项MEDIUM阻断；状态现已校准，旧票失效并从新的fresh reviewer重启。
-- [x] 2026-08-13：`main@3c010bb`推送后的 Run `31681419548`仅`smoke-service`失败；artifact中的真实边界为`secret-evidence-doctor`，`unit-contract`、test aggregate、quality、integration、local/live smoke与eval均通过。以`SERVICE_APP_RUNTIME_UID=1001 SERVICE_APP_RUNTIME_GID=127 make smoke-service`在本机完整复现同一边界；先增加5项红灯，再为smoke装配本轮隔离的可写eval bind mount，并让CI evidence把gate命令失败保留为主错、缺失artifact降为附加诊断。修复后6文件聚焦合同全绿，强制`1001:127`的`smoke-service`与`ci-smoke-service`均退出0且CI result为pass，quality、全量`2565 passed/288 skipped/21 warnings`、all strict 38/38及diff check均通过；冻结身份`de328aa…`的fresh code review Stage 1/2 PASS、HIGH/MEDIUM/LOW均为0。未授权commit、push、发布或部署。
+- [x] 2026-08-13：`main@3c010bb`推送后的 Run `31681419548`仅`smoke-service`失败；artifact中的真实边界为`secret-evidence-doctor`，`unit-contract`、test aggregate、quality、integration、local/live smoke与eval均通过。以`SERVICE_APP_RUNTIME_UID=1001 SERVICE_APP_RUNTIME_GID=127 make smoke-service`在本机完整复现同一边界；先增加5项红灯，再为smoke装配本轮隔离的可写eval bind mount，并让CI evidence把gate命令失败保留为主错、缺失artifact降为附加诊断。修复后6文件聚焦合同全绿，强制`1001:127`的`smoke-service`与`ci-smoke-service`均退出0且CI result为pass，quality、全量`2565 passed/288 skipped/21 warnings`、all strict 38/38及diff check均通过；冻结身份`de328aa…`的fresh code review Stage 1/2 PASS、HIGH/MEDIUM/LOW均为0。用户随后授权commit与push，修复由`dff9683`提交，本次纯状态提交与其一并推送；未授权发布或部署。
 
 ### Phase 21
 
@@ -2048,4 +2048,4 @@ D-159冻结身份`a1fa3fa2…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findi
 
 当前契约为14 Requirements/74 Scenarios，身份`7754ef26…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings。最终实现冻结身份`de39eb09…`的fresh Reviewer 1/2/3也均首末身份一致、Stage 1/2 PASS、0 findings。该身份下PostgreSQL1/1、quality、最终串行全量2102/270、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff均闭合；早期全量与service smoke失败按实际环境/失败域保留，不改写为PASS。acceptance保持`BLOCKED`，三个live入口保持零调用`hosted-unverified`。44/44 tasks已随12条新增、2条修改同步到六份主规格并归档。
 
-当前唯一下一动作是：保持`main@3c010bb`上的 Linux UID service smoke 修复处于未提交状态，等待用户另行授权本地commit；不自动push、发布、部署或启动Phase21。`DEV-PLAN.md`继续保持零diff。
+当前唯一下一动作是：观察本轮推送触发的远端 CI，确认 Linux UID `smoke-service` 在 GitHub Runner 上通过；不发布、不部署，也不启动Phase21。`DEV-PLAN.md`继续保持零diff。
