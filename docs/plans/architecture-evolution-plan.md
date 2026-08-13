@@ -4,7 +4,7 @@
 >
 > 首次冻结：2026-07-27
 >
-> 当前状态：Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档。两个 Bug change 由`bd15e4e`交付，CI 修复以`e74413a`集成，状态提交为`3c010bb`；三者已推送到`origin/main`。远端 Run `31681419548`仅`smoke-service`失败：Linux smoke 把容器 UID 映射为宿主 UID 后，`agent-harness doctor`无法写入镜像内仍属`10001:10001`且权限为`0755`的`/app/eval-cases`，随后缺失 trace 又覆盖了 CI evidence 的主失败摘要。本轮修复已由`dff9683`提交：为 smoke 装配本轮隔离的可写 eval bind mount，并让 CI evidence 保留 gate 命令主失败；强制`1001:127`的`smoke-service`与`ci-smoke-service`、聚焦合同、quality、全量`2565 passed/288 skipped`和all strict 38/38均通过，fresh code review Stage 1/2 PASS、0 findings。用户已授权把修复与本次纯状态提交一并推送；无 active change，未开启 Phase 21，`DEV-PLAN.md` 保持零 diff，未发布、部署或调用真实 provider/业务工具。
+> 当前状态：Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档。Run `31692344607`已证明`dff9683`修复后的 Linux `smoke-service`通过；当前唯一已完成失败是`license` job `94423392853`。本轮修复已把smoke artifact恢复到`.artifacts`公共根，并用精确版本官方PyPI字段补齐8个Linux wheel的`UNKNOWN`观察，只对等价SPDX合取和OSI classifier前缀做窄归一化。原始5项及审查新增3项红灯均转绿，pipeline/license聚焦102项、失败job的128包observation重放、`ci-license`、`ci-contract`、quality与全量`2572 passed/288 skipped`均通过；最终fresh code review Stage 1/2 PASS、0 findings。用户已授权提交并推送本轮修复，下一动作是观察新远端CI；无 active change，未开启 Phase 21，`DEV-PLAN.md` 保持零 diff，未发布、部署或调用真实 provider/业务工具。
 >
 > 配套矩阵：[`architecture-evolution-change-matrix.md`](architecture-evolution-change-matrix.md)
 
@@ -28,17 +28,17 @@
 |---|---|
 | 快照日期 | 2026-08-13 |
 | 分支 | `main` |
-| 当前集成身份 | 共同基线`b6d468ff04e68f9fa19fa586ebd5c8ce06d0a801`之后依次为Bug交付提交`bd15e4e0fb1ddef1aff0707461a7db3646840c2c`与CI修复集成提交`e74413a98ecf4ff53a89d350ebe9bf4a5e60f147`；本状态同步提交位于其后。接手时必须以`git rev-parse HEAD`重新取得实时HEAD，不把共同基线误写为当前HEAD |
-| 基线工作树 | 本轮契约重审起点为 tracked 71、untracked 条目45、total 116，展开为54个实际未跟踪文件。仓库外快照`/tmp/agent-harness-phase20-scope-backup.rpGi9I`已校验 tracked reverse apply 与54项untracked archive；随后按`joint-crop-v1`恢复51个tracked膨胀路径、删除39个untracked膨胀路径，并逐hunk保留两条Bug因果链。后续身份只从当前 Git 与完整manifest复算，不复用旧冻结或审查票 |
-| 当前 Git 事务 | 两个临时Bug实现、主规格同步与归档已提交为`bd15e4e`；CI worktree提交已等价cherry-pick为`e74413a`；当前状态同步由其后的独立文档提交收口。未push、发布或部署 |
+| 当前集成身份 | `main`与`origin/main`均为`06383bf0ef31ee1ab3b0e4cc9e1ad6ba80e0a08b`；该提交之前依次包含Bug交付`bd15e4e`、CI集成`e74413a`、状态提交`3c010bb`和Linux UID smoke修复`dff9683`。接手时仍须以`git rev-parse HEAD`和`git rev-parse origin/main`重新取得实时身份 |
+| 基线工作树 | 当前从`main@06383bf`直接修复 Run `31692344607`的license gate，变更限定为GitHub workflow、CI validator、license snapshot/归一化、主规格、合同测试和living plan/matrix；无untracked文件。后续身份只从当前Git复算，不复用此前`3703b257…`或`c00635a8…`的失败审查票 |
+| 当前 Git 事务 | `dff9683`与状态提交`06383bf`已推送。Run `31692344607`已完成，只有license job失败；本轮license修复已通过本地重型门禁与最终fresh Stage 1/2审查，四轮finding已依次闭合128包事实、主规格/handoff漂移、snapshot字段值错配及畸形classifier空白旁路。用户已授权以本提交交付并推送；推送后以新远端CI为下一验证，未发布或部署 |
 | OpenSpec | 当前无 active change。`harden-service-app-runtime-entrypoints` 的10/10 tasks与 `separate-cli-input-provenance` 的17/17 tasks已完成；9条新增Requirement已同步到三份主规格，并于2026-08-13分别归档到同名日期目录。D-363契约身份`b6fdcca0…`与D-366后实现身份`82a78b59…`的fresh `1+2`三范围Stage 1/2均PASS、0 findings |
 | Phase 19契约准入审查身份 | 当前14 Requirements/74 Scenarios。身份`7754ef26b11fcba87f98f7d38a8fc869ec97c53edec057e2d4995850973c21a7`的fresh Reviewer 1/2/3均在同一内容上Stage 1/2 PASS、0 findings；旧契约身份只保留诊断历史 |
 | Phase 19实现审查身份 | `phase19-freeze-v1`候选`de39eb0980f50ebae62e57f1781473a809dfd16931d3554868546802d5d1f6f6`；fresh Reviewer 1/2/3首末复算一致，均Stage 1/2 PASS、0 findings。审查后仅状态记录漂移按用户裁决豁免，不改变已审实现内容 |
 | 已完成历史 | Phase 1–20已完成并归档；归档事实以Git、`openspec list --json`和归档目录为准 |
-| 当前阶段 | Phase 1–20及两个临时Bug change均已归档并本地提交；CI修复已集成并通过当前组合回归。当前未开启Phase21，也未push、发布或部署 |
+| 当前阶段 | Phase 1–20及两个临时Bug change均已归档。Linux UID smoke修复已推送并获hosted smoke PASS；当前只处理后续license gate失败，未开启Phase21，也未发布或部署 |
 | 已归档临时 Bug change | `harden-service-app-runtime-entrypoints` 保留 Make worker 的 profile/profiles-dir/once/env-file；`separate-cli-input-provenance` 保留业务 input 分离、封闭 typed provenance、必要 private classifier/repository seam、幂等/terminal/approval resume。executor使用authoritative nullable execution request id；approval新evidence使用当前resolution ID，service queued新terminal使用当前delivery ID。两者未增加 broker、readiness、矩阵或 queue 新协议 |
-| 当前阻塞 | 无Phase 20离线实现或归档阻塞。`acceptance-validate`因旧REQ-001 CI evidence身份不匹配保持`BLOCKED`；真实provider三入口保持零调用`hosted-unverified`，均不冒充PASS |
-| 明确未做 | 未运行真实provider/业务工具，未push、发布或部署，也未触发新的远端GitHub Actions run；未启动Phase 21或做structured streaming/fallback重构。最初Reviewer 2/3因证据包混入Reviewer 1结论而中止且不计票，替换票独立完成 |
+| 当前阻塞 | 无本地实现或审查阻塞。Run `31692344607`最终只有license job失败；本轮修复已通过原始5项及审查新增3项红灯、102项聚焦、128包observation重放、`ci-license`、`ci-contract`、quality、2572/288全量、strict 38/38及最终fresh Stage 1/2审查。推送后仍须等待新hosted run，不把本地结果冒充hosted PASS |
+| 明确未做 | 当前license修复未commit或push；未发布、部署、调用真实provider/业务工具、启动Phase21或做structured streaming/fallback重构。Run `31692344607`已实际触发并完成，不把本地门禁冒充新的hosted license PASS |
 
 `DEV-PLAN.md` 顶部保留 Phase 18.2本地提交与归档历史，并已同步Phase 19归档事实；后续 Agent 仍须按恢复顺序重新核对当前磁盘、Git 与 OpenSpec。
 
@@ -990,6 +990,13 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 - [x] 2026-08-13：归档事务首位fresh reviewer确认主规格合并、归档目录、tasks与机械门禁正确，但以matrix权威“当前下一步”仍等待archive、API Contract两处仍写active/待审核及混入review状态共3项MEDIUM判定FAIL。现已把matrix当前态改为无active、等待本地commit，并将API长期契约收敛为稳定CLI/provenance/request-id行为；旧票失效，归档事务从新的fresh reviewer重新审查。
 - [x] 2026-08-13：用户授权把独立worktree的CI修复提交拿到当前`main`并排查与Bug交付的冲突。Git证明两提交同源于`b6d468f`且分别为41/22路径、路径交集为0，因此选择cherry-pick而不改写分支历史；原`c0879b3`与新`e74413a`的stable patch-id同为`3ae35a2…`。组合后联合聚焦14文件190 passed/1 skipped（191 collected），quality、真实service smoke及全量2563 passed/288 skipped/21 warnings均退出0。首位fresh集成reviewer确认运行、安全与测试语义通过，只以living plan/matrix仍写旧HEAD、等待commit和旧2475测试数的1项MEDIUM阻断；状态现已校准，旧票失效并从新的fresh reviewer重启。
 - [x] 2026-08-13：`main@3c010bb`推送后的 Run `31681419548`仅`smoke-service`失败；artifact中的真实边界为`secret-evidence-doctor`，`unit-contract`、test aggregate、quality、integration、local/live smoke与eval均通过。以`SERVICE_APP_RUNTIME_UID=1001 SERVICE_APP_RUNTIME_GID=127 make smoke-service`在本机完整复现同一边界；先增加5项红灯，再为smoke装配本轮隔离的可写eval bind mount，并让CI evidence把gate命令失败保留为主错、缺失artifact降为附加诊断。修复后6文件聚焦合同全绿，强制`1001:127`的`smoke-service`与`ci-smoke-service`均退出0且CI result为pass，quality、全量`2565 passed/288 skipped/21 warnings`、all strict 38/38及diff check均通过；冻结身份`de328aa…`的fresh code review Stage 1/2 PASS、HIGH/MEDIUM/LOW均为0。用户随后授权commit与push，修复由`dff9683`提交，本次纯状态提交与其一并推送；未授权发布或部署。
+- [x] 2026-08-13：Run `31692344607`中的Linux `smoke-service`已通过，`license` job `94423392853`失败。上传artifact和`command.log`证明主失败不是CI evidence包装：下载动作把以`.artifacts`为公共根的smoke artifact解压到仓库根，license预期证据因此落到`license/`；同时`licensecheck 2026.0.8`在Ubuntu wheel上把8个包观察为`UNKNOWN`。workflow路径、validator、classifier、SPDX合取及快照覆盖5项红灯先稳定5 FAIL；修复下载根、版本化精确官方PyPI观察和窄等价归一化后5项及pipeline/license聚焦99项全绿，失败job的128包observation重放为pass且0 unknown，`ci-license`、`ci-contract`、quality、全量`2572 passed/288 skipped/21 warnings`及diff check均退出0；等待fresh code review。未授权commit、push、发布或部署。
+- [x] 2026-08-13：首位fresh reviewer确认实现、测试、安全和官方snapshot边界均通过，但以三处权威状态文档把实际128包重放误写为124包判Stage 1 FAIL（1 MEDIUM），Stage 2独立质量轴PASS。现已用失败artifact与当前pass report双重确认均为128并修正文档；旧票失效，从新的fresh reviewer重新执行Stage 1/2。
+- [x] 2026-08-13：第二位fresh reviewer确认124/128 finding已闭合，但以主规格仍只允许`license|license_expression`而实现新增`classifier`、Handoff Snapshot仍声称旧clean/未push/未触发Run共2项MEDIUM判Stage 1 FAIL，Stage 2独立质量轴PASS。现已把受控classifier及窄等价规则写回主规格，并将Handoff校准为`main@06383bf`、Run已完成、当前license修复dirty且未提交；旧票失效，再从新的fresh reviewer重启。
+- [x] 2026-08-13：第三位fresh reviewer以1项MEDIUM证明snapshot loader校验字段名后丢失字段上下文，使无OSI前缀的`classifier`及携带classifier前缀的`license`均可通过。两条公开CLI负例先稳定`2 failed`，随后loader关闭式要求classifier必须带精确`License :: OSI Approved :: `前缀、其他字段不得携带该前缀；六个直接正反节点与pipeline/license聚焦101项均通过。旧票失效，再从新的fresh reviewer完整重审。
+- [x] 2026-08-13：第四位fresh reviewer以1项MEDIUM证明loader先压缩内部空白再判精确前缀，使`License  :: OSI Approved :: MIT`畸形classifier仍被接受。公开CLI负例先稳定`1 failed`；修复后只对原始值逐字前缀做classifier剥离，畸形空白不再由归一化修形，六个直接正反节点及pipeline/license聚焦102项通过。首次完整`make quality`因该Python文件机械格式漂移退出2，应用仓库Ruff formatter后再重跑最终门禁。旧票失效，再从新的fresh reviewer完整重审。
+- [x] 2026-08-13：最终fresh reviewer在冻结实现身份`a2fc5030…`上独立复核8个官方PyPI快照、8类公开CLI正反路径、102项聚焦、quality、`ci-license`、`ci-contract`、strict 38/38、128包失败observation重放及首末Git身份，Stage 1/2 PASS，HIGH/MEDIUM/LOW均为0。审查后仅回写状态与review marker，不改变生产、测试、主规格或验收语义；下一动作收敛为等待用户授权commit/push。
+- [x] 2026-08-13：用户明确授权提交并推送已审license gate修复；本提交只包含审查过的10个tracked路径及授权后的纯状态回写，不授权发布、部署或Phase21。推送后下一动作是观察新远端CI，不能以本地PASS提前宣称hosted闭合。
 
 ### Phase 21
 
@@ -1181,6 +1188,7 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | 2026-08-04 | Approval store逐值验证lease id与snapshot仍不足以证明grant当前可执行；同一lease在恢复超时后可能已应由新worker接管，旧进程仍可持有全部合法binding | 在最靠近artifact/handler的durable store按受信UTC重验`claimed_at + max age`，并先区分denied/revoked/consumed；审批新鲜度只授权进入统一tool claim，不能替代tool自己的lease/fence |
 | 2026-08-12 | 同一run同时存在nullable execution request id与非空queue delivery request id；若queued失败收口只复用classified execution值，CLI首次未提供request id时会给新terminal写入`None` | classifier继续权威决定executor context；worker只在DBOS确定性失败的私有收口调用中转发当前`message.request_id`，该值只用于本次新terminal evidence，不写回execution context、不改变queue DTO或claim/ack语义 |
 | 2026-08-13 | macOS smoke固定使用镜像UID `10001`，无法覆盖原生Linux把migration/API/worker映射为宿主UID后的镜像层写权限；`doctor`对`/app/eval-cases`的真实写探针因此只在hosted Linux失败。命令失败后缺失trace又把结构化`failure`覆盖为artifact错误 | Linux UID回归必须跨越真实容器与doctor写探针；smoke应把运行期可写eval目录放进本轮隔离bind mount，不放宽整个`/app`。CI evidence需同时保留命令失败和附加artifact失败，不能让后者替代主错 |
+| 2026-08-13 | GitHub多路径artifact以上传路径的公共祖先`.artifacts`为归档根，consumer下载到仓库根会剥掉该前缀；同一lock在macOS与Ubuntu wheel上的`licensecheck` metadata观察也可能分别已知和`UNKNOWN` | producer/consumer必须用合同锁住归档根；工具未知值只允许由精确包版本、PyPI官方JSON字段和版本控制快照补齐。跨工具只归一同一SPDX集合的`AND`/`;;`与OSI classifier前缀，`OR`、任意字段及无官方依据继续fail closed |
 
 后续发现按时间追加。若发现推翻了阶段依赖、共享接口或安全假设，先更新 Decision Log 和 change matrix，再继续实现。
 
@@ -1537,6 +1545,11 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | D-369 | 2026-08-13 | 归档事务首位fresh reviewer以matrix当前下一步和API长期契约两类状态漂移共3项MEDIUM判定FAIL；主规格合并与归档结构本身通过 | matrix当前态统一为无active、等待本地commit；API Contract删除active change、fresh review、门禁、ready-to-archive与待审核叙事，只保留稳定CLI/provenance/request-id行为。旧票失效，修复后从新的fresh reviewer重启归档两阶段审查 |
 | D-370 | 2026-08-13 | 独立worktree CI修复是共同基线后的单提交，采用cherry-pick而非rebase；`e74413a`与原`c0879b3`保持stable patch-id`3ae35a2…`，避免把状态同步混入原修复补丁 | 两提交路径零交集但service-app复制/运行语义邻接；组合后190 passed/1 skipped（191 collected）聚焦、quality、真实service smoke和2563/288全量均通过。CI集成后的状态同步使用独立文档提交，下一权限门收敛为push/远端CI，不回写或amend原修复 |
 | D-371 | 2026-08-13 | Run `31681419548`证明D-370的macOS service smoke不能作为Linux UID映射证据；当前修复保留基础Compose固定非root身份和host UID artifact owner语义，只为smoke装配同UID可写的隔离eval bind mount，并让CI evidence把命令失败保持为主失败 | 不用`chmod 777`放宽镜像层，不让doctor换用户绕过真实运行身份，也不回退已审的direct Compose防root边界；修复先由强制非`10001` UID红灯约束，实质修改后旧review与测试身份失效 |
+| D-372 | 2026-08-13 | Run `31692344607`证明license consumer解包根与Linux wheel metadata观察均未被macOS本地门禁覆盖；修复同时锁住GitHub download路径和CI validator，并把8项官方精确版本观察纳入既有snapshot seam | 不把`UNKNOWN`直接映射到policy结论，不联网动态决定许可证，也不把`OR`当合取；snapshot继续校验runtime身份、官方精确版本endpoint和受控字段，已有非空工具观察与snapshot冲突时仍失败 |
+| D-373 | 2026-08-13 | 第二位fresh reviewer证明classifier实现已超出主规格列举字段，且Handoff仍保留归档前工作树和未push叙述；两项均属权威真相源漂移，不能以实现门禁通过放行 | 主规格显式接纳官方精确版本JSON中的许可证classifier并冻结前缀/AND/OR边界；Handoff改为当前HEAD、已完成Run、dirty license修复与未提交权限门。旧审查身份失效，strict后从fresh reviewer重启 |
+| D-374 | 2026-08-13 | 第三位fresh reviewer证明snapshot字段allowlist未绑定字段值形状，`classifier=MIT`及`license=License :: OSI Approved :: MIT`均可借共享归一化通过 | snapshot loader在合并观察前关闭式绑定字段和值：classifier必须带精确OSI前缀，license与license_expression不得携带该前缀。两项端到端RED转绿，受影响门禁重跑后旧票失效并从fresh reviewer重启 |
+| D-375 | 2026-08-13 | 第四位fresh reviewer证明“精确前缀”校验仍发生在空白压缩后，畸形classifier可被修形后放行 | 前缀识别改为先对原始去首尾值逐字匹配，只有精确classifier前缀可剥离；空白归一化仅作用于已确定的许可证正文。新增公开CLI负例转绿后旧票失效并从fresh reviewer重启 |
+| D-376 | 2026-08-13 | 冻结实现身份`a2fc5030…`的最终fresh reviewer首末身份一致，独立确认Stage 1/2 PASS、0 findings | 审查后只允许living plan/matrix与review marker纯状态回写；不改变已审行为身份。当前权限门为用户授权commit/push，不自动发布、部署或触发Phase21 |
 | D-170 | 2026-08-02 | 每次结构化provider输入固定为`structured-provider-prompt-v1`完整canonical JSON字符串；`max_prompt_utf8_bytes`约束该完整字符串，planning按cap加catalog envelope冻结每attempt上界并对初始及所有repair ordinal做零调用可构造性检查 | 只约束业务prompt会让schema与repair指令落在预算外，既无法证明token/cost reservation充分，也会让repair时才出现的超长输入跨过provider副作用边界 |
 | D-171 | 2026-08-02 | Validation issue从`jsonschema.ValidationError.absolute_path`按RFC6901、required/extra集合差与封闭keyword映射确定；混合错误按折叠前事实选终态，limit0只允许invalid/extra，只有limit至少1且全部repair耗尽才使用exhausted | 解析provider/raw validator消息既不稳定又可能泄漏值；同一失败若能落入两个终态会破坏durable replay、恢复和验收的确定性 |
 | D-172 | 2026-08-02 | Strict schema compiler按schema对象位置使用封闭allowlist，当前拒绝`format`、条件/contains/unevaluated系列；核心只投影`Draft202012Validator.iter_errors()`直接错误且不递归`ValidationError.context` | 默认format只是annotation且FormatChecker集合可漂移，组合器context又允许顶层、叶子或双计三种投影；若不冻结会改变validation codes、repair prompt、evidence和replay identity |
@@ -2048,4 +2061,4 @@ D-159冻结身份`a1fa3fa2…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findi
 
 当前契约为14 Requirements/74 Scenarios，身份`7754ef26…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings。最终实现冻结身份`de39eb09…`的fresh Reviewer 1/2/3也均首末身份一致、Stage 1/2 PASS、0 findings。该身份下PostgreSQL1/1、quality、最终串行全量2102/270、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff均闭合；早期全量与service smoke失败按实际环境/失败域保留，不改写为PASS。acceptance保持`BLOCKED`，三个live入口保持零调用`hosted-unverified`。44/44 tasks已随12条新增、2条修改同步到六份主规格并归档。
 
-当前唯一下一动作是：观察本轮推送触发的远端 CI，确认 Linux UID `smoke-service` 在 GitHub Runner 上通过；不发布、不部署，也不启动Phase21。`DEV-PLAN.md`继续保持零diff。
+当前唯一下一动作是：推送本次已审license gate修复提交后观察新远端CI，确认hosted Linux license与smoke-service均通过；不发布、不部署，也不启动Phase21。`DEV-PLAN.md`继续保持零diff。

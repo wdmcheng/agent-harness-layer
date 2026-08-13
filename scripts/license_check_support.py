@@ -65,6 +65,9 @@ METADATA_LICENSE_ALIASES = {
     "zlib_libpng": "Zlib",
     "zlib/libpng license": "Zlib",
 }
+METADATA_CLASSIFIER_PREFIX = "License :: OSI Approved :: "
+SPDX_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9.+-]*\Z")
+SPDX_CONJUNCTION = re.compile(r"\s*(?:;;|\bAND\b)\s*", re.IGNORECASE)
 
 
 class LicenseError(RuntimeError):
@@ -74,8 +77,15 @@ class LicenseError(RuntimeError):
 def normalize_metadata_license(value: str) -> str:
     """归一同一许可证的工具拼写，同时保留报告中的原始观察值。"""
 
-    compact = " ".join(value.strip().split())
-    return METADATA_LICENSE_ALIASES.get(compact.casefold(), compact)
+    stripped = value.strip()
+    if stripped.startswith(METADATA_CLASSIFIER_PREFIX):
+        stripped = stripped[len(METADATA_CLASSIFIER_PREFIX) :]
+    compact = " ".join(stripped.split())
+    aliased = METADATA_LICENSE_ALIASES.get(compact.casefold(), compact)
+    parts = SPDX_CONJUNCTION.split(aliased)
+    if len(parts) > 1 and all(SPDX_IDENTIFIER.fullmatch(part) is not None for part in parts):
+        return " AND ".join(sorted(parts, key=str.casefold))
+    return aliased
 
 
 def issue(message: str) -> str:

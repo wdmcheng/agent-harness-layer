@@ -81,6 +81,18 @@ def _validate_github_job(
     }
     if not required_paths <= actual_paths:
         raise ContractError(f"GitHub {identifier} artifact paths are incomplete")
+    if identifier == "license":
+        downloads = [
+            step for step in steps if step.get("uses") == platform["github_download_artifact"]
+        ]
+        if len(downloads) != 1:
+            raise ContractError("GitHub license must download one smoke-service artifact")
+        download_with = mapping(downloads[0].get("with"), "GitHub license download inputs")
+        if download_with != {
+            "name": "ci-smoke-service-${{ github.run_id }}",
+            "path": ".artifacts",
+        }:
+            raise ContractError("GitHub license download must restore .artifacts")
 
 
 def _validate_gitlab_job(

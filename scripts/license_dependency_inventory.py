@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from license_check_support import (
+    METADATA_CLASSIFIER_PREFIX,
     PUBLISHED_RUNTIME_ROOT_SOURCES,
     LicenseError,
     PackageIdentity,
@@ -168,13 +169,21 @@ def pypi_metadata_snapshot(
             raise LicenseError("metadata snapshot basis must be the exact official PyPI endpoint")
         license_name = str(raw.get("license", "")).strip()
         field = str(raw.get("field", ""))
+        has_classifier_prefix = license_name.startswith(METADATA_CLASSIFIER_PREFIX)
+        has_classifier_like_prefix = (
+            " ".join(license_name.split())
+            .casefold()
+            .startswith(METADATA_CLASSIFIER_PREFIX.casefold())
+        )
         if (
             not name
             or not version
             or source != "registry:https://pypi.org/simple"
-            or field not in {"license", "license_expression"}
+            or field not in {"classifier", "license", "license_expression"}
             or not license_name
             or "UNKNOWN" in license_name.upper()
+            or (field == "classifier" and not has_classifier_prefix)
+            or (field != "classifier" and has_classifier_like_prefix)
         ):
             raise LicenseError("metadata snapshot package identity or license is invalid")
         if identity not in runtime:

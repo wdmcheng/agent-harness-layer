@@ -182,6 +182,192 @@ def test_unknown_licensecheck_metadata_uses_version_bound_official_snapshot(
     assert package["metadata_observation"] == "MIT"
 
 
+def test_unknown_classifier_snapshot_normalizes_to_policy_metadata(tmp_path: Path) -> None:
+    """官方PyPI classifier可补未知观察，但报告仍保留完整原始classifier。"""
+
+    write_minimal_repository(tmp_path)
+    write_lock(tmp_path)
+    write_policy(
+        tmp_path,
+        metadata_license="BSD License",
+        license_expression="BSD-3-Clause",
+    )
+    observation = write_observation(tmp_path, license_name="UNKNOWN")
+    _write_pypi_snapshot(
+        tmp_path,
+        license_name="License :: OSI Approved :: BSD License",
+        field="classifier",
+    )
+
+    result = run_check(tmp_path, observation)
+
+    assert result.returncode == 0, result.stderr
+    package = cast(list[dict[str, object]], read_report(tmp_path)["packages"])[0]
+    assert package["metadata_observation"] == "License :: OSI Approved :: BSD License"
+
+
+def test_classifier_snapshot_requires_osi_approved_prefix(tmp_path: Path) -> None:
+    """classifier快照必须保留官方OSI前缀，不能伪装成普通许可证字段。"""
+
+    write_minimal_repository(tmp_path)
+    write_lock(tmp_path)
+    write_policy(tmp_path)
+    observation = write_observation(tmp_path, license_name="UNKNOWN")
+    _write_pypi_snapshot(tmp_path, license_name="MIT", field="classifier")
+
+    result = run_check(tmp_path, observation)
+
+    assert result.returncode != 0
+    assert "metadata snapshot package identity or license is invalid" in result.stderr
+
+
+def test_classifier_snapshot_rejects_whitespace_normalized_prefix(tmp_path: Path) -> None:
+    """classifier前缀必须逐字匹配，不能先修复畸形空白再作为官方观察接受。"""
+
+    write_minimal_repository(tmp_path)
+    write_lock(tmp_path)
+    write_policy(tmp_path)
+    observation = write_observation(tmp_path, license_name="UNKNOWN")
+    _write_pypi_snapshot(
+        tmp_path,
+        license_name="License  :: OSI Approved :: MIT",
+        field="classifier",
+    )
+
+    result = run_check(tmp_path, observation)
+
+    assert result.returncode != 0
+    assert "metadata snapshot package identity or license is invalid" in result.stderr
+
+
+def test_non_classifier_snapshot_rejects_osi_approved_prefix(tmp_path: Path) -> None:
+    """普通license字段不得借classifier前缀触发跨字段归一化。"""
+
+    write_minimal_repository(tmp_path)
+    write_lock(tmp_path)
+    write_policy(tmp_path)
+    observation = write_observation(tmp_path, license_name="UNKNOWN")
+    _write_pypi_snapshot(
+        tmp_path,
+        license_name="License :: OSI Approved :: MIT",
+        field="license",
+    )
+
+    result = run_check(tmp_path, observation)
+
+    assert result.returncode != 0
+    assert "metadata snapshot package identity or license is invalid" in result.stderr
+
+
+def test_unknown_spdx_conjunction_matches_licensecheck_list_metadata(tmp_path: Path) -> None:
+    """同一组SPDX标识的官方AND表达与licensecheck列表不得产生平台漂移。"""
+
+    write_minimal_repository(tmp_path)
+    write_lock(tmp_path)
+    write_policy(
+        tmp_path,
+        metadata_license="Apache-2.0;; BSD-2-Clause",
+        license_expression="Apache-2.0",
+    )
+    observation = write_observation(tmp_path, license_name="UNKNOWN")
+    _write_pypi_snapshot(
+        tmp_path,
+        license_name="Apache-2.0 AND BSD-2-Clause",
+        field="license_expression",
+    )
+
+    result = run_check(tmp_path, observation)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_snapshot_rejects_unsupported_pypi_metadata_field(tmp_path: Path) -> None:
+    """快照只能引用受控PyPI字段，不能用任意说明文本替代许可证观察。"""
+
+    write_minimal_repository(tmp_path)
+    write_lock(tmp_path)
+    write_policy(tmp_path)
+    observation = write_observation(tmp_path, license_name="UNKNOWN")
+    _write_pypi_snapshot(tmp_path, field="project_url")
+
+    result = run_check(tmp_path, observation)
+
+    assert result.returncode != 0
+    assert "metadata snapshot package identity or license is invalid" in result.stderr
+
+
+def test_snapshot_does_not_conflate_spdx_or_with_conjunction(tmp_path: Path) -> None:
+    """OR与多许可证合取语义不同，归一化不得为了跨平台一致而放行。"""
+
+    write_minimal_repository(tmp_path)
+    write_lock(tmp_path)
+    write_policy(
+        tmp_path,
+        metadata_license="Apache-2.0;; BSD-2-Clause",
+        license_expression="Apache-2.0",
+    )
+    observation = write_observation(tmp_path, license_name="UNKNOWN")
+    _write_pypi_snapshot(
+        tmp_path,
+        license_name="Apache-2.0 OR BSD-2-Clause",
+        field="license_expression",
+    )
+
+    result = run_check(tmp_path, observation)
+
+    assert result.returncode != 0
+    assert "metadata license drift" in result.stderr
+
+
+def test_repository_snapshot_covers_hosted_unknown_metadata_identities() -> None:
+    """Hosted Linux已观测为UNKNOWN的精确包身份必须有官方版本快照。"""
+
+    root = Path(__file__).resolve().parents[2]
+    snapshot = tomllib.loads(
+        (root / "compliance/pypi-license-observations.toml").read_text(encoding="utf-8")
+    )
+    entries = {str(item["name"]): item for item in snapshot["packages"]}
+    expected = {
+        "arize-phoenix-otel": ("0.16.1", "license", "Apache-2.0"),
+        "grpcio": ("1.82.1", "license_expression", "Apache-2.0"),
+        "numpy": (
+            "2.5.1",
+            "license_expression",
+            "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+        ),
+        "openinference-instrumentation": ("0.1.54", "license_expression", "Apache-2.0"),
+        "openinference-instrumentation-openai": (
+            "0.1.52",
+            "license_expression",
+            "Apache-2.0",
+        ),
+        "openinference-semantic-conventions": (
+            "0.1.30",
+            "license_expression",
+            "Apache-2.0",
+        ),
+        "pandas": (
+            "3.0.3",
+            "classifier",
+            "License :: OSI Approved :: BSD License",
+        ),
+        "prometheus-client": (
+            "0.25.0",
+            "license_expression",
+            "Apache-2.0 AND BSD-2-Clause",
+        ),
+    }
+
+    for name, (version, field, license_name) in expected.items():
+        entry = entries[name]
+        assert (entry["version"], entry["field"], entry["license"]) == (
+            version,
+            field,
+            license_name,
+        )
+        assert entry["basis"] == f"https://pypi.org/pypi/{name}/{version}/json"
+
+
 def test_known_licensecheck_metadata_is_not_overridden_by_snapshot(tmp_path: Path) -> None:
     """已有工具观察必须优先，且与快照冲突时不能静默放行。"""
 

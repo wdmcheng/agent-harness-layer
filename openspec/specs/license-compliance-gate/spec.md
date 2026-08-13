@@ -32,7 +32,7 @@
 
 #### Scenario: 工具 metadata 缺口使用版本绑定的官方观察快照
 - **WHEN** `licensecheck` 对当前 PyPI runtime identity 返回空值或 `UNKNOWN`
-- **THEN** 门禁只允许 `compliance/pypi-license-observations.toml` 中同时精确匹配 `name`、`version`、`registry:https://pypi.org/simple` source 和官方精确版本 JSON endpoint 的原始 `license` 或 `license_expression` 补齐；快照缺失、身份陈旧、字段非法、依据非官方精确版本端点，或已有非 unknown 工具观察与快照不等价时均非零失败，不得从仓库 policy 期望值反向生成观察
+- **THEN** 门禁只允许 `compliance/pypi-license-observations.toml` 中同时精确匹配 `name`、`version`、`registry:https://pypi.org/simple` source 和官方精确版本 JSON endpoint 的原始 `license`、`license_expression` 或许可证 `classifier` 补齐；`classifier` 只允许剥离稳定的 `License :: OSI Approved :: ` 前缀后参与等价比较，简单 SPDX 标识组成的 `AND` 与工具 `;;` 列表只按同一合取集合归一，`OR` 不得视为合取。快照缺失、身份陈旧、字段非法、依据非官方精确版本端点，或已有非 unknown 工具观察与快照不等价时均非零失败，不得从仓库 policy 期望值反向生成观察
 
 #### Scenario: lock 或 metadata 漂移触发复核
 - **WHEN** 依赖版本变化、license metadata 缺失或与 inventory 不一致

@@ -144,6 +144,44 @@ def test_github_release_handoffs_restore_dot_artifacts_archive_root() -> None:
         }
 
 
+def test_github_license_handoff_restores_smoke_artifact_under_dot_artifacts() -> None:
+    """license consumer必须把smoke多路径归档解包回`.artifacts`公共根。"""
+
+    contract = tomllib.loads((ROOT / "compliance/ci-jobs.toml").read_text(encoding="utf-8"))
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    download_action = contract["platform"]["github_download_artifact"]
+    downloads = [
+        step for step in workflow["jobs"]["license"]["steps"] if step.get("uses") == download_action
+    ]
+
+    assert len(downloads) == 1
+    assert downloads[0].get("with") == {
+        "name": "ci-smoke-service-${{ github.run_id }}",
+        "path": ".artifacts",
+    }
+
+
+def test_ci_contract_rejects_license_download_archive_root_drift(tmp_path: Path) -> None:
+    """CI validator必须拒绝把smoke归档解包到仓库根而丢失证据前缀。"""
+
+    copy_contract_surface(tmp_path)
+    workflow_path = tmp_path / ".github/workflows/ci.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    download_action = tomllib.loads(
+        (tmp_path / "compliance/ci-jobs.toml").read_text(encoding="utf-8")
+    )["platform"]["github_download_artifact"]
+    step = next(
+        item for item in workflow["jobs"]["license"]["steps"] if item.get("uses") == download_action
+    )
+    step["with"]["path"] = "."
+    workflow_path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+
+    rejected = run_validator(tmp_path)
+
+    assert rejected.returncode == 2
+    assert "license download must restore .artifacts" in rejected.stderr
+
+
 def test_ci_contract_rejects_release_download_archive_root_drift(tmp_path: Path) -> None:
     """CI validator 本身必须拒绝把多路径 artifact 解包到仓库根。"""
 

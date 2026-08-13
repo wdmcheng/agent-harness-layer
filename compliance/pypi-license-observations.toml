@@ -27,12 +27,28 @@ license = "Elastic-2.0"
 basis = "https://pypi.org/pypi/arize-phoenix-evals/3.1.0/json"
 
 [[packages]]
+name = "arize-phoenix-otel"
+version = "0.16.1"
+source = "registry:https://pypi.org/simple"
+field = "license"
+license = "Apache-2.0"
+basis = "https://pypi.org/pypi/arize-phoenix-otel/0.16.1/json"
+
+[[packages]]
 name = "bashkit"
 version = "0.13.0"
 source = "registry:https://pypi.org/simple"
 field = "license"
 license = "MIT"
 basis = "https://pypi.org/pypi/bashkit/0.13.0/json"
+
+[[packages]]
+name = "grpcio"
+version = "1.82.1"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "Apache-2.0"
+basis = "https://pypi.org/pypi/grpcio/1.82.1/json"
 
 [[packages]]
 name = "langfuse"
@@ -51,6 +67,38 @@ license = "MIT"
 basis = "https://pypi.org/pypi/narwhals/2.23.0/json"
 
 [[packages]]
+name = "numpy"
+version = "2.5.1"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0"
+basis = "https://pypi.org/pypi/numpy/2.5.1/json"
+
+[[packages]]
+name = "openinference-instrumentation"
+version = "0.1.54"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "Apache-2.0"
+basis = "https://pypi.org/pypi/openinference-instrumentation/0.1.54/json"
+
+[[packages]]
+name = "openinference-instrumentation-openai"
+version = "0.1.52"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "Apache-2.0"
+basis = "https://pypi.org/pypi/openinference-instrumentation-openai/0.1.52/json"
+
+[[packages]]
+name = "openinference-semantic-conventions"
+version = "0.1.30"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "Apache-2.0"
+basis = "https://pypi.org/pypi/openinference-semantic-conventions/0.1.30/json"
+
+[[packages]]
 name = "opentelemetry-exporter-otlp"
 version = "1.42.1"
 source = "registry:https://pypi.org/simple"
@@ -65,6 +113,22 @@ source = "registry:https://pypi.org/simple"
 field = "license_expression"
 license = "Apache-2.0"
 basis = "https://pypi.org/pypi/opentelemetry-exporter-otlp-proto-grpc/1.42.1/json"
+
+[[packages]]
+name = "pandas"
+version = "3.0.3"
+source = "registry:https://pypi.org/simple"
+field = "classifier"
+license = "License :: OSI Approved :: BSD License"
+basis = "https://pypi.org/pypi/pandas/3.0.3/json"
+
+[[packages]]
+name = "prometheus-client"
+version = "0.25.0"
+source = "registry:https://pypi.org/simple"
+field = "license_expression"
+license = "Apache-2.0 AND BSD-2-Clause"
+basis = "https://pypi.org/pypi/prometheus-client/0.25.0/json"
 
 [[packages]]
 name = "pyarrow"
