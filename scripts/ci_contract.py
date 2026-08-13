@@ -6,7 +6,7 @@ import argparse
 import re
 import sys
 import tomllib
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +24,48 @@ from ci_contract_support import (
     workflow_triggers,
     yaml_document,
 )
+
+ACCEPTANCE_GITHUB_DOWNLOADS = {
+    "ci-lock-${{ github.run_id }}": ".artifacts/ci/lock",
+    "ci-install-${{ github.run_id }}": ".artifacts/ci/install",
+    "ci-ruff-format-${{ github.run_id }}": ".artifacts/ci/ruff-format",
+    "ci-ruff-lint-${{ github.run_id }}": ".artifacts/ci/ruff-lint",
+    "ci-pyright-${{ github.run_id }}": ".artifacts/ci/pyright",
+    "ci-import-boundary-${{ github.run_id }}": ".artifacts/ci/import-boundary",
+    "ci-quality-aggregate-${{ github.run_id }}": ".artifacts/ci/quality-aggregate",
+    "ci-unit-contract-${{ github.run_id }}": ".artifacts",
+    "ci-test-aggregate-${{ github.run_id }}": ".artifacts/ci/test-aggregate",
+    "ci-integration-${{ github.run_id }}": ".artifacts",
+    "ci-eval-${{ github.run_id }}": ".artifacts",
+    "ci-smoke-local-${{ github.run_id }}": ".artifacts",
+    "ci-smoke-service-${{ github.run_id }}": ".artifacts",
+    "ci-smoke-live-model-${{ github.run_id }}": ".artifacts",
+    "ci-smoke-live-model-stream-${{ github.run_id }}": ".artifacts",
+    "ci-smoke-live-model-failover-${{ github.run_id }}": ".artifacts",
+    "ci-license-${{ github.run_id }}": ".artifacts",
+    "ci-build-${{ github.run_id }}": ".",
+    "ci-release-dry-run-${{ github.run_id }}": ".artifacts",
+    "ci-contract-${{ github.run_id }}": ".artifacts/ci/ci-contract",
+}
+
+
+def _validate_github_acceptance_downloads(
+    steps: Sequence[Mapping[str, Any]], platform: Mapping[str, Any]
+) -> None:
+    """锁住 acceptance 所消费的完整 artifact 集合及其证据还原目录。"""
+
+    actual: dict[str, str] = {}
+    for step in steps:
+        if step.get("uses") != platform["github_download_artifact"]:
+            continue
+        inputs = mapping(step.get("with"), "GitHub acceptance-validate download inputs")
+        name = str(inputs.get("name", ""))
+        path = str(inputs.get("path", ""))
+        if not name or not path or name in actual:
+            raise ContractError("GitHub acceptance-validate download set drift")
+        actual[name] = path
+    if actual != ACCEPTANCE_GITHUB_DOWNLOADS:
+        raise ContractError("GitHub acceptance-validate download set drift")
 
 
 def _validate_github_job(
@@ -93,6 +135,8 @@ def _validate_github_job(
             "path": ".artifacts",
         }:
             raise ContractError("GitHub license download must restore .artifacts")
+    if identifier == "acceptance-validate":
+        _validate_github_acceptance_downloads(steps, platform)
 
 
 def _validate_gitlab_job(

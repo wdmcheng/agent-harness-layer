@@ -300,8 +300,10 @@ def test_validator_rejects_non_terminal_producer_for_ac050(tmp_path: Path) -> No
     assert "acceptance-validate" in rejected.stderr
 
 
-def test_active_acceptance_producer_bootstraps_only_its_own_terminal_result(tmp_path: Path) -> None:
-    """producer 运行中可等待自身 result 落盘，但仍须校验 AC-050 的终态映射。"""
+def test_active_acceptance_producer_bootstraps_all_own_terminal_references(
+    tmp_path: Path,
+) -> None:
+    """producer 运行中可等待自身 result 落盘，同时校验每条终态映射。"""
 
     spec = tmp_path / "Product-Spec.md"
     matrix = tmp_path / "matrix.md"
@@ -312,7 +314,9 @@ def test_active_acceptance_producer_bootstraps_only_its_own_terminal_result(tmp_
         "def test_acceptance():\n    value = 1\n    assert value == 1\n", encoding="utf-8"
     )
     spec.write_text(
-        "### REQ-019: CI 门禁\n\n- [ ] AC-050: 每项验收映射到独立终态 需求验收 validator\n",
+        "### REQ-019: CI 门禁\n\n"
+        "- [ ] AC-050: 每项验收映射到独立终态 需求验收 validator\n"
+        "- [ ] AC-999: 另一项能力也由终态验收结果证明\n",
         encoding="utf-8",
     )
     matrix.write_text(
@@ -323,6 +327,9 @@ def test_active_acceptance_producer_bootstraps_only_its_own_terminal_result(tmp_
         "`tests/contracts/test_acceptance.py::test_acceptance` | "
         "`.artifacts/ci/test-aggregate/result.json` |\n"
         "| AC-050 | partial | `src/acceptance.py` | `acceptance-validate` | "
+        "`tests/contracts/test_acceptance.py::test_acceptance` | "
+        "`.artifacts/ci/acceptance-validate/result.json` |\n"
+        "| AC-999 | partial | `src/acceptance.py` | `acceptance-validate` | "
         "`tests/contracts/test_acceptance.py::test_acceptance` | "
         "`.artifacts/ci/acceptance-validate/result.json` |\n",
         encoding="utf-8",
@@ -348,4 +355,4 @@ def test_active_acceptance_producer_bootstraps_only_its_own_terminal_result(tmp_
     )
 
     assert completed.returncode == 0, completed.stderr
-    assert "2/2" in completed.stdout
+    assert "3/3" in completed.stdout

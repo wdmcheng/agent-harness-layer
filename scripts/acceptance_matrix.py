@@ -295,12 +295,11 @@ def validate(spec_path: Path, matrix_path: Path) -> tuple[int, int]:
                 evidence_path.relative_to(root)
             except ValueError as exc:
                 raise MatrixError(f"{identifier} has unsafe Evidence path: {normalized}") from exc
-            # evidence runner 会在执行 producer 前撤下旧 result。AC-050 仍须先验证自己
-            # 映射到 acceptance-validate，但本次 result 只能在 validator 成功退出后原子写入。
+            # evidence runner 会在执行 producer 前撤下旧 result。矩阵仍须先验证每条
+            # 终态映射，但当前 producer 的 result 只能在 validator 成功后原子写入。
             if (
-                identifier == "AC-050"
-                and gate == "acceptance-validate"
-                and active_gate == "acceptance-validate"
+                active_gate == "acceptance-validate"
+                and gate == active_gate
                 and not evidence_path.exists()
             ):
                 continue

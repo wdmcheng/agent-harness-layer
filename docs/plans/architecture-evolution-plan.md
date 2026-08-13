@@ -4,7 +4,7 @@
 >
 > 首次冻结：2026-07-27
 >
-> 当前状态：Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档。License修复已由`494b031`推送，Run `31699652149`证明hosted Linux的`license`与`smoke-service`均通过；当前唯一失败变为`test-aggregate` job `94445558863`。失败artifact显示全量仅流式逐候选deadline节点失败，汇总为`1 failed/2574 passed/288 skipped`；同一节点本机连续10次通过，production completion/stream仍逐候选冻结deadline。测试现把两个prepare改为各2.1秒、候选timeout改为4秒：错误共享deadline仍确定失败，正确逐候选实现保留约1.9秒hosted调度余量；真实共享deadline变异已RED，恢复production后completion/stream 2项GREEN，完整invocation 17/17、quality、strict 38/38及fresh Stage 1/2 review均通过。用户已授权直接提交推送；无 active change，未开启 Phase 21，`DEV-PLAN.md` 保持零 diff，未发布、部署或调用真实 provider/业务工具。
+> 当前状态：Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档。逐候选deadline修订已由`364f030`推送，Run `31704114486`证明`test-aggregate`、license、service smoke、build与release dry-run等全部前置job通过，唯一失败为终态`acceptance-validate` job `94471029924`。失败artifact首先报告缺少`.artifacts/ci/lock/result.json`；同一Run的完整artifact在clean clone重放进一步证明矩阵实际消费全部20个前置gate，而双平台DAG只交接14个，且当前producer成功前另有AC-103等行引用自身result。当前修复把终态验收依赖、GitHub下载集合与路径收敛为全部20个producer，GitLab同步完整`needs`，`ci-contract`机械拒绝集合/路径漂移，并允许active producer在验证全部映射后等待自己的result原子落盘；失败Run artifact重放已达`137/137`。冻结行为身份`5b23ccd3…`的fresh reviewer已确认Stage 1/2 PASS、0 findings；用户已授权直接提交推送。无active change，未开启Phase21，`DEV-PLAN.md`保持零diff，未发布、部署或调用真实provider/业务工具。
 >
 > 配套矩阵：[`architecture-evolution-change-matrix.md`](architecture-evolution-change-matrix.md)
 
@@ -28,17 +28,17 @@
 |---|---|
 | 快照日期 | 2026-08-13 |
 | 分支 | `main` |
-| 当前集成身份 | `main`与`origin/main`均为`494b031fee34f68b56b69b5a25897e9412c32dcb`；该提交包含已审license gate修复。接手时仍须以`git rev-parse HEAD`和`git rev-parse origin/main`重新取得实时身份 |
-| 基线工作树 | 当前从`main@494b031`直接稳定 Run `31699652149`的唯一失败test-aggregate；tracked变更只限逐候选deadline合同及living plan/matrix，无untracked文件。production deadline实现与`DEV-PLAN.md`均零diff |
-| 当前 Git 事务 | License修复`494b031`已推送。Run `31699652149`已完成，hosted `license`与`smoke-service`通过，只有test-aggregate失败；当前测试时序修订已通过fresh review，用户授权直接commit/push。推送后观察新hosted CI，未发布或部署 |
+| 当前集成身份 | `main`与`origin/main`均为`364f03045f0ce326be5f5bf33b37bbc2ed71197a`；该提交包含已审逐候选deadline合同修订。接手时仍须以`git rev-parse HEAD`和`git rev-parse origin/main`重新取得实时身份 |
+| 基线工作树 | 当前从`main@364f030`直接修复Run `31704114486`的唯一失败`acceptance-validate`；tracked变更限双平台CI、版本化job合同、两个validator、两份合同测试及living plan/matrix，无untracked文件。production、主规格、API与`DEV-PLAN.md`均零diff |
+| 当前 Git 事务 | Run `31704114486`已完成，20个前置job全部通过，只有终态验收失败；完整producer交接与self-result bootstrap修复的本地门禁及fresh Stage 1/2 review均已通过。用户已授权直接commit/push；未发布或部署 |
 | OpenSpec | 当前无 active change。`harden-service-app-runtime-entrypoints` 的10/10 tasks与 `separate-cli-input-provenance` 的17/17 tasks已完成；9条新增Requirement已同步到三份主规格，并于2026-08-13分别归档到同名日期目录。D-363契约身份`b6fdcca0…`与D-366后实现身份`82a78b59…`的fresh `1+2`三范围Stage 1/2均PASS、0 findings |
 | Phase 19契约准入审查身份 | 当前14 Requirements/74 Scenarios。身份`7754ef26b11fcba87f98f7d38a8fc869ec97c53edec057e2d4995850973c21a7`的fresh Reviewer 1/2/3均在同一内容上Stage 1/2 PASS、0 findings；旧契约身份只保留诊断历史 |
 | Phase 19实现审查身份 | `phase19-freeze-v1`候选`de39eb0980f50ebae62e57f1781473a809dfd16931d3554868546802d5d1f6f6`；fresh Reviewer 1/2/3首末复算一致，均Stage 1/2 PASS、0 findings。审查后仅状态记录漂移按用户裁决豁免，不改变已审实现内容 |
 | 已完成历史 | Phase 1–20已完成并归档；归档事实以Git、`openspec list --json`和归档目录为准 |
-| 当前阶段 | Phase 1–20及两个临时Bug change均已归档。Linux UID smoke与license gate均获hosted PASS；当前只稳定后续test-aggregate时序失败，未开启Phase21，也未发布或部署 |
+| 当前阶段 | Phase 1–20及两个临时Bug change均已归档。Linux UID smoke、license gate与test-aggregate均获hosted PASS；当前只闭合终态验收的完整evidence交接，未开启Phase21，也未发布或部署 |
 | 已归档临时 Bug change | `harden-service-app-runtime-entrypoints` 保留 Make worker 的 profile/profiles-dir/once/env-file；`separate-cli-input-provenance` 保留业务 input 分离、封闭 typed provenance、必要 private classifier/repository seam、幂等/terminal/approval resume。executor使用authoritative nullable execution request id；approval新evidence使用当前resolution ID，service queued新terminal使用当前delivery ID。两者未增加 broker、readiness、矩阵或 queue 新协议 |
-| 当前阻塞 | 无本地实现、验证或审查阻塞。Run `31699652149`只有test-aggregate失败；阈值修订已通过共享deadline变异RED、真实实现completion/stream GREEN、invocation 17/17、quality、strict 38/38及fresh Stage 1/2 review。推送后仍须等待新hosted run，不把本地结果冒充hosted PASS |
-| 明确未做 | 未改production、主规格、API、`DEV-PLAN.md`，也未发布、部署、调用真实provider/业务工具、启动Phase21或放宽真实deadline语义 |
+| 当前阻塞 | 无本地实现、验证或审查阻塞。失败Run artifact重放为`137/137`，quality、22/1聚焦合同、`ci-contract`、strict 38/38及冻结身份`5b23ccd3…`的fresh Stage 1/2 review均通过；推送后仍须等待新hosted run，不把本地结果冒充hosted PASS |
+| 明确未做 | 未改业务production、主规格、API、`DEV-PLAN.md`，也未发布、部署、调用真实provider/业务工具或启动Phase21 |
 
 `DEV-PLAN.md` 顶部保留 Phase 18.2本地提交与归档历史，并已同步Phase 19归档事实；后续 Agent 仍须按恢复顺序重新核对当前磁盘、Git 与 OpenSpec。
 
@@ -1000,6 +1000,9 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 - [x] 2026-08-13：License修复提交`494b031`触发的Run `31699652149`中`license`、`smoke-service`、`unit-contract`及其他质量/集成/live smoke均通过，唯一失败为test-aggregate job `94445558863`。artifact中精确节点`test_each_candidate_receives_its_own_frozen_deadline[True]`以`model.provider_side_effect_unknown`失败，全量汇总`1 failed/2574 passed/288 skipped/21 warnings`；不是license或production smoke回归。
 - [x] 2026-08-13：失败节点本机连续10次通过，证明为负载相关时序抖动；原合同`1.0s timeout/0.6s prepare`只给流式持久化与事件收口留下约400ms。测试改为`4.0s/2.1s`，两个prepare合计4.2秒仍可拒绝错误共享deadline，同时正确逐候选实现各有约1.9秒收口余量。临时共享deadline production变异稳定RED，恢复production零diff后completion/stream 2项、完整invocation 17/17、quality及strict 38/38均通过；冻结身份`cc9711ee…`的fresh reviewer Stage 1/2 PASS、0 findings。
 - [x] 2026-08-13：用户明确授权在review与本地测试通过后直接提交推送；当前条件已满足。本提交只包含一个测试合同和living plan/matrix纯状态回写，production、主规格、API及`DEV-PLAN.md`零diff；推送后观察新hosted CI，不授权发布、部署或Phase21。
+- [x] 2026-08-13：逐候选deadline修订提交`364f030`触发的Run `31704114486`中全部20个前置job通过，唯一失败为`acceptance-validate` job `94471029924`。其`command.log`首先报告AC-051缺少lock evidence；检查workflow确认终态job既不依赖`lock`也不下载该artifact。
+- [x] 2026-08-13：以失败Run完整artifact在clean clone逐项补齐后重放，证明根因不是单个lock漏项：验收矩阵消费除自身外全部20个gate，原DAG/下载集合只含14个；补齐后AC-103又暴露active producer在成功前不能读取自身result。producer全集合合同与self-result bootstrap测试分别稳定RED，修复后pipeline合同11项及artifact重放`137/137`均通过。
+- [x] 2026-08-13：当前修复已同步双平台DAG、GitHub artifact还原路径、版本化job合同、`ci-contract`机械门禁与acceptance bootstrap。聚焦合同`22 passed/1 skipped`，quality、`ci-contract`、strict 38/38、diff与`DEV-PLAN.md`零改动均通过；冻结行为身份`5b23ccd3…`的fresh reviewer独立验证20/20无环DAG、artifact路径、四类下载变异和self-result正反边界，Stage 1/2 PASS、0 findings。按用户授权直接commit/push并观察新hosted CI，不自动发布、部署或启动Phase21。
 
 ### Phase 21
 
@@ -1555,6 +1558,9 @@ Phase 20 不做成一个巨型 change，默认拆为三个串行 change：
 | D-376 | 2026-08-13 | 冻结实现身份`a2fc5030…`的最终fresh reviewer首末身份一致，独立确认Stage 1/2 PASS、0 findings | 审查后只允许living plan/matrix与review marker纯状态回写；不改变已审行为身份。当前权限门为用户授权commit/push，不自动发布、部署或触发Phase21 |
 | D-377 | 2026-08-13 | Run `31699652149`的唯一失败是逐候选deadline流式合同在hosted负载下耗尽仅400ms的收口余量；production两条路径仍在候选active时独立冻结deadline，本机同节点连续10次通过 | 只扩大测试的绝对时序尺度，不改变关键不等式：两次prepare总耗时必须超过错误共享deadline，单候选prepare必须明显小于自己的deadline。以共享deadline变异RED及真实实现双模式GREEN证明合同仍有检错力，避免把调度抖动伪装成production回归 |
 | D-378 | 2026-08-13 | 冻结身份`cc9711ee…`的fresh reviewer确认阈值修订未掩盖production bug，Stage 1/2 PASS、0 findings；用户授权review和本地测试通过后直接commit/push | 审查后只回写review与授权状态，不改变受审测试语义。提交推送后唯一下一动作是观察新hosted CI；不自动发布、部署或启动Phase21 |
+| D-379 | 2026-08-13 | Run `31704114486`全部20个前置job通过，终态验收首先因缺少lock evidence失败；同Run完整artifact在clean clone重放继续暴露原DAG只交接14/20 producer，以及AC-103等映射在active producer成功前读取自身result的启动悖论 | 以验收矩阵真实引用全集为边界，而不是只补首个报错：终态job依赖并消费除自身外全部20个gate，单路径artifact还原到自身目录、多路径artifact还原到其公共归档根；active producer只跳过尚未原子落盘的自身result读取，普通验证仍关闭式要求全部evidence |
+| D-380 | 2026-08-13 | 既有`ci-contract`能锁job集合和DAG，却不检查`acceptance-validate`下载集合/路径，导致错误只能在远端最后一步暴露 | validator固定20项artifact名称与还原路径并由mutation test拒绝漂移；合同测试从版本化job全集推导终态producer集合，后续新增普通gate不能依赖维护者记忆手工接入 |
+| D-381 | 2026-08-13 | 冻结行为身份`5b23ccd3…`的fresh reviewer首末Git与diff身份一致，独立确认20/20 producer、21/21无环拓扑、真实archive root、四类下载反变异及active self-result六类正反路径，Stage 1/2 PASS、0 findings | 审查后只回写living plan/matrix与review marker状态，不改变受审行为；按用户既有授权直接commit/push，下一权限边界仅为观察hosted CI，不自动发布、部署或启动Phase21 |
 | D-170 | 2026-08-02 | 每次结构化provider输入固定为`structured-provider-prompt-v1`完整canonical JSON字符串；`max_prompt_utf8_bytes`约束该完整字符串，planning按cap加catalog envelope冻结每attempt上界并对初始及所有repair ordinal做零调用可构造性检查 | 只约束业务prompt会让schema与repair指令落在预算外，既无法证明token/cost reservation充分，也会让repair时才出现的超长输入跨过provider副作用边界 |
 | D-171 | 2026-08-02 | Validation issue从`jsonschema.ValidationError.absolute_path`按RFC6901、required/extra集合差与封闭keyword映射确定；混合错误按折叠前事实选终态，limit0只允许invalid/extra，只有limit至少1且全部repair耗尽才使用exhausted | 解析provider/raw validator消息既不稳定又可能泄漏值；同一失败若能落入两个终态会破坏durable replay、恢复和验收的确定性 |
 | D-172 | 2026-08-02 | Strict schema compiler按schema对象位置使用封闭allowlist，当前拒绝`format`、条件/contains/unevaluated系列；核心只投影`Draft202012Validator.iter_errors()`直接错误且不递归`ValidationError.context` | 默认format只是annotation且FormatChecker集合可漂移，组合器context又允许顶层、叶子或双计三种投影；若不冻结会改变validation codes、repair prompt、evidence和replay identity |
@@ -2066,4 +2072,4 @@ D-159冻结身份`a1fa3fa2…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findi
 
 当前契约为14 Requirements/74 Scenarios，身份`7754ef26…`的fresh Reviewer 1/2/3均Stage 1/2 PASS、0 findings。最终实现冻结身份`de39eb09…`的fresh Reviewer 1/2/3也均首末身份一致、Stage 1/2 PASS、0 findings。该身份下PostgreSQL1/1、quality、最终串行全量2102/270、eval 11/11、local/service smoke、build、license、change/all strict 35/35与diff均闭合；早期全量与service smoke失败按实际环境/失败域保留，不改写为PASS。acceptance保持`BLOCKED`，三个live入口保持零调用`hosted-unverified`。44/44 tasks已随12条新增、2条修改同步到六份主规格并归档。
 
-当前唯一下一动作是：提交并推送Run `31699652149`的已审test-aggregate时序修订，然后观察新hosted CI；不自动发布、部署或启动Phase21。`DEV-PLAN.md`继续保持零diff。
+当前唯一下一动作是：按用户授权提交并推送Run `31704114486`的已审终态验收修复，然后观察新hosted CI。不自动发布、部署或启动Phase21，`DEV-PLAN.md`继续保持零diff。

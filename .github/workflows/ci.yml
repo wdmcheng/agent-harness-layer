@@ -383,7 +383,7 @@ jobs:
           retention-days: 14
 
   acceptance-validate:
-    needs: [install, quality-aggregate, test-aggregate, integration, eval, smoke-local, smoke-service, smoke-live-model, smoke-live-model-stream, smoke-live-model-failover, license, build, release-dry-run, ci-contract]
+    needs: [lock, install, ruff-format, ruff-lint, pyright, import-boundary, quality-aggregate, unit-contract, test-aggregate, integration, eval, smoke-local, smoke-service, smoke-live-model, smoke-live-model-stream, smoke-live-model-failover, license, build, release-dry-run, ci-contract]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -392,12 +392,36 @@ jobs:
         with: {version: "0.11.29"}
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with:
+          name: ci-lock-${{ github.run_id }}
+          path: .artifacts/ci/lock
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
           name: ci-install-${{ github.run_id }}
           path: .artifacts/ci/install
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with:
+          name: ci-ruff-format-${{ github.run_id }}
+          path: .artifacts/ci/ruff-format
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-ruff-lint-${{ github.run_id }}
+          path: .artifacts/ci/ruff-lint
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-pyright-${{ github.run_id }}
+          path: .artifacts/ci/pyright
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-import-boundary-${{ github.run_id }}
+          path: .artifacts/ci/import-boundary
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
           name: ci-quality-aggregate-${{ github.run_id }}
           path: .artifacts/ci/quality-aggregate
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ci-unit-contract-${{ github.run_id }}
+          path: .artifacts
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with:
           name: ci-test-aggregate-${{ github.run_id }}

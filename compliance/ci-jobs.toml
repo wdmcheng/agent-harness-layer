@@ -188,8 +188,14 @@ native_artifacts = [".artifacts/release-preview"]
 id = "acceptance-validate"
 target = "ci-acceptance-validate"
 needs = [
+  "lock",
   "install",
+  "ruff-format",
+  "ruff-lint",
+  "pyright",
+  "import-boundary",
   "quality-aggregate",
+  "unit-contract",
   "test-aggregate",
   "integration",
   "eval",

@@ -577,7 +577,7 @@ OpenSpec artifacts、`API-Contract.md` 与 living plan/matrix 是契约/状态 o
 
 1. Phase 1–20及两个 Phase 20 后临时 Bug change 均已完成并归档；当前无 active change，Phase 21 未启动。
 2. 两项归档前不共享 root broker、readiness fence、artifact/rollback gate、call-count 或 queue 新协议；仅因同一 dirty 工作树、`runtime_worker.py` 邻接和联合不变量由同一 owner 串行裁剪。该 owner 顺序现仅作为历史维护证据。
-3. D-363修约后的契约三票与D-366后实现三票均PASS。License修复`494b031`已推送，Run `31699652149`证明hosted Linux `license`与`smoke-service`通过；唯一失败变为test-aggregate的逐候选deadline流式节点。当前修订只扩大测试时序尺度，保持“两次prepare总耗时超过错误共享deadline、单候选prepare明显小于自己的deadline”的检错不等式；共享deadline变异RED、真实completion/stream GREEN、invocation 17/17、quality、strict与fresh Stage 1/2 review均通过，production与`DEV-PLAN.md`零diff。用户已授权直接commit/push；推送后观察新hosted CI，不自动发布或部署。
+3. D-363修约后的契约三票与D-366后实现三票均PASS。License修复`494b031`与逐候选deadline修订`364f030`已推送；Run `31704114486`证明全部20个前置job通过，唯一失败为终态`acceptance-validate`未消费完整evidence集合。当前修复让双平台终态DAG依赖全部20个producer，GitHub按单路径/多路径归档根精确还原artifact，`ci-contract`机械拒绝集合与路径漂移，并允许active终态producer验证映射后等待自身result原子落盘；同Run完整artifact在clean clone重放为`137/137`。冻结行为身份`5b23ccd3…`的fresh Stage 1/2 review PASS、0 findings；按用户授权直接commit/push。不自动发布、部署或启动Phase21，`DEV-PLAN.md`保持零diff。
 
 以下第七轮至 D-348 的记录只描述本次已经放弃的验证平台路径，保留用于诊断范围膨胀的成因；其中任何 broker/fence/readiness/Registry/FD/Docker event/rollback gate/matrix/queue capability 都不再是 active Requirement、验收或下一动作。
 

@@ -29,22 +29,9 @@ def test_acceptance_validator_is_a_required_job_in_both_ci_release_dags() -> Non
     github = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
     gitlab = yaml.safe_load((ROOT / ".gitlab-ci.yml").read_text(encoding="utf-8"))
     jobs = {job["id"]: job for job in contract["jobs"]}
-    required_producers = {
-        "install",
-        "quality-aggregate",
-        "test-aggregate",
-        "integration",
-        "eval",
-        "smoke-local",
-        "smoke-service",
-        "smoke-live-model",
-        "smoke-live-model-stream",
-        "smoke-live-model-failover",
-        "license",
-        "build",
-        "release-dry-run",
-        "ci-contract",
-    }
+    # 验收矩阵消费每个普通 gate 的版本化 evidence；新增 gate 时不能靠人工
+    # 记忆把 producer 接入终端验收。
+    required_producers = set(jobs) - {"acceptance-validate"}
 
     assert jobs["acceptance-validate"]["target"] == "ci-acceptance-validate"
     assert set(jobs["acceptance-validate"]["needs"]) == required_producers
@@ -56,8 +43,14 @@ def test_acceptance_validator_is_a_required_job_in_both_ci_release_dags() -> Non
         if step.get("uses") == contract["platform"]["github_download_artifact"]
     }
     expected_downloads = {
+        "ci-lock-${{ github.run_id }}": ".artifacts/ci/lock",
         "ci-install-${{ github.run_id }}": ".artifacts/ci/install",
+        "ci-ruff-format-${{ github.run_id }}": ".artifacts/ci/ruff-format",
+        "ci-ruff-lint-${{ github.run_id }}": ".artifacts/ci/ruff-lint",
+        "ci-pyright-${{ github.run_id }}": ".artifacts/ci/pyright",
+        "ci-import-boundary-${{ github.run_id }}": ".artifacts/ci/import-boundary",
         "ci-quality-aggregate-${{ github.run_id }}": ".artifacts/ci/quality-aggregate",
+        "ci-unit-contract-${{ github.run_id }}": ".artifacts",
         "ci-test-aggregate-${{ github.run_id }}": ".artifacts/ci/test-aggregate",
         "ci-integration-${{ github.run_id }}": ".artifacts",
         "ci-eval-${{ github.run_id }}": ".artifacts",
@@ -180,6 +173,30 @@ def test_ci_contract_rejects_license_download_archive_root_drift(tmp_path: Path)
 
     assert rejected.returncode == 2
     assert "license download must restore .artifacts" in rejected.stderr
+
+
+def test_ci_contract_rejects_acceptance_download_archive_root_drift(tmp_path: Path) -> None:
+    """CI validator 必须拒绝 acceptance producer evidence 被解包到错误目录。"""
+
+    copy_contract_surface(tmp_path)
+    workflow_path = tmp_path / ".github/workflows/ci.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    download_action = tomllib.loads(
+        (tmp_path / "compliance/ci-jobs.toml").read_text(encoding="utf-8")
+    )["platform"]["github_download_artifact"]
+    step = next(
+        item
+        for item in workflow["jobs"]["acceptance-validate"]["steps"]
+        if item.get("uses") == download_action
+        and item.get("with", {}).get("name") == "ci-install-${{ github.run_id }}"
+    )
+    step["with"]["path"] = "."
+    workflow_path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+
+    rejected = run_validator(tmp_path)
+
+    assert rejected.returncode == 2
+    assert "acceptance-validate download set drift" in rejected.stderr
 
 
 def test_ci_contract_rejects_release_download_archive_root_drift(tmp_path: Path) -> None:
